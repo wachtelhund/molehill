@@ -1,34 +1,48 @@
 # Molehill
 
-A colony sim about moles digging a falling-sand world where every tunnel has to carry real loads.
+A colony sim about moles digging a falling-sand world where every tunnel has to carry real loads. This is a private project with no hosted build; play it locally.
 
-* **Play (web build):** https://molehill-prototype.vercel.app
 * **v3 engine:** Rust + Bevy 0.20 in [`engine/`](engine/). The older TypeScript v2 prototype lives in [`legacy/`](legacy/).
+
+## Play locally
+
+**Native** (Linux/macOS, needs a Rust toolchain):
+
+```bash
+cd engine
+cargo run --release            # add `-- --fresh` to skip loading the autosave
+```
+
+**Web** (the prebuilt wasm build is committed in `site/`):
+
+```bash
+python3 -m http.server -d site 8080
+# then open http://localhost:8080/   (add ?fresh to skip loading the autosave)
+```
+
+To rebuild the web version, run `cd engine && ./build-web.sh` (needs wasm-bindgen-cli 0.2.130 and the wasm32-unknown-unknown target), then `rm -rf site && cp -r dist site`.
+
+Tests: `cd engine && cargo test --release -p molehill-sim`. Collapse check: `cargo run --release -p molehill-sim --example settle`.
 
 ## Layout
 
 | path | what |
 |---|---|
-| `engine/sim` | `molehill-sim`: pure-Rust simulation (no Bevy). Falling sand/fluids on flat arrays with 64×64 chunks and dirty flags, a 4-phase checkerboard parallel update (rayon on native, single-threaded on wasm), structural stress, procgen, light, fog, colony AI, crafting and quests. `cargo test -p molehill-sim` |
-| `engine/game` | `molehill`: the Bevy front-end. It composites the world into one GPU texture each frame (albedo × per-cell light, fog, cracks, designations, parallax background) and draws vector-style sprites for moles, items, chests, stations and torches, plus a text HUD. |
-| `engine/web` + `engine/build-web.sh` | the wasm32 build (wasm-bindgen, then wasm-opt) written to `dist/` and deployed to Vercel |
-| `legacy/` | the TS v2 (canvas) prototype, its tests and screenshots |
-
-## Build
-
-```bash
-cd engine
-cargo run --release -p molehill          # native (Linux/macOS)
-cargo test --release -p molehill-sim     # simulation tests
-./build-web.sh                           # wasm into ../dist (needs wasm-bindgen-cli 0.2.130 and the wasm32-unknown-unknown target)
-```
+| `engine/sim` | `molehill-sim`: pure-Rust simulation (no Bevy): sand and fluids, stress, procgen, light and fog, colony AI and needs, crafting and quests, logic and LoRa, disasters, save/load |
+| `engine/game` | `molehill`: the Bevy front-end. It composites the world into 128 chunk textures of 64×64 cells and uploads only the chunks that changed. It also draws the sprites, the HUD, the wire and device overlay, and the procedural WebAudio sound. |
+| `engine/web`, `engine/build-web.sh` | the wasm build, written to `dist/` |
+| `site/` | committed copy of the web build, for local play |
+| `legacy/` | the TS v2 prototype, plus the screenshot scripts (`legacy/scripts/shot-v3.mjs`) |
 
 ## Controls
 
-LMB designates or places with the current tool, RMB clears, and the mouse wheel or `+`/`-` zooms. Pan with WASD or the arrow keys (hold Shift to pan faster). `[` and `]` change the brush size.
-
-| key | action |
+| input | action |
 |---|---|
+| LMB | Designate or place with the current tool |
+| RMB | Clear a designation; with the wire or device tool, remove the wire or device |
+| Wheel or `+`/`-` | Zoom |
+| WASD or arrow keys | Pan (hold Shift to pan faster) |
+| `[` / `]` | Change the brush size |
 | `1` | Dig |
 | `2` | Wood pillar |
 | `3` | Brick |
@@ -38,12 +52,36 @@ LMB designates or places with the current tool, RMB clears, and the mouse wheel 
 | `7` | Station (`Tab` cycles workbench, kiln, furnace, anvil) |
 | `8` | Move the stockpile |
 | `9` | Cancel |
+| `0` | Wire (drag to lay copper wire) |
+| `G` | Device tool; press again to cycle devices (lever, plate, sensor, door, floodgate, pump, lamp, gates, TNT, LoRa node/repeater, timer…) |
+| `R` | Use the device under the cursor (flip a lever, set a LoRa channel, set a timer) |
 | `Q` / `E` | Choose a recipe |
 | `Enter` / `C` | Queue the recipe |
+| `K` / `L` | Save / load |
+| `B` | Trigger a disaster now |
 | `Space` | Pause |
 | `F` | Change speed (×1, ×2, ×4) |
 | `N` | New world with a new seed |
 | `H` | Show or hide help |
+
+## Systems
+
+* **Falling sand and fluids:** sand, gravel, water and lava. Lava meeting water becomes loose basalt scoria.
+* **Structural stress:** overburden, bending, compression and connectivity. Cracked cells crumble after 40 ticks. With no player action, fewer than 0.1% of cells collapse in the first 2 minutes (this is tested).
+* **Seeded procgen:** biomes, strata, caves, aquifers, lava lakes, roots and chests (details below).
+* **Lighting:** unlit tunnels stay dark, and torches and powered lamps give light. There is also fog of war, and parallax sky, hills and underground backgrounds.
+* **Moles:**
+  * They dig, haul, build and craft.
+  * Their needs are hunger and sleep. They eat grubs (+45) and fungus (+25) at the stockpile, and sleep when tired.
+  * Low needs halve their work speed, and starving hurts them. Digging soil sometimes turns up grubs.
+* **Crafting, quests and chests:** stations, a recipe queue and a quest chain.
+* **Wiring and logic:**
+  * Wires on a 1 m block layer form nets. Gates switch one tick after their inputs change.
+  * Devices include levers, plates, sensors, doors, floodgates, pumps, lamps, TNT and timers.
+  * The LoRa link budget is 40 minus the distance in metres minus the attenuation of the material in between. Repeaters extend range.
+* **Disasters:** floods, lava surges and quakes. Each starts with a 10 s warning banner and lasts 6 s, with camera shake. The first comes at about 2.5 min, then one every 90–180 s.
+* **Sound:** procedural WebAudio effects plus an ambient rumble that changes with depth. It is web only (native is silent) and starts after the first input.
+* **Save/load:** a binary run-length-encoded format. It goes to localStorage on web and to files on native. It autosaves every 30 s and autoloads at start.
 
 ## World generation (`sim/src/gen.rs`)
 
