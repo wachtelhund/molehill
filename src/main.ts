@@ -3,6 +3,8 @@ import { SandWorld, CW, CH, B, BW, BH, NB, SIM_HZ } from "./sand/world";
 import { M, COLOR, MAT_NAMES, KIND, K } from "./sand/materials";
 import { D, DEV_NAMES, isGate, isLora } from "./sand/logic";
 import { wiringScenario } from "./sand/scenarios";
+import { createDisasters } from "./disasters-sand";
+import { updateDisasterBanner, drawDisasterMarker } from "./disasters-ui";
 
 const PX = 4; // screen px per cell at zoom 1
 const params = new URLSearchParams(location.search);
@@ -10,6 +12,9 @@ const seed = Number(params.get("seed") || 7);
 function makeWorld(s: number, scen: string | null) { const w = new SandWorld(s); if (scen === "demo" || scen === "wiring") wiringScenario(w); return w; }
 let world = makeWorld(seed, params.get("scenario"));
 (window as any).__world = () => world;
+let disasters = createDisasters(world, seed, params), disastersFor = world;
+function stepDisasters() { if (disastersFor !== world) { const en = disasters.enabled; disasters = createDisasters(world, seed); disasters.enabled = en; disastersFor = world; } disasters.step(); }
+(window as any).__disaster = (k: any) => disasters.schedule(k);
 
 const cv = document.getElementById("c") as HTMLCanvasElement, ctx = cv.getContext("2d")!;
 const off = document.createElement("canvas"); off.width = CW; off.height = CH;
@@ -71,11 +76,11 @@ function frame(t: number) {
   const pan = 600 * dt / cam.z;
   if (keys.has("a") || keys.has("arrowleft")) cam.x -= pan; if (keys.has("d") || keys.has("arrowright")) cam.x += pan;
   if (keys.has("w") || keys.has("arrowup")) cam.y -= pan; if (keys.has("s") || keys.has("arrowdown")) cam.y += pan;
-  if (!paused) { acc += dt * SIM_HZ * speed; let n = 0; while (acc >= 1 && n < 16) { world.step(); acc--; n++; } if (n >= 16) acc = 0; }
+  if (!paused) { acc += dt * SIM_HZ * speed; let n = 0; while (acc >= 1 && n < 16) { world.step(); stepDisasters(); acc--; n++; } if (n >= 16) acc = 0; }
   draw(); requestAnimationFrame(frame);
 }
 (window as any).__cam = (x: number, y: number, z: number) => { cam.x = x; cam.y = y; cam.z = z; };
-(window as any).__advance = (n: number) => { for (let i = 0; i < n; i++) world.step(); draw(); };
+(window as any).__advance = (n: number) => { for (let i = 0; i < n; i++) { world.step(); stepDisasters(); } draw(); };
 (window as any).__pause = (p: boolean) => { paused = p; };
 
 // ---------- drawing ----------
@@ -168,10 +173,11 @@ function draw() {
     else { ctx.fillStyle = f.type === "steam" ? `rgba(220,220,230,${.5 - f.t / 60})` : `rgba(150,120,90,${.5 - f.t / 60})`; ctx.beginPath(); ctx.arc(x, y - f.t * .1, 1 + f.t * .08, 0, 7); ctx.fill(); }
   }
   if (w.shake > 0) w.shake *= 0.85;
+  drawDisasterMarker(ctx, disasters, 1, performance.now() / 1000, 2 * B);
   // hover
   const hb = blockAt(mouseX, mouseY);
   if (hb >= 0) { ctx.strokeStyle = "rgba(255,255,255,.6)"; ctx.lineWidth = .25; ctx.strokeRect((hb % BW) * B, ((hb / BW) | 0) * B, B, B); }
-  hud(hb);
+  hud(hb); updateDisasterBanner(disasters);
 }
 const hudEl = document.getElementById("hud")!, logEl = document.getElementById("log")!;
 let lastLog = "";
