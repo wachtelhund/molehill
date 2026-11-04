@@ -118,7 +118,7 @@ pub fn generate(g: &mut Grid, seed: u32) -> GenInfo {
         let i = y * w + x; if g.mat[i] != 0 || y < surface[x] + 30 { continue; }
         let d = dm((y - surface[x]) as f32);
         if (y as f32) > lava_level + (n1.at(x as f32 / 40., 3.) - 0.5) * 30. && d > 80. { g.mat[i] = Mat::Lava as u8; }
-        else if (y as f32) > water_table[x] && d < 75. && n2.at(x as f32 / 35., y as f32 / 35.) > 0.42 { g.mat[i] = Mat::Water as u8; }
+        else if (y as f32) > water_table[x] && d < 50. && n2.at(x as f32 / 35., y as f32 / 35.) > 0.42 { g.mat[i] = Mat::Water as u8; }
     } }
     for k in 0..(w / 18) as u32 { // root systems
         let x0 = 6 + hash3(k, 5, seed) as usize % (w - 12); if biome[x0] == Biome::Ashlands { continue; }
@@ -133,27 +133,22 @@ pub fn generate(g: &mut Grid, seed: u32) -> GenInfo {
     }
     // ---- starting burrow: shaft from the surface into a chamber ----
     let sx = w / 2; let sy = surface[sx];
-    let (cx0, cx1, cy0, cy1) = (sx - 18, sx + 18, sy + 14, sy + 25);
+    let (cx0, cx1, cy0, cy1) = (sx - 15, sx + 15, sy + 14, sy + 24);
     for y in cy0..=cy1 { for x in cx0..=cx1 { g.mat[y * w + x] = 0; } }
     for y in sy.saturating_sub(2)..cy0 { for x in sx - 3..=sx + 2 { g.mat[y * w + x] = 0; } }
     for y in cy1 + 1..cy1 + 4 { for x in cx0 - 4..=cx1 + 4 { g.mat[y * w + x] = Mat::Clay as u8; } }
-    // never leave unsupported powders hanging at gen: settle sand over air into sandstone
-    for y in 0..h - 1 { for x in 0..w { let i = y * w + x; if g.mat[i] == Mat::Sand as u8 && g.mat[i + w] == 0 { g.mat[i] = Mat::Rock as u8; } } }
+    // never leave unsupported powders hanging at gen: sand that could flow becomes sandstone (bottom-up)
+    {
+        let mut ok = vec![false; w * h];
+        for y in (0..h - 1).rev() { for x in 1..w - 1 {
+            let i = y * w + x; if g.mat[i] != Mat::Sand as u8 { continue; }
+            let base = |j: usize| { let m = Mat::from_u8(g.mat[j]); (m.kind() == crate::mat::Kind::Solid) || ok[j] };
+            if base(i + w) && base(i + w - 1) && base(i + w + 1) { ok[i] = true; } else { g.mat[i] = Mat::Rock as u8; }
+        } }
+    }
     // ---- stability pass: anything the structural model rejects is reinforced or removed ----
     let mut st = Stress::new(w * h);
-    for it in 0..40 {
-        let fail = st.solve(g);
-        if fail.is_empty() { break; }
-        for &i in &fail {
-            let i = i as usize; let m = Mat::from_u8(g.mat[i]);
-            if !st.reach[i] { g.mat[i] = 0; continue; } // floating island: no load path
-            if it >= 4 { // still failing: widen the pillar / thicken the roof by filling neighbouring voids
-                let (x, y) = (i % w, i / w);
-                for (dx, dy) in [(-1i32, 0i32), (1, 0), (0, 1), (-1, 1), (1, 1), (0, 2)] { let (nx, ny) = (x as i32 + dx, y as i32 + dy); if nx > 1 && ny > 0 && (nx as usize) < w - 2 && (ny as usize) < h - 4 { let j = ny as usize * w + nx as usize; if g.mat[j] == 0 || g.mat[j] == Mat::Water as u8 || g.mat[j] == Mat::Lava as u8 { g.mat[j] = Mat::Granite as u8; } } }
-            }
-            g.mat[i] = if it < 3 && m.p().tensile < Mat::Limestone.p().tensile { Mat::Limestone as u8 } else { Mat::Granite as u8 };
-        }
-    }
+    stabilize(g, &mut st);
     // ---- decoration: crystals & quartz in deep walls, fungus on cave floors, roots under surface ----
     for y in 1..h - 1 { for x in 1..w - 1 {
         let i = y * w + x; let m = g.mat[i]; if m == 0 || m == Mat::Bedrock as u8 || m >= Mat::Water as u8 { continue; }
@@ -165,6 +160,8 @@ pub fn generate(g: &mut Grid, seed: u32) -> GenInfo {
         else if d > 45. && r < 0.10 { g.mat[i] = Mat::Quartz as u8; }
         else if open_up && d > 12. && d < 90. && n1.at(x as f32 / 14., y as f32 / 14.) > 0.68 { g.mat[i] = Mat::Fungus as u8; }
     } }
+    g.wake_all(); for _ in 0..240 { g.step_ca(); }
+    stabilize(g, &mut st);
     // chests: on cave floors and buried
     let mut chests = vec![];
     let mut k = 0u32;
@@ -178,4 +175,21 @@ pub fn generate(g: &mut Grid, seed: u32) -> GenInfo {
     }
     g.struct_dirty = Some((0, 0, w - 1, h - 1)); g.wake_all();
     GenInfo { surface, biome, chests, start: (sx / 4, cy1 / 4), seed }
+}
+
+fn stabilize(g: &mut Grid, st: &mut Stress) {
+    let (w, h) = (g.w, g.h);
+    for it in 0..80 {
+        let fail = st.solve(g);
+        if fail.is_empty() { break; }
+        for &i in &fail {
+            let i = i as usize; let m = Mat::from_u8(g.mat[i]);
+            if !st.reach[i] { g.mat[i] = 0; continue; } // floating island: no load path
+            if it >= 4 { // still failing: widen the pillar / thicken the roof by filling neighbouring voids
+                let (x, y) = (i % w, i / w);
+                for (dx, dy) in [(-1i32, 0i32), (1, 0), (0, 1), (-1, 1), (1, 1), (0, 2)] { let (nx, ny) = (x as i32 + dx, y as i32 + dy); if nx > 1 && ny > 0 && (nx as usize) < w - 2 && (ny as usize) < h - 4 { let j = ny as usize * w + nx as usize; if g.mat[j] == 0 || g.mat[j] == Mat::Water as u8 || g.mat[j] == Mat::Lava as u8 { g.mat[j] = Mat::Granite as u8; } } }
+            }
+            g.mat[i] = if it < 3 && m.p().tensile < Mat::Limestone.p().tensile { Mat::Limestone as u8 } else { Mat::Granite as u8 };
+        }
+    }
 }

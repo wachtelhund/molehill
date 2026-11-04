@@ -36,7 +36,7 @@ pub struct World {
     pub buildings: Vec<Building>, pub torches: Vec<(usize, usize)>, pub chests: Vec<Chest>,
     pub quest: usize, pub log: Vec<(u64, String)>, pub discovered: [bool; NMAT], pub chests_opened: u32, pub pillars: u32,
     pub max_depth: f32, pub craft_queue: Vec<usize>, pub day: f32, pub crumbled: u64, pub light_rect: (usize, usize, usize, usize),
-    pub events: Vec<Event>,
+    pub events: Vec<Event>, pub react_pending: bool,
 }
 /// For audio / UI feedback.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -52,7 +52,7 @@ impl World {
             st: Stress::new(w * h), light: Light::new(w, h), tick: 0, inv: [0; NITEM], dig_acc: [0; NMAT], place_acc: [0; 8], desig: vec![0; w * h],
             moles: vec![], drops: vec![], stockpile: (0, 0, 0, 0), buildings: vec![], torches: vec![], chests: vec![],
             quest: 0, log: vec![], discovered: [false; NMAT], chests_opened: 0, pillars: 0, max_depth: 0., craft_queue: vec![], day: 1., crumbled: 0,
-            light_rect: (0, 0, w - 1, h - 1), events: vec![], info, g,
+            light_rect: (0, 0, w - 1, h - 1), events: vec![], react_pending: false, info, g,
         };
         wd.chests = wd.info.chests.iter().map(|&(x, y)| Chest { x: x * 4, y: y * 4, opened: false }).collect();
         let (sx, sy) = (wd.info.start.0 * 4, wd.info.start.1 * 4 + 1);
@@ -165,8 +165,9 @@ impl World {
     pub fn step(&mut self) {
         self.tick += 1; self.events.clear();
         self.g.step_ca();
-        if self.g.reactions.swap(0, Relaxed) != 0 { let (w, h) = (self.g.w, self.g.h); self.g.struct_dirty = Some((0, 0, w - 1, h - 1)); }
-        if self.tick % 6 == 0 && self.g.struct_dirty.is_some() {
+        if self.g.reactions.swap(0, Relaxed) != 0 { self.react_pending = true; }
+        if (self.tick % 6 == 0 && self.g.struct_dirty.is_some()) || (self.tick % 24 == 0 && self.react_pending) {
+            self.react_pending = false;
             self.g.struct_dirty = None; let f = self.st.solve(&self.g);
             let before = self.st.cracking.len(); self.st.crack(&f); if self.st.cracking.len() > before { self.events.push(Event::Crack); }
         }
@@ -352,7 +353,7 @@ impl World {
             let loot: Vec<(Item, u32)> = if d > 50. { vec![(Item::Crystal, 2 + h % 3), (Item::IronIngot, 2), (Item::Tnt, 1 + h % 2)] }
                 else if d > 25. { vec![(Item::CopperIngot, 2 + h % 3), (Item::TinIngot, 1), (Item::Torch, 6)] }
                 else { vec![(Item::Coal, 4 + h % 4), (Item::Torch, 4), (Item::WoodPillar, 8)] };
-            let mut s = String::new(); for &(it, n) in &loot { self.inv[it as usize] += n; s += &format!(" {}×{}", it.name(), n); }
+            let mut s = String::new(); for &(it, n) in &loot { self.inv[it as usize] += n; s += &format!(" {}x{}", it.name(), n); }
             self.events.push(Event::Chest); self.say(format!("Treasure chest at {:.0} m:{}", d.max(0.), s));
         }
     }
@@ -365,8 +366,8 @@ impl World {
     fn check_quests(&mut self) {
         while self.quest < QUESTS.len() && self.quest_done(self.quest) {
             let q = &QUESTS[self.quest]; let mut s = String::new();
-            for &(it, n) in q.reward { self.inv[it as usize] += n; s += &format!(" {}×{}", it.name(), n); }
-            self.say(format!("Quest complete: {} — reward{}", q.text, s)); self.events.push(Event::Quest); self.quest += 1;
+            for &(it, n) in q.reward { self.inv[it as usize] += n; s += &format!(" {}x{}", it.name(), n); }
+            self.say(format!("Quest complete: {} - reward{}", q.text, s)); self.events.push(Event::Quest); self.quest += 1;
         }
     }
 }

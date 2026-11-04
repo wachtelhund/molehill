@@ -14,7 +14,7 @@
 //! 4. Compression (walls/pillars): every horizontal run of static cells of width w carries its
 //!    own overburden plus half of the overburden of the voids beside it (tributary area):
 //!      σ_c = (Σ_run P + ½Σ_left void P + ½Σ_right void P) / w, compared with compressive
-//!      strength of the weakest cell. Thin pillars under deep overburden crush.
+//!      each cell's own compressive strength (a weak cell in a wide wall crushes alone).
 //! Utilisation u = σ / strength. u > 1 → the cells crack (visible) and crumble into the
 //! falling-sand sim after a short delay unless the load is relieved (e.g. a pillar is built).
 use crate::grid::Grid;
