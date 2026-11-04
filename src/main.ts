@@ -3,6 +3,7 @@ import { SandWorld, CW, CH, B, BW, BH, NB, SIM_HZ } from "./sand/world";
 import { M, COLOR, MAT_NAMES, KIND, K } from "./sand/materials";
 import { D, DEV_NAMES, isGate, isLora } from "./sand/logic";
 import { wiringScenario } from "./sand/scenarios";
+import { Ambience } from "./ambience";
 
 const PX = 4; // screen px per cell at zoom 1
 const params = new URLSearchParams(location.search);
@@ -12,6 +13,7 @@ let world = makeWorld(seed, params.get("scenario"));
 (window as any).__world = () => world;
 
 const cv = document.getElementById("c") as HTMLCanvasElement, ctx = cv.getContext("2d")!;
+const ambience = new Ambience();
 const off = document.createElement("canvas"); off.width = CW; off.height = CH;
 const octx = off.getContext("2d")!, img = octx.createImageData(CW, CH), buf = new Uint32Array(img.data.buffer);
 const cam = { x: CW * PX / 2, y: 60 * PX, z: 1.6 };
@@ -168,6 +170,7 @@ function draw() {
     else { ctx.fillStyle = f.type === "steam" ? `rgba(220,220,230,${.5 - f.t / 60})` : `rgba(150,120,90,${.5 - f.t / 60})`; ctx.beginPath(); ctx.arc(x, y - f.t * .1, 1 + f.t * .08, 0, 7); ctx.fill(); }
   }
   if (w.shake > 0) w.shake *= 0.85;
+  { const hw = cv.width / 2 / s, hh = cv.height / 2 / s; ambience.frame(w, { x0: cam.x / PX - hw, y0: cam.y / PX - hh, x1: cam.x / PX + hw, y1: cam.y / PX + hh }); } // sound
   // hover
   const hb = blockAt(mouseX, mouseY);
   if (hb >= 0) { ctx.strokeStyle = "rgba(255,255,255,.6)"; ctx.lineWidth = .25; ctx.strokeRect((hb % BW) * B, ((hb / BW) | 0) * B, B, B); }
