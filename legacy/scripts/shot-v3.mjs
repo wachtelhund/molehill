@@ -6,6 +6,13 @@ const p = await b.newPage({ viewport: { width: 1400, height: 860 } });
 const logs = []; p.on("pageerror", e => logs.push("PAGEERR " + String(e))); p.on("console", m => logs.push(m.type() + ": " + m.text()));
 await p.goto(url); await p.waitForTimeout(25000);
 await p.screenshot({ path: `${out}/v3-01-start.png` });
+const W8 = () => p.waitForTimeout(700);
+await p.keyboard.press("KeyG"); await W8(); await p.mouse.click(490, 345); await W8();
+await p.keyboard.press("Digit0"); await W8(); await p.mouse.move(525, 345); await p.mouse.down(); for (let x = 525; x <= 610; x += 12) { await p.mouse.move(x, 345); await W8(); } await p.mouse.up();
+await p.keyboard.press("KeyG"); await W8(); for (let i = 0; i < 6; i++) { await p.keyboard.press("KeyG"); await W8(); }
+await p.mouse.click(640, 345); await W8();
+await p.mouse.move(490, 345); await W8(); await p.keyboard.press("KeyR"); await p.waitForTimeout(3000);
+await p.screenshot({ path: `${out}/v3-05-wiring.png` });
 await p.mouse.move(700, 560); await p.mouse.down(); await p.mouse.move(760, 600, { steps: 10 }); await p.mouse.up();
 await p.keyboard.press("Digit5"); await p.mouse.click(600, 470);
 await p.waitForTimeout(20000);
