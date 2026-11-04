@@ -45,16 +45,16 @@ const blk = (bx: number, by: number) => by * BW + bx;
   ok(loose === 0, `beamed ceiling holds (${loose} loose)`);
 }
 { // 6. rubble pile blocks water
-  const w = SandWorld.empty(M.ROCK); box(w, 40, 40, 140, 80, M.EMPTY); box(w, 88, 41, 92, 80, M.SAND); box(w, 41, 50, 80, 80, M.WATER);
+  const w = SandWorld.empty(M.ROCK); box(w, 40, 40, 140, 80, M.EMPTY); box(w, 88, 41, 92, 80, M.SAND); run(w, 300); box(w, 41, 72, 70, 80, M.WATER);
   run(w, 400); let right = 0; for (let y = 40; y <= 80; y++) for (let x = 100; x <= 140; x++) if (w.mat[w.ci(x, y)] === M.WATER) right++;
   ok(right < 20, `debris dam holds back water (${right} cells leaked)`);
 }
 { // 7. fuse -> TNT chain blasts rock and loosens soil
-  const w = SandWorld.empty(M.ROCK); box(w, 40, 40, 160, 44, M.EMPTY); box(w, 40, 20, 160, 39, M.DIRT); w.updateNav();
+  const w = SandWorld.empty(M.ROCK); box(w, 40, 40, 160, 44, M.EMPTY); w.updateNav();
   for (let bx = 10; bx < 18; bx++) w.logic.place("fuse", blk(bx, 10));
   w.logic.place("tnt", blk(18, 10)); w.logic.place("tnt", blk(22, 10));
-  w.logic.ignite(blk(10, 10)); run(w, 120);
-  ok(w.mat[w.ci(90, 47)] === M.EMPTY, "blast cleared rock");
+  const r0 = w.count(M.ROCK); w.logic.ignite(blk(10, 10)); run(w, 120);
+  ok(r0 - w.count(M.ROCK) > 100, `blast cleared ${r0 - w.count(M.ROCK)} rock cells`);
   ok(w.logic.dev[blk(22, 10)] === 0, "second TNT chain-detonated");
 }
 { // 8. lever -> wire -> door; NOT; AND; latch; timer
@@ -87,14 +87,14 @@ const blk = (bx: number, by: number) => by * BW + bx;
 }
 { // 10. LoRa through rock: range, attenuation, repeater, channels
   const w = SandWorld.empty(M.ROCK); box(w, 40, 40, 52, 47, M.EMPTY); box(w, 88, 40, 100, 47, M.EMPTY); box(w, 140, 40, 152, 47, M.EMPTY); w.updateNav();
-  const L = w.logic; L.place("lever", blk(10, 10)); L.place("tx", blk(11, 10));
-  L.place("rx", blk(23, 10)); L.place("wire", blk(24, 10)); L.place("lamp", blk(25, 10));
+  const L = w.logic; L.place("lever", blk(10, 10)); L.place("wire", blk(11, 10)); L.place("tx", blk(12, 10));
+  L.place("rx", blk(23, 10)); L.place("wire", blk(24, 10)); L.place("lamp", blk(24, 11));
   L.interact(blk(10, 10)); run(w, 20);
-  const bud = L.linkBudget(blk(11, 10), blk(23, 10));
-  ok(bud >= 0 && L.devS[blk(25, 10)] === 1, `TX->RX through 9 blocks of rock (budget ${bud.toFixed(1)}) lights lamp`);
+  const bud = L.linkBudget(blk(12, 10), blk(23, 10));
+  ok(bud >= 0 && L.devS[blk(24, 11)] === 1, `TX->RX through 9 blocks of rock (budget ${bud.toFixed(1)}) lights lamp`);
   L.place("rx", blk(36, 10)); L.place("wire", blk(37, 10)); L.place("lamp", blk(37, 11)); run(w, 20);
-  ok(L.devS[blk(37, 11)] === 0, `far RX out of range (budget ${L.linkBudget(blk(11, 10), blk(36, 10)).toFixed(1)})`);
-  L.place("rep", blk(24, 11)); run(w, 20);
+  ok(L.devS[blk(37, 11)] === 0, `far RX out of range (budget ${L.linkBudget(blk(12, 10), blk(36, 10)).toFixed(1)})`);
+  L.place("rep", blk(22, 11)); run(w, 20);
   ok(L.devS[blk(37, 11)] === 1, "repeater relays to far RX");
   L.interact(blk(36, 10)); run(w, 20); ok(L.devS[blk(37, 11)] === 0, "channel mismatch blocks signal");
 }

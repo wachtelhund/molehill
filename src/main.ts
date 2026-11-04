@@ -1,166 +1,188 @@
-import { World, W, H, N, T, SIM_HZ, demoScenario, TILE_NAMES, isSolid } from "./sim";
+// v2 renderer + input for the falling-sand engine (SandWorld). Legacy grid renderer lives in main_v1.ts.
+import { SandWorld, CW, CH, B, BW, BH, NB, SIM_HZ } from "./sand/world";
+import { M, COLOR, MAT_NAMES, KIND, K } from "./sand/materials";
+import { D, DEV_NAMES, isGate, isLora } from "./sand/logic";
+import { wiringScenario } from "./sand/scenarios";
 
-const TS = 32;
-const PAL: Record<number, string> = { [T.DIRT]: "#7A5A3A", [T.GRAVEL]: "#9A8F7E", [T.CLAY]: "#A86B4C", [T.ROCK]: "#5E6470", [T.GRANITE]: "#3F4652", [T.BEDROCK]: "#22262D", [T.DEBRIS]: "#6B5847", [T.STONE]: "#4A4552", [T.COPPER]: "#7A5A3A" };
-const VOID = "#1B1714", SKY = "#2B3A4A";
-
+const PX = 4; // screen px per cell at zoom 1
 const params = new URLSearchParams(location.search);
 const seed = Number(params.get("seed") || 7);
-let world = new World(seed);
-if (params.get("scenario") === "demo") demoScenario(world);
+function makeWorld(s: number, scen: string | null) { const w = new SandWorld(s); if (scen === "demo" || scen === "wiring") wiringScenario(w); return w; }
+let world = makeWorld(seed, params.get("scenario"));
 (window as any).__world = () => world;
 
-const cv = document.getElementById("c") as HTMLCanvasElement;
-const ctx = cv.getContext("2d")!;
-const cam = { x: W * TS / 2, y: 14 * TS, z: 1 };
-let tool = "dig", paused = false, speed = 1, overlay = false;
-const TOOLS = [["dig", "1 Dig"], ["beam", "2 Beam"], ["fuse", "3 Fuse"], ["tnt", "4 TNT"], ["ignite", "5 Ignite"], ["cancel", "6 Cancel"], ["water", "7 Water"], ["lava", "8 Lava"]];
+const cv = document.getElementById("c") as HTMLCanvasElement, ctx = cv.getContext("2d")!;
+const off = document.createElement("canvas"); off.width = CW; off.height = CH;
+const octx = off.getContext("2d")!, img = octx.createImageData(CW, CH), buf = new Uint32Array(img.data.buffer);
+const cam = { x: CW * PX / 2, y: 60 * PX, z: 1.6 };
+let tool = "dig", paused = false, speed = 1, overlay = false, wiresVis = true;
+const TOOLS: [string, string, string][] = [
+  ["dig", "Dig", "1"], ["beam", "Beam", "2"], ["wire", "Wire", "3"], ["interact", "Use", "E"], ["cancel", "Cancel", "X"],
+  ["lever", "Lever", "4"], ["plate", "Plate", "5"], ["sensor", "Fluid sensor", "6"], ["door", "Door", "7"], ["floodgate", "Floodgate", "8"], ["pump", "Pump", "9"], ["lamp", "Lamp", "0"],
+  ["fuse", "Fuse", "F"], ["tnt", "TNT", "T"], ["ignite", "Ignite", "I"],
+  ["and", "AND", "G"], ["or", "OR", ""], ["not", "NOT", ""], ["xor", "XOR", ""], ["timer", "Timer", ""], ["latch", "Latch", ""],
+  ["tx", "LoRa TX", "L"], ["rx", "LoRa RX", ""], ["rep", "Repeater", ""],
+  ["water", "Water", ""], ["lava", "Lava", ""], ["sand", "Sand", ""],
+];
 const bar = document.getElementById("tools")!;
-for (const [id, label] of TOOLS) { const b = document.createElement("button"); b.textContent = label; b.dataset.t = id; b.onclick = () => setTool(id); bar.appendChild(b); }
+for (const [id, label, key] of TOOLS) { const b = document.createElement("button"); b.textContent = (key ? key + " " : "") + label; b.dataset.t = id; b.onclick = () => setTool(id); bar.appendChild(b); }
 function setTool(t: string) { tool = t; bar.querySelectorAll("button").forEach(b => b.classList.toggle("on", (b as HTMLElement).dataset.t === t)); }
 setTool("dig");
-
 function resize() { cv.width = innerWidth * devicePixelRatio; cv.height = innerHeight * devicePixelRatio; }
 addEventListener("resize", resize); resize();
 
 // ---------- input ----------
 const keys = new Set<string>();
-let painting = false, panning = false, lastX = 0, lastY = 0, mouseX = 0, mouseY = 0;
-function cellAt(sx: number, sy: number) {
-  const wx = (sx * devicePixelRatio - cv.width / 2) / cam.z + cam.x, wy = (sy * devicePixelRatio - cv.height / 2) / cam.z + cam.y;
-  const x = Math.floor(wx / TS), y = Math.floor(wy / TS); return x >= 0 && y >= 0 && x < W && y < H ? y * W + x : -1;
+let painting = false, panning = false, lastX = 0, lastY = 0, mouseX = 0, mouseY = 0, lastPaint = -1;
+const scale = () => cam.z * PX;
+function toWorld(sx: number, sy: number) { return { x: (sx * devicePixelRatio - cv.width / 2) / scale() + cam.x / PX, y: (sy * devicePixelRatio - cv.height / 2) / scale() + cam.y / PX }; }
+function blockAt(sx: number, sy: number) { const p = toWorld(sx, sy); const bx = Math.floor(p.x / B), by = Math.floor(p.y / B); return bx >= 0 && by >= 0 && bx < BW && by < BH ? by * BW + bx : -1; }
+const ONE_SHOT = new Set(["interact", "ignite", "lever", "plate", "sensor", "door", "floodgate", "pump", "lamp", "tnt", "and", "or", "not", "xor", "timer", "latch", "tx", "rx", "rep"]);
+function paint(e: MouseEvent, first: boolean) {
+  const b = blockAt(e.clientX, e.clientY); if (b < 0 || b === lastPaint) return;
+  if (!first && ONE_SHOT.has(tool)) return; lastPaint = b; world.designate(tool, b);
 }
-function paint(e: MouseEvent) { const c = cellAt(e.clientX, e.clientY); if (c >= 0) world.designate(tool, c); }
 cv.addEventListener("contextmenu", e => e.preventDefault());
-cv.addEventListener("mousedown", e => { if (e.button === 0) { painting = true; paint(e); } else { panning = true; } lastX = e.clientX; lastY = e.clientY; });
+cv.addEventListener("mousedown", e => { if (e.button === 0) { painting = true; lastPaint = -1; paint(e, true); } else panning = true; lastX = e.clientX; lastY = e.clientY; });
 addEventListener("mouseup", () => { painting = panning = false; });
 cv.addEventListener("mousemove", e => {
   mouseX = e.clientX; mouseY = e.clientY;
-  if (painting) paint(e);
+  if (painting) paint(e, false);
   if (panning) { cam.x -= (e.clientX - lastX) * devicePixelRatio / cam.z; cam.y -= (e.clientY - lastY) * devicePixelRatio / cam.z; }
   lastX = e.clientX; lastY = e.clientY;
 });
-cv.addEventListener("wheel", e => { e.preventDefault(); cam.z = Math.min(3, Math.max(0.35, cam.z * (e.deltaY < 0 ? 1.15 : 1 / 1.15))); }, { passive: false });
+cv.addEventListener("wheel", e => { e.preventDefault(); cam.z = Math.max(0.5, Math.min(6, cam.z * (e.deltaY < 0 ? 1.12 : 1 / 1.12))); }, { passive: false });
+const KEYMAP: Record<string, string> = {}; for (const [id, , k] of TOOLS) if (k) KEYMAP[k.toLowerCase()] = id;
 addEventListener("keydown", e => {
-  keys.add(e.key.toLowerCase());
-  const n = Number(e.key); if (n >= 1 && n <= 8) setTool(TOOLS[n - 1][0]);
-  if (e.key === " ") { paused = !paused; e.preventDefault(); }
-  if (e.key === "]") speed = Math.min(4, speed + 1);
-  if (e.key === "[") speed = Math.max(1, speed - 1);
-  if (e.key.toLowerCase() === "o") overlay = !overlay;
-  if (e.key.toLowerCase() === "r") { world = new World(seed); }
-  if (e.key.toLowerCase() === "x") { world = new World(seed); demoScenario(world); }
+  const k = e.key.toLowerCase(); keys.add(k);
+  if (k === " ") { paused = !paused; e.preventDefault(); }
+  else if (k === "[") speed = Math.max(1, speed / 2); else if (k === "]") speed = Math.min(8, speed * 2);
+  else if (k === "o") overlay = !overlay; else if (k === "v") wiresVis = !wiresVis;
+  else if (k === "r") world = makeWorld((Math.random() * 1e9) | 0, null);
+  else if (k === "m") world = makeWorld(seed, "wiring");
+  else if (KEYMAP[k] && !"wasd".includes(k)) setTool(KEYMAP[k]);
 });
 addEventListener("keyup", e => keys.delete(e.key.toLowerCase()));
 
 // ---------- loop ----------
-let acc = 0, last = performance.now(), time = 0;
-function frame(now: number) {
-  const dt = Math.min(250, now - last); last = now; time += dt / 1000;
-  const pan = 600 * dt / 1000 / cam.z;
+let acc = 0, lastT = performance.now();
+function frame(t: number) {
+  const dt = Math.min(0.1, (t - lastT) / 1000); lastT = t;
+  const pan = 600 * dt / cam.z;
   if (keys.has("a") || keys.has("arrowleft")) cam.x -= pan; if (keys.has("d") || keys.has("arrowright")) cam.x += pan;
   if (keys.has("w") || keys.has("arrowup")) cam.y -= pan; if (keys.has("s") || keys.has("arrowdown")) cam.y += pan;
-  if (!paused) { acc += dt * speed; let steps = 0; while (acc >= 1000 / SIM_HZ && steps++ < 8) { world.step(); acc -= 1000 / SIM_HZ; } }
+  if (!paused) { acc += dt * SIM_HZ * speed; let n = 0; while (acc >= 1 && n < 16) { world.step(); acc--; n++; } if (n >= 16) acc = 0; }
   draw(); requestAnimationFrame(frame);
 }
-requestAnimationFrame(frame);
 (window as any).__cam = (x: number, y: number, z: number) => { cam.x = x; cam.y = y; cam.z = z; };
 (window as any).__advance = (n: number) => { for (let i = 0; i < n; i++) world.step(); draw(); };
+(window as any).__pause = (p: boolean) => { paused = p; };
 
 // ---------- drawing ----------
-const hash = (i: number) => { let h = i * 2654435761; h ^= h >>> 13; return (h >>> 0) % 1000 / 1000; };
-function shade(hex: string, k: number) { const v = parseInt(hex.slice(1), 16); const f = (c: number) => Math.max(0, Math.min(255, Math.round(c * k))); return `rgb(${f(v >> 16)},${f((v >> 8) & 255)},${f(v & 255)})`; }
-const shadeCache = new Map<string, string>();
-const sh = (hex: string, k: number) => { const key = hex + k; let s = shadeCache.get(key); if (!s) { s = shade(hex, k); shadeCache.set(key, s); } return s; };
-
+const pack = (r: number, g: number, b: number) => 0xff000000 | (b << 16) | (g << 8) | r;
+function renderCells(w: SandWorld) {
+  const tick = w.tick;
+  for (let y = 0; y < CH; y++) for (let x = 0; x < CW; x++) {
+    const i = y * CW + x, m = w.mat[i];
+    if (m === M.EMPTY) { const sky = y < 24 && w.mat[Math.min(i + CW * (24 - y), i)] === M.EMPTY; buf[i] = y < 22 ? pack(43 - y, 58 - y, 74 - y / 2) : pack(27, 23, 20); continue; void sky; }
+    const c = COLOR[m]; let v = (w.shade[i] - 128) / 10;
+    if (m === M.LAVA) v += 22 * Math.sin((x * 0.4 + y * 0.3 + tick * 0.15)) ;
+    else if (m === M.WATER) v += 6 * Math.sin(x * 0.3 + tick * 0.2);
+    else if (m === M.FIRE) v += (w.shade[i] & 31) - 10 + 15 * Math.sin(tick + x);
+    let r = c[0] + v, g = c[1] + v, b = c[2] + v;
+    if (w.pending[i] > 0 && ((tick >> 2) & 1)) { r += 40; g += 20; } // cracking
+    if (w.loose[i] && KIND[m] === K.SOLID) { r -= 8; g -= 8; b -= 8; }
+    if (overlay && w.support && KIND[m] === K.SOLID && w.support[i] < 255) { const s = Math.min(1, w.support[i] / 14); r = r * (1 - s) + 230 * s; g = g * (1 - s) + 60 * s; b *= 1 - s; }
+    buf[i] = pack(Math.max(0, Math.min(255, r)) | 0, Math.max(0, Math.min(255, g)) | 0, Math.max(0, Math.min(255, b)) | 0);
+  }
+  octx.putImageData(img, 0, 0);
+}
+const DEV_COL: Record<number, string> = { [D.LEVER]: "#d9b34a", [D.PLATE]: "#a0a0a0", [D.FSENSOR]: "#4aa3d9", [D.DOOR]: "#8b5a2b", [D.FLOODGATE]: "#5b7b9b", [D.PUMP]: "#6a8fa8", [D.LAMP]: "#f5e27a", [D.TNT]: "#d33", [D.FUSE]: "#c96" };
+const GATE_LABEL: Record<number, string> = { [D.AND]: "&", [D.OR]: "≥1", [D.NOT]: "¬", [D.XOR]: "⊕", [D.TIMER]: "⏱", [D.LATCH]: "SR", [D.TX]: "TX", [D.RX]: "RX", [D.REP]: "RP" };
 function draw() {
   const w = world;
-  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = VOID; ctx.fillRect(0, 0, cv.width, cv.height);
-  const sx = w.shake ? (Math.random() - 0.5) * w.shake : 0, sy = w.shake ? (Math.random() - 0.5) * w.shake : 0;
-  ctx.setTransform(cam.z, 0, 0, cam.z, cv.width / 2 - cam.x * cam.z + sx, cv.height / 2 - cam.y * cam.z + sy);
-  const x0 = Math.max(0, Math.floor((cam.x - cv.width / 2 / cam.z) / TS)), x1 = Math.min(W - 1, Math.ceil((cam.x + cv.width / 2 / cam.z) / TS));
-  const y0 = Math.max(0, Math.floor((cam.y - cv.height / 2 / cam.z) / TS)), y1 = Math.min(H - 1, Math.ceil((cam.y + cv.height / 2 / cam.z) / TS));
-  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
-    const i = y * W + x, t = w.tile[i], px = x * TS, py = y * TS;
-    if (t === T.AIR || t === T.BEAM) { ctx.fillStyle = y < 6 ? SKY : VOID; ctx.fillRect(px, py, TS, TS); }
-    else {
-      const base = PAL[t]; ctx.fillStyle = sh(base, 0.92 + Math.round(hash(i) * 4) * 0.04); ctx.fillRect(px, py, TS + 0.5, TS + 0.5);
-      if (t === T.GRAVEL || t === T.DEBRIS) { ctx.fillStyle = sh(base, 0.75); for (let k = 0; k < 4; k++) { ctx.beginPath(); ctx.arc(px + 6 + hash(i + k * 7) * 20, py + 6 + hash(i + k * 13) * 20, 2.5, 0, 7); ctx.fill(); } }
-      if (t === T.COPPER) { ctx.fillStyle = "#E07B39"; for (let k = 0; k < 3; k++) { ctx.beginPath(); ctx.arc(px + 8 + hash(i + k) * 16, py + 8 + hash(i + k * 3) * 16, 3.5, 0, 7); ctx.fill(); } }
-      if (t === T.ROCK || t === T.GRANITE) { ctx.strokeStyle = sh(base, 1.25); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(px + 6, py + 10 + hash(i) * 8); ctx.lineTo(px + 18, py + 6 + hash(i + 1) * 8); ctx.stroke(); }
-      if (t === T.STONE) { ctx.fillStyle = "#4B4556"; ctx.fillRect(px + 4, py + 4, 8, 4); }
-      if (w.hp[i] > 0) { ctx.fillStyle = "rgba(0,0,0,0.35)"; ctx.fillRect(px, py, TS, TS * Math.min(1, w.hp[i] / 60)); }
-    }
-    if (t === T.BEAM) {
-      ctx.fillStyle = w.fire[i] ? "#7a3d1a" : "#C89B5B"; ctx.fillRect(px + 12, py, 8, TS);
-      ctx.fillStyle = "#9c7440"; ctx.fillRect(px + 4, py, 24, 4);
-      if (w.fire[i]) { ctx.fillStyle = `rgba(255,${120 + Math.random() * 80 | 0},40,0.9)`; ctx.beginPath(); ctx.moveTo(px + 8, py + TS); ctx.lineTo(px + 16, py + 4 + Math.random() * 8); ctx.lineTo(px + 24, py + TS); ctx.fill(); }
-    }
-    // fluids: fill from bottom by mass; full if fluid above
-    const wm = w.water[i], lm = w.lava[i];
-    if (wm > 0.01) { const full = y > 0 && w.water[i - W] > 0.05; const h = full ? TS : Math.min(1, wm) * TS; ctx.fillStyle = `rgba(58,143,217,${0.45 + Math.min(1, wm) * 0.4})`; ctx.fillRect(px, py + TS - h, TS, h); }
-    if (lm > 0.01) { const full = y > 0 && w.lava[i - W] > 0.05; const h = full ? TS : Math.min(1, lm) * TS; const f = 0.5 + 0.5 * Math.sin(time * 3 + x * 0.7 + y * 0.4);
-      ctx.fillStyle = `rgb(255,${(106 + f * 90) | 0},${(31 + f * 46) | 0})`; ctx.fillRect(px, py + TS - h, TS, h); }
-    if (w.pending[i] > 0) { ctx.strokeStyle = "#f4e6c8"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(px + 4, py + 6); ctx.lineTo(px + 14, py + 16); ctx.lineTo(px + 10, py + 26); ctx.moveTo(px + 14, py + 16); ctx.lineTo(px + 26, py + 12); ctx.stroke(); }
-    if (w.fuse[i]) { ctx.strokeStyle = "#d9c9a0"; ctx.setLineDash([4, 3]); ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(px, py + TS - 6); ctx.lineTo(px + TS, py + TS - 6); ctx.stroke(); ctx.setLineDash([]);
-      if (w.burn[i]) { ctx.fillStyle = "#FFD27A"; ctx.beginPath(); ctx.arc(px + TS / 2, py + TS - 6, 5 + Math.random() * 3, 0, 7); ctx.fill(); } }
-    if (w.tnt[i]) { ctx.fillStyle = "#C8302F"; ctx.beginPath(); ctx.roundRect(px + 6, py + 8, 20, 22, 4); ctx.fill(); ctx.fillStyle = "#f2e6d0"; ctx.fillRect(px + 6, py + 16, 20, 5); ctx.strokeStyle = "#222"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(px + 16, py + 8); ctx.quadraticCurveTo(px + 20, py + 2, px + 24, py + 4); ctx.stroke(); }
-    if (w.items[i]) { ctx.fillStyle = "#b39a7a"; for (let k = 0; k < Math.min(3, w.items[i]); k++) { ctx.beginPath(); ctx.arc(px + 9 + k * 7, py + TS - 5, 4, 0, 7); ctx.fill(); } }
-    if (w.dig[i]) { ctx.strokeStyle = "#ffd27a"; ctx.lineWidth = 2; ctx.setLineDash([5, 4]); ctx.strokeRect(px + 3, py + 3, TS - 6, TS - 6); ctx.setLineDash([]); }
-    if (w.beamDes[i]) { ctx.strokeStyle = "rgba(200,155,91,0.8)"; ctx.setLineDash([4, 4]); ctx.lineWidth = 2; ctx.strokeRect(px + 12, py + 1, 8, TS - 2); ctx.setLineDash([]); }
-    if (w.lightReq[i]) { ctx.fillStyle = "#ff8a3d"; ctx.font = "bold 14px sans-serif"; ctx.fillText("!", px + 13, py + 14); }
-    if (overlay && isSolid(t)) { const s = w.support[i]; ctx.fillStyle = s === 255 ? "rgba(229,72,77,0.6)" : s === 0 ? "rgba(70,200,120,0.25)" : `rgba(255,${200 - s * 50},60,0.45)`; ctx.fillRect(px, py, TS, TS); }
+  renderCells(w);
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = "#1B1714"; ctx.fillRect(0, 0, cv.width, cv.height);
+  const s = scale(), sh = w.shake > 0 ? (Math.random() - 0.5) * w.shake : 0;
+  ctx.setTransform(s, 0, 0, s, cv.width / 2 - cam.x / PX * s + sh, cv.height / 2 - cam.y / PX * s);
+  ctx.imageSmoothingEnabled = false; ctx.drawImage(off, 0, 0);
+  const L = w.logic;
+  // designations
+  for (let b = 0; b < NB; b++) {
+    const bx = (b % BW) * B, by = ((b / BW) | 0) * B;
+    if (w.digDes[b]) { ctx.strokeStyle = "rgba(255,210,90,.8)"; ctx.lineWidth = 0.3; ctx.strokeRect(bx + .2, by + .2, B - .4, B - .4); }
+    if (w.beamDes[b]) { ctx.strokeStyle = "rgba(200,150,80,.9)"; ctx.setLineDash([0.6, 0.6]); ctx.strokeRect(bx + .4, by + .4, B - .8, B - .8); ctx.setLineDash([]); }
+    if (w.lightReq[b]) { ctx.fillStyle = "rgba(255,120,40,.7)"; ctx.beginPath(); ctx.arc(bx + 2, by + 2, 0.8, 0, 7); ctx.fill(); }
   }
-  ctx.fillStyle = "rgba(255,210,122,0.35)"; const st = w.stock; ctx.fillRect((st % W) * TS + 2, Math.floor(st / W) * TS + TS - 4, TS - 4, 3);
-  // falling debris
-  for (const d of w.debris) { ctx.fillStyle = PAL[d.mat] || PAL[T.DEBRIS]; ctx.save(); ctx.translate(d.x * TS + TS / 2, d.y * TS + TS / 2); ctx.rotate(Math.sin(d.fallT) * 0.1); ctx.fillRect(-TS / 2 + 2, -TS / 2 + 2, TS - 4, TS - 4); ctx.restore(); }
-  // moles
-  for (const m of w.moles) drawMole(m);
+  // wires
+  if (wiresVis) {
+    ctx.lineWidth = 0.6; ctx.lineCap = "round";
+    for (let b = 0; b < NB; b++) {
+      if (!L.wire[b] && !L.dev[b]) continue;
+      const cx = (b % BW) * B + 2, cy = ((b / BW) | 0) * B + 2;
+      if (L.wire[b]) {
+        const on = L.netOn[L.netId[b]] === 1;
+        ctx.strokeStyle = on ? "#ff9a3c" : "#9a5a2a";
+        for (const n of [b + 1, b + BW]) if (n < NB && (L.wire[n] || L.dev[n]) && (n !== b + 1 || b % BW < BW - 1)) { ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo((n % BW) * B + 2, ((n / BW) | 0) * B + 2); ctx.stroke(); }
+        ctx.fillStyle = on ? "#ffb35c" : "#7a4a22"; ctx.fillRect(cx - .5, cy - .5, 1, 1);
+      }
+      const d = L.dev[b]; if (!d) continue;
+      const x0 = cx - 2, y0 = cy - 2, st = L.devS[b];
+      if (d === D.DOOR || d === D.FLOODGATE) { ctx.strokeStyle = DEV_COL[d]; ctx.lineWidth = .5; ctx.strokeRect(x0 + .3, y0 + .3, 3.4, 3.4); ctx.lineWidth = .6; continue; }
+      if (d === D.LAMP && st) { const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, 14); g.addColorStop(0, "rgba(255,230,120,.45)"); g.addColorStop(1, "rgba(255,230,120,0)"); ctx.fillStyle = g; ctx.fillRect(cx - 14, cy - 14, 28, 28); }
+      ctx.fillStyle = isGate(d) || isLora(d) ? (st || L.powered[b] || L.txOn[b] ? "#3c8f5a" : "#2d3a33") : (DEV_COL[d] || "#888");
+      if (d === D.LAMP) ctx.fillStyle = st ? "#fff3a0" : "#6b6440";
+      if (d === D.LEVER) { ctx.fillStyle = "#555"; ctx.fillRect(x0 + .8, y0 + 2.6, 2.4, 1); ctx.strokeStyle = "#d9b34a"; ctx.lineWidth = .5; ctx.beginPath(); ctx.moveTo(cx, y0 + 2.8); ctx.lineTo(cx + (st ? 1.2 : -1.2), y0 + .8); ctx.stroke(); ctx.lineWidth = .6; continue; }
+      if (d === D.PLATE) { ctx.fillStyle = st ? "#e0e0e0" : "#8a8a8a"; ctx.fillRect(x0 + .3, y0 + 3.2, 3.4, .6); continue; }
+      if (d === D.FUSE) { ctx.fillStyle = L.burn[b] ? "#ff5" : "#a86"; ctx.fillRect(x0 + .5, cy - .3, 3, .6); continue; }
+      ctx.fillRect(x0 + .6, y0 + .6, 2.8, 2.8);
+      const lab = GATE_LABEL[d] || (d === D.TNT ? "T" : d === D.FSENSOR ? "~" : d === D.PUMP ? "P" : "");
+      if (lab) { ctx.fillStyle = "#fff"; ctx.font = "1.4px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(lab, cx, cy + .1); }
+      if (isLora(d)) { ctx.fillStyle = "#9fd"; ctx.font = "1px sans-serif"; ctx.fillText(d === D.REP ? "*" : "ch" + L.devP[b], cx, y0 - .4); }
+    }
+    // LoRa links
+    for (const l of L.links) {
+      const ax = (l.a % BW) * B + 2, ay = ((l.a / BW) | 0) * B + 2, bx = (l.b % BW) * B + 2, by = ((l.b / BW) | 0) * B + 2;
+      const live = L.txOn[l.a] || L.txOn[l.b] || L.rxOn[l.a] || L.rxOn[l.b];
+      ctx.strokeStyle = live ? "rgba(120,255,200,.75)" : "rgba(120,200,255,.25)"; ctx.lineWidth = .35; ctx.setLineDash([1.2, 1]);
+      ctx.lineDashOffset = -w.tick * 0.2; ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke(); ctx.setLineDash([]);
+    }
+  }
+  // moles (≈ 5.5 x 4 cells — larger than a cell)
+  for (const m of w.moles) {
+    const x = m.px * B + 2, y = m.py * B + B; if (m.dead) { ctx.fillStyle = "#555"; ctx.fillRect(x - 2.5, y - 1.2, 5, 1.2); continue; }
+    ctx.save(); ctx.translate(x, y); ctx.scale(m.facing, 1);
+    ctx.fillStyle = m.hurtT > 0 ? "#e66" : "#6b4a3a"; ctx.beginPath(); ctx.ellipse(0, -1.9, 2.8, 1.9, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = "#e9a0a0"; ctx.beginPath(); ctx.arc(2.7, -1.9, .55, 0, 7); ctx.fill();
+    ctx.fillStyle = "#f0c8a0"; ctx.fillRect(-1.6, -.4, 1, .5); ctx.fillRect(1, -.4, 1, .5);
+    ctx.fillStyle = "#111"; ctx.fillRect(1.5, -2.7, .4, .4);
+    ctx.fillStyle = "#e8c048"; ctx.beginPath(); ctx.arc(0.2, -3.6, 1.3, Math.PI, 0); ctx.fill(); // hard hat
+    if (m.fleeing) { ctx.fillStyle = "#fff"; ctx.font = "2px sans-serif"; ctx.fillText("!", 0, -5); }
+    ctx.restore();
+    ctx.fillStyle = "#300"; ctx.fillRect(x - 2.5, y - 6.2, 5, .5); ctx.fillStyle = m.hp > 50 ? "#5c5" : "#e84"; ctx.fillRect(x - 2.5, y - 6.2, 5 * m.hp / 100, .5);
+  }
   // fx
-  for (const f of w.fx) {
-    const cx = f.x * TS + TS / 2, cy = f.y * TS + TS / 2, k = f.t / 40;
-    if (f.type === "boom") { ctx.strokeStyle = `rgba(255,200,90,${1 - k})`; ctx.lineWidth = 6 * (1 - k); ctx.beginPath(); ctx.arc(cx, cy, 10 + k * TS * 4, 0, 7); ctx.stroke(); if (f.t < 6) { ctx.fillStyle = "rgba(255,240,200,0.8)"; ctx.beginPath(); ctx.arc(cx, cy, TS * 2.5, 0, 7); ctx.fill(); } }
-    if (f.type === "dust") { ctx.fillStyle = `rgba(200,180,150,${0.6 * (1 - k)})`; for (let j = 0; j < 5; j++) { ctx.beginPath(); ctx.arc(cx + Math.cos(j * 1.3) * k * 24, cy + Math.sin(j * 1.3) * k * 12, 4 * (1 - k) + 1, 0, 7); ctx.fill(); } }
-    if (f.type === "steam") { ctx.fillStyle = `rgba(230,235,240,${0.5 * (1 - k)})`; ctx.beginPath(); ctx.arc(cx, cy - k * 40, 6 + k * 10, 0, 7); ctx.fill(); }
-    if (f.type === "spark") { ctx.fillStyle = `rgba(255,220,120,${1 - k * 2})`; ctx.fillRect(cx + (hash(f.t + f.x) - 0.5) * 20, cy + 8 - k * 30, 3, 3); }
-    if (f.type === "crush") { ctx.strokeStyle = `rgba(229,72,77,${1 - k})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(cx, cy, 8 + k * 20, 0, 7); ctx.stroke(); }
+  w.fx = w.fx.filter(f => f.t < 30);
+  for (const f of w.fx) { f.t++; const x = f.x / 4, y = f.y / 4;
+    if (f.type === "boom") { ctx.fillStyle = `rgba(255,${180 - f.t * 5},60,${1 - f.t / 30})`; ctx.beginPath(); ctx.arc(x, y, 4 + f.t * 0.6, 0, 7); ctx.fill(); }
+    else { ctx.fillStyle = f.type === "steam" ? `rgba(220,220,230,${.5 - f.t / 60})` : `rgba(150,120,90,${.5 - f.t / 60})`; ctx.beginPath(); ctx.arc(x, y - f.t * .1, 1 + f.t * .08, 0, 7); ctx.fill(); }
   }
+  if (w.shake > 0) w.shake *= 0.85;
   // hover
-  const hc = cellAt(mouseX, mouseY);
-  if (hc >= 0) { ctx.strokeStyle = "rgba(255,255,255,0.5)"; ctx.lineWidth = 1.5; ctx.strokeRect((hc % W) * TS, Math.floor(hc / W) * TS, TS, TS); }
-  hud(hc);
+  const hb = blockAt(mouseX, mouseY);
+  if (hb >= 0) { ctx.strokeStyle = "rgba(255,255,255,.6)"; ctx.lineWidth = .25; ctx.strokeRect((hb % BW) * B, ((hb / BW) | 0) * B, B, B); }
+  hud(hb);
 }
-
-function drawMole(m: import("./sim").Mole) {
-  const cx = m.px * TS + TS / 2, cy = m.py * TS + TS / 2, s = TS;
-  const moving = Math.abs(m.x - m.px) + Math.abs(m.y - m.py) > 0.05;
-  const working = !!m.job && m.path.length === 0;
-  let bounce = 0, rot = 0, sx = 1, sy = 1;
-  if (m.dead) { rot = Math.PI / 2; }
-  else if (moving) bounce = -Math.abs(Math.sin(time * Math.PI * 2 * 3)) * 3;                     // y = |sin(t·2πf)|·A
-  else if (working) rot = 0.25 * Math.sin(time * Math.PI * 2 * 6);                               // dig wobble
-  else { sy = 1 + 0.04 * Math.sin(time * Math.PI * 2 * 0.5 + m.id); sx = 2 - sy; }                // idle breathe
-  ctx.save(); ctx.translate(cx, cy + 4 + bounce); ctx.rotate(rot); ctx.scale(sx * (m.facing < 0 ? -1 : 1), sy);
-  ctx.globalAlpha = m.dead ? 0.5 : 1;
-  ctx.fillStyle = m.hurtT > 0 ? "#e5484d" : "#5A4636"; ctx.strokeStyle = "#2a1f17"; ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.roundRect(-s * 0.36, -s * 0.26, s * 0.72, s * 0.5, s * 0.25); ctx.fill(); ctx.stroke();
-  ctx.fillStyle = "#F29BA5"; ctx.beginPath(); ctx.arc(s * 0.36, -s * 0.02, s * 0.1, 0, 7); ctx.fill();     // nose
-  ctx.fillStyle = "#e8d8c4"; ctx.beginPath(); ctx.arc(s * 0.2, s * 0.2, s * 0.07, 0, 7); ctx.arc(-s * 0.1, s * 0.22, s * 0.07, 0, 7); ctx.fill(); // claws
-  ctx.fillStyle = "#111"; if (m.dead) { ctx.font = "bold 9px sans-serif"; ctx.fillText("x", s * 0.12, -s * 0.06); } else { ctx.beginPath(); ctx.arc(s * 0.18, -s * 0.1, 1.8, 0, 7); ctx.fill(); }
-  ctx.restore();
-  if (!m.dead) {
-    if (m.job) { ctx.fillStyle = "rgba(255,255,255,0.85)"; ctx.font = "11px sans-serif"; ctx.fillText({ dig: "⛏", beam: "🪵", haul: "📦", light: "🔥" }[m.job.type], cx - 6, cy - 14 + Math.sin(time * 4) * 1.5); }
-    if (m.hp < 100) { ctx.fillStyle = "#333"; ctx.fillRect(cx - 12, cy - 18, 24, 3); ctx.fillStyle = m.hp > 40 ? "#46c878" : "#e5484d"; ctx.fillRect(cx - 12, cy - 18, 24 * m.hp / 100, 3); }
-    if (m.o2 < 100) { ctx.fillStyle = "#3A8FD9"; ctx.fillRect(cx - 12, cy - 22, 24 * m.o2 / 100, 2); }
-  }
-}
-
 const hudEl = document.getElementById("hud")!, logEl = document.getElementById("log")!;
-let lastLog = -1;
-function hud(hc: number) {
+let lastLog = "";
+function hud(hb: number) {
   const w = world, alive = w.moles.filter(m => !m.dead).length;
   let info = "";
-  if (hc >= 0) info = ` · ${hc % W},${Math.floor(hc / W)} ${TILE_NAMES[w.tile[hc]]}${w.water[hc] > 0.01 ? ` water ${w.water[hc].toFixed(2)}` : ""}${w.lava[hc] > 0.01 ? ` lava ${w.lava[hc].toFixed(2)}` : ""} support ${w.support[hc] === 255 ? "NONE" : w.support[hc]}`;
-  hudEl.textContent = `${paused ? "⏸ PAUSED" : "▶ " + speed + "x"} · tick ${w.tick} · moles ${alive}/${w.moles.length} · wood ${w.res.wood} · TNT ${w.res.tnt} · rubble ${w.res.rubble} · ore ${w.res.ore}${info}`;
-  if (w.log.length && w.log[w.log.length - 1].tick !== lastLog) { lastLog = w.log[w.log.length - 1].tick; logEl.innerHTML = w.log.slice(-6).map(e => `<div>${e.text}</div>`).join(""); }
+  if (hb >= 0) {
+    const x = (hb % BW) * B + 2, y = ((hb / BW) | 0) * B + 2, m = w.mat[y * CW + x], L = w.logic, d = L.dev[hb];
+    info = ` · [${hb % BW},${(hb / BW) | 0}] ${MAT_NAMES[m]}${L.wire[hb] ? " · wire " + (L.netOn[L.netId[hb]] ? "ON" : "off") : ""}${d ? " · " + DEV_NAMES[d] + (isLora(d) ? " ch" + L.devP[hb] : d === D.TIMER ? " period " + L.devP[hb] : "") + (L.devS[hb] || L.powered[hb] ? " (active)" : "") : ""}`;
+  }
+  hudEl.textContent = `${paused ? "⏸ PAUSED" : "▶ " + speed + "x"} · tick ${w.tick} · moles ${alive}/${w.moles.length} · wood ${w.res.wood} · TNT ${w.res.tnt} · rubble ${w.res.rubble} · ore ${w.res.ore} · chunks ${w.activeChunks()}${info}`;
+  const lg = w.log.slice(-7).map(e => e.text).join("\n"); if (lg !== lastLog) { logEl.innerText = lg; lastLog = lg; }
 }
+requestAnimationFrame(frame);
