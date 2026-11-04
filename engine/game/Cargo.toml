@@ -4,11 +4,19 @@ version = "0.3.0"
 edition = "2021"
 
 [dependencies]
-bevy = { version = "0.20", default-features = false, features = ["2d", "ui"] }
+# Hand-picked features: no scene/picking/gizmos/animation/post-process/gamepad/png/hdr (wasm size).
+bevy = { version = "0.20", default-features = false, features = [
+  "std", "async_executor", "bevy_asset", "bevy_log", "bevy_winit", "bevy_window", "default_font",
+  "bevy_render", "bevy_core_pipeline", "bevy_sprite", "bevy_sprite_render", "bevy_text",
+  "bevy_ui", "bevy_ui_render", "bevy_color", "bevy_image", "bevy_camera", "bevy_shader", "bevy_mesh",
+] }
 molehill-sim = { path = "../sim", default-features = false }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 molehill-sim = { path = "../sim", features = ["parallel"] }
+bevy = { version = "0.20", default-features = false, features = ["multi_threaded", "x11", "wayland"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 js-sys = "0.3"
+bevy = { version = "0.20", default-features = false, features = ["webgl2", "web"] }
+web-sys = { version = "0.3", features = ["AudioContext", "AudioNode", "AudioParam", "AudioDestinationNode", "OscillatorNode", "OscillatorType", "GainNode", "BiquadFilterNode", "BiquadFilterType", "AudioBuffer", "AudioBufferSourceNode", "AudioScheduledSourceNode", "BaseAudioContext", "Storage", "Window"] }

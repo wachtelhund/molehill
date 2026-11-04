@@ -5,6 +5,8 @@ use crate::grid::{hash3, Grid, F_SEEN, F_WET};
 use crate::light::{self, Light};
 use crate::mat::{Kind, Mat, NMAT};
 use crate::stress::Stress;
+use crate::logic::{Dev, Logic};
+use crate::disasters::Disasters;
 use std::collections::VecDeque;
 use std::sync::atomic::Ordering::Relaxed;
 
@@ -14,13 +16,13 @@ const MOVE_TICKS: u32 = 3;
 const REACH: i32 = 3;
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum Job { Dig, Build, Haul(usize), Deliver, Craft(usize), Station(usize), Flee }
+pub enum Job { Dig, Build, Haul(usize), Deliver, Craft(usize), Station(usize), Flee, Eat, Sleep }
 
 #[derive(Clone)]
 pub struct Mole {
     pub name: &'static str, pub x: usize, pub y: usize, pub hp: f32, pub breath: f32,
     pub path: VecDeque<(usize, usize)>, pub job: Option<Job>, pub work: u32, pub work_cell: Option<usize>,
-    pub carry: Option<(Item, u32)>, pub facing: i8, pub fall: u32, pub idle: u32, pub anim: u32, pub alive: bool,
+    pub carry: Option<(Item, u32)>, pub hunger: f32, pub sleep: f32, pub facing: i8, pub fall: u32, pub idle: u32, pub anim: u32, pub alive: bool,
 }
 #[derive(Clone)]
 pub struct Drop { pub x: usize, pub y: usize, pub item: Item, pub n: u32, pub claimed: bool }
@@ -37,10 +39,11 @@ pub struct World {
     pub quest: usize, pub log: Vec<(u64, String)>, pub discovered: [bool; NMAT], pub chests_opened: u32, pub pillars: u32,
     pub max_depth: f32, pub craft_queue: Vec<usize>, pub day: f32, pub crumbled: u64, pub light_rect: (usize, usize, usize, usize),
     pub events: Vec<Event>, pub react_pending: bool,
+    pub logic: Logic, pub disasters: Disasters, pub shake: f32,
 }
 /// For audio / UI feedback.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub enum Event { Dig, Crumble, Crack, Place, Chest, Quest, Explode, Discover, Hurt, Craft }
+pub enum Event { Dig, Crumble, Crack, Place, Chest, Quest, Explode, Discover, Hurt, Craft, Eat, Death, Warning, Quake, Click }
 
 const NAMES: [&str; 8] = ["Mossy", "Pip", "Bramble", "Tuck", "Clover", "Dusty", "Fern", "Nib"];
 
@@ -52,18 +55,18 @@ impl World {
             st: Stress::new(w * h), light: Light::new(w, h), tick: 0, inv: [0; NITEM], dig_acc: [0; NMAT], place_acc: [0; 8], desig: vec![0; w * h],
             moles: vec![], drops: vec![], stockpile: (0, 0, 0, 0), buildings: vec![], torches: vec![], chests: vec![],
             quest: 0, log: vec![], discovered: [false; NMAT], chests_opened: 0, pillars: 0, max_depth: 0., craft_queue: vec![], day: 1., crumbled: 0,
-            light_rect: (0, 0, w - 1, h - 1), events: vec![], react_pending: false, info, g,
+            light_rect: (0, 0, w - 1, h - 1), events: vec![], react_pending: false, logic: Logic::new(w, h), disasters: Disasters::new(seed), shake: 0., info, g,
         };
         wd.chests = wd.info.chests.iter().map(|&(x, y)| Chest { x: x * 4, y: y * 4, opened: false }).collect();
         let (sx, sy) = (wd.info.start.0 * 4, wd.info.start.1 * 4 + 1);
         // floor of the start chamber: the first support below
         let mut fy = sy.min(h - 6); while fy < h - 5 && !wd.g.is_solidish(wd.g.idx(sx, fy + 1)) { fy += 1; }
         wd.stockpile = (sx + 6, fy - 2, sx + 16, fy);
-        for k in 0..4 { wd.moles.push(Mole { name: NAMES[k], x: sx - 8 + k * 4, y: fy, hp: 100., breath: 100., path: VecDeque::new(), job: None, work: 0, work_cell: None, carry: None, facing: 1, fall: 0, idle: 0, anim: k as u32 * 7, alive: true }); }
+        for k in 0..4 { wd.moles.push(Mole { name: NAMES[k], x: sx - 8 + k * 4, y: fy, hp: 100., breath: 100., path: VecDeque::new(), job: None, work: 0, work_cell: None, carry: None, hunger: 80. + k as f32 * 4., sleep: 70. + k as f32 * 7., facing: 1, fall: 0, idle: 0, anim: k as u32 * 7, alive: true }); }
         for x in 0..w { let s = wd.info.surface[x]; light::reveal_box(&mut wd.g, x, 0, x, s + 1); }
         light::reveal_box(&mut wd.g, sx - 24, fy - 16, sx + 24, fy + 2);
         wd.torches.push((sx - 12, fy - 2)); wd.torches.push((sx + 12, fy - 2));
-        for (it, n) in [(Item::Wood, 8), (Item::Torch, 6), (Item::WoodPillar, 12)] { wd.inv[it as usize] = n; }
+        for (it, n) in [(Item::Wood, 8), (Item::Torch, 6), (Item::WoodPillar, 12), (Item::Grub, 12), (Item::CopperWire, 40), (Item::Gate, 6), (Item::LoraNode, 3)] { wd.inv[it as usize] = n; }
         for k in 0..NMAT { if wd.g.mat.iter().zip(&wd.g.flags).any(|(&m, &f)| m as usize == k && f & F_SEEN != 0) { wd.discovered[k] = true; } }
         // settle the structure once so crack timers start from the real state
         let f = wd.st.solve(&wd.g); wd.st.crack(&f); wd.g.struct_dirty = None;
@@ -159,7 +162,8 @@ impl World {
             else if m.kind() == Kind::Solid { let c = m.p().crumbles_to; self.g.set(i, c); self.g.set_loose(i); }
         } }
         for m in self.moles.iter_mut() { let d = ((m.x as f32 - cx as f32).powi(2) + (m.y as f32 - cy as f32).powi(2)).sqrt(); if d < r * 1.5 { m.hp -= 80. * (1. - d / (r * 1.5)); } }
-        self.events.push(Event::Explode);
+        self.logic.on_explosion(&mut self.g, cx, cy, r);
+        self.events.push(Event::Explode); self.shake = self.shake.max(r / 3.);
     }
 
     pub fn step(&mut self) {
@@ -175,6 +179,16 @@ impl World {
         if !crumble.is_empty() { self.events.push(Event::Crumble); }
         for &i in &crumble { let i = i as usize; let c = self.g.m(i).p().crumbles_to; self.g.set(i, c); if c.kind() == Kind::Solid { self.g.set_loose(i); } self.crumbled += 1; }
         if self.tick % 2 == 0 { self.step_moles(); }
+        // wiring / logic / LoRa
+        let mp: Vec<(usize, usize)> = self.moles.iter().filter(|m| m.alive).map(|m| (m.x, m.y)).collect();
+        self.logic.step(&mut self.g, &mp, self.tick);
+        for s in std::mem::take(&mut self.logic.msgs) { self.say(s); }
+        let booms = std::mem::take(&mut self.logic.booms);
+        for b in booms { if self.logic.dev[b] == Dev::Tnt as u8 { self.logic.dev[b] = 0; let (x, y) = self.logic.centre(b); self.explode(x, y, 9., 6); } }
+        // disasters
+        let mut dz = std::mem::replace(&mut self.disasters, Disasters::new(0));
+        dz.step(self); self.disasters = dz;
+        self.shake *= 0.93;
         if self.tick % 30 == 0 { self.check_quests(); self.check_chests(); }
         self.day = 0.75 + 0.25 * ((self.tick as f32 / 3600.) * std::f32::consts::TAU).cos();
     }
@@ -182,6 +196,7 @@ impl World {
         let mut pts: Vec<(usize, usize, [f32; 3])> = self.torches.iter().map(|&(x, y)| (x, y, [1.6, 1.15, 0.6])).collect();
         for m in &self.moles { if m.alive { pts.push((m.x, m.y - 1, [0.35, 0.30, 0.25])); } }
         for b in &self.buildings { if b.built && matches!(b.kind, Station::Kiln | Station::Furnace) { pts.push((b.x + Station::W / 2, b.y - 1, [1.4, 0.6, 0.2])); } }
+        for &b in &self.logic.dev_list { if self.logic.dev[b] == Dev::Lamp as u8 && self.logic.dev_s[b] != 0 { let (x, y) = self.logic.centre(b); pts.push((x, y, [1.3, 1.25, 0.9])); } }
         let day = self.day; self.light_rect = rect;
         self.light.compute(&self.g, rect, day, &pts);
     }
@@ -217,6 +232,13 @@ impl World {
         let in_lava = (0..MOLE_H).any(|j| matches!(self.g.get(x, y - j), Mat::Lava | Mat::Fire));
         let m = &mut self.moles[k];
         if in_lava { m.hp -= 4.; }
+        // needs (rates per second at 60 tps; step_moles runs every 2nd tick → dt = 1/30 s)
+        let dt = 1. / 30.; let busy = matches!(m.job, Some(Job::Dig) | Some(Job::Build) | Some(Job::Craft(_)) | Some(Job::Station(_)) | Some(Job::Haul(_)) | Some(Job::Deliver));
+        let mult = if busy { 1.5 } else { 1. };
+        m.hunger = (m.hunger - 0.33 * mult * dt).max(0.);
+        if m.job == Some(Job::Sleep) { m.sleep = (m.sleep + 2.5 * dt).min(100.); } else { m.sleep = (m.sleep - 0.24 * mult * dt).max(0.); }
+        if m.hunger <= 0. { m.hp -= 1. * dt; }
+        if m.hunger > 60. && m.sleep > 50. && m.breath > 80. { m.hp = (m.hp + 0.5 * dt).min(100.); }
         if hm == Mat::Water { m.breath -= 0.6; if m.breath <= 0. { m.hp -= 1.; } } else { m.breath = (m.breath + 2.).min(100.); }
         let buried = (0..MOLE_H).any(|j| self.g.is_solidish(self.g.idx(x, y - j)));
         if buried {
@@ -227,7 +249,7 @@ impl World {
         } else if !self.standable(x, y) && y + 2 < self.g.h && !self.g.is_solidish(self.g.idx(x, y + 1)) {
             self.moles[k].y += 1; self.moles[k].fall += 1; self.moles[k].path.clear();
         } else if self.moles[k].fall > 0 { let f = self.moles[k].fall; if f > 14 { self.moles[k].hp -= (f - 14) as f32 * 3.; self.events.push(Event::Hurt); } self.moles[k].fall = 0; }
-        if self.moles[k].hp <= 0. { self.moles[k].alive = false; let nm = self.moles[k].name; self.say(format!("{} has died.", nm)); }
+        if self.moles[k].hp <= 0. { self.moles[k].alive = false; let nm = self.moles[k].name; self.events.push(Event::Death); self.say(format!("{} has died.", nm)); }
     }
     fn mole_ai(&mut self, k: usize) {
         if self.moles[k].fall > 0 { return; }
@@ -239,6 +261,12 @@ impl World {
             self.moles[k].path.pop_front(); let m = &mut self.moles[k]; if nx != m.x { m.facing = if nx > m.x { 1 } else { -1 }; } m.x = nx; m.y = ny; return;
         }
         let (x, y) = (self.moles[k].x, self.moles[k].y);
+        // needs override work: collapse asleep at 0, drop the job when starving
+        { let m = &self.moles[k];
+          if m.sleep <= 0. && m.job != Some(Job::Sleep) { self.release_job(k); self.moles[k].job = Some(Job::Sleep); let nm = self.moles[k].name; self.say(format!("{} collapsed asleep.", nm)); return; }
+          if m.hunger < 15. && m.job.is_some() && !matches!(m.job, Some(Job::Eat) | Some(Job::Sleep)) && self.inv[Item::Grub as usize] + self.inv[Item::Fungus as usize] > 0 { self.release_job(k); } }
+        let weak = self.moles[k].hunger < 20. || self.moles[k].sleep < 20.;
+        if weak && self.tick % 4 == 0 && matches!(self.moles[k].job, Some(Job::Dig) | Some(Job::Build) | Some(Job::Craft(_)) | Some(Job::Station(_))) { return; } // half speed
         match self.moles[k].job.clone() {
             Some(Job::Dig) => {
                 if let Some(i) = self.moles[k].work_cell.filter(|&i| self.desig[i] == D_DIG && self.diggable(i)).or_else(|| self.dig_target_near(x, y)) {
@@ -278,8 +306,30 @@ impl World {
                 self.moles[k].work += 2;
                 if self.moles[k].work >= rec.ticks { self.moles[k].work = 0; for &(it, n) in rec.inputs { self.inv[it as usize] -= n; } self.inv[rec.out.0 as usize] += rec.out.1; self.moles[k].job = None; self.events.push(Event::Craft); self.say(format!("Crafted {}.", rec.name)); }
             }
-            Some(Job::Flee) | None => { self.moles[k].job = None; self.find_job(k); }
+            Some(Job::Eat) => {
+                let food = if self.inv[Item::Grub as usize] > 0 { Some((Item::Grub, 45.)) } else if self.inv[Item::Fungus as usize] > 0 { Some((Item::Fungus, 25.)) } else { None };
+                if let Some((it, v)) = food { self.inv[it as usize] -= 1; let m = &mut self.moles[k]; m.hunger = (m.hunger + v).min(100.); self.events.push(Event::Eat); }
+                self.moles[k].job = if self.moles[k].hunger < 60. && food.is_some() { Some(Job::Eat) } else { None };
+            }
+            Some(Job::Sleep) => { if self.moles[k].sleep >= 95. { self.moles[k].job = None; } }
+            Some(Job::Flee) | None => {
+                self.moles[k].job = None;
+                let (hu, sl) = (self.moles[k].hunger, self.moles[k].sleep);
+                let has_food = self.inv[Item::Grub as usize] + self.inv[Item::Fungus as usize] > 0;
+                if hu < 40. && has_food {
+                    let sp = self.stockpile;
+                    if let Some(p) = self.bfs((x, y), 60000, |xx, yy| xx + 1 >= sp.0 && xx <= sp.2 + 1 && yy + 2 >= sp.1 && yy <= sp.3 + 1) { self.moles[k].path = p; self.moles[k].job = Some(Job::Eat); return; }
+                }
+                if sl < 30. { self.moles[k].job = Some(Job::Sleep); return; }
+                self.find_job(k);
+            }
         }
+    }
+    fn release_job(&mut self, k: usize) {
+        if let Some(Job::Station(bi)) = self.moles[k].job { if bi < self.buildings.len() { self.buildings[bi].claimed = false; } }
+        if let Some(Job::Craft(r)) = self.moles[k].job { self.craft_queue.insert(0, r); }
+        if let Some((it, n)) = self.moles[k].carry.take() { let (x, y) = (self.moles[k].x, self.moles[k].y); self.drop_item(x, y, it, n); }
+        self.moles[k].job = None; self.moles[k].path.clear(); self.moles[k].work = 0;
     }
     fn fix_haul_indices(&mut self, removed: usize) {
         for m in self.moles.iter_mut() { if let Some(Job::Haul(d)) = m.job { if d > removed { m.job = Some(Job::Haul(d - 1)); } else if d == removed { m.job = None; m.path.clear(); } } }
@@ -328,6 +378,7 @@ impl World {
     fn dig_cell(&mut self, i: usize, mx: usize, my: usize) {
         let m = self.g.m(i); let wet = self.g.flags[i] & F_WET != 0;
         self.g.set(i, if wet { Mat::Water } else { Mat::Empty }); self.desig[i] = 0; self.events.push(Event::Dig);
+        if matches!(m, Mat::Dirt | Mat::Clay | Mat::Gravel | Mat::Roots | Mat::Grass) && hash3(i as u32, self.tick as u32, 0x6b) % 48 == 0 { self.drop_item(mx, my, Item::Grub, 1); }
         if let Some(it) = drop_of(m) {
             self.dig_acc[m as usize] += 1;
             let per = if matches!(m, Mat::Crystal | Mat::Quartz) { 3 } else { CELLS_PER_ITEM };

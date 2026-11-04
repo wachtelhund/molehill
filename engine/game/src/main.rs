@@ -13,8 +13,9 @@ use molehill_sim::world::{self as sw, World};
 
 const W: usize = 1024; const H: usize = 512; const CPX: f32 = 4.0; // world units per cell
 const PAD: usize = 512;
+const CH: usize = 64; // texture chunk size in cells
 
-#[derive(Resource)] struct Game { w: World, img: Handle<Image>, acc: f32, paused: bool, speed: u32, tool: Tool, brush: usize, recipe: usize, station: usize, frame: u64, last_light: u64, msg: String, help: bool }
+#[derive(Resource)] struct Game { w: World, chunks: Vec<Handle<Image>>, buf: Vec<u8>, uploads: usize, acc: f32, paused: bool, speed: u32, tool: Tool, brush: usize, recipe: usize, station: usize, frame: u64, last_light: u64, msg: String, help: bool }
 #[derive(Clone, Copy, PartialEq, Debug)] enum Tool { Dig, Wood, Brick, Iron, Torch, Tnt, Station, Cancel, Stockpile }
 #[derive(Resource)] struct Bg { layers: Vec<(Vec<u8>, f32)>, hills: Vec<(Vec<u8>, f32)> }
 #[derive(Component)] struct WorldSprite;
@@ -43,8 +44,15 @@ fn make_world(seed: u32) -> World { World::new(W, H, seed) }
 fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
     let seed = seed_now() % 100000;
     let w = make_world(seed);
-    let img = images.add(art::image(W as u32, H as u32, vec![0; W * H * 4], true));
-    commands.spawn((Sprite { image: img.clone(), custom_size: Some(Vec2::new(W as f32 * CPX, H as f32 * CPX)), ..default() }, Transform::from_xyz(0., 0., 0.), WorldSprite));
+    // The world is split into CH×CH-cell chunk textures; only chunks whose composited pixels changed
+    // are touched (Assets::get_mut marks an image for re-upload), so a quiet frame uploads nothing.
+    let mut chunks = vec![];
+    for cy in 0..H / CH { for cx in 0..W / CH {
+        let img = images.add(art::image(CH as u32, CH as u32, vec![0; CH * CH * 4], true));
+        let p = cell_to_world((cx * CH) as f32 + CH as f32 / 2., (cy * CH) as f32 + CH as f32 / 2.);
+        commands.spawn((Sprite { image: img.clone(), custom_size: Some(Vec2::splat(CH as f32 * CPX)), ..default() }, Transform::from_xyz(p.x, p.y, 0.), WorldSprite));
+        chunks.push(img);
+    } }
     commands.insert_resource(make_bg(&w));
     let (sx, sy) = (w.moles[0].x as f32, w.moles[0].y as f32 - 10.);
     let p = cell_to_world(sx, sy);
@@ -61,7 +69,7 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
         torch: images.add(art::icon([255, 190, 90], 3)),
     };
     commands.insert_resource(sp);
-    commands.insert_resource(Game { w, img, acc: 0., paused: false, speed: 1, tool: Tool::Dig, brush: 4, recipe: 0, station: 0, frame: 0, last_light: 0, msg: String::new(), help: true });
+    commands.insert_resource(Game { w, chunks, buf: vec![1; W * H * 4], uploads: 0, acc: 0., paused: false, speed: 1, tool: Tool::Dig, brush: 4, recipe: 0, station: 0, frame: 0, last_light: 0, msg: String::new(), help: true });
 }
 
 fn make_bg(w: &World) -> Bg {
@@ -145,12 +153,16 @@ fn view_rect(ct: &Transform, win: &Window, margin: i32) -> (usize, usize, usize,
     ((x0 - margin).clamp(0, W as i32 - 1) as usize, (y0 - margin).clamp(0, H as i32 - 1) as usize, (x1 + margin).clamp(0, W as i32 - 1) as usize, (y1 + margin).clamp(0, H as i32 - 1) as usize)
 }
 
-fn render_world(g: Res<Game>, bg: Res<Bg>, mut images: ResMut<Assets<Image>>, cam: Query<&Transform, With<Camera2d>>, win: Query<&Window, With<PrimaryWindow>>) {
+fn render_world(mut gm: ResMut<Game>, bg: Res<Bg>, mut images: ResMut<Assets<Image>>, cam: Query<&Transform, With<Camera2d>>, win: Query<&Window, With<PrimaryWindow>>) {
     let (Ok(ct), Ok(win)) = (cam.single(), win.single()) else { return };
     let (x0, y0, x1, y1) = view_rect(ct, win, 2);
+    // snap the composited rect to whole chunks
+    let (x0, y0) = (x0 / CH * CH, y0 / CH * CH); let (x1, y1) = (((x1 / CH) + 1) * CH - 1, ((y1 / CH) + 1) * CH - 1);
+    let (x1, y1) = (x1.min(W - 1), y1.min(H - 1));
+    let mut buf = std::mem::take(&mut gm.buf);
+    let mut changed = vec![false; (W / CH) * (H / CH)];
+    let g = &*gm;
     let lr = g.w.light_rect;
-    let Some(mut im) = images.get_mut(&g.img) else { return };
-    let Some(data) = im.data.as_mut() else { return };
     let wd = &g.w; let gr = &wd.g;
     let night = 1. - wd.day;
     let camx = (ct.translation.x / CPX) as f32; // cells from world centre
@@ -222,8 +234,17 @@ fn render_world(g: Res<Game>, bg: Res<Bg>, mut images: ResMut<Assets<Image>>, ca
             for k in 0..3 { px[k] = (px[k] as f32 * (1. - a) + col[k] as f32 * a) as u8; } 
         }
         let sp = wd.stockpile; if x >= sp.0 && x <= sp.2 && y >= sp.1 && y <= sp.3 && (x == sp.0 || x == sp.2 || y == sp.3) && !gr.is_solidish(i) { px = [(px[0] as u16 / 2 + 60) as u8, (px[1] as u16 / 2 + 100) as u8, (px[2] as u16 / 2 + 70) as u8, 255]; }
-        data[o..o + 4].copy_from_slice(&px);
+        if buf[o..o + 4] != px { buf[o..o + 4].copy_from_slice(&px); changed[(y / CH) * (W / CH) + x / CH] = true; }
     } }
+    let mut n = 0;
+    for (k, &c) in changed.iter().enumerate() {
+        if !c { continue; } n += 1;
+        let (cx, cy) = (k % (W / CH), k / (W / CH));
+        let Some(mut im) = images.get_mut(&gm.chunks[k]) else { continue };
+        let Some(data) = im.data.as_mut() else { continue };
+        for r in 0..CH { let src = ((cy * CH + r) * W + cx * CH) * 4; data[r * CH * 4..(r + 1) * CH * 4].copy_from_slice(&buf[src..src + CH * 4]); }
+    }
+    gm.uploads = n; gm.buf = buf;
 }
 
 fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, mut q: Query<(Entity, &Pooled, &mut Transform, &mut Sprite, &mut Visibility)>) {
@@ -253,8 +274,8 @@ fn hud(g: Res<Game>, mut q: Query<&mut Text, With<Hud>>, mut qr: Query<&mut Text
     let w = &g.w;
     let alive = w.moles.iter().filter(|m| m.alive).count();
     let tool = match g.tool { Tool::Station => format!("Station: {}", STATIONS[g.station].name()), t => format!("{:?}", t) };
-    let mut s = format!("MOLEHILL  seed {}   fps {:.0}   {}{}\nMoles {}   deepest {:.1} m   tool [{}] brush {}   tier {}\n",
-        w.info.seed, 1. / time.delta_secs().max(1e-3), if g.paused { "PAUSED " } else { "" }, if g.speed > 1 { format!("x{}", g.speed) } else { String::new() },
+    let mut s = format!("MOLEHILL  seed {}   fps {:.0}  tex {}/128   {}{}\nMoles {}   deepest {:.1} m   tool [{}] brush {}   tier {}\n",
+        w.info.seed, 1. / time.delta_secs().max(1e-3), g.uploads, if g.paused { "PAUSED " } else { "" }, if g.speed > 1 { format!("x{}", g.speed) } else { String::new() },
         alive, w.max_depth, tool, g.brush, ["claws", "stone", "bronze", "iron"][craft::tool_tier(&w.inv) as usize]);
     if w.quest < QUESTS.len() { let q = &QUESTS[w.quest]; s += &format!("Quest {}/{}: {}{}\n", w.quest + 1, QUESTS.len(), q.text, if w.quest_done(w.quest) { " [done]" } else { "" }); } else { s += "All quests complete!\n"; }
     s += &format!("Chests {}/{}   cracking {}   collapsed {}\n", w.chests_opened, w.chests.len(), w.st.cracking.len(), w.crumbled);

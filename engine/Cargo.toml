@@ -12,8 +12,9 @@ lto = "thin"
 codegen-units = 4
 [profile.wasm-release]
 inherits = "release"
-opt-level = "s"
+opt-level = "z"
 lto = true
+panic = "abort"
 codegen-units = 1
 strip = true
 debug = false

@@ -7,21 +7,21 @@ pub enum Item {
     Dirt, Clay, Sand, Gravel, Stone, Coal, CopperOre, TinOre, IronOre, Quartz, Crystal, Wood, Fungus,
     Brick, Glass, Charcoal, CopperIngot, TinIngot, BronzeIngot, IronIngot,
     Torch, WoodPillar, IronBeam, CopperWire, LoraNode, Gate, Tnt, Lamp,
-    StoneTools, BronzeTools, IronTools,
+    StoneTools, BronzeTools, IronTools, Grub,
 }
-pub const NITEM: usize = 31;
+pub const NITEM: usize = 32;
 pub const ITEMS: [Item; NITEM] = [
     Item::Dirt, Item::Clay, Item::Sand, Item::Gravel, Item::Stone, Item::Coal, Item::CopperOre, Item::TinOre, Item::IronOre, Item::Quartz, Item::Crystal, Item::Wood, Item::Fungus,
     Item::Brick, Item::Glass, Item::Charcoal, Item::CopperIngot, Item::TinIngot, Item::BronzeIngot, Item::IronIngot,
     Item::Torch, Item::WoodPillar, Item::IronBeam, Item::CopperWire, Item::LoraNode, Item::Gate, Item::Tnt, Item::Lamp,
-    Item::StoneTools, Item::BronzeTools, Item::IronTools,
+    Item::StoneTools, Item::BronzeTools, Item::IronTools, Item::Grub,
 ];
 impl Item {
     pub fn name(self) -> &'static str {
         ["Dirt", "Clay", "Sand", "Gravel", "Stone", "Coal", "Copper ore", "Tin ore", "Iron ore", "Quartz", "Crystal", "Wood", "Fungus",
          "Brick", "Glass", "Charcoal", "Copper ingot", "Tin ingot", "Bronze ingot", "Iron ingot",
          "Torch", "Wood pillar", "Iron beam", "Copper wire", "LoRa node", "Logic gate", "TNT", "Lamp",
-         "Stone tools", "Bronze tools", "Iron tools"][self as usize]
+         "Stone tools", "Bronze tools", "Iron tools", "Grub"][self as usize]
     }
     pub fn color(self) -> [u8; 3] {
         use Item::*;
@@ -31,7 +31,7 @@ impl Item {
             Crystal => [120, 200, 255], Wood => [150, 105, 60], Fungus => [96, 200, 120], Brick => [170, 80, 60], Glass => [190, 230, 240],
             Charcoal => [70, 60, 60], CopperIngot => [230, 140, 80], TinIngot => [210, 215, 225], BronzeIngot => [205, 150, 70], IronIngot => [190, 190, 200],
             Torch => [255, 190, 90], WoodPillar => [180, 130, 80], IronBeam => [120, 130, 150], CopperWire => [240, 150, 90], LoraNode => [150, 120, 255],
-            Gate => [120, 220, 160], Tnt => [220, 60, 50], Lamp => [255, 240, 170], StoneTools => [160, 156, 150], BronzeTools => [205, 150, 70], IronTools => [200, 205, 220],
+            Gate => [120, 220, 160], Tnt => [220, 60, 50], Lamp => [255, 240, 170], StoneTools => [160, 156, 150], BronzeTools => [205, 150, 70], IronTools => [200, 205, 220], Grub => [235, 215, 170],
         }
     }
 }

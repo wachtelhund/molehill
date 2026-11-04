@@ -69,3 +69,71 @@ fn fresh_world_does_not_collapse() {
     for _ in 0..7200 { w.step(); }
     assert!((w.crumbled as f64) < 0.01 * solid as f64, "crumbled {} of {}", w.crumbled, solid);
 }
+
+mod v3b {
+    use molehill_sim::world::World;
+    use molehill_sim::logic::{Dev, Logic};
+    use molehill_sim::grid::Grid;
+    use molehill_sim::mat::Mat;
+    fn open_grid() -> Grid { let mut g = Grid::new(128, 64); for x in 0..128 { for y in 60..64 { let i = g.idx(x, y); g.mat[i] = Mat::Bedrock as u8; } } g }
+    #[test]
+    fn lever_wire_lamp_and_not_gate() {
+        let mut g = open_grid(); let mut l = Logic::new(128, 64);
+        let b = |x: usize, y: usize| y * 32 + x;
+        assert!(l.place(&mut g, Dev::Lever, b(2, 5)));
+        for x in 3..8 { l.place_wire(b(x, 5)); }
+        assert!(l.place(&mut g, Dev::Lamp, b(8, 5)));
+        l.step(&mut g, &[], 1); l.step(&mut g, &[], 2); assert_eq!(l.dev_s[b(8, 5)], 0);
+        l.interact(b(2, 5)); l.step(&mut g, &[], 3); assert_eq!(l.dev_s[b(8, 5)], 1, "lamp lit by lever");
+        // NOT gate: input west wire (net of lever) -> output east wire -> door
+        for y in 6..9 { l.place_wire(b(3, y)); } l.place(&mut g, Dev::Not, b(4, 8)); l.place_wire(b(5, 8)); l.place(&mut g, Dev::Door, b(6, 8));
+        for t in 4..8 { l.step(&mut g, &[], t); }
+        let di = g.idx(6 * 4 + 1, 8 * 4 + 1); assert_eq!(g.m(di), Mat::Door, "NOT(on)=off -> door closed");
+        l.interact(b(2, 5)); for t in 8..12 { l.step(&mut g, &[], t); } assert_eq!(g.m(di), Mat::Empty, "NOT(off)=on -> door open");
+    }
+    #[test]
+    fn lora_link_budget_and_repeater() {
+        let mut g = open_grid(); let mut l = Logic::new(128, 64);
+        let b = |x: usize, y: usize| y * 32 + x;
+        l.place(&mut g, Dev::Lever, b(1, 3)); l.place_wire(b(2, 3)); l.place(&mut g, Dev::Tx, b(3, 3));
+        l.place(&mut g, Dev::Rx, b(28, 3)); l.place_wire(b(29, 3)); l.place(&mut g, Dev::Lamp, b(30, 3));
+        // wall of granite between: 25 m air + 16 cells granite (atten 1.0) -> 40 - 25 - 16 < 0
+        for y in 0..60 { for x in 60..76 { let i = g.idx(x, y); g.mat[i] = Mat::Granite as u8; } }
+        l.interact(b(1, 3)); for t in 0..20 { l.step(&mut g, &[], t); }
+        assert_eq!(l.dev_s[b(30, 3)], 0, "blocked by rock");
+        for y in 0..60 { for x in 60..76 { let i = g.idx(x, y); g.mat[i] = 0; } }
+        l.invalidate(); for t in 20..40 { l.step(&mut g, &[], t); }
+        assert_eq!(l.dev_s[b(30, 3)], 1, "clear line of sight links");
+    }
+    #[test]
+    fn save_load_roundtrip() {
+        let mut w = World::new(512, 256, 4242);
+        for _ in 0..120 { w.step(); }
+        let bytes = molehill_sim::save::save(&w);
+        let s = molehill_sim::save::to_b64(&bytes); let back = molehill_sim::save::from_b64(&s).unwrap(); assert_eq!(bytes, back);
+        let w2 = molehill_sim::save::load(&back).expect("load");
+        assert_eq!(w.g.mat, w2.g.mat); assert_eq!(w.inv, w2.inv); assert_eq!(w.moles.len(), w2.moles.len()); assert_eq!(w.tick, w2.tick);
+        assert!(molehill_sim::save::load(&bytes[..bytes.len() / 2]).is_err());
+        assert!(molehill_sim::save::load(b"garbage").is_err());
+    }
+    #[test]
+    fn moles_get_hungry_and_eat() {
+        let mut w = World::new(512, 256, 99);
+        for m in w.moles.iter_mut() { m.hunger = 30.; }
+        let food0 = w.inv[molehill_sim::craft::Item::Grub as usize];
+        for _ in 0..1200 { w.step(); }
+        assert!(w.inv[molehill_sim::craft::Item::Grub as usize] < food0, "ate grubs");
+        for m in &w.moles { eprintln!("{} h{} s{} {:?} hp{}", m.name, m.hunger, m.sleep, m.job, m.hp); }
+        assert!(w.moles.iter().all(|m| m.hunger > 30.));
+    }
+    #[test]
+    fn quake_loosens_overhangs() {
+        let mut w = World::new(512, 256, 5);
+        use molehill_sim::disasters::Kind2;
+        let mut d = std::mem::replace(&mut w.disasters, molehill_sim::disasters::Disasters::new(1));
+        assert!(d.schedule(&mut w, Kind2::Quake)); w.disasters = d;
+        let c0 = (0..w.g.mat.len()).filter(|&i| w.g.loose(i)).count();
+        for _ in 0..(16 * 60) { w.step(); }
+        assert!(w.crumbled > 0 || (0..w.g.mat.len()).filter(|&i| w.g.loose(i)).count() > c0);
+    }
+}
