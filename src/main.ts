@@ -3,6 +3,8 @@ import { SandWorld, CW, CH, B, BW, BH, NB, SIM_HZ } from "./sand/world";
 import { M, COLOR, MAT_NAMES, KIND, K } from "./sand/materials";
 import { D, DEV_NAMES, isGate, isLora } from "./sand/logic";
 import { wiringScenario } from "./sand/scenarios";
+import { initSaveLoad } from "./saveload-ui";
+import { sandAdapter } from "./saveload-sand";
 
 const PX = 4; // screen px per cell at zoom 1
 const params = new URLSearchParams(location.search);
@@ -10,6 +12,8 @@ const seed = Number(params.get("seed") || 7);
 function makeWorld(s: number, scen: string | null) { const w = new SandWorld(s); if (scen === "demo" || scen === "wiring") wiringScenario(w); return w; }
 let world = makeWorld(seed, params.get("scenario"));
 (window as any).__world = () => world;
+const saves = initSaveLoad(sandAdapter, { getWorld: () => world, setWorld: w => { world = w; }, newWorld: () => makeWorld(seed, null) }, { keys: { save: "k", load: "j" } });
+if (!params.has("scenario") && !params.has("fresh")) saves.resume();
 
 const cv = document.getElementById("c") as HTMLCanvasElement, ctx = cv.getContext("2d")!;
 const off = document.createElement("canvas"); off.width = CW; off.height = CH;
@@ -71,7 +75,7 @@ function frame(t: number) {
   const pan = 600 * dt / cam.z;
   if (keys.has("a") || keys.has("arrowleft")) cam.x -= pan; if (keys.has("d") || keys.has("arrowright")) cam.x += pan;
   if (keys.has("w") || keys.has("arrowup")) cam.y -= pan; if (keys.has("s") || keys.has("arrowdown")) cam.y += pan;
-  if (!paused) { acc += dt * SIM_HZ * speed; let n = 0; while (acc >= 1 && n < 16) { world.step(); acc--; n++; } if (n >= 16) acc = 0; }
+  if (!paused) { saves.tick(dt * 1000); acc += dt * SIM_HZ * speed; let n = 0; while (acc >= 1 && n < 16) { world.step(); acc--; n++; } if (n >= 16) acc = 0; }
   draw(); requestAnimationFrame(frame);
 }
 (window as any).__cam = (x: number, y: number, z: number) => { cam.x = x; cam.y = y; cam.z = z; };
