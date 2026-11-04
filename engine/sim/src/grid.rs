@@ -142,7 +142,8 @@ impl Grid {
                 if m == Mat::Lava {
                     for n in self.n4(x, y) {
                         let nm = self.m(n);
-                        if nm == Mat::Water { self.mat[i] = Mat::Basalt as u8; self.flags[i] = 0; self.mat[n] = Mat::Steam as u8; self.life[n] = 90; self.moved[i] = stamp; self.moved[n] = stamp; self.wake(x, y); self.reactions.store(1, Relaxed); return; }
+                        // quenched lava shatters into loose scoria (F_LOOSE) instead of a free-floating crust
+                        if nm == Mat::Water { self.mat[i] = Mat::Basalt as u8; self.flags[i] = F_LOOSE; self.mat[n] = Mat::Steam as u8; self.life[n] = 90; self.moved[i] = stamp; self.moved[n] = stamp; self.wake(x, y); self.reactions.store(1, Relaxed); return; }
                         if matches!(nm, Mat::WoodBeam | Mat::Roots | Mat::Fungus | Mat::Coal | Mat::Door) && self.rnd(x, y, 4) % 40 == 0 { self.mat[n] = Mat::Fire as u8; self.life[n] = 70; self.reactions.store(1, Relaxed); }
                     }
                     if self.rnd(x, y, 5) % 10 >= 3 { self.wake(x, y); return; } // viscous

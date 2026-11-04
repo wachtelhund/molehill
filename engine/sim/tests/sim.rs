@@ -60,3 +60,12 @@ fn slab(m: Mat, span: usize, thick: usize) -> (Grid, Vec<u32>) {
     let stocked: u32 = [Item::Dirt, Item::Clay, Item::Stone, Item::Sand, Item::Gravel].iter().map(|&i| w.inv[i as usize]).sum();
     assert!(stocked > 0 || !w.drops.is_empty(), "digging yields items");
 }
+
+#[test]
+fn fresh_world_does_not_collapse() {
+    // 2 minutes at 60 tps with no player action: < 1% of static cells may crumble.
+    let mut w = molehill_sim::world::World::new(1024, 512, 777);
+    let solid = (0..w.g.mat.len()).filter(|&i| w.g.is_static(i)).count();
+    for _ in 0..7200 { w.step(); }
+    assert!((w.crumbled as f64) < 0.01 * solid as f64, "crumbled {} of {}", w.crumbled, solid);
+}
