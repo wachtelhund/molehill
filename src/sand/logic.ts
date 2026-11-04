@@ -161,8 +161,8 @@ export class Logic {
     for (let b = 0; b < NB; b++) {
       if (!this.wire[b] && !this.dev[b]) continue;
       const d = this.dev[b];
-      if (d === D.DOOR || d === D.FLOODGATE) continue;
-      const lava = w.liquidIn(b, M.LAVA), buried = w.blockCount(b, i => w.isSolid(i) && w.mat[i] !== M.DOOR && w.mat[i] !== M.WOOD) >= 12;
+      if (d === D.DOOR || d === D.FLOODGATE || d === D.PLATE) continue;
+      const lava = w.liquidIn(b, M.LAVA), buried = w.blockCount(b, i => KIND[w.mat[i]] === K.POWDER || (w.loose[i] === 1 && w.mat[i] !== M.EMPTY)) >= 10; // wires may run through rock; rubble crushes them
       if (lava >= 2 || buried) {
         if (d === D.TNT && lava) { w.boomQueue.push(b); continue; }
         if (d === D.FUSE && lava) { this.ignite(b); continue; }

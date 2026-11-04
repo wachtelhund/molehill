@@ -4,15 +4,15 @@
 html,body{margin:0;height:100%;overflow:hidden;background:#1B1714;font:13px system-ui,sans-serif;color:#eee}
 canvas{display:block;width:100vw;height:100vh}
 #top{position:fixed;top:8px;left:8px;right:8px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
-#tools button{background:#2a2420;color:#eee;border:1px solid #4a3f37;border-radius:6px;padding:5px 9px;cursor:pointer;font:inherit}
+#tools button{font-size:11px;background:#2a2420;color:#eee;border:1px solid #4a3f37;border-radius:6px;padding:5px 9px;cursor:pointer;font:inherit}
 #tools button.on{background:#C89B5B;color:#1B1714;border-color:#C89B5B}
 #tools{display:flex;flex-wrap:wrap;gap:4px}
 #hud{background:rgba(0,0,0,.45);padding:5px 9px;border-radius:6px}
-#log{position:fixed;left:8px;bottom:8px;background:rgba(0,0,0,.45);padding:6px 9px;border-radius:6px;max-width:420px}
+#log{position:fixed;left:8px;bottom:8px;background:rgba(0,0,0,.45);padding:6px 9px;border-radius:6px;max-width:460px;white-space:pre-line}
 #help{position:fixed;right:8px;bottom:8px;background:rgba(0,0,0,.45);padding:6px 9px;border-radius:6px;line-height:1.5;max-width:300px;color:#ccc}
 </style></head><body>
 <canvas id="c"></canvas>
 <div id="top"><div id="tools"></div><div id="hud"></div></div>
 <div id="log"></div>
-<div id="help">Left-drag: use tool · Right-drag / WASD: pan · Wheel: zoom<br>1–8 tools · Space pause · [ ] speed · O support overlay<br>R new colony · X demo scenario (?scenario=demo)</div>
+<div id="help">Left-click/drag: use tool · Right-drag / WASD: pan · Wheel: zoom<br>E Use = flip lever / cycle LoRa channel / timer period · X cancel/remove<br>Space pause · [ ] speed · O support stress · V hide wires<br>R new colony · M wiring+LoRa demo (?scenario=demo)</div>
 <script src="main.js"></script></body></html>
