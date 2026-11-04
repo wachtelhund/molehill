@@ -1,0 +1,17 @@
+[workspace]
+resolver = "2"
+members = ["sim", "game"]
+
+[profile.dev]
+opt-level = 1
+[profile.dev.package."*"]
+opt-level = 3
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 4
+[profile.wasm-release]
+inherits = "release"
+opt-level = "s"
+lto = true
+codegen-units = 1

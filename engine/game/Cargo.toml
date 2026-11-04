@@ -1,0 +1,11 @@
+[package]
+name = "molehill"
+version = "0.3.0"
+edition = "2021"
+
+[dependencies]
+bevy = "0.20"
+molehill-sim = { path = "../sim", default-features = false }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+molehill-sim = { path = "../sim", features = ["parallel"] }

@@ -1,0 +1,194 @@
+//! Cell grid + Noita-style falling-sand CA on 64×64 chunks.
+//! Chunks are updated in 4 checkerboard phases; chunks within a phase are ≥64 cells apart,
+//! and no cell moves more than 6 cells per tick, so a phase can run in parallel (rayon) safely
+//! and deterministically (RNG is a hash of position+tick, not a shared stream).
+use crate::mat::{Kind, Mat, PROPS};
+use std::sync::atomic::{AtomicU8, Ordering::Relaxed};
+
+pub const CHUNK: usize = 64;
+pub const F_LOOSE: u8 = 1;    // static soil knocked loose -> behaves as powder
+pub const F_SEEN: u8 = 2;     // revealed (fog of war)
+pub const F_WET: u8 = 4;      // aquifer-saturated soil (seeps water when dug)
+
+pub struct Grid {
+    pub w: usize, pub h: usize, pub cx: usize, pub cy: usize,
+    pub mat: Vec<u8>, pub flags: Vec<u8>, pub shade: Vec<u8>, pub life: Vec<u8>, pub moved: Vec<u8>,
+    pub awake: Vec<AtomicU8>, pub awake_next: Vec<AtomicU8>,
+    pub tick: u64,
+    /// bounding box of structural changes since last stress solve (x0,y0,x1,y1)
+    pub struct_dirty: Option<(usize, usize, usize, usize)>,
+    pub reactions: AtomicU8,
+}
+
+#[inline] pub fn hash3(x: u32, y: u32, t: u32) -> u32 {
+    let mut h = x.wrapping_mul(0x9E3779B1) ^ y.wrapping_mul(0x85EBCA77) ^ t.wrapping_mul(0xC2B2AE3D);
+    h ^= h >> 15; h = h.wrapping_mul(0x2C1B3C6D); h ^= h >> 12; h = h.wrapping_mul(0x297A2D39); h ^= h >> 15; h
+}
+
+#[derive(Clone, Copy)]
+struct Ptr(*mut Grid);
+unsafe impl Send for Ptr {}
+unsafe impl Sync for Ptr {}
+
+impl Grid {
+    pub fn new(w: usize, h: usize) -> Grid {
+        assert!(w % CHUNK == 0 && h % CHUNK == 0);
+        let n = w * h; let (cx, cy) = (w / CHUNK, h / CHUNK);
+        Grid { w, h, cx, cy, mat: vec![0; n], flags: vec![0; n], shade: (0..n).map(|i| (hash3(i as u32, 7, 1) & 255) as u8).collect(),
+            life: vec![0; n], moved: vec![0; n], awake: (0..cx * cy).map(|_| AtomicU8::new(1)).collect(), awake_next: (0..cx * cy).map(|_| AtomicU8::new(1)).collect(),
+            tick: 0, struct_dirty: None, reactions: AtomicU8::new(0) }
+    }
+    #[inline] pub fn idx(&self, x: usize, y: usize) -> usize { y * self.w + x }
+    #[inline] pub fn get(&self, x: usize, y: usize) -> Mat { Mat::from_u8(self.mat[y * self.w + x]) }
+    #[inline] pub fn m(&self, i: usize) -> Mat { Mat::from_u8(self.mat[i]) }
+    #[inline] pub fn loose(&self, i: usize) -> bool { self.flags[i] & F_LOOSE != 0 }
+    #[inline] pub fn is_static(&self, i: usize) -> bool { self.m(i).kind() == Kind::Solid && !self.loose(i) }
+    #[inline] pub fn is_solidish(&self, i: usize) -> bool { matches!(self.m(i).kind(), Kind::Solid | Kind::Powder) }
+    pub fn in_bounds(&self, x: i32, y: i32) -> bool { x >= 0 && y >= 0 && (x as usize) < self.w && (y as usize) < self.h }
+
+    pub fn wake(&self, x: usize, y: usize) {
+        let (cx, cy) = (x / CHUNK, y / CHUNK);
+        self.awake_next[cy * self.cx + cx].store(1, Relaxed);
+        let (lx, ly) = (x % CHUNK, y % CHUNK);
+        if lx < 2 && cx > 0 { self.awake_next[cy * self.cx + cx - 1].store(1, Relaxed); }
+        if lx >= CHUNK - 2 && cx + 1 < self.cx { self.awake_next[cy * self.cx + cx + 1].store(1, Relaxed); }
+        if ly < 2 && cy > 0 { self.awake_next[(cy - 1) * self.cx + cx].store(1, Relaxed); }
+        if ly >= CHUNK - 2 && cy + 1 < self.cy { self.awake_next[(cy + 1) * self.cx + cx].store(1, Relaxed); }
+    }
+    pub fn wake_rect(&self, x0: i32, y0: i32, x1: i32, y1: i32) {
+        let cl = |v: i32, m: usize| v.clamp(0, m as i32 - 1) as usize;
+        for cy in cl(y0, self.h) / CHUNK..=cl(y1, self.h) / CHUNK { for cx in cl(x0, self.w) / CHUNK..=cl(x1, self.w) / CHUNK { self.awake_next[cy * self.cx + cx].store(1, Relaxed); } }
+    }
+    pub fn wake_all(&self) { for a in &self.awake_next { a.store(1, Relaxed); } }
+    pub fn mark_struct(&mut self, x: usize, y: usize) {
+        self.struct_dirty = Some(match self.struct_dirty { None => (x, y, x, y), Some((a, b, c, d)) => (a.min(x), b.min(y), c.max(x), d.max(y)) });
+    }
+    /// Set a cell (main thread). Marks structure + wakes.
+    pub fn set(&mut self, i: usize, m: Mat) {
+        let was = self.m(i);
+        self.mat[i] = m as u8; self.flags[i] &= !F_LOOSE;
+        self.life[i] = match m { Mat::Steam => 90, Mat::Fire => 70, _ => 0 };
+        let (x, y) = (i % self.w, i / self.w);
+        if was.is_structural() || m.is_structural() { self.mark_struct(x, y); }
+        self.wake(x, y);
+    }
+    pub fn set_loose(&mut self, i: usize) { self.flags[i] |= F_LOOSE; let (x, y) = (i % self.w, i / self.w); self.mark_struct(x, y); self.wake(x, y); }
+    pub fn fill_rect(&mut self, x0: usize, y0: usize, x1: usize, y1: usize, m: Mat) {
+        for y in y0..=y1.min(self.h - 1) { for x in x0..=x1.min(self.w - 1) { let i = self.idx(x, y); self.set(i, m); } }
+    }
+    pub fn count(&self, m: Mat) -> usize { self.mat.iter().filter(|&&v| v == m as u8).count() }
+    pub fn active_chunks(&self) -> usize { self.awake.iter().filter(|a| a.load(Relaxed) != 0).count() }
+
+    /// One CA tick.
+    pub fn step_ca(&mut self) {
+        self.tick += 1;
+        for c in 0..self.awake.len() { self.awake[c].store(self.awake_next[c].swap(0, Relaxed), Relaxed); }
+        let stamp = ((self.tick % 255) + 1) as u8;
+        let ptr = Ptr(self as *mut Grid);
+        for phase in 0..4usize {
+            let list: Vec<usize> = (0..self.cx * self.cy).filter(|&c| {
+                let (cx, cy) = (c % self.cx, c / self.cx);
+                (cx & 1) + 2 * (cy & 1) == phase && self.awake[c].load(Relaxed) != 0
+            }).collect();
+            let run = move |c: usize| { let g = unsafe { &mut *{ ptr }.0 }; g.update_chunk(c, stamp); };
+            #[cfg(feature = "parallel")]
+            { use rayon::prelude::*; list.par_iter().for_each(|&c| run(c)); }
+            #[cfg(not(feature = "parallel"))]
+            { for c in list { run(c); } }
+        }
+    }
+
+    fn update_chunk(&mut self, c: usize, stamp: u8) {
+        let (cx, cy) = (c % self.cx, c / self.cx);
+        let (x0, y0) = (cx * CHUNK, cy * CHUNK);
+        let rev = self.tick & 1 == 1;
+        for ly in (0..CHUNK).rev() {
+            let y = y0 + ly;
+            for k in 0..CHUNK { let lx = if rev { CHUNK - 1 - k } else { k }; self.update_cell(x0 + lx, y, stamp); }
+        }
+    }
+
+    #[inline] fn swap(&mut self, i: usize, j: usize, stamp: u8) {
+        self.mat.swap(i, j); self.flags.swap(i, j); self.shade.swap(i, j); self.life.swap(i, j);
+        self.moved[i] = stamp; self.moved[j] = stamp;
+        let w = self.w; self.wake(i % w, i / w); self.wake(j % w, j / w);
+    }
+    #[inline] fn rnd(&self, x: usize, y: usize, salt: u32) -> u32 { hash3(x as u32, y as u32 ^ (salt << 20), self.tick as u32) }
+    #[inline] fn kind_at(&self, i: usize) -> Kind { PROPS[self.mat[i] as usize].kind }
+
+    fn update_cell(&mut self, x: usize, y: usize, stamp: u8) {
+        let w = self.w; let i = y * w + x;
+        if self.moved[i] == stamp { return; }
+        let m = self.m(i); if m == Mat::Empty { return; }
+        let kind = m.kind();
+        let powder = kind == Kind::Powder || (kind == Kind::Solid && self.loose(i));
+        if powder {
+            if y + 1 >= self.h { return; }
+            let d = i + w; let kd = self.kind_at(d);
+            let above_powder = y > 0 && { let a = i - w; self.kind_at(a) == Kind::Powder || (self.loose(a) && self.kind_at(a) == Kind::Solid) };
+            if kd == Kind::Empty || kd == Kind::Gas || (kd == Kind::Liquid && !above_powder && self.rnd(x, y, 1) & 1 == 0) { self.swap(i, d, stamp); return; }
+            let rep = m.p().repose;
+            if rep > 0. && (self.rnd(x, y, 2) & 1023) as f32 / 1024. < rep { self.wake(x, y); return; }
+            let dir: i32 = if self.rnd(x, y, 3) & 1 == 0 { -1 } else { 1 };
+            for s in [dir, -dir] {
+                let nx = x as i32 + s; if nx < 0 || nx as usize >= w { continue; }
+                let (side, diag) = ((i as i32 + s) as usize, (d as i32 + s) as usize);
+                if self.mat[side] == 0 && self.mat[diag] == 0 { self.swap(i, diag, stamp); return; }
+            }
+            return;
+        }
+        match kind {
+            Kind::Liquid => {
+                if m == Mat::Lava {
+                    for n in self.n4(x, y) {
+                        let nm = self.m(n);
+                        if nm == Mat::Water { self.mat[i] = Mat::Basalt as u8; self.flags[i] = 0; self.mat[n] = Mat::Steam as u8; self.life[n] = 90; self.moved[i] = stamp; self.moved[n] = stamp; self.wake(x, y); self.reactions.store(1, Relaxed); return; }
+                        if matches!(nm, Mat::WoodBeam | Mat::Roots | Mat::Fungus | Mat::Coal | Mat::Door) && self.rnd(x, y, 4) % 40 == 0 { self.mat[n] = Mat::Fire as u8; self.life[n] = 70; self.reactions.store(1, Relaxed); }
+                    }
+                    if self.rnd(x, y, 5) % 10 >= 3 { self.wake(x, y); return; } // viscous
+                }
+                if y + 1 < self.h {
+                    let d = i + w;
+                    let kd = self.kind_at(d);
+                    if kd == Kind::Empty || kd == Kind::Gas { self.swap(i, d, stamp); return; }
+                    // denser liquid sinks (lava under water handled by reaction)
+                    let dir: i32 = if self.rnd(x, y, 6) & 1 == 0 { -1 } else { 1 };
+                    for s in [dir, -dir] { let nx = x as i32 + s; if nx >= 0 && (nx as usize) < w { let j = (d as i32 + s) as usize; if self.mat[j] == 0 { self.swap(i, j, stamp); return; } } }
+                }
+                let disp = if m == Mat::Water { 6 } else { 2 };
+                let dir: i32 = if (self.tick as usize + x) & 1 == 1 { 1 } else { -1 };
+                for s in [dir, -dir] {
+                    let mut best = usize::MAX;
+                    for k in 1..=disp { let nx = x as i32 + s * k; if nx < 0 || nx as usize >= w { break; } let j = (i as i32 + s * k) as usize; if self.mat[j] != 0 { break; } best = j; if y + 1 < self.h && self.mat[j + w] == 0 { break; } }
+                    if best != usize::MAX { self.swap(i, best, stamp); return; }
+                }
+            }
+            Kind::Gas => {
+                if m == Mat::Steam {
+                    self.life[i] = self.life[i].saturating_sub(1);
+                    if self.life[i] == 0 { self.mat[i] = if self.rnd(x, y, 7) % 7 == 0 { Mat::Water as u8 } else { 0 }; self.wake(x, y); return; }
+                    self.wake(x, y);
+                    let dx = (self.rnd(x, y, 8) % 3) as i32 - 1;
+                    let nx = x as i32 + dx;
+                    if y > 0 && nx >= 0 && (nx as usize) < w { let j = (i - w) as i32 + dx; let j = j as usize; if self.mat[j] == 0 { self.swap(i, j, stamp); return; } }
+                    if nx >= 0 && (nx as usize) < w { let j = (i as i32 + dx) as usize; if self.mat[j] == 0 { self.swap(i, j, stamp); } }
+                } else { // fire
+                    self.wake(x, y);
+                    for n in self.n4(x, y) {
+                        let nm = self.m(n);
+                        if nm == Mat::Water { self.mat[i] = Mat::Steam as u8; self.life[i] = 60; return; }
+                        if matches!(nm, Mat::WoodBeam | Mat::Roots | Mat::Fungus | Mat::Door) && self.rnd(x, y, 9) % 30 == 0 { self.mat[n] = Mat::Fire as u8; self.life[n] = 70; self.reactions.store(1, Relaxed); }
+                    }
+                    self.life[i] = self.life[i].saturating_sub(1);
+                    if self.life[i] == 0 { self.mat[i] = 0; self.reactions.store(1, Relaxed); }
+                    else if y > 0 && self.mat[i - w] == 0 && self.rnd(x, y, 10) % 4 == 0 { self.swap(i, i - w, stamp); }
+                }
+            }
+            _ => {}
+        }
+    }
+    #[inline] pub fn n4(&self, x: usize, y: usize) -> impl Iterator<Item = usize> {
+        let (w, h) = (self.w, self.h); let i = y * w + x;
+        [(y > 0).then(|| i - w), (y + 1 < h).then(|| i + w), (x > 0).then(|| i - 1), (x + 1 < w).then(|| i + 1)].into_iter().flatten()
+    }
+}
