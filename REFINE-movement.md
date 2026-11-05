@@ -13,5 +13,10 @@ Polish only: no new features or concepts. Each entry is one commit.
    Blocks still fail by stress (overload, too long a span) and then break into debris.
    Harness: `place T dx dy Item` and the `I` map char. Scenarios: `beam_spans_gap`, `pillar_in_cave`,
    `dirt_roof_falls`, `pillar_holds_roof`, `beam_overload`.
+2. **Space on menu start no longer jumps.** The menu closes on Space/Enter/click and the game's input ran in
+   the same frame, so the held Space was read as a fresh jump (and a click could dig, place or throw TNT).
+   `World::swallow_held()` makes a held jump count only after release; the body re-sync (new world,
+   respawn, load) does the same. The game ignores mouse buttons held since the menu closed until they're
+   released. Test: `jump_held_through_a_menu_does_not_fire`.
 
 ## Open issues

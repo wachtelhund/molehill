@@ -324,3 +324,11 @@ fn press(w: &mut World, n: usize, f: impl Fn(&mut Input)) -> (f32, f32) { let (m
     let xw = w.pl.px; press(&mut w, 2, |i| { i.up = false; i.jump = true; }); press(&mut w, 10, |i| i.jump = true);
     assert!(w.pl.px < xw - 1.5 && w.pl.cling == 0, "wall-jumped away: {} -> {}", xw, w.pl.px);
 }
+#[test] fn jump_held_through_a_menu_does_not_fire() {
+    // the menu closes on Space; the same press must not make the mole jump when play resumes
+    let (mut w, _, _) = arena(); let y0 = w.pl.py;
+    w.swallow_held(); let (top, _) = press(&mut w, 30, |i| i.jump = true); assert!(top >= y0 - 0.05, "held Space jumped: {top} vs {y0}");
+    press(&mut w, 1, |i| i.jump = false); let (top, _) = press(&mut w, 20, |i| i.jump = true); assert!(top < y0 - 3., "a fresh press jumps: {top} vs {y0}");
+    // a fresh world (or respawn / load) with Space already down doesn't jump either
+    let (mut w, _, _) = arena(); w.pl.sync = None; let y0 = w.pl.py; let (top, _) = press(&mut w, 30, |i| i.jump = true); assert!(top >= y0 - 0.05, "held Space jumped after resync");
+}

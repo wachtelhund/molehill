@@ -108,7 +108,7 @@ pub fn update(mut m: ResMut<Menu>, mut g: ResMut<Game>, keys: Res<ButtonInput<Ke
             _ => {}
         }
         if keys.just_pressed(KeyCode::Escape) { match m.screen { Screen::Pause => m.go(Screen::Off), Screen::Settings | Screen::Controls => { let b = m.back; m.go(b); } _ => {} } }
-        if !m.open() { g.paused = false; }
+        if !m.open() { g.paused = false; g.w.swallow_held(); g.mouse_latch = true; } // the key or click that closed the menu doesn't act in the game
     }
     // draw
     let open = m.open();

@@ -472,6 +472,9 @@ impl World {
             while cy > 0 && !self.passable(cx, cy) { cy -= 1; } if cy == 0 { return false; } let j = self.g.idx(cx, cy); self.g.set(j, m); self.g.set(i, Mat::Empty); }
         true
     }
+    /// Keys already held when control returns (a menu closing on Space, a load) must not act: a held
+    /// jump only counts again after it is released and pressed anew.
+    pub fn swallow_held(&mut self) { self.pl.jump_was = true; }
     fn step_player(&mut self) {
         if self.moles.is_empty() { return; }
         let dt = 1. / 60.;
@@ -488,7 +491,7 @@ impl World {
         let inp = self.input.clone();
         let t = TUNE;
         // keep the float body in sync when something else moved the mole (respawn, window shift, load)
-        { let m = &self.moles[0]; if self.pl.sync != Some((m.x, m.y)) { self.pl.px = m.x as f32 + 0.5; self.pl.py = m.y as f32 + 1.0; self.pl.vx = 0.; self.pl.vy = 0.; self.pl.ppx = self.pl.px; self.pl.ppy = self.pl.py; } }
+        { let m = &self.moles[0]; if self.pl.sync != Some((m.x, m.y)) { self.pl.jump_was = inp.jump; self.pl.px = m.x as f32 + 0.5; self.pl.py = m.y as f32 + 1.0; self.pl.vx = 0.; self.pl.vy = 0.; self.pl.ppx = self.pl.px; self.pl.ppy = self.pl.py; } }
         self.pl.ppx = self.pl.px; self.pl.ppy = self.pl.py;
         let (wet, lava) = self.body_fluid();
         if lava { self.moles[0].hp -= t.lava_dps * dt; }
