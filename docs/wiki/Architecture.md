@@ -43,6 +43,8 @@ The rule is simple: **gameplay goes in the sim.** If it changes what happens in 
 | `gen.rs` | seeded procgen per `(seed, x, absolute row)` and the stability pass |
 | `world.rs` | `World`: the step order, the player (`step_player`, `TUNE`), colony moles, digging, placing, the brush, the endless window, quests and chests |
 | `logic.rs` | copperline nets, devices, knots, fuses, TNT, thrumming |
+| `items.rs` | loose items as physics bodies: dug, dropped and thrown things fly, bounce, skid, float or sink, burn, and sleep when still; thrown TNT |
+| `tips.rs` | the world hover text: what's under a cell, in plain Delver words |
 | `light.rs` | per-cell RGB light and fog of war |
 | `air.rs` | stale air on a 2 m block grid |
 | `craft.rs` | items, stations, recipes, tool tiers, quests |
@@ -56,8 +58,8 @@ The rule is simple: **gameplay goes in the sim.** If it changes what happens in 
 `World::step()` runs in a fixed order:
 
 1. the falling-sand automaton (`grid.step_ca`);
-2. a stress re-solve if anything structural changed (every 6 ticks) or after reactions (every 24), then crack timers and crumbling;
-3. the player (`step_player`), then colony moles every second tick;
+2. a local stress re-solve around the 8 m chunks that changed (every 6 ticks; fire and lava reactions batched every 24), then crack timers, crumbling and rubble bulking;
+3. the player (`step_player`), loose items (`step_items`), then colony moles every second tick;
 4. hit flash and view shake from knocks;
 5. logic: nets, sources, knots, thrumming links, sinks, fuses, then TNT blasts;
 6. disasters; stale air every 15 ticks; farms, the window slide, quests and chests every 30.

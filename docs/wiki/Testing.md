@@ -19,8 +19,9 @@ The sim is also **deterministic**. Randomness is a hash of position and tick, th
 | layer | command (from `engine/`) | what it covers |
 |---|---|---|
 | Unit and integration tests | `cargo test --release -p molehill-sim` | stress and collapse, fluids, dig tiers, movement (jump height, short hop, coyote, cling, climb, wall-jump), zoom and brush clamps, lore-safe tooltips and world hover text, save/load, pack accounting. About 10 s; use release, because debug is very slow |
-| Scenario harness | `cargo run --release -p molehill-sim --example scenario -- sim/tests/scenarios/*.scn` | about 65 small, readable set pieces of gameplay with assertions |
+| Scenario harness | `cargo run --release -p molehill-sim --example scenario -- sim/tests/scenarios/*.scn` | about 75 small, readable set pieces of gameplay with assertions |
 | Crash hunts | `cargo run -p molehill-sim --no-default-features --example soak -- SEEDS TICKS`; `--example loadsave -- FILE [TICKS]` | random play on game-sized worlds (moving, digging, blocks, devices, copperline, TNT, save/load) in debug for overflow checks; loading and playing an old save |
+| Benchmarks | `--example stepbench [seed] [ticks]`, `genbench [seed]`, `bandbench` | per-tick cost of `World::step` on the game window (mean, p95, p99, by tick class); where generation spends its time; the cost of a window slide, an autosave, a full save and a load |
 | Settling check | `cargo run --release -p molehill-sim --example wakediag [seed]` | a generated world runs 1200 ticks; reports how many falling-sand chunks are still awake (should be close to 0) |
 
 Both the tests and the scenarios must pass before every commit.
@@ -43,8 +44,8 @@ expect 60 rise >= 4.5
 expect 120 grounded == 1
 ```
 
-* **Directives** drive the mole and the world: `hold` keys over a tick range, `mine` / `dig` a cell, `tool` and `brush` to pick a tool and size, `place` / `put` blocks, `device` / `use` / `pickup` / `wire` for copperline and devices, `explode`, `give` items, `saveload` to round-trip the world mid-run, and `slide` to send the scenario's rows into stored bands and back.
-* **Assertions** (`expect T <var> <op> <n>`) read the player (`px`, `vx`, `rise`, `grounded`, `cling`, `hp`, `flash`…), the map (`count:Water`, `static:WoodBeam`, `is:DX,DY,Mat`, `util:DX,DY` stress utilisation, `strain:DX,DY` the hover strain level, `awake` chunks), devices (`dev:`, `on:`, `lit:`, `wire:`) and events (`ev:Explode`).
+* **Directives** drive the mole and the world: `hold` keys over a tick range, `mine` / `dig` a cell, `tool` and `brush` to pick a tool and size, `place` / `put` blocks, `device` / `use` / `pickup` / `wire` for copperline and devices, `explode`, `give` items, `saveload` to round-trip the world mid-run, `slide` to send the scenario's rows into stored bands and back, and `throw` / `drop` to launch or place a loose item.
+* **Assertions** (`expect T <var> <op> <n>`) read the player (`px`, `vx`, `rise`, `grounded`, `cling`, `hp`, `flash`…), the map (`count:Water`, `static:WoodBeam`, `is:DX,DY,Mat`, `util:DX,DY` stress utilisation, `strain:DX,DY` the hover strain level, `awake` chunks), devices (`dev:`, `on:`, `lit:`, `wire:`) loose items (`items:Stone`, position and speed `ix:` `iy:` `ivx:` `ivy:`, `irest:` asleep, `ilit:` a lit charge) and events (`ev:Explode`).
 * **Output** is easy to grep: `PASS` / `FAIL` per file, one `FAIL <file>:<line> tick T: …` per broken assertion, optional `DUMP` JSON and `ASCII` maps, and a final `N scenarios, K failed` (exit code 1 on failure).
 
 The variables, the map legend and the list of every included scenario are in [`TESTING.md`](../../TESTING.md).
