@@ -15,6 +15,7 @@ Short log of what this run changed, and what is still open.
 * Knots audited with a truth-table scenario (`knots`: both, either, turn, odd, catch). They were correct.
 * **Pressure plates see the whole mole**: a plate used to check only the mole's feet cell, so a plate just above the floor never triggered (depending on block alignment). It now uses the same body overlap as doors. Scenario `plate`.
 * **Lamp and Vent pack items place their device** on left click (they used to do nothing in hand).
+* **Blocks built on sand or rubble stand** (`stress.rs`): placement allows resting on powder, but the load path only ran through static solids, so a pillar on a sand floor cracked and crumbled. The path may now climb straight up through granular ground (never sideways). Scenario `pillar_on_sand`.
 
 ## Open
 * Placing TNT onto a copperline that is already live sets it off on the next tick. That is consistent (it is powered), but easy to do by accident.

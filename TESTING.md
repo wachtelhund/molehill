@@ -97,6 +97,7 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `cave_stability.scn` | A small granite cave shows no crumbling over 600 ticks |
 | `pillar_holds.scn` | A wood pillar built cell by cell in a granite room stays rigid |
 | `pillar_holds_roof.scn` / `roof_needs_pillar.scn` | Pillars every ~1 m save a 6 m dirt roof that caves in without them |
+| `pillar_on_sand.scn` | A pillar built on a sand floor rests on it |
 | `beam_spans_gap.scn` | A wood beam bridging a 3.5 m gap high in a cave stays put |
 | `tnt_inert.scn` | Placed TNT is inert; right mouse lights a 1.5 s fuse, then it blows |
 | `tnt_lever.scn` / `tnt_thrum.scn` | Remote detonation: a lever on copperline, or a thrummer knocking through 2 m of granite to a listener |

@@ -2,7 +2,8 @@
 //!
 //! Units: cell edge s = 0.25 m, unit depth b = 1 m, g = 9.81 m/s², ρ in kg/m³, stresses in kPa.
 //! 1. Overburden: P(x,y) = Σ_{cells above, not empty/gas} ρ·g·s / 1000          [kPa]
-//! 2. Connectivity: static solids not 4-connected to bedrock have no load path → fail.
+//! 2. Connectivity: static solids not 4-connected to bedrock have no load path → fail. The path may also
+//!    climb straight up through granular ground (a post standing on a sand floor rests on it).
 //! 3. Bending (roofs): every maximal horizontal run of static cells with no support directly
 //!    below is a beam of span L = n·s. Its depth h = min static thickness above the run, capped
 //!    at the span (arching / Voussoir effect: only ~L of rock acts as the beam). Superimposed
@@ -66,10 +67,16 @@ impl Stress {
         let mut reach = vec![false; n]; let mut q: Vec<u32> = Vec::with_capacity(n / 4);
         // anchors: bedrock walls, plus the window's top and bottom rows (the Deepholt continues beyond them)
         for i in 0..n { if g.mat[i] == Mat::Bedrock as u8 || ((i < w || i >= n - w) && st(i)) { reach[i] = true; q.push(i as u32); } }
+        // Granular ground (sand, rubble) carries load straight down, never sideways: the path may climb up
+        // through powder, so a post or a rock resting on a sand floor stands, while a sand bank can't hold
+        // anything out to its side.
+        let gran = |i: usize| { let k = g.m(i).kind(); k == Kind::Powder || (k == Kind::Solid && g.loose(i)) };
         let mut head = 0;
         while head < q.len() {
             let i = q[head] as usize; head += 1; let (x, y) = (i % w, i / w);
-            for j in g.n4(x, y) { if !reach[j] && st(j) { reach[j] = true; q.push(j as u32); } }
+            let up = if y > 0 { i - w } else { usize::MAX };
+            if gran(i) { if up != usize::MAX && !reach[up] && (st(up) || gran(up)) { reach[up] = true; q.push(up as u32); } continue; }
+            for j in g.n4(x, y) { if !reach[j] && (st(j) || (j == up && gran(j))) { reach[j] = true; q.push(j as u32); } }
         }
         for i in 0..n { if st(i) && !reach[i] { util[i] = 9.; } }
         // 3. bending of roof runs

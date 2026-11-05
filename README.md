@@ -122,7 +122,7 @@ Units: cell edge s = 0.25 m, unit depth b = 1 m, g = 9.81 m/s². Densities are i
 | iron beam | 7800 | 40000 | 120000 |
 
 1. **Overburden:** P(x,y) = Σ ρ·g·s / 1000 [kPa] over the non-empty cells resting *contiguously* on the cell, up to 16 m (64 cells). An air gap breaks the column: a beam or post standing free in a cave carries only what rests on it, not the roof above the gap. This is the pressure-arch height: load from deeper overhead is carried around openings by the ground arch, as in Terzaghi arching. The window's top and bottom rows count as anchors, because the rock continues beyond them.
-2. **Load path:** static solids that are not 4-connected to bedrock (through static solids) fail. Floating islands fall.
+2. **Load path:** static solids that are not 4-connected to bedrock (through static solids) fail. The path may also climb straight up through sand or rubble, so a post built on a sand floor rests on it. Floating islands fall.
 3. **Roof bending:** every horizontal run of static cells with nothing static under it is a beam with span L = n·s. Its depth h is the static thickness above it, capped at L (arching: only about one span of rock works as the beam). q is the superimposed load on top of that beam, counted only when the static thickness ends inside the cap.
    * M = k·(ρ g h + q)·L², with k = 1/8 when both ends rest on supported cells and k = 1/2 for a cantilever.
    * Z = b·h²/6.
