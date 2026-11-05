@@ -134,6 +134,9 @@ pub struct World {
     pub bands: std::collections::BTreeMap<i64, crate::band::Stored>, pub opened: std::collections::HashSet<(usize, i64)>,
 }
 /// For audio / UI feedback.
+/// What `World::pick_up` took back into the pack.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Picked { Dev(Dev), Torch, Wire }
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Event { Dig, Crumble, Crack, Place, Chest, Quest, Explode, Discover, Hurt, Craft, Eat, Death, Warning, Quake, Click, Harvest, Gasp }
 
@@ -952,14 +955,27 @@ impl World {
     }
     /// Pick up the device and copperline on the block under (x, y), back into the pack (a lit charge is
     /// defused). Returns the device, if there was one.
-    pub fn pick_up(&mut self, x: usize, y: usize) -> Option<Dev> {
+    /// Pick up the placed thing at (x, y) back into the pack (`E`): one thing per call, the device first, then
+    /// a torch, then the copperline segment, so holding `E` and sweeping takes up a run of copperline. A lit
+    /// TNT charge or burning fuse cord can't be picked up. Nothing needs digging out.
+    pub fn pick_up(&mut self, x: usize, y: usize) -> Option<Picked> {
         if x >= self.g.w || y >= self.g.h || !self.in_reach(x, y) { return None; }
-        let b = self.logic.block_of(x, y); let wire = self.logic.wire[b] != 0;
-        let d = self.logic.remove(&mut self.g, b);
-        if wire { self.inv[Item::CopperWire as usize] += 1; }
-        if let Some(it) = d.and_then(|d| d.cost()) { self.inv[it as usize] += 1; }
-        if wire || d.is_some() { self.events.push(Event::Click); }
-        d
+        let b = self.logic.block_of(x, y); let d = Dev::from_u8(self.logic.dev[b]);
+        let got = if d != Dev::None {
+            if self.logic.lit(b) { return None; }
+            let wire = self.logic.wire[b]; self.logic.remove(&mut self.g, b); self.logic.wire[b] = wire; // the copperline under it stays laid
+            if let Some(it) = d.cost() { self.inv[it as usize] += 1; } Picked::Dev(d)
+        } else if let Some(k) = self.torch_at(x, y) {
+            self.torches.swap_remove(k); self.inv[Item::Torch as usize] += 1; Picked::Torch
+        } else if self.logic.wire[b] != 0 {
+            self.logic.wire[b] = 0; self.logic.invalidate(); self.inv[Item::CopperWire as usize] += 1; Picked::Wire
+        } else { return None };
+        self.events.push(Event::Click); Some(got)
+    }
+    /// The placed torch drawn at (x, y), if any (a torch is about half a metre tall, standing on its cell).
+    pub fn torch_at(&self, x: usize, y: usize) -> Option<usize> {
+        let (x, y) = (x as i64, y as i64); let r = 2 * S as i64;
+        self.torches.iter().position(|&(tx, ty)| (x - tx as i64).abs() <= r && y - ty as i64 <= S as i64 && ty as i64 - y <= 2 * r)
     }
     /// Place a round brush of blocks centred on (x, y) with radius `want` (0 = the item's default, clamped to
     /// its range). Only open cells in reach are filled, never the mole's body, and each new cell must touch
