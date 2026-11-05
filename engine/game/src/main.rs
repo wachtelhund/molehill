@@ -8,6 +8,7 @@ mod music;
 mod devart;
 mod decorart;
 mod journal;
+mod hotbar;
 mod wiring;
 mod ui;
 mod menu;
@@ -36,7 +37,7 @@ const BG_RES: usize = S;
 const FAR: usize = 4; // chunk rows drawn beyond each end of the simulated window (the camera roams there; nothing simulates)
 
 #[derive(Resource)] pub struct Game { pub w: World, chunks: Vec<Handle<Image>>, buf: Vec<u8>, pub uploads: usize, acc: f32, pub paused: bool, speed: u32, pub frame: u64, last_light: u64, msg: String, pub help: bool, ev: Vec<sw::Event>, shake_off: Vec2, autosave: f32, last_oy: i64, far: Vec<Handle<Image>>, far_done: Vec<bool>, far_cells: std::collections::HashMap<i64, Option<(Vec<u8>, Vec<u8>)>>, pub inv_open: bool, pub aim: Option<(usize, usize, bool)>,
-    pub slots: Vec<Option<Thing>>, pub held: Option<Thing>, pub hot: usize, pub sel_t: f32, pub toasts: Vec<(String, f32)>, log_seen: u64, pub show_dev: bool, disp: Vec2, pub seed: u32,
+    pub slots: Vec<Option<Thing>>, pub held: Option<Thing>, /** lay the hotbar out afresh for this holt (`hotbar.rs`) */ pub relayout: bool, pub hot: usize, pub sel_t: f32, pub toasts: Vec<(String, f32)>, log_seen: u64, pub show_dev: bool, disp: Vec2, pub seed: u32,
     /// brush size per brush item and grid snap (`view::BrushSizes`)
     pub sizes: sv::BrushSizes,
     /// grid snap: where the current drag started (a held left mouse lays a straight line from here)
@@ -110,7 +111,7 @@ pub fn craft_row_at(g: &Game, c: Vec2) -> Option<usize> {
 /// In Survival a dig tool is only in the hotbar once you own it (Creative: always).
 pub fn thing_usable(g: &Game, t: Thing) -> bool { match t { Thing::Pick(n) => !g.w.rules.tools || g.w.inv[[Item::Pickaxe, Item::Drill, Item::Bore][(n as usize).clamp(1, 3) - 1] as usize] > 0, _ => true } }
 pub fn thing_count(g: &Game, t: Thing) -> Option<u32> { match t { Thing::Item(it) => Some(g.w.inv[it as usize]), Thing::Dev(d) => dev_cost(DEVS[d]).map(|it| g.w.inv[it as usize]), _ => None } }
-fn default_slots() -> Vec<Option<Thing>> {
+pub(crate) fn default_slots() -> Vec<Option<Thing>> {
     let mut v: Vec<Thing> = vec![Thing::Pick(1), Thing::Pick(2), Thing::Pick(3), Thing::Item(Item::WoodPillar), Thing::Item(Item::Brick), Thing::Item(Item::IronBeam), Thing::Item(Item::Torch), Thing::Item(Item::Tnt), Thing::Item(Item::CopperWire), Thing::Dev(DEVS.iter().position(|&d| d == Dev::Lever).unwrap_or(0))];
     v.push(Thing::Item(Item::Spore));
     for d in 0..DEVS.len() { if !v.contains(&Thing::Dev(d)) { v.push(Thing::Dev(d)); } }
@@ -183,7 +184,7 @@ fn main() {
         .insert_resource(ClearColor(Color::srgb(0.04, 0.035, 0.05)))
         .add_systems(Startup, setup)
         .insert_non_send(audio::Audio::new())
-        .add_systems(Update, (dev_shot, menu::update, input, gear, simulate, render_world, dev_dump, sync_sprites, wiring::update, journal::update, ui::update, sound).chain())
+        .add_systems(Update, (dev_shot, menu::update, input, gear, simulate, render_world, dev_dump, sync_sprites, wiring::update, journal::update, hotbar::update, ui::update, sound).chain())
         .run();
 }
 
@@ -406,7 +407,7 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, mut fonts: R
         px: images.add(art::image(1, 1, vec![255; 4], true)),
     };
     commands.insert_resource(sp);
-    let disp = Vec2::new(sx, sy + 1.5 * SF); commands.insert_resource(Game { w, chunks, buf: vec![1; W * H * 4], uploads: 0, acc: 0., paused: true, speed: 1, frame: 0, last_light: 0, msg: String::new(), help: false, ev: vec![], shake_off: Vec2::ZERO, autosave: 0., last_oy: oy0, far, far_done, far_cells: Default::default(), inv_open: false, aim: None, slots: default_slots(), held: None, hot: 0, sel_t: 0., toasts: vec![], log_seen: 0, show_dev: false, disp, seed, sizes: Default::default(), drag: None, brush_tag: None, demo_right: false, wheel: Default::default(), mouse_latch: false, jump_tap: false, jump_key: false, w_jump: false, charge: None, throw_aim: (1., -1.), e_latch: false, pops: vec![], look: Vec2::ZERO });
+    let disp = Vec2::new(sx, sy + 1.5 * SF); commands.insert_resource(Game { w, chunks, buf: vec![1; W * H * 4], uploads: 0, acc: 0., paused: true, speed: 1, frame: 0, last_light: 0, msg: String::new(), help: false, ev: vec![], shake_off: Vec2::ZERO, autosave: 0., last_oy: oy0, far, far_done, far_cells: Default::default(), inv_open: false, aim: None, slots: default_slots(), held: None, relayout: true, hot: 0, sel_t: 0., toasts: vec![], log_seen: 0, show_dev: false, disp, seed, sizes: Default::default(), drag: None, brush_tag: None, demo_right: false, wheel: Default::default(), mouse_latch: false, jump_tap: false, jump_key: false, w_jump: false, charge: None, throw_aim: (1., -1.), e_latch: false, pops: vec![], look: Vec2::ZERO });
 }
 
 pub fn save_now(g: &mut Game) { g.msg = match save_slot("molehill-manual", &g.w) { Ok(()) => "Game saved".into(), Err(e) => format!("Save failed: {e}") }; }
@@ -416,13 +417,13 @@ fn reset_view(g: &mut Game, commands: &mut Commands) {
     g.w.pl.sync = None; g.inv_open = false; g.help = false; g.acc = 0.;
 }
 /// Start a fresh holt (world) from a seed.
-pub fn begin(g: &mut Game, commands: &mut Commands, seed: u32, mode: Mode) { g.w = make_world(seed, mode); g.seed = seed; reset_view(g, commands); g.msg = format!("Holt {seed} ({})", mode.name()); }
+pub fn begin(g: &mut Game, commands: &mut Commands, seed: u32, mode: Mode) { g.w = make_world(seed, mode); g.seed = seed; reset_view(g, commands); g.msg = format!("Holt {seed} ({})", mode.name()); g.relayout = true; }
 /// Load the manual save (or the autosave). Returns false if there is none or it failed.
 pub fn load_saved(g: &mut Game, commands: &mut Commands) -> bool {
     match load_slot("molehill-manual").or_else(|| load_slot("molehill-auto")) {
         Some(Ok(w)) if w.g.w != W || w.g.h != H => { g.msg = format!("Load failed: save is {}x{}, this build is {W}x{H}", w.g.w, w.g.h); false }
         // a save from before modes was a Creative holt (everything in the pack)
-        Some(Ok(w)) => { g.w = w; if g.w.mode == Mode::Plain { g.w.mode = Mode::Creative; g.w.rules = Mode::Creative.rules(); } if g.w.mode == Mode::Creative { for v in g.w.inv.iter_mut() { *v = (*v).max(999); } } reset_view(g, commands); g.msg = "Game loaded".into(); true }
+        Some(Ok(w)) => { g.w = w; if g.w.mode == Mode::Plain { g.w.mode = Mode::Creative; g.w.rules = Mode::Creative.rules(); } if g.w.mode == Mode::Creative { for v in g.w.inv.iter_mut() { *v = (*v).max(999); } } reset_view(g, commands); g.msg = "Game loaded".into(); g.relayout = true; true }
         Some(Err(e)) => { g.msg = format!("Load failed: {e}"); false } None => { g.msg = "No save yet".into(); false } }
 }
 fn make_bg(w: &World) -> Bg {
