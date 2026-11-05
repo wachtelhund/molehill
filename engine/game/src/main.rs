@@ -469,7 +469,15 @@ fn render_world(mut gm: ResMut<Game>, bg: Res<Bg>, mut images: ResMut<Assets<Ima
                     let mut k = 0.86 + v * 0.14 + (v2 - 0.5) * 0.12;
                     if m == Mat::Grass { k *= 0.9 + 0.2 * v; }
                     // soft shading: lit top faces, shadowed undersides
-                    if y > 0 && !gr.is_solidish(i - W) { k *= 1.18; } else if y + 1 < H && !gr.is_solidish(i + W) { k *= 0.78; }
+                    let wy = (y as i64 + wd.oy) as u32;
+                    if p.kind == Kind::Solid && !gr.loose(i) { k *= art::mat_tex(m, x as u32, wy, wd.tick); }
+                    // rims: a bright lip on faces open to the top, a soft second row under it, shadowed undersides
+                    // and slightly darker side walls, so every tunnel edge reads as a shaped edge
+                    let open = |j: usize| !gr.is_solidish(j);
+                    if y > 0 && open(i - W) { k *= 1.2; }
+                    else if y > 1 && open(i - 2 * W) { k *= 1.07; }
+                    else if y + 1 < H && open(i + W) { k *= 0.74; }
+                    else if (x > 0 && open(i - 1)) || (x + 1 < W && open(i + 1)) { k *= 0.9; }
                     if p.kind == Kind::Powder || gr.loose(i) { k *= 0.93 + 0.1 * v; }
                     if wd.st.pending[i] > 0 && (hash3(x as u32, y as u32, 9) % 3 == 0) { k *= 0.45; }
                     let emit = p.emit; let em = (emit[0] as u16 + emit[1] as u16 + emit[2] as u16) > 0;
@@ -553,10 +561,11 @@ fn render_far(gm: &mut Game, ct: &Transform, win: &Window, images: &mut Assets<I
 }
 
 /// Frame-to-frame feedback state for the mole sprite and the little particles (dig chips, landing dust).
-#[derive(Default)] struct Fx { grounded: bool, vy: f32, squash: f32, parts: Vec<Part>, last_mine: Option<[f32; 3]>, chip_t: f32 }
-struct Part { p: Vec2, v: Vec2, life: f32, max: f32, c: [f32; 3], size: f32 }
+#[derive(Default)] struct Fx { grounded: bool, vy: f32, squash: f32, parts: Vec<Part>, last_mine: Option<[f32; 3]>, chip_t: f32, dust_t: f32, wet: bool, ember_t: f32 }
+/// A pixel particle; `g` is its gravity (negative drifts up, like embers).
+struct Part { p: Vec2, v: Vec2, life: f32, max: f32, c: [f32; 3], size: f32, g: f32 }
 fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Res<Time>, mut fx: Local<Fx>, mut q: Query<(Entity, &Pooled, &mut Transform, &mut Sprite, &mut Visibility)>) {
-    // kind 0 moles, 1 drops, 2 chests, 3 stations, 4 torches, 5 mushroom plots, 7 aim, 8 particles, 9 placement pops
+    // kind 0 moles, 1 drops, 2 chests, 3 stations, 4 torches, 5 mushroom plots, 7 aim, 8 particles, 9 torch halos, 10 lamp halos, 11 placement pops
     let dt = if g.paused { 0. } else { time.delta_secs().min(0.05) }; let now = time.elapsed_secs();
     let w = &g.w;
     let mut want: Vec<(u8, usize, Vec2, f32, Handle<Image>, Vec2, bool, Color)> = vec![];
@@ -564,7 +573,7 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
     let pl = &w.pl;
     // squash on landing (harder landings squash more), stretch on take-off; springs back in ~0.12 s
     if !g.paused {
-        if pl.grounded && !fx.grounded && fx.vy > 12. { fx.squash = -(fx.vy / 60.).clamp(0.12, 0.3); let at = cell_to_world(g.disp.x, g.disp.y + 2.); for k in 0..6 { let s = if k % 2 == 0 { 1. } else { -1. }; fx.parts.push(Part { p: at + Vec2::new(s * 3., 0.), v: Vec2::new(s * (14. + k as f32 * 6.), 6. + k as f32 * 2.), life: 0., max: 0.3, c: [150., 130., 120.], size: 1.6 }); } }
+        if pl.grounded && !fx.grounded && fx.vy > 12. { fx.squash = -(fx.vy / 60.).clamp(0.12, 0.3); let at = cell_to_world(g.disp.x, g.disp.y + 2.); for k in 0..6 { let s = if k % 2 == 0 { 1. } else { -1. }; fx.parts.push(Part { p: at + Vec2::new(s * 3., 0.), v: Vec2::new(s * (14. + k as f32 * 6.), 6. + k as f32 * 2.), life: 0., max: 0.3, c: [150., 130., 120.], size: 1.6, g: 260. }); } }
         if !pl.grounded && fx.grounded && pl.vy < -10. { fx.squash = 0.18; }
         fx.grounded = pl.grounded; fx.vy = pl.vy; fx.squash *= (-dt * 18.).exp();
     }
@@ -595,13 +604,31 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
         while fx.chip_t > 0.03 { fx.chip_t -= 0.03;
             let h = hash3(g.frame as u32, fx.parts.len() as u32, 3); let r = |k: u32| ((h >> k) & 255) as f32 / 255. - 0.5;
             let dir = (cell_to_world(g.disp.x, g.disp.y) - cell_to_world(x as f32 + 0.5, y as f32 + 0.5)).normalize_or_zero();
-            fx.parts.push(Part { p: cell_to_world(x as f32 + 0.5, y as f32 + 0.5) + Vec2::new(r(0), r(8)) * 6., v: dir * 40. + Vec2::new(r(16) * 60., 30. + r(24) * 40.), life: 0., max: 0.35 + r(4) * 0.2, c: col, size: 1.2 + (h & 1) as f32 * 0.8 }); }
+            fx.parts.push(Part { p: cell_to_world(x as f32 + 0.5, y as f32 + 0.5) + Vec2::new(r(0), r(8)) * 6., v: dir * 40. + Vec2::new(r(16) * 60., 30. + r(24) * 40.), life: 0., max: 0.35 + r(4) * 0.2, c: col, size: 1.2 + (h & 1) as f32 * 0.8, g: 260. }); }
     } else { fx.chip_t = 0.; }
     // a burst when a bite breaks through
     // (the sim marks the bite the tick it clears; `Event::Dig` also sounds the strike on press, so it can't be the trigger)
     if let Some(&(_, bx, by, _, _)) = g.pops.iter().find(|p| p.0 == 0 && p.4 == now) { if let Some(col) = fx.last_mine.take() {
-        for k in 0..10u32 { let a = k as f32 / 10. * std::f32::consts::TAU; fx.parts.push(Part { p: cell_to_world(bx, by), v: Vec2::new(a.cos(), a.sin().abs() + 0.3) * 55., life: 0., max: 0.4, c: col, size: 1.8 }); } } }
-    for p in fx.parts.iter_mut() { p.life += dt; p.v.y -= 260. * dt; p.p += p.v * dt; }
+        for k in 0..10u32 { let a = k as f32 / 10. * std::f32::consts::TAU; fx.parts.push(Part { p: cell_to_world(bx, by), v: Vec2::new(a.cos(), a.sin().abs() + 0.3) * 55., life: 0., max: 0.4, c: col, size: 1.8, g: 260. }); } } }
+    if !g.paused {
+        // run dust: little puffs of the floor's colour kicked back from the feet while running
+        let floor = w.g.m((pl.py as usize + 1).min(H - 1) * W + (pl.px as usize).min(W - 1));
+        if pl.grounded && pl.vx.abs() > 6. && floor != Mat::Empty { fx.dust_t += dt; } else { fx.dust_t = 0.; }
+        while fx.dust_t > 0.11 { fx.dust_t -= 0.11; let c = PROPS[floor as usize].color; let h = hash3(g.frame as u32, 7, 11); let r = ((h & 255) as f32 / 255.) - 0.5;
+            fx.parts.push(Part { p: cell_to_world(g.disp.x, g.disp.y + 1.) + Vec2::new(-pl.vx.signum() * 4., 1.), v: Vec2::new(-pl.vx.signum() * (10. + r * 8.), 12. + r * 6.), life: 0., max: 0.28, c: [c[0] as f32 * 0.8 + 30., c[1] as f32 * 0.8 + 30., c[2] as f32 * 0.8 + 30.], size: 1.4, g: 90. }); }
+        // splash: entering water (or lava) throws a crown of droplets
+        let body = w.g.m((pl.py as usize).min(H - 1) * W + (pl.px as usize).min(W - 1)); let wet = matches!(body, Mat::Water | Mat::Lava);
+        if wet && !fx.wet && pl.vy.abs() > 4. { let c = if body == Mat::Lava { [255., 140., 40.] } else { [120., 170., 230.] };
+            for k in 0..12u32 { let s = if k % 2 == 0 { 1. } else { -1. }; let h = hash3(g.frame as u32, k, 13); let r = ((h & 255) as f32 / 255.) - 0.5;
+                fx.parts.push(Part { p: cell_to_world(g.disp.x, g.disp.y - 0.5) + Vec2::new(s * (2. + k as f32 * 0.6), 0.), v: Vec2::new(s * (12. + k as f32 * 4. + r * 10.), 50. + r * 30. + (pl.vy.abs() * 1.5).min(40.)), life: 0., max: 0.5, c, size: 1.5, g: 300. }); } }
+        fx.wet = wet;
+        // embers: torches shed the odd spark that drifts up and winks out
+        fx.ember_t += dt * w.torches.len().min(12) as f32;
+        while fx.ember_t > 0.5 { fx.ember_t -= 0.5; let h = hash3(g.frame as u32, fx.parts.len() as u32, 17); if w.torches.is_empty() { break; }
+            let (x, y) = w.torches[h as usize % w.torches.len()]; let r = (((h >> 8) & 255) as f32 / 255.) - 0.5;
+            fx.parts.push(Part { p: cell_to_world(x as f32 + 0.5, y as f32 - 0.3), v: Vec2::new(r * 14., 10. + r.abs() * 10.), life: 0., max: 0.9, c: [255., 180., 90.], size: 0.9, g: -14. }); }
+    }
+    for p in fx.parts.iter_mut() { p.life += dt; p.v.y -= p.g * dt; p.p += p.v * dt; }
     fx.parts.retain(|p| p.life < p.max); while fx.parts.len() > 120 { fx.parts.remove(0); }
     for (k, p) in fx.parts.iter().enumerate() { let a = 1. - p.life / p.max; want.push((8, k, p.p, 5.5, sp.px.clone(), Vec2::splat(p.size), false, Color::srgba(p.c[0] / 255., p.c[1] / 255., p.c[2] / 255., a))); }
     for (k, d) in w.drops.iter().enumerate() { if w.g.flags[d.y * W + d.x] & F_SEEN == 0 { continue; } want.push((1, k, cell_to_world(d.x as f32 + 0.5, d.y as f32 + 0.2), 4., sp.icons[d.item as usize].clone(), Vec2::splat(8.), false, lightf(d.x, d.y))); }
@@ -633,7 +660,7 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
     }
     // placement pop: the placed block (or brush) flashes white and settles (bites burst into chips, above)
     for (k, &(kind, x, y, r, t0)) in g.pops.iter().enumerate() { if kind != 1 { continue; } let a = ((now - t0) / 0.2).clamp(0., 1.);
-        want.push((9, k, cell_to_world(x, y), 6.5, sp.px.clone(), Vec2::splat(CPX * (2. * r + 0.7 - 0.7 * a)), false, Color::srgba(1., 1., 0.95, 0.8 * (1. - a)))); }
+        want.push((11, k, cell_to_world(x, y), 6.5, sp.px.clone(), Vec2::splat(CPX * (2. * r + 0.7 - 0.7 * a)), false, Color::srgba(1., 1., 0.95, 0.8 * (1. - a)))); }
     let mut used = std::collections::HashSet::new();
     for (e, p, mut t, mut s, mut vis) in &mut q {
         if let Some(wn) = want.iter().find(|wn| wn.0 == p.0 && wn.1 == p.1) {

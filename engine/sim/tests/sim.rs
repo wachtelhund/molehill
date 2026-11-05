@@ -487,3 +487,25 @@ fn press(w: &mut World, n: usize, f: impl Fn(&mut Input)) -> (f32, f32) { let (m
     let mut w = Wheel::default(); assert_eq!((0..3).map(|_| w.feed(2., true, dt)).sum::<i32>(), 0);
     assert_eq!(w.feed(f32::NAN, true, dt), 0);
 }
+#[test] fn world_hover_explains_cells() {
+    use molehill_sim::{tips::{describe, strain_word}, grid::F_SEEN, world::Farm};
+    let (mut w, x0, y0) = arena();
+    let see = |w: &mut World, x: usize, y: usize| { let i = w.g.idx(x, y); w.g.flags[i] |= F_SEEN; };
+    w.logic.dev.fill(0); w.logic.wire.fill(0); w.buildings.clear(); w.chests.clear(); // the burrow's starting vent etc.
+    // open air says nothing; unseen rock says nothing
+    see(&mut w, x0, y0 - 5); assert!(describe(&w, x0, y0 - 5).is_none(), "{:?}", describe(&w, x0, y0 - 5).map(|t| (t.name, t.lines)));
+    assert!(describe(&w, x0, y0 + 2).is_none());
+    see(&mut w, x0, y0 + 2); let t = describe(&w, x0, y0 + 2).unwrap(); assert_eq!(t.name, "Granite");
+    // a mushroom plot says why it isn't growing
+    w.farms.push(Farm { x: x0 + 5, y: y0, growth: 0.5, why: 3 }); see(&mut w, x0 + 5, y0);
+    let t = describe(&w, x0 + 5, y0).unwrap(); assert_eq!(t.name, "Mushroom");
+    assert!(t.lines.iter().any(|l| l.contains("50%")) && t.lines.iter().any(|l| l.contains("bright")) && t.lines.iter().any(|l| l.contains("dry")));
+    // strain wording rises with load, and a crack always wins
+    assert_eq!(strain_word(10, false), None);
+    assert!(strain_word(100, false).unwrap().contains("Strain"));
+    assert!(strain_word(200, false).unwrap().contains("Overloaded"));
+    assert!(strain_word(0, true).unwrap().contains("Cracking"));
+    // lore: no modern words in anything the hover can say
+    let banned = ["radio", "electric", "signal", "sensor", "sky", "sun", "surface", "magic"];
+    for (n, l) in [(t.name.clone(), t.lines.join(" "))] { let l = l.to_lowercase(); for b in banned { assert!(!l.contains(b), "{n}: {l}"); } }
+}
