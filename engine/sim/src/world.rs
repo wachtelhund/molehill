@@ -63,12 +63,17 @@ pub struct Input { pub left: bool, pub right: bool, pub jump: bool, pub up: bool
 pub struct Player { pub px: f32, pub py: f32, pub ppx: f32, pub ppy: f32, pub sync: Option<(usize, usize)>, pub coyote: f32, pub buffer: f32, pub lock: f32, pub cling: i8, pub jump_was: bool, pub vx: f32, pub vy: f32, pub ax: f32, pub ay: f32, pub grounded: bool, pub fall_from: usize, pub mine: Option<(usize, u32, u32)>, pub spawn: (usize, i64), pub dead_t: u32, pub deaths: u32,
     /// hit flash (s left) after taking a knock; `hp_was` = hp after the last tick, to spot the knock
     pub flash: f32, pub hp_was: f32,
-    /// the cell a dig was refused on (too hard for the tools owned): said once, until the aim moves on
-    pub deny: Option<usize>,
+    /// the material a dig was refused on during this press (too hard for the tools owned): clinks once per
+    /// press and material, not per cell swept over; cleared on release or when a bite lands
+    pub deny: Option<Mat>,
+    /// the last refusal said aloud and its tick: the same words wait `DENY_REPEAT` ticks before repeating
+    pub deny_said: Option<(Mat, u64)>,
     /// wall-jump grace (s left) after leaving a cling, and the side that wall was on
     pub wall_t: f32, pub wall_side: i8,
     /// rolling over a ledge after a climb (s left; direction = `wall_side`): carried onto the top, no gravity
     pub mantle: f32 }
+/// Ticks before the same "too hard" words are said again (the clink still sounds on each press).
+pub const DENY_REPEAT: u64 = 300;
 pub const REACH_CELLS: f32 = 4.5 * CPM as f32; // 4.5 m
 /// Mining brush radius (cells) per dig tool: claws, pickaxe, drill, bore. A pickaxe bite is about a mole tall.
 pub const BITES: [f32; 4] = [1.8 * SF, 2.5 * SF, 3.2 * SF, 4.2 * SF];
@@ -372,7 +377,16 @@ impl World {
     /// The dig tool in hand (0 claws .. 3 bore); in Survival you can only use tools you own.
     pub fn tool(&self) -> u8 { let t = self.input.tool.min(3); if self.rules.tools { t.min(tool_tier(&self.inv)) } else { t } }
     fn tier_ok(&self, m: Mat) -> bool { m != Mat::Bedrock && m.p().tier <= self.dig_power().max(1).min(3) + if m.p().tier <= 1 { 1 } else { 0 } }
-    fn diggable(&self, i: usize) -> bool { let m = self.g.m(i); matches!(m.kind(), Kind::Solid | Kind::Powder) && m != Mat::Bedrock && self.tier_ok(m) }
+    fn diggable(&self, i: usize) -> bool { self.can_dig(self.g.m(i)) }
+    /// Can the tools owned (or the pick in hand) dig this material at all?
+    pub fn can_dig(&self, m: Mat) -> bool { matches!(m.kind(), Kind::Solid | Kind::Powder) && m != Mat::Bedrock && self.tier_ok(m) }
+    /// Why a solid can't be dug with what the mole has, in a word for the log and the hover tip (None if it can).
+    pub fn dig_refusal(&self, m: Mat) -> Option<String> {
+        if m.kind() != Kind::Solid || self.can_dig(m) { return None; }
+        if m == Mat::Bedrock { return Some("Bedrock. Nothing digs it.".into()); }
+        let have = ["claws", "pickaxe", "drill", "bore"][self.dig_power().min(3) as usize];
+        Some(match m.p().tier { 2 => format!("{} is too hard for your {have}: it needs a drill.", m.p().name), 3 => format!("{} is too hard for your {have}: it needs a bore.", m.p().name), _ => format!("{} is too hard for your {have}.", m.p().name) })
+    }
     #[allow(dead_code)] fn dig_target_near(&self, x: usize, y: usize) -> Option<usize> {
         let w = self.g.w; let mut best = None; let mut bd = i32::MAX;
         for dy in -REACH - 1..=REACH - 1 { for dx in -REACH..=REACH {
@@ -995,21 +1009,25 @@ impl World {
                     let work = match self.pl.mine { Some((j, w, _)) if (j % self.g.w).abs_diff(mx) <= 2 * S && (j / self.g.w).abs_diff(my) <= 2 * S => w + 1, _ => 1 };
                     self.moles[0].facing = if mx >= x { 1 } else { -1 };
                     if work % 10 == 1 { self.events.push(Event::Dig); self.shake = self.shake.max(0.1 + 0.03 * self.tool() as f32); } // each strike is heard and felt: on press, then every 1/6 s
-                    if work >= need { self.pl.mine = None; for c in cells { if self.mine_time(c).is_some() { self.dig_cell(c, x, y); } }
+                    if work >= need { self.pl.mine = None; self.pl.deny = None; for c in cells { if self.mine_time(c).is_some() { self.dig_cell(c, x, y); } }
                         let b = brush_radius(Brush::Dig(self.tool()), self.input.brush); self.marks.push((0, mx as f32 + 0.5, my as f32 + 0.5, b)); self.shake = self.shake.max(0.3 + 0.1 * self.tool() as f32); }
                     else { self.pl.mine = Some((i, work, need)); }
                 } else {
                     self.pl.mine = None;
-                    // nothing here gives to your tools: say so at once (a clink and a word), not silence
-                    let i = self.g.idx(mx, my); let m = self.g.m(i);
-                    if m.kind() == Kind::Solid && self.pl.deny != Some(i) {
-                        self.pl.deny = Some(i); self.events.push(Event::Crack); self.shake = self.shake.max(0.08);
-                        let need = match m.p().tier { 2 => Some("a drill"), 3 => Some("a bore"), _ => None };
-                        if let (Some(n), true) = (need, m != Mat::Bedrock) { self.say(format!("{} is too hard: it needs {n}.", m.p().name)); } else if m == Mat::Bedrock { self.say("Bedrock. Nothing digs it.".into()); }
-                    }
+                    // nothing here gives to your tools: say so at once (a clink and a word), not silence. Once per
+                    // press and material, so sweeping along a granite wall clinks once, and the words don't repeat
+                    // for DENY_REPEAT ticks however often you click.
+                    let hard = cells.iter().map(|&c| self.g.m(c)).find(|&m| m.kind() == Kind::Solid && !self.can_dig(m));
+                    if let Some(m) = hard { if self.pl.deny != Some(m) {
+                        self.pl.deny = Some(m); self.events.push(Event::Crack); self.shake = self.shake.max(0.08);
+                        if self.pl.deny_said.map_or(true, |(dm, t)| dm != m || self.tick >= t + DENY_REPEAT) {
+                            self.pl.deny_said = Some((m, self.tick)); if let Some(s) = self.dig_refusal(m) { self.say(s); }
+                        }
+                    } }
                 }
             }
-            _ => { self.pl.mine = None; self.pl.deny = None; }
+            Some(_) => { self.pl.mine = None; } // held but out of reach: the press goes on, so don't clink again
+            None => { self.pl.mine = None; self.pl.deny = None; }
         }
         // pick up anything lying within 3 cells
         let mut k = 0;

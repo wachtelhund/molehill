@@ -31,8 +31,14 @@ pub fn describe(w: &World, x: usize, y: usize) -> Option<Tip> {
     for b in &w.buildings {
         if x >= b.x && x < b.x + Station::W && y + Station::H > b.y && y <= b.y {
             let makes: Vec<&str> = crate::craft::RECIPES.iter().filter(|r| r.station == b.kind).map(|r| r.name).take(4).collect();
-            if b.built { return tip(b.kind.name().into(), vec![b.kind.desc().into(), format!("Makes {}.", makes.join(", ").to_lowercase()), "Stand here and open the pack (I) to craft.".into()]); }
-            let need: Vec<String> = b.kind.cost().iter().map(|(it, n)| format!("{n} {}", it.name().to_lowercase())).collect();
+            if b.built {
+                // a station that can't work says why, rather than inviting a craft that will be refused
+                let how = match w.station_ready(b) { Ok(()) => "Stand here and open the pack (I) to craft.".to_string(), Err(e) => format!("{}{}.", e[..1].to_uppercase(), &e[1..]) };
+                return tip(b.kind.name().into(), vec![b.kind.desc().into(), format!("Makes {}.", makes.join(", ").to_lowercase()), how]);
+            }
+            // planned: what it still needs, against what's in the pack
+            let need: Vec<String> = b.kind.cost().iter().map(|&(it, n)| { let have = w.inv[it as usize];
+                if have >= n { format!("{n} {} (have)", it.name().to_lowercase()) } else { format!("{n} {} (have {have})", it.name().to_lowercase()) } }).collect();
             return tip(format!("{} (planned)", b.kind.name()), vec![b.kind.desc().into(), format!("Needs {}.", need.join(", "))]);
         }
     }
@@ -71,12 +77,22 @@ pub fn describe(w: &World, x: usize, y: usize) -> Option<Tip> {
     let m = w.g.m(i);
     if m == Mat::Empty { return None; }
     let loose = w.g.loose(i) && m.kind() == Kind::Solid;
-    let mut l = vec![m.desc().to_string()];
+    let mut l = vec![tool_free(m.desc())];
+    // digging: what the mole's own tools do to it, instead of the table's general note on tools
+    if let Some(r) = w.dig_refusal(m) { if m != Mat::Bedrock { l.push(r); } }
+    else if w.can_dig(m) { if let Some(it) = crate::craft::drop_of(m) { l.push(format!("Digging it gives {}.", it.name().to_lowercase())); } }
     if m.kind() == Kind::Solid && !loose {
         if let Some(s) = strain_word(w.st.util.get(i).copied().unwrap_or(0), w.st.pending.get(i).copied().unwrap_or(0) > 0) { l.push(s.into()); }
     }
     let p = w.g.paint(i); if p > 0 && m.kind() == Kind::Solid { l.push(format!("Painted {}.", pigment_name(p))); }
     tip(if loose { format!("Loose {}", m.p().name.to_lowercase()) } else { m.p().name.to_string() }, l)
+}
+
+/// A material's description without its sentences about dig tools ("Needs a drill.", "A pickaxe cuts it."):
+/// the tip says what the mole's own tools do instead, so a drill owner isn't told granite needs one.
+pub fn tool_free(desc: &str) -> String {
+    let keep: Vec<&str> = desc.split_inclusive(". ").map(str::trim).filter(|t| { let t = t.to_lowercase(); !["drill", "pickaxe", "bore"].iter().any(|k| t.contains(k)) }).collect();
+    if keep.is_empty() { desc.to_string() } else { keep.join(" ") }
 }
 
 /// A pigment's name by paint index (1..6), lower case.

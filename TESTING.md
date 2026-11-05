@@ -132,6 +132,7 @@ Map legend: `t` roots (a root tangle), `f` fungus, `.` empty, `#` granite, `B` b
 | `furn:Item` `tint:Item` | How many of that furniture stand in the world; the first one's dye (0 undyed, 1–6 the pigments) |
 | `paint:DX,DY` | The pigment painted on the tile's centre cell (0 unpainted; 1 ochre, 2 rust, 3 chalk, 4 verdigris, 5 woad, 6 soot) |
 | `light:DX,DY` | Brightness (luma) at the tile's centre; light is recomputed over the map every tick. About 1 is fully lit, under 0.05 is dark |
+| `log:WORD` | Lines in the message log containing WORD (case-insensitive; `_` stands for a space), e.g. `log:too_hard` |
 | `strain:DX,DY` | The hover tooltip's strain level for that cell (`tips::strain_at`): 0 idle, 1 bearing, 2 straining, 3 overloaded, 4 cracking |
 | `dev:DX,DY,<Dev>` | 1 if the 1 m block at that offset holds that device |
 | `lit:DX,DY` / `on:DX,DY` / `wire:DX,DY` | The block's fuse is burning / its device is powered / it has copperline |
@@ -245,6 +246,7 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `place_grid_snap.scn` | Grid snap squares (0.25 / 0.5 / 1 m); a drag lays a straight row or column; nothing in mid-air |
 | `craft_unlock_by_touch.scn` | Survival: a recipe appears once any input is picked up; Creative lists all |
 | `craft_stations.scn` | Survival crafting at a workbench; a forge refuses cold and works with lava in reach; a workshop refuses unpowered and makes the drill once a lever powers its line |
+| `dig_refused_once.scn` | A dig the Pickaxe can't do says so once per press and material (not per cell swept), repeats the words only after 5 s, and soft rock beside it still digs |
 | `tool_tiers_survival.scn` | Survival digs with the best tool owned: claws (dirt, soft stone), pickaxe, drill (granite), bore (basalt) |
 | `forge_coal_fuel.scn` | With no lava in reach the forge burns a coal per job; with no fuel it's cold |
 | `feel_feedback.scn` | Each action answers on its tick: dig strike, refused dig (clink), throw, a 0.5 m landing bump |
