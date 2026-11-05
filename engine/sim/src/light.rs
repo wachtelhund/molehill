@@ -44,6 +44,9 @@ pub mod kinds {
     /// The small glow round the lamp itself (and the mole's own faint glow when the lamp is out).
     pub const LAMP_GLOW: ([f32; 3], f32) = ([0.42, 0.40, 0.3], 3.);
     pub const MOLE_GLOW: ([f32; 3], f32) = ([0.26, 0.23, 0.2], 2.);
+    /// A glowmite drifting in a grotto: a small cold green-gold glow. A jar of one carried in the paw.
+    pub const GLOWMITE: ([f32; 3], f32) = ([0.42, 0.62, 0.3], 2.5);
+    pub const GLOWMITE_JAR: ([f32; 3], f32) = ([0.6, 0.85, 0.42], 4.);
 }
 
 /// Seed of the local glow flood per unit of emission (the rays carry the real light).

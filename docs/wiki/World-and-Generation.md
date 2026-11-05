@@ -49,21 +49,37 @@ Biomes vary along x only (a 2-octave fbm at scale 65 m). Generation noise is sam
 | −30 to 0 m | dirt, clay and limestone patches |
 | 0 to 30 m | limestone and soft rock (granite in the crags) |
 | 30 to 70 m | granite and soft rock |
-| below 70 m | granite and basalt (all basalt in the Ashlands) |
+| below 70 m | mostly basalt, some granite (all basalt in the Ashlands) |
 
 Above 35 m, lenses of **sand** and **gravel** form in the rock. The wettest are aquifer-saturated (`F_WET`): they seep water when you dig into them, and they make a mushroom farm damp.
 
-**Ore veins** follow thin ridged-noise bands:
+**Ore veins** follow thin ridged-noise bands, and each ore sits in a **depth band** that matches the progression tiers (see [Progression](Progression.md#tiers)). Inside its band a seam is at full strength; over the fade it thins out to nothing (`gen::Band`):
 
-| ore | effective depth |
-|---|---|
-| coal | −20 to 9 m (thin seams up to −60 m); never where lava runs |
-| copper ore | below 0 m |
-| tin ore | below 10 m |
-| iron ore | below 35 m |
-| quartz | below 45 m |
+| ore | tier | full strength (effective depth) | fades out over |
+|---|---|---|---|
+| coal | 1 | −20 to 9 m (thin seams up to −60 m); never where lava runs | – |
+| copper ore | 2 | 2 to 30 m: just below the holt | 10 m |
+| tin ore | 2 | 12 to 45 m | 8 m |
+| iron ore | 3 | 40 to 85 m, in the granite (none above about 30 m) | 8 m |
+| quartz | – | below 50 m | 10 m |
+
+Deep down (below 70 m) the rock is mostly **basalt**, with crystal and quartz on the cave walls and lava in the pockets: the heat layer of tier 5. All of it comes from seeded noise, so it's the same for a seed every time (`ore_sits_in_its_depth_bands`).
 
 **Cave walls** are decorated: **crystal** (which glows) below 45 m, **quartz** below 35 m, **glowing fungus** on cave floors above 9 m, and **roots** above −10 m.
+
+## Grottos
+
+**Grottos** are rare underground oases where water seeps through the rock (see [Lore](Lore.md#grottos)). They're the Deepholt's wood source.
+
+* **Where:** the world is cut into 40 m × 24 m grotto cells, and a seeded hash decides whether each one holds a grotto. The chance follows the water: 20 % in the wet upper layers (above −20 m), falling to 10 % at 10 m and 2 % by 50 m, and none below 60 m, where lava takes over. None is placed on top of the start burrow. A window usually holds a few (`grottos_follow_the_layers`).
+* **Shape:** a domed hollow 10–16 m wide and 4.5–7 m high with a flat floor. Around it lies a 1.5 m **shell** that is limestone wherever the host rock is too weak to hold a dome, so grottos stand (`generated_grottos_hold`).
+* **Inside:**
+  * **Moss** and glowing **mycelium** carpet the floor (both soil a mushroom grows on), and mycelium threads the lower walls.
+  * A **seep pool** is sunk into the floor.
+  * There are 1–3 **root-trees**: 0.5 m trunks, 2–3.5 m tall, standing on spreading **root-tree roots**.
+* **Root-trees regrow.** Cut a trunk and it gives **wood**. While its roots stand and there's seep water within about 6 m, the trunk grows back a cell at a time, about every 6 s per column, to its old height. Dig out the roots, or drain the pool, and it never comes back. The rule reads only the grid, so it survives slides and saves (`tree_regrow`, `tree_no_seep`).
+* **Glowmites** drift through every grotto: a swarm of 4–7 small, cold green-gold lights, each on its own slow loop round the hollow. Each one is a light source. Right mouse on one catches it in a jar (a **Glowmite** in the pack, which glows when held). A grotto's swarm refills, with a caught glowmite replaced after 5 minutes (`glowmite_catch`, `glowmites_drift_glow_and_get_caught`).
+* Grottos are a pure function of the seed and position like the rest of the world, so a slide or a reload regenerates them identically.
 
 ## Caves
 
@@ -103,6 +119,10 @@ Random noise makes caves that real rock could not hold. After filling, the gener
 4. After 40 rounds the margin is dropped to 1.0, so the loop only has to make sure nothing actually fails.
 
 Only the first round is a full solve. Every later round re-solves just the regions around the cells the previous round changed (`Stress::solve_cells`), with an 8 m margin at the sides and the roof rows kept between solves. This is exact, because every failing cell is changed. Together with the growing fill, it makes a new holt several times faster to generate: `World::new` on the game window takes about 1.1 s instead of 7–10 s (`genbench` measures it).
+
+Grotto hollows and pools are kept: the stability pass never fills them in, it only strengthens their shell.
+
+After a slide into fresh rows the pass covers the new rows **plus 32 m of the old rows** next to them, because those may now roof a newly generated cave. A roof that runs right up to the window's edge counts as thick (the rock goes on beyond it), so nothing is left about to fail after a slide (`slides_leave_nothing_failing`).
 
 Then the world runs **240 falling-sand ticks** so loose material and fluids settle, and the pass runs again. A fresh world therefore stands: with no player action the start burrow holds and only a little collapses in the first two minutes (this is tested). Collapses are caused by you, or by fluid fronts you open up.
 

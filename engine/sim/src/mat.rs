@@ -11,8 +11,9 @@ pub enum Mat {
     Empty = 0, Bedrock, Granite, Rock, Limestone, Basalt, Dirt, Clay, Sand, Gravel,
     Coal, CopperOre, TinOre, IronOre, Quartz, Crystal, Roots, Fungus, Grass,
     WoodBeam, StoneBrick, IronBeam, Door, Water, Lava, Steam, Fire, Glass,
+    RootTree, TreeRoot, Moss, Mycelium,
 }
-pub const NMAT: usize = 28;
+pub const NMAT: usize = 32;
 
 /// Everything the simulation knows about a material, in one row. Rules read these fields instead of
 /// naming materials, so a new material (or a retuned one) is a single table edit.
@@ -96,6 +97,12 @@ pub static PROPS: [Props; NMAT] = [
     Props { name: "Steam", desc: "Hot vapour from water meeting lava.", kind: Gas, density: 0.6, opacity: 8, color: [210, 216, 222], crumbles_to: X::Steam, life: 90, flags: OPEN, ..BASE },
     Props { name: "Fire", desc: "Burning. Spreads to wood and roots.", kind: Gas, density: 0.3, emit: [255, 150, 50], opacity: 4, color: [255, 160, 60], crumbles_to: X::Empty, heat: 1, cools_to: X::Steam, life: 70, ..BASE },
     Props { name: "Glass", desc: "Clear pane.", kind: Solid, density: 2500., tensile: 100., compressive: 2000., dig: 3, blast: 2, opacity: 20, color: [190, 220, 230], crumbles_to: X::Sand, flags: BUILT, bounce: 0.4, friction: 0.3, ..BASE },
+    // grottos: a root-tree's trunk (the wood source), its roots (it grows back from them), damp moss and glowing
+    // mycelium (a skin grown into the stone floor: it bears what the stone under it bears)
+    Props { name: "Root-tree", desc: "Cave tree. Cut it for wood; leave its roots and it grows back.", kind: Solid, density: 700., tensile: 2500., compressive: 6000., dig: 4, blast: 3, opacity: 150, color: [104, 78, 52], crumbles_to: X::RootTree, repose: 0.3, ignite: 1, flags: NOTABLE, bounce: 0.3, friction: 0.55, ..BASE },
+    Props { name: "Root-tree roots", desc: "A root-tree's roots. While they hold and the seep runs, the tree regrows.", kind: Solid, density: 900., tensile: 80., compressive: 2500., dig: 3, blast: 2, opacity: 110, color: [132, 96, 58], crumbles_to: X::Dirt, repose: 0.2, ignite: 1, flags: SOIL | POROUS | GRUBS, bounce: 0.15, friction: 0.8, ..BASE },
+    Props { name: "Moss", desc: "Damp moss on the grotto floor.", kind: Solid, density: 1300., tensile: 40., compressive: 2500., dig: 1, blast: 1, opacity: 110, color: [74, 128, 70], crumbles_to: X::Dirt, repose: 0.15, ignite: 1, flags: SOIL | POROUS, bounce: 0.05, friction: 1.0, ..BASE },
+    Props { name: "Mycelium", desc: "Glowing threads through the damp ground.", kind: Solid, density: 1100., tensile: 40., compressive: 2500., dig: 1, blast: 1, emit: [60, 140, 170], opacity: 90, color: [150, 205, 215], crumbles_to: X::Dirt, repose: 0.15, ignite: 1, flags: SOIL | POROUS | NOTABLE, bounce: 0.05, friction: 1.0, ..BASE },
 ];
 impl Mat {
     #[inline] pub fn from_u8(v: u8) -> Mat { if (v as usize) < NMAT { unsafe { std::mem::transmute(v) } } else { Mat::Empty } }

@@ -41,8 +41,11 @@ Placed blocks are ordinary cells, judged by the same structural solver as the ro
 | TNT | Set down **inert** (left mouse, or right mouse on an empty spot); light it with right mouse (1.5 s fuse) or set it off with current, or pick it back up with `E` while unlit. Thrown with `Q`, it goes out lit |
 | Spore | Planted on soil to start a mushroom plot |
 | Station | Placed as a 2.5 × 1.75 m building (10 × 7 tiles) |
+| Glowmite | A glowmite in a jar: held in the paw it lights the way like a small cold lamp, with no fuel |
 
 Food (grubs, mushrooms, fungus) is eaten from the pack automatically when the mole gets hungry.
+
+**Right mouse** on a glowmite drifting in a grotto catches it in a jar (see [World and Generation](World-and-Generation.md#grottos)); otherwise right mouse uses the device under the cursor.
 
 ## The pack
 
@@ -52,7 +55,7 @@ The pack (`I`) is a grid of 70 slots, and the bottom row is the hotbar (`1`–`0
 
 ## Digging drops
 
-Digging drops items: one per 6 tiles dug, or one per 3 for gems. Loose items are small physics bodies (`items.rs`): they pop out of the bite, fall, bounce and skid on what they land on (stone is lively, dirt swallows a bounce), float or sink by density (wood floats, ingots sink, a grub sinks slowly), burn up in lava or fire if they burn, and fall asleep once still. Walking past picks them up.
+Digging drops items: one per 6 tiles dug, or one per 3 for gems. **Wood** comes from grottos: root-tree trunks and their roots (a trunk cut down but left with its roots grows back), and from tangled roots in the upper soil. Mycelium gives fungus. Loose items are small physics bodies (`items.rs`): they pop out of the bite, fall, bounce and skid on what they land on (stone is lively, dirt swallows a bounce), float or sink by density (wood floats, ingots sink, a grub sinks slowly), burn up in lava or fire if they burn, and fall asleep once still. Walking past picks them up.
 
 ## What each item does
 

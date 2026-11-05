@@ -715,6 +715,82 @@ fn material_table_is_consistent() {
     assert_ne!(w.g.get(far.0, far.1 - 6), Mat::Sand, "and falls once the region covers it");
 }
 
+/// Ore by depth (PROGRESSION.md tiers): copper just below the holt, iron in the mid granite, basalt
+/// ruling the deep. Sampled straight from the generator over many columns, several seeds.
+#[test] fn ore_sits_in_its_depth_bands() {
+    use molehill_sim::{gen::Gen, mat::CPM};
+    let w = 1024 * S; let band = |d: i64| d.div_euclid(10); // 10 m bands
+    let mut tally: std::collections::BTreeMap<i64, [u32; 4]> = Default::default(); // copper, iron, basalt, solid
+    for seed in [3u32, 77, 4242] { let g = Gen::new(seed, w);
+        for d in (-30..120i64).step_by(2) { let wy = d * CPM as i64; for x in (16 * S..w - 16 * S).step_by(3) {
+            let m = Mat::from_u8(g.cell(x, wy, w).0); let t = tally.entry(band(d)).or_default();
+            if m == Mat::CopperOre { t[0] += 1; } if m == Mat::IronOre { t[1] += 1; } if m == Mat::Basalt { t[2] += 1; }
+            if m.kind() == molehill_sim::mat::Kind::Solid { t[3] += 1; } } } }
+    let sum = |b0: i64, b1: i64, k: usize| (b0..=b1).map(|b| tally.get(&b).map_or(0, |t| t[k])).sum::<u32>();
+    assert!(sum(0, 3, 0) > 100, "copper seams just below the holt: {}", sum(0, 3, 0));
+    assert_eq!(sum(6, 11, 0), 0, "no copper deep down");
+    assert_eq!(sum(-3, 1, 1), 0, "no iron near the holt");
+    assert!(sum(4, 8, 1) > 100, "iron in the mid granite: {}", sum(4, 8, 1));
+    assert!(sum(4, 8, 1) > 3 * sum(0, 3, 1), "iron is a deeper ore");
+    let deep = sum(9, 11, 2) as f32 / sum(9, 11, 3).max(1) as f32; assert!(deep > 0.5, "basalt rules below 90 m: {deep}");
+    assert_eq!(sum(-3, 1, 2), 0, "no basalt near the holt");
+}
+/// Grottos are rare and follow the water: commonest in the wet upper layers, rarer with depth, none in
+/// the lava deep. Counted over 64 grotto cells per row band and 6 seeds.
+#[test] fn grottos_follow_the_layers() {
+    use molehill_sim::gen::{Gen, GROTTO_H};
+    let w = 1024 * S * 8; let rows = |d: i64| (d * molehill_sim::mat::CPM as i64).div_euclid(GROTTO_H as i64);
+    let count = |d0: i64, d1: i64| -> (usize, usize) { let mut n = (0, 0); for seed in 0..6u32 { let g = Gen::new(seed * 7 + 1, w);
+        for gy in rows(d0)..rows(d1) { for gx in 0..(w / molehill_sim::gen::GROTTO_W) as i64 { n.1 += 1; if g.grotto_at(gx, gy).is_some() { n.0 += 1; } } } } n };
+    let (up, up_n) = count(-120, -24); let (mid, mid_n) = count(24, 48); let (deep, _) = count(72, 200);
+    let (fu, fm) = (up as f32 / up_n as f32, mid as f32 / mid_n as f32);
+    assert!((0.1..0.3).contains(&fu), "upper layers: a grotto in {:.0}% of cells", fu * 100.);
+    assert!(fm < fu * 0.6 && fm > 0., "rarer deeper: {:.0}% vs {:.0}%", fm * 100., fu * 100.);
+    assert_eq!(deep, 0, "no grottos in the lava deep");
+    // deterministic per seed
+    let (a, b) = (Gen::new(5, w), Gen::new(5, w)); assert_eq!(a.grottos_in_rows(-2000, 2000), b.grottos_in_rows(-2000, 2000));
+}
+/// A generated grotto stands: a fresh holt with grottos in its window keeps its hollows open, its trees
+/// up and its pools full for half a minute.
+#[test] fn generated_grottos_hold() {
+    for seed in [4242u32, 77] {
+        let mut w = World::new(1024 * S, 512 * S, seed); w.disasters.enabled = false;
+        let gs: Vec<_> = w.grottos.iter().filter(|g| g.cy - w.oy > 0 && ((g.cy - w.oy) as usize) < w.g.h).cloned().collect();
+        assert!(!gs.is_empty(), "seed {seed}: a grotto in the window");
+        let wood = |w: &World| (0..w.g.mat.len()).filter(|&i| w.g.mat[i] == Mat::RootTree as u8).count();
+        let (t0, c0) = (wood(&w), w.crumbled); assert!(t0 > 0, "root-trees grew in the grottos");
+        // the mole isn't near most grottos: run them all, like a mole that walked by every one
+        for _ in 0..1800 { w.step(); w.g.active = None; }
+        assert!(w.crumbled - c0 < 200 * (S * S) as u64, "seed {seed}: {} cells crumbled", w.crumbled - c0);
+        assert!(wood(&w) * 10 >= t0 * 9, "seed {seed}: trees stand ({} of {t0})", wood(&w));
+        for g in &gs { // the hollow (as generated) is still open air, bar a little rubble or a fresh trunk cell
+            let (mut n, mut open) = (0, 0);
+            for y in 0..w.g.h { for x in g.cx.saturating_sub(g.rx)..(g.cx + g.rx).min(w.g.w) { if g.part(x, w.oy + y as i64) == Some(molehill_sim::gen::Part::Hollow) { n += 1; if !w.g.is_solidish(w.g.idx(x, y)) { open += 1; } } } }
+            assert!(n > 0 && open * 10 >= n * 9, "seed {seed}: grotto at {} is {open} of {n} cells open", g.cx); }
+    }
+}
+/// Slides into fresh rows leave nothing about to fail: the old rows next to the new ones are stabilised
+/// too, and a roof running up to the window's edge isn't mistaken for a thin one.
+#[test] fn slides_leave_nothing_failing() {
+    for seed in [777u32, 11] {
+        let mut w = World::new(1024 * S, 512 * S, seed); w.disasters.enabled = false;
+        for rows in [SLIDE as i64, -(SLIDE as i64)] { w.shift(rows); let f = Stress::new(w.g.w * w.g.h).solve(&w.g); assert!(f.is_empty(), "seed {seed}, slide {rows}: {} cells fail", f.len()); }
+    }
+}
+/// Glowmites drift inside their grotto, light it, and can be caught one at a time; a caught one is back later.
+#[test] fn glowmites_drift_glow_and_get_caught() {
+    use molehill_sim::{craft::Item, gen::Grotto};
+    let (mut w, x0, y0) = arena(); let c = molehill_sim::mat::CPM;
+    w.grottos = vec![Grotto { id: 99, cx: x0 + 2 * c, cy: w.oy + y0 as i64 - 2 * c as i64, rx: 2 * c, ry: c + c / 2, floor: 3 * c as i64 / 4, pool: (0, 0), trees: [(0, 0); 3], ntrees: 0 }];
+    let g = w.grottos[0]; let n0 = w.glowmites().len(); assert!(n0 >= 4, "a swarm: {n0}");
+    let inside = |w: &World| w.glowmites().iter().all(|m| ((m.0 - g.cx as f32) / g.rx as f32).abs() < 1. && ((m.1 - (g.cy - w.oy) as f32) / g.ry as f32).abs() < 1.);
+    for _ in 0..600 { w.step(); assert!(inside(&w), "glowmites stay in the hollow"); }
+    let p = w.glowmites()[0]; let l0 = w.light_sources().len();
+    assert!(w.catch_glowmite(p.0 as usize, p.1 as usize), "caught");
+    assert_eq!(w.inv[Item::Glowmite as usize], 1); assert_eq!(w.glowmites().len(), n0 - 1); assert_eq!(w.light_sources().len(), l0 - 1, "one light fewer");
+    assert!(!w.catch_glowmite(x0 + 30 * c, y0), "nothing to catch out there");
+    w.tick += GLOWMITE_BACK; assert_eq!(w.glowmites().len(), n0, "the swarm refills");
+}
 /// Brush size keys work on any layout: `[` typed as Option+8 (Swedish/German Mac) counts, and Option+digit
 /// no longer picks a hotbar slot (it used to jump to slot 8 instead of shrinking the brush).
 #[test] fn brush_keys_any_layout() {

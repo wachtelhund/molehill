@@ -166,7 +166,7 @@ Light is per-cell RGB, and there is no sky light and no day cycle: everything is
 L(i) = max(L(i), L(n) · t(i) · d)     t = 0.90 open, 0.80 liquid, ≈ 0.3 into rock (per 0.25 m);  d = 0.93 on diagonals
 ```
 
-**Sources** (`light::Source`) are torches, lit lamps, kilns and furnaces, the mole's headlamp and a torch in its paws. Each casts rays to its radius:
+**Sources** (`light::Source`) are torches, lit lamps, kilns and furnaces, the mole's headlamp, a torch or a jarred glowmite in its paws, and the glowmites drifting in grottos. Each casts rays to its radius:
 
 * A ray stops at the first solid or powder cell. The face it hits takes half the light, so rock throws real shadows.
 * Liquid dims a ray as it passes.
@@ -183,6 +183,8 @@ L(i) = max(L(i), L(n) · t(i) · d)     t = 0.90 open, 0.80 liquid, ≈ 0.3 into
 | kiln, furnace | deep orange | 6 m |
 | headlamp beam | warm, faintly green (fungus oil) | 12 m, ±29° |
 | headlamp glow | warm | 3 m |
+| glowmite (drifting) | cold green-gold | 2.5 m |
+| glowmite in a jar (held) | cold green-gold | 4 m |
 | the mole's own glow (lamp out) | faint | 2 m |
 
 The **headlamp** sits on the mole's hard hat and points at the cursor, or ahead and a little down when nothing is aimed at. While it's lit, it also reveals fog of war along its beam. Toggle it with `G` or in Settings (saved).

@@ -2,7 +2,7 @@
 
 > This file is the same as [docs/wiki/Progression.md](docs/wiki/Progression.md). Edit both together.
 
-> **Mostly design.** This page describes where Molehill is going. The game now has a **Survival** and a **Creative** mode, with the first slice of Survival in (see [Survival mode today](#survival-mode-today)); everything else here is not yet implemented. The other pages describe what is actually in the code. Everything here must follow [Lore](LORE.md).
+> **Mostly design.** This page describes where Molehill is going. The game now has a **Survival** and a **Creative** mode, with the first slice of Survival in (see [Survival mode today](#survival-mode-today)); everything else here is design unless marked **built**. The other pages describe what is actually in the code. Everything here must follow [Lore](LORE.md).
 
 ## The idea in one line
 
@@ -99,6 +99,8 @@ Whatever the choice, the name and the workings stay earthy and physical: a wayga
 
 Wood is the first material and must stay precious, so it doesn't come from the endless rock. It comes from **grottos**: rare, generated underground oases.
 
+> **Built:** grottos, root-trees that regrow from their roots, moss, mycelium, seep pools and catchable glowmites are in the game. The generator is described in [World and Generation](docs/wiki/World-and-Generation.md#grottos). Glowmite lanterns (a crafted, placeable light) are still to come.
+
 * **Cave trees (root-trees)** grow where water seeps through the rock. They drink the seep and the minerals in it; they need no light.
 * **Glowing mycelium** threads the floor and walls, giving soft light. **Moss** covers the damp stone, and **small pools** collect the seep.
 * **Glowmites** drift through the air: small glowing insects, ambient light that can be caught in a jar for a **lantern** that needs no fuel.
@@ -145,7 +147,7 @@ Everything the Ancients built obeys the same physics as everything else: weight,
 | Recipes | always listed | unlocked by first pick-up; at most 2 steps |
 | Light | torches, lamps and a headlamp; in Survival the headlamp and torches burn fungus oil (pressed from fungus) | fungus-oil fuel for torches and headlamp; glowmite lanterns |
 | Death | Survival: wake in the burrow, the pack stays where you died (Creative: nothing hurts) | wake in the holt; carried items stay where you died |
-| Wood | wood from roots and the start pack | grottos with regrowing root-trees |
+| Wood | **built:** grottos with regrowing root-trees (see [World and Generation](docs/wiki/World-and-Generation.md#grottos)) | grottos with regrowing root-trees |
 | Decor | none | furniture, decorative blocks, back walls, dyes |
 | Colony | one mole | Delvers move in when the holt is comfortable |
 | Late game | none | Ancient facilities, ruins, relics, the Lid myth |

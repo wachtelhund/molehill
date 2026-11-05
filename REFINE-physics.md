@@ -127,3 +127,25 @@ bit-identical to before (checked before flipping it).
 * A resting pool can keep a 1-cell step if the lower spot is more than 48 cells away.
 * Thin roofs are still judged only by their bottom fibre's tensile strength (a 1-cell clay skin
   under granite limits the whole roof).
+
+## Worldgen for progression (PROGRESSION.md)
+* **Ore by depth:** copper 2-30 m (fades over 10 m), tin 12-45 m, iron 40-85 m in the granite, quartz below
+  50 m; the deep is mostly basalt. Seeded noise, the same for a seed every time. (`ore_sits_in_its_depth_bands`)
+* **Grottos:** one chance per 40 m × 24 m cell: 20 % up high, 10 % at 10 m, 2 % by 50 m, none below 60 m.
+  - Shape: a domed hollow with a 1.5 m limestone shell where the host is weak, a moss/mycelium floor,
+    a seep pool and 1-3 root-trees. All generated inside the per-cell function, so it's free and deterministic.
+  - The stability pass keeps grotto hollows open.
+  (`grottos_follow_the_layers`, `generated_grottos_hold`)
+* **New materials:** Root-tree (wood), Root-tree roots, Moss, Mycelium (glows). Saves read the
+  discovered-materials list by name now, so adding materials doesn't break older saves.
+* **Root-trees regrow** from their top root, about a cell every 6 s per column, up to the tree's own height,
+  while there's seep water within about 6 m. A stateless sweep reads the grid. (`tree_regrow`, `tree_no_seep`)
+  - Moss, mycelium and roots bear 2.5 MPa: they're a skin on the stone floor. At 250 kPa the floor's
+    ends crushed, because the overburden model counts a cave's roof onto its floor.
+* **Glowmites:** a swarm of 4-7 per grotto on looping paths, each a light source. Right mouse catches one
+  (a Glowmite item, which lights when held). A caught one is back after 5 minutes. (`glowmite_catch`, `glowmites_drift...`)
+* **Found on the way (also on main before this):** after a slide into fresh rows, the old rows next to them
+  could roof a newly generated cave unchecked (5,929 cells failing on one seed). Separately, a roof
+  reaching the window's top edge was judged thin. Stabilisation now covers 32 m of old rows, and a static
+  column reaching the edge counts as full thickness. (`slides_leave_nothing_failing`)
+* Still to come: glowmite lanterns (a crafted, placeable light), tree crowns or branches that regrow.

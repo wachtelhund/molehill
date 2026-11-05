@@ -68,6 +68,8 @@ mode survival           // start in a game mode (survival | creative): its rules
 nohunger                // the world's hunger option off (after `mode`): food never drains
 set 40 hp -1            // set a vital at tick T: hp, hunger, breath, or oil (headlamp oil, seconds)
 placetorch 150 3 -2     // place a torch from the pack at (dx,dy) as a click (in Survival it needs oil); a refusal prints NOTE
+grotto 2 6 -5 8 4       // at tick T a grotto's glowmite swarm centred on tile (dx,dy), radii rx ry in tiles
+catch 40 6 -5           // at tick T right-mouse the tile (dx,dy): catch the glowmite there, if any
 throw 2 Stone 1 -1 1    // throw one from the pack toward direction (dx,dy), power 0..1 of a full throw (TNT goes out lit)
 drop 1 Wood 26 -12 0 0  // a loose item centred on tile (dx,dy), optionally moving at (vx,vy) tiles/s
 dump 50                 // print the JSON state after tick T
@@ -79,7 +81,7 @@ expect 60 rise >= 4.5   // assertion after tick T: <var> <op> <number>, ops: < <
 
 The map is stamped with its top-left so that `@` lands on the world spawn (the mole stands centred on the `@` tile, feet on its bottom edge). A 20-tile granite frame is put around it, so the generated world can't leak in. Disasters are off. Rows shorter than the widest row are padded with `#`.
 
-Map legend: `R` roots, `f` fungus, `.` empty, `#` granite, `B` bedrock, `r` rock, `d` dirt, `c` clay, `s` sand, `g` gravel, `w` water, `l` lava, `o` coal, `i` iron ore, `a` basalt, `b` wood beam, `I` iron beam, `k` stone brick (`~` steam, `?` other, only in output).
+Map legend: `t` roots (a root tangle), `f` fungus, `.` empty, `#` granite, `B` bedrock, `r` rock, `d` dirt, `c` clay, `s` sand, `g` gravel, `w` water, `l` lava, `o` coal, `i` iron ore, `a` basalt, `b` wood beam, `I` iron beam, `k` stone brick, `T` root-tree, `R` root-tree roots, `m` moss, `y` mycelium (`~` steam, `?` other, only in output). The generated world's own grottos are left out of a scenario (`grottos` cleared).
 
 **Assertion variables:**
 
@@ -98,6 +100,7 @@ Map legend: `R` roots, `f` fungus, `.` empty, `#` granite, `B` bedrock, `r` rock
 | `hp` `breath` `deaths` | Mole vitals |
 | `crumbled` | Tiles' worth of cells that have crumbled (world counter) |
 | `awake` | CA chunks overlapping the map that are still awake (0 = everything there has settled) |
+| `glowmites` | Glowmites drifting over the map rectangle |
 | `count:<Mat>` | Tiles' worth of that material inside the map rectangle (cells / K²), e.g. `count:Water` |
 | `is:DX,DY,<Mat>` | 1 if the cell at an offset from `@` is that material |
 | `inv:<Item>` | Inventory count |
@@ -161,6 +164,8 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `beam_overload.scn` | A long wood span under deep sand cracks and falls as wooden debris |
 | `dirt_cavein_chokes.scn` | A void under a deep dirt bank caves in but bulking rubble chokes it off (< 600 cells, then sleeps) |
 | `buried_under_rock.scn` / `buried_in_sand.scn` | A mole buried under a rock slab stays put (no popping through rock); under loose sand it wriggles out |
+| `tree_regrow.scn` / `tree_no_seep.scn` | A root-tree cut to its roots regrows beside its seep pool (and nothing crumbles); with the seep drained it never does |
+| `glowmite_catch.scn` | A grotto's glowmite swarm drifts over the map |
 | `brush_place.scn` | A radius-2 brick brush fills the open part of the disc and uses items 4 cells to one |
 | `light_torch.scn` | A torch lights a pool with a bright core and a soft edge; a wall hides the far side |
 | `lava_shadow.scn` | A lava pool lights the floor beside it through the same rays as torches; a full-height wall shadows the far side |
@@ -213,9 +218,13 @@ Zoom limits and brush ranges also have unit tests in `sim/tests/sim.rs` (`zoom_i
 
 `cargo run --release -p molehill-sim --example stepbench [seed] [ticks]` times `World::step` on the game-sized window from a fresh holt: mean/p50/p95/p99/max per tick, the average per tick class (stress passes every 6 ticks, air every 15), a full stress solve and a light pass. Add `--no-default-features` for single-threaded numbers, which are closer to the web build.
 
+`cargo run --release -p molehill-sim --example grottos [seed]` lists the grottos in a fresh holt's window and draws one; `--example slidecheck [seed]` counts cells that would fail a full stress solve after generation and after a slide each way (should be 0).
+
 `cargo run --release -p molehill-sim --example genbench [seed]` times world generation: fill, one full stress solve, stabilisation, and `World::new` in total.
 
 **Web frame time:** serve `dist/` (`python3 -m http.server`) and measure `requestAnimationFrame` intervals in Chrome after starting a holt. At 8 cells/m on an M4 with the active region: 58 fps (p95 16.8 ms) from a fresh holt's first seconds, 60 fps steady state.
+
+Worldgen tests in `sim.rs`: `ore_sits_in_its_depth_bands` (copper just below the holt, iron in the mid granite, basalt below 90 m), `grottos_follow_the_layers` (frequency by depth band over 6 seeds, none in the deep, deterministic), `generated_grottos_hold` (fresh holts' grottos stay open with their trees up), `slides_leave_nothing_failing`, `glowmites_drift_glow_and_get_caught`.
 
 Performance-related tests in `sim.rs`: `local_stress_resolve_matches_full_solve` (a region re-solve equals a full one), `slide_keeps_stress_state` (a slide's carried stress state matches a full solve, both ways), `ca_runs_only_near_the_mole` (the CA runs in the active region, and far chunks resume when it reaches them).
 
