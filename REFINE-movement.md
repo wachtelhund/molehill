@@ -59,6 +59,11 @@ Polish only: no new features or concepts. Each entry is one commit.
    a 120/144 Hz display a Space (or `W`) tap that went down and up between two steps was never seen. The press
    is now latched until the next step consumes it, then the jump input goes back to the key's real state (so a
    tap still gives the short hop). The menu-closing Space stays swallowed (`swallow_held`). Game-only.
+10. **Wall jumps stretch too.** The take-off stretch only fired when leaving the ground; it now fires on any
+    sudden kick upward when not clinging (ground jump, wall jump, a hop out of water), so a wall jump reads
+    on the sprite the same frame. Climbing doesn't trigger it. Game-only.
+11. **Ledge jumps checked.** Probed run-and-jump onto 3-, 4- and 5-cell ledges from 14 take-off points each:
+    all land on top; a late take-off costs at most ~0.25 s (cling, then the mantle). No change.
 
 ## Open issues
 * `main`'s solver still sends overburden through open caves, so dirt seams under deep rock are crushed in

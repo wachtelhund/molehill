@@ -572,7 +572,7 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
     // squash on landing (harder landings squash more), stretch on take-off; springs back in ~0.12 s
     if !g.paused {
         if pl.grounded && !fx.grounded && fx.vy > 12. { fx.squash = -(fx.vy / 60.).clamp(0.12, 0.3); let at = cell_to_world(g.disp.x, g.disp.y + 2.); for k in 0..6 { let s = if k % 2 == 0 { 1. } else { -1. }; fx.parts.push(Part { p: at + Vec2::new(s * 3., 0.), v: Vec2::new(s * (14. + k as f32 * 6.), 6. + k as f32 * 2.), life: 0., max: 0.3, c: [150., 130., 120.], size: 1.6 }); } }
-        if !pl.grounded && fx.grounded && pl.vy < -10. { fx.squash = 0.18; }
+        if !pl.grounded && pl.cling == 0 && pl.vy < -10. && fx.vy > -5. { fx.squash = 0.18; } // any sudden kick upward: a jump off the ground or a wall
         fx.grounded = pl.grounded; fx.vy = pl.vy; fx.squash *= (-dt * 18.).exp();
     }
     for (k, m) in w.moles.iter().enumerate() { if !m.alive { continue; }
