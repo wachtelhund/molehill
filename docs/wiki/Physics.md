@@ -158,25 +158,29 @@ Placed blocks are judged by the same rules, which is the point: you learn to bui
 
 ## Blasts
 
-A blast (`blast.rs`) is a pressure wave, not a fixed crater. A TNT charge is **0.25 kg** of TNT.
+A blast (`blast.rs`) is a pressure wave, not a fixed crater. A TNT charge is **0.5 kg** of TNT.
 
 * **The wave** runs out from the charge through open air, gas and liquid, shortest path first. Solids stop it. Its peak overpressure follows the **Kinney-Graham** free-air curve, P(Z) with Z = R / W^⅓, except that R is the *equivalent radius of the volume the wave has already filled*: R = (3V / 4π)^⅓.
   * A tunnel fills slowly, so the pressure holds along it. A cave fills fast and soaks the wave up. 5 m from a charge it's about 370 kPa down a 0.75 m tunnel and 80 kPa across a 6 m cave (`blast_tunnel_vs_cave`).
   * Water barely yields, so a cell of water counts as a fifth of a cell of air.
-  * In a closed space the hot gas also pushes: P = max(shock, 0.35 × 4184 kJ/kg × W / V). A charge tamped into a tight pocket therefore breaks far more than one in the open.
+  * In a closed space the hot gas also pushes: P = max(shock, 0.35 × 4184 kJ/kg × W / V). A charge tamped into a tight pocket therefore breaks more than one in the open.
 * **Shadows.** The wave loses pressure bending round edges. It's divided by 1 + detour / 0.5 m, where the detour is how much longer its path is than the straight line. A straight tunnel loses nothing, while a mole behind a wall is barely touched (`blast_shadow`).
-* **Breaking rock.** Every solid face the wave reaches is loaded with the overpressure there. A material's blast strength is 15 kPa × 2^blast, from the material table's blast resistance:
+* **Breaking rock.** Every solid face the wave reaches is loaded with the overpressure there. A material's blast strength comes from the material table's blast resistance (`BLAST_KPA`):
 
-  | material | dirt | clay | limestone, rock | brick | basalt | granite | bedrock |
-  |---|---|---|---|---|---|---|---|
-  | strength (kPa) | 60 | 120 | 480 | 960 | 1920 | 3840 | never |
+  | material | sand | dirt, gravel, roots | clay, wood beam | coal | sandstone, limestone, copper and tin ore | iron ore, crystal, stone brick | quartz | granite | basalt | iron beam | bedrock |
+  |---|---|---|---|---|---|---|---|---|---|---|---|
+  | strength (kPa) | 60 | 150 | 220 | 300 | 360 | 700 | 1100 | 1900 | 3500 | 5000 | never |
 
-  Above 1.5× its strength a face **cracks** into loose rubble; above 3× it **shatters** away, and the wave runs on into the crater it opens (`blast_granite_vs_dirt`).
-* **Throwing.** Loose ground, rubble and liquids in the wave are thrown away from the charge, about a tile per 25 kPa and at most 3 m. Water is driven up out of a pool in a plume that rains back down, and none is lost (`blast_pushes_water`). Loose items fly along the wave.
-* **Moles** take (P − 30 kPa) / 2.5 damage from the overpressure where they stand: a knock under 30 kPa, deadly at about 280. The player is also knocked along the wave.
+  Above 1.4× its strength a face **cracks** into loose rubble; above 3× it **shatters** away, and a third of what shatters flies as rubble.
+  * The load then runs on **into** the rock, fading as e^(−d/λ), cracking and shattering what it still beats. λ = 0.6 m × (1 + 2·confinement), where confinement is the rock the wave hit or broke per open cell it filled: about 0.1 in a cave, 0.3 in a tunnel, near 1 in a tamped pocket.
+  * What one 0.5 kg charge breaks in soft rock: on a tunnel floor a crater about 2.5 m each way along the tunnel and 1.5 m into the roof, rock 3.5 m off whole, about 80 tiles (`blast_soft_rock_tunnel`). Tamped into a 0.5 m pocket about 100 tiles (`blast_pocket`); on a 6.5 m cave's floor about 30 (`blast_cave_soaks`).
+  * Granite only chips 0.5 m deep under the charge (`blast_granite_chips`); basalt loses the one tile it sits on (`blast_basalt_holds`); dirt goes readily (`blast_granite_vs_dirt`).
+* **Throwing.** Loose ground, rubble and liquids in the wave are thrown away from the charge, about a tile per 15 kPa and at most 4 m. Water is driven up out of a pool in a plume that rains back down, and none is lost (`blast_pushes_water`). Loose items fly along the wave, harder the higher the pressure.
+* **Moles** take (P − 40 kPa) / 3 damage from the overpressure where they stand: a knock under 40 kPa, deadly at about 340. The player is also knocked along the wave.
+* **Feel.** The bang comes with a quake event and a crumble when rock breaks, and the screen shakes by the charge size and by the pressure at the player.
 * **Devices:**
-  * 60 kPa on a block sets off a charge in it (charges chain), 30 kPa lights a fuse cord, and 400 kPa wrecks copperline and devices.
-  * The knock couples into the rock round the charge and reaches listeners like a loud thrum: 60 dB + 20 log₁₀(W / 5 g), so 94 dB for a charge, with the usual spreading, absorption and boundary losses (`blast_is_heard_by_listeners`).
+  * 130 kPa on a block sets off a charge in it (charges chain, about 3 m apart in the open), 60 kPa lights a fuse cord, and 400 kPa wrecks copperline and devices.
+  * The knock couples into the rock round the charge and reaches listeners like a loud thrum: 60 dB + 20 log₁₀(W / 5 g), so 100 dB for a charge, with the usual spreading, absorption and boundary losses (`blast_is_heard_by_listeners`).
 * **Cost.** It's deterministic and bounded: the wave stops below 3 kPa or after 400,000 cells. One charge in a burrow takes about 2 ms (`blastbench` example).
 
 ## Light

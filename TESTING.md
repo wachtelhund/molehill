@@ -53,7 +53,7 @@ aim 1 20 -2             // from tick T the mole looks at tile (dx,dy) from @ (th
 wield 1 Torch           // from tick T the mole holds that item (a torch lights); `wield T none`
 torch 1 6 0             // at tick T put a torch on tile (dx,dy)
 dig 41-60 3 -1          // same, but (dx,dy) is relative to the mole's current cell (feet row), so it follows the mole
-explode 70 5 -2 0.25    // a blast of kg TNT-equivalent at (dx,dy) at tick T (a TNT charge is 0.25)
+explode 70 5 -2 0.25    // a blast of kg TNT-equivalent at (dx,dy) at tick T (a TNT charge is 0.5)
 place 5 4 0 WoodPillar  // at tick T place a block item (WoodPillar, Brick, IronBeam) at (dx,dy), as a left click; a refusal prints NOTE
 device 5 12 -1 Tnt      // place a device (logic::Dev name: Lever, Tnt, And, Tx, Rx, Lamp, Fuse, ...) in the 1 m block at (dx,dy)
 use 10 12 -1            // right mouse on the device there: flip a lever, light TNT or a fuse, step a channel
@@ -175,11 +175,14 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `held_torch.scn` | A torch in the paws lights around the mole; put away, it goes out |
 | `hover_strain.scn` | The hover warns of an overloaded wood span (cracking) before it falls; floor and loose debris read idle |
 | `brush_clamp.scn` | Brush radius is clamped per item (iron beam max 2, pillar min 0.5, pickaxe max 3) |
-| `tnt_chain.scn` | A blast sets off a second charge 3.16 m away (60 kPa on its block sets it off) |
+| `tnt_chain.scn` | A blast sets off a second charge 3.16 m away (130 kPa on its block sets it off) |
 | `blast_tunnel_vs_cave.scn` | The same charge keeps ~370 kPa 5 m down a tunnel, ~80 kPa 5 m across a cave |
 | `blast_shadow.scn` | A mole behind a wall (the wave can only get round its top) is barely hurt |
 | `blast_granite_vs_dirt.scn` | Between a dirt wall and a granite wall: the dirt is blown out and cracked, the granite takes it |
 | `blast_pushes_water.scn` | A blast in a flooded trough heaves the water up and out in a plume; none is lost |
+| `blast_soft_rock_tunnel.scn` | One charge on a soft-rock tunnel floor: crater ~2.5 m each way and through the 1 m floor, rock 3.5 m off whole, ~80 tiles broken |
+| `blast_pocket.scn` / `blast_cave_soaks.scn` | Confinement: tamped into a pocket ~100 tiles, on a cave floor ~30 |
+| `blast_granite_chips.scn` / `blast_basalt_holds.scn` | Granite chips 0.5 m under the charge; basalt loses one tile |
 | `grain_in_body.scn` | A sand grain lying inside the mole's body (low tunnel, no wriggle room) is shoved aside instead of wedging it |
 | `pillar_built_in_room.scn` | A wood pillar built cell by cell in a granite room stays rigid |
 | `pillars_rock_roof.scn` / `roof_needs_pillar.scn` | Two pillars at the third points save a 12 m rock roof that caves in (bending) without them |

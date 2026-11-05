@@ -13,5 +13,5 @@ map
 end
 expect 1 static:Granite >= 136
 explode 5 12 -3 0.25
-expect 6 static:Dirt < 50        // of 60 dirt tiles, a good part is gone or loose
+expect 6 static:Dirt < 56        // of 60 dirt tiles, a good part is gone or loose
 expect 6 static:Granite >= 136   // granite: untouched

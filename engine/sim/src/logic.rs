@@ -23,7 +23,7 @@ pub const FUSE_TICKS: i16 = 24;
 /// A lit TNT charge goes off after this many ticks (1.5 s): time to run, short enough to feel snappy.
 pub const TNT_FUSE: i16 = 90;
 /// Blast overpressure (kPa) on a block that sets off a charge in it, lights a fuse cord, wrecks a device.
-pub const BLAST_SETS_OFF: f32 = 60.; pub const BLAST_LIGHTS: f32 = 30.; pub const BLAST_WRECKS: f32 = 400.;
+pub const BLAST_SETS_OFF: f32 = 130.; pub const BLAST_LIGHTS: f32 = 60.; pub const BLAST_WRECKS: f32 = 400.;
 
 #[repr(u8)]
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -119,8 +119,8 @@ impl Logic {
     /// Set a TNT charge off now (current, a blast nearby, a fuse cord burning into it).
     pub fn detonate(&mut self, b: usize) { if self.dev[b] == Dev::Tnt as u8 && !self.booms.contains(&b) { self.booms.push(b); } }
     pub fn lit(&self, b: usize) -> bool { self.burn[b] > 0 }
-    /// A blast's overpressure `p` (kPa, per cell): a charge in a block hit by 60 kPa or more goes off with
-    /// it, a fuse cord at 30 kPa lights, and above 400 kPa copperline and the other devices are wrecked.
+    /// A blast's overpressure `p` (kPa, per cell): a charge in a block hit by 130 kPa or more goes off with
+    /// it (within about 3.5 m in a room), a fuse cord at 60 kPa lights, and above 400 kPa copperline and the other devices are wrecked.
     pub fn on_blast(&mut self, g: &mut Grid, p: &[f32]) {
         for b in 0..self.wire.len() {
             if self.wire[b] == 0 && self.dev[b] == 0 { continue; }

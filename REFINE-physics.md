@@ -165,3 +165,15 @@ bit-identical to before (checked before flipping it).
   (`thrown_tnt_explodes_at_landing` expects hp > 80 there). The harness's `explode` takes kg.
 * Scenarios `blast_tunnel_vs_cave`, `blast_shadow`, `blast_granite_vs_dirt`, `blast_pushes_water`; `tnt_chain` and the
   other TNT scenarios still pass. Harness variable `p:DX,DY`.
+
+## TNT tuning (umph)
+* A charge is now 0.5 kg. Blast strengths come from an explicit table (`BLAST_KPA`), not 15 kPa × 2^blast:
+  dirt 150, sandstone/limestone 360, granite 1900, basalt 3500 kPa. Faces crack above 1.4×.
+* The load runs on into the rock (e^(−d/λ), λ = 0.6 m × (1 + 2·confinement)), so craters have depth and a
+  tamped charge breaks more: soft rock loses ~100 tiles in a pocket, ~80 on a tunnel floor (crater ~2.5 m each
+  way), ~30 on a cave floor. Granite chips 0.5 m close in; basalt loses one tile.
+* Feel: Quake and Crumble events with the bang, screen shake by charge and by pressure at the player,
+  rubble thrown a tile per 15 kPa up to 4 m, harder item impulses.
+* Thresholds: 130 kPa sets off a charge, 60 lights a fuse, 400 wrecks devices. Mole damage (P − 40)/3.
+* Scenarios `blast_soft_rock_tunnel`, `blast_pocket`, `blast_cave_soaks`, `blast_granite_chips`,
+  `blast_basalt_holds`; `thrown_tnt_explodes_at_landing` expects hp > 65.
