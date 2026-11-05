@@ -3,6 +3,7 @@
 A colony sim about moles digging through the Deepholt, an endless falling-sand underworld where every tunnel has to carry real loads. There is no sky and no surface (see [LORE.md](LORE.md)). This is a private project with no hosted build; play it locally.
 
 * **Wiki:** [docs/wiki](docs/wiki/README.md) covers the lore, world generation, physics, controls, items, devices, testing and architecture.
+* **Design:** [PROGRESSION.md](PROGRESSION.md) is the planned survival progression (not yet implemented).
 * **v3 engine:** Rust + Bevy 0.20 in [`engine/`](engine/). The older TypeScript v2 prototype lives in [`legacy/`](legacy/).
 
 ## Play locally

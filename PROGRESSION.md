@@ -1,0 +1,114 @@
+# Molehill: Progression
+
+> This file is the same as [docs/wiki/Progression.md](docs/wiki/Progression.md). Edit both together.
+
+> **Design, not yet implemented.** This page describes where Molehill is going, not what the game does today. The current build is effectively Creative mode: every tool and 999 of every item in the pack, crafting hidden. The other pages describe what is actually in the code. Everything here must follow [Lore](LORE.md).
+
+## The idea in one line
+
+**Depth is progression.** Going up is cool, wet and soft: easy digging, water everywhere, food and wood. Going down is hot, hard and rich: better ore and real power, and more danger. Each tier of tools opens the next band of rock, and each band holds what you need to make the next tier.
+
+```
+   ↑ shallower: cooler, wetter, softer          dirt · clay · water pockets · grottos (wood, food, glowmites)
+   │
+ ──┼── 0 m  the holt                            limestone · coal · copper
+   │
+   │                                            granite · tin · iron (below ~35 m)
+   │
+   ↓ deeper: hotter, harder, richer, deadlier   basalt · lava (dominant below ~70 m) · Ancient ruins
+```
+
+The world generator already makes these layers (see [World and Generation](docs/wiki/World-and-Generation.md)): water pockets give way to lava with depth, and dirt gives way to granite and then basalt. Progression is the design that makes walking that gradient matter.
+
+## The survival loop
+
+A Delver's day is digging out, bringing things home, and keeping the holt alive. Each danger from the lore is a need to manage, and most hazards are also resources.
+
+| need | threat | how you meet it |
+|---|---|---|
+| **Food** | hunger | Fungus farms (dark and damp, as now), roots dug from the upper layers, grubs turned up from soil. Grottos are the richest larder |
+| **Air** | stale air in sealed tunnels | Vents, and later powered fans, to move air. Torches and crowds stale a room faster |
+| **Light** | the dark; Delvers see poorly | Light costs **fuel**: torches and the headlamp burn **fungus oil**, pressed from fungus. Glowmite lanterns and lamps on current come later. A holt with no light is a holt with no work |
+| **Heat** | lava burns, the deep is hot | Avoid it, wall it off, or **use it**: heatstones turn lava heat into current |
+| **Water** | floods and drowning | Floodgates and pumps hold it back, and water wheels turn its flow into current |
+| **Stone** | cave-ins | Read the strain, prop the roof, build in stronger material. The structural solver is the rule (see [Physics](docs/wiki/Physics.md#structure-and-stability)) |
+
+**Death** is not the end of the holt. You wake in the holt's burrow (as today), but everything you carried stays **where you died**, as loose items in the world. Going back for it is the penalty, and sometimes the adventure: down a flooded shaft, under a fresh cave-in, next to the lava that got you.
+
+## Tiers
+
+Each tier is gated by a material from a deeper or harder band, and unlocks the next.
+
+| tier | key material | you can dig | you can make | where it comes from |
+|---|---|---|---|---|
+| **1. Wood and stone** | wood, stone | dirt, clay, sand, limestone (**Pickaxe**) | wood pillars, planks, workbench, torches, simple furniture | the holt layers and the first grottos |
+| **2. Copper** | copper ore | (same, faster) | **copperline**, levers, doors, plates, knots, **thrummers** | copper seams just below the holt |
+| **3. Iron** | iron ore | granite, iron ore (**Drill**) | iron beams, stronger props, the forge's better recipes | below ~35 m, in granite |
+| **4. Power** | heat and flowing water | (same) | **water wheels**, **heatstones**, **pumps**, **fans**, powered lamps and doors | lava and water pockets: hazards turned to current |
+| **5. Heat-proof** | basalt and a heat-resistant alloy (working name *emberiron*) from the lava layer | basalt (**Bore**) | the Bore, lava-proof walls and pipes, deep outposts | below ~70 m, where lava dominates |
+| **6. Ancient relics** | found, never made | – | nothing: relics are unique and **can't be crafted** | Ancient facilities and ruins (see below) |
+
+The tool ladder matches the rock: the **Pickaxe** for soft ground, the **Drill** (a copperline-driven auger) for granite, and the **Bore** (a heavy heat-bore) for basalt. The digging model already gates material by tool tier (see [Tools and Items](docs/wiki/Tools-and-Items.md)).
+
+### Crafting
+
+* **Stations, not menus.** You craft at a station you have built and stand at:
+  * the **workbench** for wood, stone, simple devices and furniture;
+  * the **forge**, which needs heat: a heatstone, or lava run to it, for smelting and metalwork;
+  * the **workshop**, which needs copperline and power, for machines, thrummers and fine parts.
+* **Recipes unlock by touch.** The first time you pick up a material, the recipes that use it appear. There's no tech tree screen: the world is the tree.
+* **Short chains.** At most two steps from the ground to the thing: ore → ingot → tool. No intermediate parts lists.
+
+## Furnishing and decor
+
+Making the holt **look like home** is a core goal, not a side feature. A Delver should be able to stand in their main hall and be proud of it.
+
+* **Furniture:** tables, beds and nests, shelves, chests, rugs, banners, lamps, fungus planters.
+* **Decorative blocks:** polished stone, brick, planks, tiles, carved pillars. They're built with the same brush as structural blocks, and they *are* structural: a carved pillar holds a roof like any pillar, by its material's numbers.
+* **Back walls:** a background layer behind open cells, so a dug room can be panelled, bricked or tiled instead of showing raw rock.
+* **Paint and dye** from minerals and fungi: ochre and rust from ores, pale from quartz, greens and blues from fungi and moss.
+* **Delvers move in.** When the holt is comfortable (light, air, food, beds, a bit of beauty), other Delvers come and join it. Comfort is the colony's growth mechanic.
+
+## Wood: grottos
+
+Wood is the first material and must stay precious, so it doesn't come from the endless rock. It comes from **grottos**: rare, generated underground oases.
+
+* **Cave trees (root-trees)** grow where water seeps through the rock. They drink the seep and the minerals in it; they need no light.
+* **Glowing mycelium** threads the floor and walls, giving soft light. **Moss** covers the damp stone, and **small pools** collect the seep.
+* **Glowmites** drift through the air: small glowing insects, ambient light that can be caught in a jar for a **lantern** that needs no fuel.
+* **Where:** more common in the wet upper layers and rarer deeper down, following the lore's wet-up, dry-down rule.
+* **Care:** cut a tree but leave its roots, and it **regrows slowly**. Clear-cut a grotto, or drain its seep, and it's gone. A good holt is built near a grotto and looks after it.
+
+## Modes
+
+| mode | what it is |
+|---|---|
+| **Survival** (the main game) | Everything above: start with almost nothing, dig, survive, build up the tiers, furnish the holt and grow the colony. The long goal is the **Lid**: following the old myth upward and through the **Ancients'** facilities, which hint at it. |
+| **Creative** | Everything in the pack, nothing hurts. This is what the current build is. |
+
+### The Ancients
+
+Long before today's holts there were **Ancient Delvers**: moles, like everyone else, who dug deeper and built finer. What they left behind is the late game:
+
+* **Facilities:** large, deliberate structures such as halls, shafts, and machine rooms built of materials and techniques no one makes any more.
+* **Ruins:** rare, randomly placed remains with **lore fragments** (carvings, inscribed plates, patterns knocked into stone for a listener) and **unique loot**.
+* **Relics:** one-of-a-kind items that can't be crafted. They are better-made versions of things Delvers know (a finer drill bit, a lens that throws light further, a lighter alloy), not new physics.
+
+Everything the Ancients built obeys the same physics as everything else: weight, heat, water, pressure and current. Nothing is supernatural, and nothing a modern word would name. Their ruins point toward the Lid, but **the game never shows the Lid**. The myth stays a myth, and the journey is the point.
+
+## From today to here
+
+| area | today | this design |
+|---|---|---|
+| Mode | Creative-like test build (999 of everything, crafting hidden) | Survival as the main game; Creative kept |
+| Tools | Pickaxe, Drill, Bore with tiers 1–3 | the same three, unlocked by tiers 1, 3 and 5 |
+| Stations | workbench, kiln, furnace, anvil | workbench, forge (needs heat), workshop (needs copperline and power) |
+| Recipes | always listed | unlocked by first pick-up; at most 2 steps |
+| Light | torches, lamps and a headlamp, no fuel | fungus-oil fuel for torches and headlamp; glowmite lanterns |
+| Death | respawn in the burrow, pack kept | wake in the holt; carried items stay where you died |
+| Wood | wood from roots and the start pack | grottos with regrowing root-trees |
+| Decor | none | furniture, decorative blocks, back walls, dyes |
+| Colony | one mole | Delvers move in when the holt is comfortable |
+| Late game | none | Ancient facilities, ruins, relics, the Lid myth |
+
+Any of these that gets built should move from this page into the page that describes the system, as it lands on `main`.

@@ -27,6 +27,18 @@
 * Use simple, earthy, descriptive words: copperline, thrummer, heatstone.
 * No brand names and no modern technical terms. Nothing supernatural, and no fantasy races other than moles and underground animals.
 
+## Grottos
+- Grottos are rare hollows where water seeps through the rock. Cave trees, called root-trees, grow there. They drink the seep and the minerals in it, and they need no light.
+- Glowing mycelium, damp moss and small pools fill a grotto. Glowmites drift in the air: small insects that make their own glow, like glow-worms. Delvers catch them in jars for lanterns.
+- Grottos follow the layers: they are more common in the wet upper layers and rarer deeper down.
+- A root-tree cut down but left with its roots grows back slowly. A grotto that is clear-cut or drained is gone for good, so a holt looks after the one it lives by.
+
+## The Ancients
+- Long ago there were Ancient Delvers. They were moles like any other, who dug deeper and built finer than today's holts.
+- They left facilities, ruins and relics. Their relics are better-made versions of things Delvers know. Today's Delvers can't make them again, because the know-how is lost.
+- Everything the Ancients built follows the same physics as everything else: weight, heat, water, pressure and current.
+- Their ruins hold carvings and knocked patterns that seem to point toward the Lid. Nothing proves the Lid exists, and the game never shows it.
+
 ## How the lore shapes the game
 
 The lore is a design constraint as much as a story. Here is where it shows up in the code:
@@ -56,3 +68,7 @@ The lore is a design constraint as much as a story. Here is where it shows up in
 | water wheel | Makes current while water flows through it |
 | thrummer / listener / relay thrummer | Knock a pattern into the rock, hear it, and pass it on |
 | pack | Your inventory |
+| grotto | A rare underground oasis around seeping water: root-trees, mycelium, moss, pools |
+| root-tree | A cave tree that drinks seeping water; it grows back from its roots |
+| glowmite | A small insect that makes its own glow; caught in a jar, it lights a lantern |
+| the Ancients | Delvers of long ago, who left facilities, ruins and relics |
