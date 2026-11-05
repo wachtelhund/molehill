@@ -7,6 +7,7 @@ mod audio;
 mod music;
 mod devart;
 mod decorart;
+mod journal;
 mod wiring;
 mod ui;
 mod menu;
@@ -90,7 +91,8 @@ pub fn craft_rows(g: &Game) -> Vec<CraftRow> {
     for st in STATIONS {
         let here = w.station_here(st); if !free && here.is_none() { continue; }
         let ready = if free { Ok(()) } else { here.map_or(Ok(()), |b| w.station_ready(b)) };
-        v.push(CraftRow { text: match ready { Ok(()) => st.name().to_string(), Err(e) => format!("{}: {e}", st.name()) }, recipe: None, ok: ready.is_ok(), head: true });
+        let burns = !free && st == Station::Forge && here.map_or(false, |b| !w.forge_hot(b));
+        v.push(CraftRow { text: match ready { Ok(()) if burns => "Forge: burns a coal per job (lava or fire near keeps it hot)".into(), Ok(()) => st.name().to_string(), Err(e) => format!("{}: {e}", st.name()) }, recipe: None, ok: ready.is_ok(), head: true });
         for (r, rec) in RECIPES.iter().enumerate() {
             if rec.station != st || !w.recipe_known(r) { continue; }
             let has = rec.inputs.iter().all(|&(it, n)| w.inv[it as usize] >= n);
@@ -126,7 +128,7 @@ const BG_BASE: [f32; 3] = [44., 34., 30.];
 #[inline] fn srgb(l: f32) -> f32 { l.max(0.).powf(1. / 2.2) * 255. }
 #[derive(Component)] pub struct WorldSprite;
 #[derive(Component)] struct Pooled(u8, usize);
-#[derive(Resource)] pub struct Sprites { pub furn: Vec<Option<(Handle<Image>, Option<Handle<Image>>)>>, pub tools: [Handle<Image>; 3], pub dev: Handle<Image>, pub ring: Handle<Image>, pub mole: Vec<Handle<Image>>, pub mole_out: Vec<Handle<Image>>, pub held: Vec<Handle<Image>>, pub icons: Vec<Handle<Image>>, pub chest: [Handle<Image>; 2], pub station: Vec<[Handle<Image>; 2]>, pub torch: Handle<Image>, pub torch_f: Vec<Handle<Image>>, pub glow: Handle<Image>, pub shroom: [Handle<Image>; 3], pub px: Handle<Image> }
+#[derive(Resource)] pub struct Sprites { pub clue: Vec<Handle<Image>>, pub furn: Vec<Option<(Handle<Image>, Option<Handle<Image>>)>>, pub tools: [Handle<Image>; 3], pub dev: Handle<Image>, pub ring: Handle<Image>, pub mole: Vec<Handle<Image>>, pub mole_out: Vec<Handle<Image>>, pub held: Vec<Handle<Image>>, pub icons: Vec<Handle<Image>>, pub chest: [Handle<Image>; 2], pub station: Vec<[Handle<Image>; 2]>, pub torch: Handle<Image>, pub torch_f: Vec<Handle<Image>>, pub glow: Handle<Image>, pub shroom: [Handle<Image>; 3], pub px: Handle<Image> }
 
 pub fn seed_now() -> u32 {
     // ?seed=N (web) / --seed=N (native) pins the first world
@@ -181,7 +183,7 @@ fn main() {
         .insert_resource(ClearColor(Color::srgb(0.04, 0.035, 0.05)))
         .add_systems(Startup, setup)
         .insert_non_send(audio::Audio::new())
-        .add_systems(Update, (dev_shot, menu::update, input, gear, simulate, render_world, dev_dump, sync_sprites, wiring::update, ui::update, sound).chain())
+        .add_systems(Update, (dev_shot, menu::update, input, gear, simulate, render_world, dev_dump, sync_sprites, wiring::update, journal::update, ui::update, sound).chain())
         .run();
 }
 
@@ -288,6 +290,19 @@ fn stage_scene(w: &mut World) {
                 molehill_sim::light::reveal_box(&mut w.g, mx, my - 24 * S, mx + 70 * S, my + 10 * S);
                 for k in 0..4 { w.torches.push((mx + 22 * S + k * 10 * S, my - 2 * S)); }
             }
+            "lore" => { // a tunnel east of the burrow with one of every Lid clue to walk past
+                use molehill_sim::lore::{Clue, ClueKind};
+                let (x0, x1) = (mx + 4 * S, mx + 60 * S);
+                for x in x0..x1 { for y in my - 6 * S..=my { set(w, x, y, Mat::Empty); } }
+                for x in x0 + 44 * S..x0 + 47 * S { for y in my - 30 * S..my - 6 * S { set(w, x, y, Mat::Empty); } } // a shaft going up: the draft
+                molehill_sim::light::reveal_box(&mut w.g, mx, my - 40 * S, x1 + 10 * S, my + 10 * S);
+                let oy = w.oy; let mut put = |w: &mut World, kind: ClueKind, x: usize, y: usize, look: u8| w.clues.push(Clue { kind, x, y, wy: oy + y as i64, found: false, look });
+                put(w, ClueKind::Carving, x1 - 1, my - 3 * S, 0); put(w, ClueKind::Carving, x0 + 30 * S, my - 7 * S + 1, 1);
+                put(w, ClueKind::Note, x0 + 8 * S, my, 0);
+                for k in 0..6u8 { put(w, ClueKind::Relic, x0 + 14 * S + k as usize * 4 * S, my, k); }
+                put(w, ClueKind::Draft, x0 + 45 * S, my, 0);
+                for k in 0..3 { w.torches.push((x0 + (6 + k * 20) * S, my - 4 * S)); }
+            }
             "decor" => { // a furnished hall east of the burrow: plank floor, tiled and polished walls painted, carved pillars,
                 // a table with stools and a rug, a nest, a shelf, banners and planters
                 let (x0, x1, y0) = (mx + 4 * S, mx + 64 * S, my - 18 * S);
@@ -369,7 +384,7 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, mut fonts: R
     commands.spawn((Camera2d, Transform::from_xyz(p.x, p.y, 100.).with_scale(Vec3::splat(crate::menu::Menu::load().zoom))));
     let font: Handle<Font> = fonts.add(Font::from_bytes(include_bytes!("../assets/PixelifySans.ttf").to_vec()));
     menu::setup(&mut commands, &font); let mset = menu::Menu::load(); commands.insert_resource(mset);
-    ui::setup(&mut commands, &font);
+    ui::setup(&mut commands, &font); journal::setup(&mut commands, &font);
     { let ring = images.add(art::ring()); let px = images.add(art::image(1, 1, vec![255; 4], true)); wiring::setup(&mut commands, &mut images, &font, ring, px); }
     commands.insert_resource(ui::UiFont(font));
     let sp = Sprites { tools: [images.add(art::tool_icon(1)), images.add(art::tool_icon(2)), images.add(art::tool_icon(3))], dev: images.add(art::icon([200, 150, 90], 1)), ring: images.add(art::ring()),
@@ -377,6 +392,7 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, mut fonts: R
         mole_out: art::mole_sheet(false).into_iter().map(|i| images.add(i)).collect(),
         held: [art::Held::Pick, art::Held::Drill, art::Held::Bore, art::Held::Charge, art::Held::Block(Item::WoodPillar.color()), art::Held::Block(Item::Brick.color()), art::Held::Block(Item::IronBeam.color())]
             .into_iter().map(|h| images.add(art::held_sprite(h))).collect(),
+        clue: (0..9).map(|k| images.add(decorart::clue(k))).collect(),
         furn: ITEMS.iter().map(|&it| it.furn().map(|_| { let (b, c) = decorart::furniture(it); (images.add(decorart::finish(b)), c.map(|c| images.add(decorart::cloth(c)))) })).collect(),
         icons: ITEMS.iter().map(|it| { if it.block().is_some() || it.pigment().is_some() || it.furn().is_some() { return images.add(decorart::icon(*it)); } let k = match it { Item::Crystal | Item::Quartz => 2, Item::Brick | Item::Glass | Item::CopperIngot | Item::TinIngot | Item::BronzeIngot | Item::IronIngot | Item::WoodPillar | Item::IronBeam => 1, Item::Torch | Item::Lamp => 3, Item::Tnt => 4, _ => 0 }; images.add(art::icon(it.color(), k)) }).collect(),
         chest: [images.add(art::chest(false)), images.add(art::chest(true))],
@@ -743,10 +759,12 @@ fn render_far(gm: &mut Game, ct: &Transform, win: &Window, images: &mut Assets<I
 #[derive(Default)] struct Fx { grounded: bool, vy: f32, squash: f32, parts: Vec<Part>, last_mine: Option<[f32; 3]>, chip_t: f32, dust_t: f32, wet: bool, ember_t: f32 }
 /// A pixel particle; `g` is its gravity (negative drifts up, like embers).
 struct Part { p: Vec2, v: Vec2, life: f32, max: f32, c: [f32; 3], size: f32, g: f32 }
+/// How far up (cells) a floor object's centre sits: half its height in world units.
+fn sz_up(s: Vec2) -> f32 { s.y / 2. / CPX }
 /// A held item takes the light where the mole stands, like the mole does.
 fn c_hold(w: &World, m: &molehill_sim::world::Mole) -> Color { let l = w.light.at((m.y.saturating_sub(S)).min(H - 1) * W + m.x.min(W - 1)); let v = (l[0] * 0.3 + l[1] * 0.5 + l[2] * 0.2).clamp(0.5, 1.); Color::srgb(v, v, v) }
 fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Res<Time>, mut fx: Local<Fx>, mut q: Query<(Entity, &Pooled, &mut Transform, &mut Sprite, &mut Visibility)>) {
-    // kind 0 moles, 12 throw arc, 16/17 furniture and its cloth, 18 furniture ghost, 1 drops, 2 chests, 3 stations, 4 torches, 5 mushroom plots, 7 aim, 8 particles, 9 torch halos, 10 lamp halos, 11 placement pops, 14 held item, 15 headlamp lens halo
+    // kind 0 moles, 12 throw arc, 16/17 furniture and its cloth, 18 furniture ghost, 19 Lid clues, 1 drops, 2 chests, 3 stations, 4 torches, 5 mushroom plots, 7 aim, 8 particles, 9 torch halos, 10 lamp halos, 11 placement pops, 14 held item, 15 headlamp lens halo
     let dt = if g.paused { 0. } else { time.delta_secs().min(0.05) }; let now = time.elapsed_secs();
     let w = &g.w;
     let mut want: Vec<(u8, usize, Vec2, f32, Handle<Image>, Vec2, bool, Color)> = vec![];
@@ -886,6 +904,19 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
         want.push((16, k, pos, z, base, size, false, Color::srgb(l.red, l.green, l.blue)));
         if let Some(c) = cloth { let t = if fu.tint > 0 { craft::PIGMENTS[fu.tint as usize] } else { decorart::undyed(fu.item) };
             want.push((17, k, pos, z + 0.01, c, size, false, Color::srgb(t[0] as f32 / 255. * l.red, t[1] as f32 / 255. * l.green, t[2] as f32 / 255. * l.blue))); }
+    }
+    // Lid clues: carvings set in the wall, notes and odd finds on the floor (dimmer once read); a draft is only
+    // felt: dust motes drifting down through it
+    for (k, c) in w.clues.iter().enumerate() {
+        if w.g.flags[c.y.min(H - 1) * W + c.x.min(W - 1)] & F_SEEN == 0 || w.g.is_solidish(c.y * W + c.x) { continue; }
+        let l = lightf(c.x, c.y).to_srgba(); let k2 = if c.found { 0.75 } else { 1. };
+        if let Some(i) = decorart::clue_index(c.kind, c.look) {
+            let (sz, up) = if i < 2 { (Vec2::splat(12.), 0.5) } else { let s2 = [Vec2::splat(12.), Vec2::splat(12.), Vec2::new(9., 6.), Vec2::new(9., 6.), Vec2::new(11., 5.), Vec2::splat(6.), Vec2::splat(5.), Vec2::new(7., 5.), Vec2::new(9., 4.)][i]; (s2, sz_up(s2)) };
+            want.push((19, k, cell_to_world(c.x as f32 + 0.5, c.y as f32 + 1. - up), 2.6, sp.clue[i].clone(), sz, false, Color::srgb(l.red * k2, l.green * k2, l.blue * k2)));
+        } else if !g.paused && (g.frame as usize + k * 7) % 9 == 0 {
+            let h = hash3(g.frame as u32, k as u32, 23); let r = ((h & 255) as f32 / 255.) - 0.5;
+            fx.parts.push(Part { p: cell_to_world(c.x as f32 + 0.5 + r * 3. * SF, c.y as f32 - 5. * SF), v: Vec2::new(r * 6., -10. - (h >> 8 & 15) as f32), life: 0., max: 1.6, c: [200., 196., 186.], size: 0.9, g: 0. });
+        }
     }
     // placing furniture: a pale ghost where it would go
     if let (Some(Thing::Item(it)), Some((x, y, true))) = (g.slots[g.hot], g.aim) { if it.furn().is_some() { if let Some(fu) = w.furniture_spot(it, x, y) {

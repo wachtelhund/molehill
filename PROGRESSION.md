@@ -123,7 +123,7 @@ Wood is the first material and must stay precious, so it doesn't come from the e
 The first slice of Survival is in the game (`sim/src/survival.rs`); the rest of this page is still design.
 
 * **New Holt** asks for a mode: **Survival** or **Creative**. The mode is kept in the save; a save from before modes loads as Creative.
-* **Start kit:** a Pickaxe, 4 torches, 3 grubs, 2 roots and 2 measures of fungus oil. Nothing else.
+* **Start kit:** a Pickaxe, 6 wood (enough for a workbench: wood is scarce near most burrows), 4 torches, 3 grubs, 2 roots and 2 measures of fungus oil. Nothing else.
 * **Tools you own:** you dig only with tools in the pack; a tool you don't own isn't in the hotbar. The Drill is made at the workshop and the Bore at the forge (see [Crafting](#crafting)).
 * **Food:** hunger drains; below 40 the Delver eats from the pack on its own (grub 45, mushroom 35, root 30, fungus 25). Root tangles turn up edible **roots** when dug, soil turns up grubs, and fungus is food too. Starving hurts. **Hunger can be turned off** for a holt: a New Holt option, also in Settings for the current holt, and saved with it. Then food never drains and the food bar is hidden.
 * **Light costs fuel:** a lit headlamp burns a measure of **fungus oil** every 3 minutes, and placing a torch soaks up a measure. With no oil left the pack presses 2 fungus into a measure; with neither, the headlamp goes dark and torches won't light.
@@ -155,7 +155,7 @@ Everything the Ancients built obeys the same physics as everything else: weight,
 | Wood | **built:** grottos with regrowing root-trees (see [World and Generation](docs/wiki/World-and-Generation.md#grottos)) | grottos with regrowing root-trees |
 | Decor | **built:** furniture, decorative blocks and pigments (see [Tools and Items](docs/wiki/Tools-and-Items.md#furnishing)); back walls not yet | furniture, decorative blocks, back walls, dyes |
 | Colony | one mole | Delvers move in when the holt is comfortable |
-| Late game | none | Ancient facilities, ruins, relics, the Lid myth |
+| Late game | **built:** the Lid myth as clues and a journal, denser higher up (see [Lore](docs/wiki/Lore.md#the-lid-in-the-game)) | Ancient facilities, ruins, relics, the Lid myth |
 | Travel | walking, climbing, digging | carts and rails, ladders and lifts, powered rails, pressure tubes; Ancient waygates (open decision) |
 
 Any of these that gets built should move from this page into the page that describes the system, as it lands on `main`.

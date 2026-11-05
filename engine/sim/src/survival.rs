@@ -44,7 +44,9 @@ pub const OIL_SECS: f32 = 180.;
 /// Fungus pressed into one measure of oil when the pack has no oil left.
 pub const FUNGUS_PER_OIL: u32 = 2;
 /// The Survival start kit: a pickaxe, a few torches, some food and oil.
-pub const KIT: &[(Item, u32)] = &[(Item::Pickaxe, 1), (Item::Torch, 4), (Item::Grub, 3), (Item::Root, 2), (Item::FungusOil, 2)];
+/// Wood is rare near most burrows (often none within 40 m: `examples/survey.rs`), so the kit carries enough
+/// for the workbench (4) and a little over.
+pub const KIT: &[(Item, u32)] = &[(Item::Pickaxe, 1), (Item::Wood, 6), (Item::Torch, 4), (Item::Grub, 3), (Item::Root, 2), (Item::FungusOil, 2)];
 
 impl World {
     /// Start this world in `mode`: its rules, and its pack (Survival's kit; Creative's 999 of everything).

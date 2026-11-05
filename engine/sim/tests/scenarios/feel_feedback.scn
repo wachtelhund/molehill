@@ -1,0 +1,33 @@
+// Snappy feedback (Streets of Rogue): every action answers on the tick it happens with a sound event and a
+// small shake. A dig strike on press; a refused dig (granite with only the pickaxe) says so with a clink,
+// not silence; a throw is felt; and even a short hop down a ledge lands with a bump.
+map
+BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+#......................................#
+#......................................#
+#......................................#
+#......................................#
+#.....@.........ddd.#..................#
+##########################.............#
+##########################.............#
+#######################################
+end
+give Stone 5
+mode survival
+tool 1 1
+// a strike on dirt: heard and felt at once
+mine 10-12 11 0
+expect 10 ev:Dig == 1
+expect 10 shake > 0.05
+// granite with only the pickaxe: a clink and a word, at once
+mine 40-42 14 0
+expect 40 ev:Crack == 1
+expect 40 shake > 0.05
+// a throw
+throw 70 Stone 1 -1 1
+expect 70 ev:Click == 1
+expect 70 shake > 0.1
+// walk off the ledge on the right (0.5 m down): a bump on landing
+hold 100-200 right
+expect 190 py >= 7.9
+expect 190 shake > 0.05            // landed a moment ago: a bump

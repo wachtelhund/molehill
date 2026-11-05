@@ -25,6 +25,7 @@ You play one Delver: a body about **45 × 73 cm** (1.8 × 2.9 tiles of 0.25 m, i
 | `1`–`0`, wheel | Hotbar slot (a trackpad flick moves one slot, momentum included). Sprinting doesn't change this |
 | `I` | Pack (inventory grid): click a slot to pick it up, click another to drop or swap. The bottom row is the hotbar. At a station, its recipes are listed on the left; click one to make it (see [Tools and Items](Tools-and-Items.md#stations)) |
 | `+` / `-`, `Ctrl` / `Cmd` + wheel (or pinch) | Zoom (clamped to scale 0.12–0.75 and saved) |
+| `J` | Journal: the Lid fragments you've found (see [Lore](Lore.md#the-lid-in-the-game)) |
 | `V` | Wiring view on / off (see [Devices and Copperline](Devices-and-Copperline.md#wiring-view)) |
 | `G` | Headlamp lit / out (also in Settings; saved). The fungus-oil lamp on the mole's hat throws a beam toward the cursor and reveals the way ahead. In Survival it burns a measure of fungus oil every 3 minutes and goes dark when there's no oil or fungus left |
 | `H` | Controls overlay |
@@ -43,7 +44,7 @@ Movement should feel like **Streets of Rogue**: instant start and stop, no input
 * **Coyote time** and a **jump buffer** of 0.1 s each: a jump 4 ticks after leaving a ledge works; 12 ticks after, it doesn't. The same 0.1 s grace applies after letting go of a wall. A jump tap is latched until the next 60 Hz step, so a quick tap on a fast display is never lost, and the camera follows after the step, so a press shows the same frame.
 * Releasing jump early triples gravity (`cut_mul`) for a short hop. Falling uses 1.7× gravity, so arcs are snappy rather than floaty.
 * **Corner correction** (`nudge` 0.6 tiles): rising into a corner slides the head round it, and moving sideways in the air snaps the feet to the nearest row so you slot into tunnel mouths. Jumping into a 2-wide shaft half a cell off-centre still goes up.
-* Feedback is immediate: the mining strike sounds on the first tick of a press and every 1/6 s after; a cleared bite or placed block pops on screen; any knock of more than 0.5 hp flashes the mole for 0.22 s and jolts the view in proportion; hard landings (8+ tiles, 2 m) thump the camera and squash the sprite.
+* Feedback is immediate, and every action answers on its tick: the mining strike sounds and gives a small shake (bigger tools shake more) on the first tick of a press and every 1/6 s after; a dig your tools can't do clinks at once and says why ("Granite is too hard: it needs a drill."); a throw, pick-up, device use or placed torch pops on screen; even a 0.5 m drop lands with a bump (scenario `feel_feedback`); a cleared bite or placed block pops on screen; any knock of more than 0.5 hp flashes the mole for 0.22 s and jolts the view in proportion; hard landings (8+ tiles, 2 m) thump the camera and squash the sprite.
 
 ## `TUNE`
 

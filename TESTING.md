@@ -52,6 +52,7 @@ lamp 1 on               // headlamp on/off from tick T (off by default in scenar
 aim 1 20 -2             // from tick T the mole looks at tile (dx,dy) from @ (the headlamp beam points there); `aim T none`
 wield 1 Torch           // from tick T the mole holds that item (a torch lights); `wield T none`
 torch 1 6 0             // at tick T put a torch on tile (dx,dy)
+clue 1 Note 8 0         // put a Lid clue (Carving, Note, Draft, Relic) on the floor of tile (dx,dy)
 furnish 2 Table 6 -2    // set a piece of furniture down at tile (dx,dy): it finds the floor below (or the ceiling above, for a banner)
 paint 2 Ochre 3 0       // paint a brush (`brush`) of standing blocks around tile (dx,dy) with a pigment, or dye the rug/banner/nest there
 dig 41-60 3 -1          // same, but (dx,dy) is relative to the mole's current cell (feet row), so it follows the mole
@@ -113,6 +114,8 @@ Map legend: `t` roots (a root tangle), `f` fungus, `.` empty, `#` granite, `B` b
 | `inv:<Item>` | Inventory count |
 | `static:<Mat>` | Like `count:` but only cells that are fixed in place (not loose debris) |
 | `util:DX,DY` | Stress utilisation of the cell at an offset from `@` (1.0 = at capacity; above that it cracks) |
+| `journal` `clues` | Lid fragments read; unread clues inside the map |
+| `clues_bands:A,B` | How many clues the world places in 32 m bands A..B (absolute, negative = higher), from the real generator |
 | `furn:Item` `tint:Item` | How many of that furniture stand in the world; the first one's dye (0 undyed, 1–6 the pigments) |
 | `paint:DX,DY` | The pigment painted on the tile's centre cell (0 unpainted; 1 ochre, 2 rust, 3 chalk, 4 verdigris, 5 woad, 6 soot) |
 | `light:DX,DY` | Brightness (luma) at the tile's centre; light is recomputed over the map every tick. About 1 is fully lit, under 0.05 is dark |
@@ -177,6 +180,8 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `glowmite_catch.scn` | A grotto's glowmite swarm drifts over the map |
 | `brush_place.scn` | A radius-2 brick brush fills the open part of the disc and uses items 4 cells to one |
 | `light_torch.scn` | A torch lights a pool with a bright core and a soft edge; a wall hides the far side |
+| `lore_density.scn` | Lid clues by height: dense far above the start, a few around it, almost none deep down |
+| `lore_journal.scn` | Walking past clues reads them into the journal; an unreached one stays unread; the journal survives save/load |
 | `furnish_room.scn` | Furniture finds its floor or ceiling; a rug lies under a table; overlaps and a blocked spot are refused; `E` takes a piece back |
 | `furniture_falls.scn` | Blast the floor from under a table and it falls loose as an item |
 | `decor_blocks.scn` | Carved pillars save the 12 m rock roof like wood pillars do; planks, tiles and polished stone lay with the brush |
@@ -206,6 +211,8 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `craft_unlock_by_touch.scn` | Survival: a recipe appears once any input is picked up; Creative lists all |
 | `craft_stations.scn` | Survival crafting at a workbench; a forge refuses cold and works with lava in reach; a workshop refuses unpowered and makes the drill once a lever powers its line |
 | `tool_tiers_survival.scn` | Survival digs with the best tool owned: claws (dirt, soft stone), pickaxe, drill (granite), bore (basalt) |
+| `forge_coal_fuel.scn` | With no lava in reach the forge burns a coal per job; with no fuel it's cold |
+| `feel_feedback.scn` | Each action answers on its tick: dig strike, refused dig (clink), throw, a 0.5 m landing bump |
 | `tnt_place_vs_throw.scn` | TNT set down lies unlit as a device; thrown it goes off where it lands; beams and copperline aren't thrown |
 | `knots.scn` | Truth tables of the both/either/turn/odd/catch knots, swapped in place |
 | `door.scn` | A lever opens a door; it waits for the mole to clear the doorway before shutting; no door on yourself |
@@ -238,7 +245,7 @@ Zoom limits and brush ranges also have unit tests in `sim/tests/sim.rs` (`zoom_i
 
 `cargo run --release -p molehill-sim --example stepbench [seed] [ticks]` times `World::step` on the game-sized window from a fresh holt: mean/p50/p95/p99/max per tick, the average per tick class (stress passes every 6 ticks, air every 15), a full stress solve and a light pass. Add `--no-default-features` for single-threaded numbers, which are closer to the web build.
 
-`cargo run --release -p molehill-sim --example grottos [seed]` lists the grottos in a fresh holt's window and draws one; `--example slidecheck [seed]` counts cells that would fail a full stress solve after generation and after a slide each way (should be 0).
+`cargo run --release -p molehill-sim --example grottos [seed]` lists the grottos in a fresh holt's window and draws one; `--example slidecheck [seed]` counts cells that would fail a full stress solve after generation and after a slide each way (should be 0). `--example grottoseed -- [SEEDS] [--show SEED]` scores seeds by how close the new holt spawns to a grotto with trees (generator only, fast); `--show SEED` generates that world and prints an ASCII map around the spawn. `--example survey -- SEEDS` reports what the ground offers around the burrow per seed (item counts within reach and the nearest of each, in metres); Survival's kit and costs are balanced from it.
 
 `cargo run --release -p molehill-sim --example genbench [seed]` times world generation: fill, one full stress solve, stabilisation, and `World::new` in total.
 

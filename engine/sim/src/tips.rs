@@ -3,7 +3,7 @@
 use crate::craft::Item;
 use crate::grid::F_SEEN;
 use crate::logic::Dev;
-use crate::mat::{Kind, Mat};
+use crate::mat::{Kind, Mat, S};
 use crate::world::World;
 use crate::craft::Station;
 
@@ -41,6 +41,12 @@ pub fn describe(w: &World, x: usize, y: usize) -> Option<Tip> {
         if f.tint > 0 { l.push(format!("Dyed {}.", pigment_name(f.tint))); }
         l.push("E: pick up.".into());
         return tip(f.item.name().into(), l);
+    }
+    for c in &w.clues {
+        let r = S + 1; if x + r < c.x || x > c.x + r || y + 2 * r < c.y || y > c.y + 1 || w.g.is_solidish(c.y * w.g.w + c.x) { continue; }
+        let say = match c.kind { crate::lore::ClueKind::Carving => "Marks cut into the rock by an older Delver.", crate::lore::ClueKind::Note => "A scrap of bark, scratched with old writing.",
+            crate::lore::ClueKind::Draft => "A cool draft, falling from somewhere above.", crate::lore::ClueKind::Relic => "Something that doesn't belong down here." };
+        return tip(c.kind.name().into(), vec![say.into(), if c.found { "In your journal (J).".into() } else { "Walk up to it to read it.".into() }]);
     }
     for c in &w.chests {
         let k = crate::mat::S;

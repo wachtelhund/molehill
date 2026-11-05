@@ -1,0 +1,19 @@
+// Walking up to a clue reads it: the next fragment of its kind goes into the journal. Clues you don't
+// reach stay unread, and the journal survives a save and load.
+map
+############################################
+#..........................................#
+#..........................................#
+#..@.......................................#
+############################################
+end
+clue 1 Note 8 0
+clue 1 Relic 14 0
+clue 1 Carving 36 0
+expect 2 journal == 0
+expect 2 clues == 3
+hold 3-60 right
+expect 90 journal == 2
+expect 90 clues == 1               // the carving at the far end is still unread
+saveload 95
+expect 100 journal == 2
