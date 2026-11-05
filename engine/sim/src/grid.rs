@@ -221,10 +221,10 @@ impl Grid {
         // the chunk origin, clear of anything a same-phase chunk (128 away, moving ≤ 6·S) can write.
         const LOOK: i32 = 48;
         const _: () = assert!(64 + LOOK as usize <= 128 - 6 * S, "liquid look-ahead would race a same-phase chunk");
-        let (mut near, mut nd, mut level) = (0i32, i32::MAX, None);
+        let (mut near, mut nd, mut level, mut lvl_dir) = (0i32, i32::MAX, None, 0i32);
         for s in [dir, -dir] {
             for k in 1..=LOOK { let nx = x as i32 + s * k; if nx < 0 || nx as usize >= w { break; } let j = (i as i32 + s * k) as usize; if self.mat[j] != 0 { break; }
-                if k <= disp && level.is_none() { level = Some(j); }
+                if k <= disp && k <= S as i32 && (level.is_none() || s == lvl_dir) { level = Some(j); lvl_dir = s; } // pressed: up to S cells (one tile) a tick
                 if y + 1 < self.h && self.mat[j + w] == 0 { if k < nd { nd = k; near = s; } break; } }
         }
         if near != 0 { return Some((i as i32 + near * nd.min(disp)) as usize); }

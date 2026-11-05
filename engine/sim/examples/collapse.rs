@@ -1,7 +1,7 @@
 use molehill_sim::world::World;
 use std::time::Instant;
 fn main() {
-    let mut w = World::new(1024, 512, 9630);
+    let mut w = World::new(1024 * molehill_sim::mat::S, 512 * molehill_sim::mat::S, 9630);
     let mut hist = [0u32; 12];
     let t = Instant::now();
     for k in 0..600 { let before = w.crumbled; w.step(); if w.crumbled > before { let _ = k; } }

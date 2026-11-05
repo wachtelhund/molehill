@@ -84,7 +84,7 @@ impl Mat {
 }
 /// Cells per metre: the one resolution knob. Everything sized in cells (movement, brushes, devices,
 /// worldgen features, the window, rendering) derives from it, so the world behaves the same in metres.
-pub const CPM: usize = 4;
+pub const CPM: usize = 8;
 pub const CELL_M: f32 = 1.0 / CPM as f32; // metres per cell
 /// Cells per legacy tile (the original 0.25 m cell): constants first tuned in those tiles scale by this.
 pub const S: usize = CPM / 4;

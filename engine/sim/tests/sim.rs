@@ -1,6 +1,9 @@
 use molehill_sim::{grid::Grid, mat::Mat, stress::Stress, world::*, craft::Item};
+// Lengths in these tests are in legacy 0.25 m tiles times S (cells per tile), so they mean the same in metres.
+use molehill_sim::mat::{S, SF};
 
-fn boxed(w: usize, h: usize) -> Grid { let mut g = Grid::new(w, h); g.fill_rect(0, h - 2, w - 1, h - 1, Mat::Bedrock); g.fill_rect(0, 0, 1, h - 1, Mat::Bedrock); g.fill_rect(w - 2, 0, w - 1, h - 1, Mat::Bedrock); g }
+/// A grid walled with bedrock 2 tiles thick (floor and sides).
+fn boxed(w: usize, h: usize) -> Grid { let t = 2 * S; let mut g = Grid::new(w, h); g.fill_rect(0, h - t, w - 1, h - 1, Mat::Bedrock); g.fill_rect(0, 0, t - 1, h - 1, Mat::Bedrock); g.fill_rect(w - t, 0, w - 1, h - 1, Mat::Bedrock); g }
 fn run(g: &mut Grid, n: usize) { for _ in 0..n { g.step_ca(); } }
 
 #[test] fn sand_piles_with_slope() {
@@ -20,10 +23,11 @@ fn run(g: &mut Grid, n: usize) { for _ in 0..n { g.step_ca(); } }
     run(&mut g, 800); assert!(g.count(Mat::Basalt) > 0);
 }
 fn slab(m: Mat, span: usize, thick: usize) -> (Grid, Vec<u32>) {
-    // solid block, carve a void under a roof of `thick` cells, span `span` cells
-    let mut g = boxed(128, 64); for y in 10..62 { for x in 2..126 { let i = g.idx(x, y); g.set(i, m); } }
-    let (x0, y0) = (64 - span / 2, 10 + thick); for y in y0..y0 + 8 { for x in x0..x0 + span { let i = g.idx(x, y); g.set(i, Mat::Empty); } }
-    let mut st = Stress::new(128 * 64); let f = st.solve(&g); (g, f)
+    // solid block, carve a void under a roof of `thick` tiles, span `span` tiles (tiles = 0.25 m)
+    let (span, thick) = (span * S, thick * S);
+    let mut g = boxed(128 * S, 64 * S); for y in 10 * S..62 * S { for x in 2 * S..126 * S { let i = g.idx(x, y); g.set(i, m); } }
+    let (x0, y0) = (64 * S - span / 2, 10 * S + thick); for y in y0..y0 + 8 * S { for x in x0..x0 + span { let i = g.idx(x, y); g.set(i, Mat::Empty); } }
+    let mut st = Stress::new(128 * 64 * S * S); let f = st.solve(&g); (g, f)
 }
 #[test] fn dirt_roof_short_holds_long_fails() {
     let (_, f) = slab(Mat::Dirt, 4, 4); assert!(f.is_empty(), "1 m dirt span should hold");
@@ -33,37 +37,37 @@ fn slab(m: Mat, span: usize, thick: usize) -> (Grid, Vec<u32>) {
     let (_, f) = slab(Mat::Granite, 24, 6); assert!(f.is_empty(), "6 m granite span holds");
 }
 #[test] fn floating_island_falls() {
-    let mut g = boxed(64, 64); for y in 10..14 { for x in 20..30 { let i = g.idx(x, y); g.set(i, Mat::Limestone); } }
-    let mut st = Stress::new(64 * 64); let f = st.solve(&g); assert!(f.len() >= 30);
+    let mut g = boxed(64 * S, 64 * S); for y in 10 * S..14 * S { for x in 20 * S..30 * S { let i = g.idx(x, y); g.set(i, Mat::Limestone); } }
+    let mut st = Stress::new(64 * 64 * S * S); let f = st.solve(&g); assert!(f.len() >= 30 * S * S);
 }
 #[test] fn wood_pillar_saves_wide_dirt_room() {
     let (mut g, f) = slab(Mat::Dirt, 24, 4); assert!(!f.is_empty());
-    for k in [56usize, 60, 64, 68, 72] { for y in 14..22 { let i = g.idx(k, y); g.set(i, Mat::WoodBeam); } }
-    let mut st = Stress::new(128 * 64); let f = st.solve(&g); assert!(f.is_empty(), "pillars at 1 m spacing should hold, {} failing", f.len());
+    for k in [56usize, 60, 64, 68, 72] { for y in 14 * S..22 * S { for dx in 0..S { let i = g.idx(k * S + dx, y); g.set(i, Mat::WoodBeam); } } }
+    let mut st = Stress::new(128 * 64 * S * S); let f = st.solve(&g); assert!(f.is_empty(), "pillars at 1 m spacing should hold, {} failing", f.len());
 }
 #[test] fn deterministic_worlds() {
-    let a = World::new(256, 256, 7); let b = World::new(256, 256, 7); let c = World::new(256, 256, 8);
+    let a = World::new(256 * S, 256 * S, 7); let b = World::new(256 * S, 256 * S, 7); let c = World::new(256 * S, 256 * S, 8);
     assert_eq!(a.g.mat, b.g.mat); assert_ne!(a.g.mat, c.g.mat);
 }
 #[test] fn generated_world_is_mostly_stable() {
-    let mut w = World::new(512, 256, 3);
+    let mut w = World::new(512 * S, 256 * S, 3);
     for _ in 0..200 { w.step(); }
-    assert!(w.crumbled < 400, "crumbled {}", w.crumbled);
+    assert!(w.crumbled < 400 * (S * S) as u64, "crumbled {}", w.crumbled);
     assert!(w.g.count(Mat::Water) > 0 && w.g.count(Mat::Coal) > 0);
 }
 #[test] fn player_walks_jumps_and_mines() {
-    let mut w = World::new(512, 256, 11); w.disasters.enabled = false;
+    let mut w = World::new(512 * S, 256 * S, 11); w.disasters.enabled = false;
     assert_eq!(w.moles.len(), 1, "exactly one mole: the player");
     for _ in 0..30 { w.step(); }
     let x0 = w.moles[0].x;
     assert!(w.pl.grounded, "starts on the burrow floor");
     // walk right for half a second
     w.input.right = true; for _ in 0..30 { w.step(); } w.input.right = false;
-    assert!(w.moles[0].x > x0 + 2, "walked right: {} -> {}", x0, w.moles[0].x);
+    assert!(w.moles[0].x > x0 + 2 * S, "walked right: {} -> {}", x0, w.moles[0].x);
     // jump: rises, then lands back on the floor
     for _ in 0..20 { w.step(); } let yb = w.moles[0].y;
     w.input.jump = true; let mut top = yb; for _ in 0..40 { w.step(); top = top.min(w.moles[0].y); } w.input.jump = false;
-    assert!(yb - top >= 3, "jumped at least 3 cells (from {yb} up to {top})");
+    assert!(yb - top >= 3 * S, "jumped at least 3 cells (from {yb} up to {top})");
     for _ in 0..90 { w.step(); } assert!(w.pl.grounded && w.moles[0].y == yb, "landed");
     // mine the floor under its feet: hold the mouse there until it opens, then it falls in
     let (x, y) = (w.moles[0].x, w.moles[0].y);
@@ -73,17 +77,17 @@ fn slab(m: Mat, span: usize, thick: usize) -> (Grid, Vec<u32>) {
     w.input.mine = None; for _ in 0..30 { w.step(); }
     assert!(w.moles[0].y > y, "dropped into the hole");
     // out of reach does nothing
-    let far = w.g.idx(x, (y + 40).min(250)); w.input.mine = Some((x, (y + 40).min(250))); let m0 = w.g.mat[far]; for _ in 0..600 { w.step(); }
+    let fy = (y + 40 * S).min(w.g.h - 6); let far = w.g.idx(x, fy); w.input.mine = Some((x, fy)); let m0 = w.g.mat[far]; for _ in 0..600 { w.step(); }
     assert_eq!(w.g.mat[far], m0, "can't mine beyond reach");
 }
 #[test] fn player_places_pillar_and_respawns() {
-    let mut w = World::new(512, 256, 11); w.disasters.enabled = false;
+    let mut w = World::new(512 * S, 256 * S, 11); w.disasters.enabled = false;
     for _ in 0..30 { w.step(); }
     let (x, y) = (w.moles[0].x, w.moles[0].y); let n0 = w.inv[Item::WoodPillar as usize];
-    assert!(w.place_block(x + 3, y, Item::WoodPillar).is_ok());
-    assert_eq!(w.g.get(x + 3, y), Mat::WoodBeam);
+    assert!(w.place_block(x + 3 * S, y, Item::WoodPillar).is_ok());
+    assert_eq!(w.g.get(x + 3 * S, y), Mat::WoodBeam);
     assert!(w.place_block(x, y, Item::WoodPillar).is_err(), "not inside yourself");
-    assert!(w.place_block(x + 60, y, Item::WoodPillar).is_err(), "not out of reach");
+    assert!(w.place_block(x + 60 * S, y, Item::WoodPillar).is_err(), "not out of reach");
     assert!(w.inv[Item::WoodPillar as usize] <= n0);
     w.moles[0].hp = -1.; for _ in 0..400 { w.step(); }
     assert!(w.moles[0].alive && w.pl.deaths == 1, "respawned at the burrow");
@@ -92,7 +96,7 @@ fn slab(m: Mat, span: usize, thick: usize) -> (Grid, Vec<u32>) {
 #[test]
 fn fresh_world_does_not_collapse() {
     // 2 minutes at 60 tps with no player action: < 1% of static cells may crumble.
-    let mut w = molehill_sim::world::World::new(1024, 512, 777);
+    let mut w = molehill_sim::world::World::new(1024 * S, 512 * S, 777);
     let solid = (0..w.g.mat.len()).filter(|&i| w.g.is_static(i)).count();
     for _ in 0..7200 { w.step(); }
     assert!((w.crumbled as f64) < 0.01 * solid as f64, "crumbled {} of {}", w.crumbled, solid);
@@ -103,10 +107,11 @@ mod v3b {
     use molehill_sim::logic::{Dev, Logic};
     use molehill_sim::grid::Grid;
     use molehill_sim::mat::Mat;
-    fn open_grid() -> Grid { let mut g = Grid::new(128, 64); for x in 0..128 { for y in 60..64 { let i = g.idx(x, y); g.mat[i] = Mat::Bedrock as u8; } } g }
+    use molehill_sim::mat::S; use molehill_sim::logic::B;
+    fn open_grid() -> Grid { let mut g = Grid::new(128 * S, 64 * S); for x in 0..128 * S { for y in 60 * S..64 * S { let i = g.idx(x, y); g.mat[i] = Mat::Bedrock as u8; } } g }
     #[test]
     fn lever_wire_lamp_and_not_gate() {
-        let mut g = open_grid(); let mut l = Logic::new(128, 64);
+        let mut g = open_grid(); let mut l = Logic::new(128 * S, 64 * S);
         let b = |x: usize, y: usize| y * 32 + x;
         assert!(l.place(&mut g, Dev::Lever, b(2, 5)));
         for x in 3..8 { l.place_wire(b(x, 5)); }
@@ -116,17 +121,17 @@ mod v3b {
         // NOT gate: input west wire (net of lever) -> output east wire -> door
         for y in 6..9 { l.place_wire(b(3, y)); } l.place(&mut g, Dev::Not, b(4, 8)); l.place_wire(b(5, 8)); l.place(&mut g, Dev::Door, b(6, 8));
         for t in 4..8 { l.step(&mut g, &[], t); }
-        let di = g.idx(6 * 4 + 1, 8 * 4 + 1); assert_eq!(g.m(di), Mat::Door, "NOT(on)=off -> door closed");
+        let di = g.idx(6 * B + 1, 8 * B + 1); assert_eq!(g.m(di), Mat::Door, "NOT(on)=off -> door closed");
         l.interact(b(2, 5)); for t in 8..12 { l.step(&mut g, &[], t); } assert_eq!(g.m(di), Mat::Empty, "NOT(off)=on -> door open");
     }
     #[test]
     fn thrumming_carries_through_stone_not_air() {
         // solid granite, two pockets 30 m apart; the knock travels through the rock
-        let mut g = open_grid(); let mut l = Logic::new(128, 64);
+        let mut g = open_grid(); let mut l = Logic::new(128 * S, 64 * S);
         let b = |x: usize, y: usize| y * 32 + x;
-        let set = |g: &mut molehill_sim::grid::Grid, m: Mat, x0: usize, x1: usize| for y in 0..64 { for x in x0..x1 { let i = g.idx(x, y); g.mat[i] = m as u8; g.flags[i] = 0; } };
+        let set = |g: &mut molehill_sim::grid::Grid, m: Mat, x0: usize, x1: usize| for y in 0..64 * S { for x in x0 * S..x1 * S { let i = g.idx(x, y); g.mat[i] = m as u8; g.flags[i] = 0; } };
         set(&mut g, Mat::Granite, 0, 128);
-        for &(bx, by) in &[(1usize, 3usize), (2, 3), (3, 3), (28, 3), (29, 3), (30, 3)] { for y in by * 4..by * 4 + 4 { for x in bx * 4..bx * 4 + 4 { let i = g.idx(x, y); g.mat[i] = 0; } } }
+        for &(bx, by) in &[(1usize, 3usize), (2, 3), (3, 3), (28, 3), (29, 3), (30, 3)] { for y in by * B..by * B + B { for x in bx * B..bx * B + B { let i = g.idx(x, y); g.mat[i] = 0; } } }
         l.place(&mut g, Dev::Lever, b(1, 3)); l.place_wire(b(2, 3)); l.place(&mut g, Dev::Tx, b(3, 3));
         l.place(&mut g, Dev::Rx, b(28, 3)); l.place_wire(b(29, 3)); l.place(&mut g, Dev::Lamp, b(30, 3));
         l.interact(b(1, 3)); for t in 0..20 { l.step(&mut g, &[], t); }
@@ -137,17 +142,17 @@ mod v3b {
         l.invalidate(); for t in 20..40 { l.step(&mut g, &[], t); }
         assert_eq!(l.dev_s[b(30, 3)], 0, "air gap blocks");
         // the same gap packed with loose dirt passes, but weaker than solid stone
-        set(&mut g, Mat::Dirt, 60, 64); for y in 0..64 { for x in 60..64 { let i = g.idx(x, y); g.flags[i] = molehill_sim::grid::F_LOOSE; } }
+        set(&mut g, Mat::Dirt, 60, 64); for y in 0..64 * S { for x in 60 * S..64 * S { let i = g.idx(x, y); g.flags[i] = molehill_sim::grid::F_LOOSE; } }
         let dirt = l.link_budget(&g, b(3, 3), b(28, 3));
         assert!(dirt < stone, "dirt muffles: {dirt} vs {stone}");
         // a 30 m run of loose sand-like dirt muffles it entirely
-        set(&mut g, Mat::Dirt, 16, 112); for y in 0..64 { for x in 16..112 { let i = g.idx(x, y); g.flags[i] = molehill_sim::grid::F_LOOSE; } }
-        for &(bx, by) in &[(28usize, 3usize)] { for y in by * 4..by * 4 + 4 { for x in bx * 4..bx * 4 + 4 { let i = g.idx(x, y); g.mat[i] = 0; } } }
+        set(&mut g, Mat::Dirt, 16, 112); for y in 0..64 * S { for x in 16 * S..112 * S { let i = g.idx(x, y); g.flags[i] = molehill_sim::grid::F_LOOSE; } }
+        for &(bx, by) in &[(28usize, 3usize)] { for y in by * B..by * B + B { for x in bx * B..bx * B + B { let i = g.idx(x, y); g.mat[i] = 0; } } }
         assert!(l.link_budget(&g, b(3, 3), b(28, 3)) < 0., "loose dirt damps out");
     }
     #[test]
     fn save_load_roundtrip() {
-        let mut w = World::new(512, 256, 4242);
+        let mut w = World::new(512 * S, 256 * S, 4242);
         for _ in 0..120 { w.step(); }
         let bytes = molehill_sim::save::save(&w);
         let s = molehill_sim::save::to_b64(&bytes); let back = molehill_sim::save::from_b64(&s).unwrap(); assert_eq!(bytes, back);
@@ -158,7 +163,7 @@ mod v3b {
     }
     #[test]
     fn moles_get_hungry_and_eat() {
-        let mut w = World::new(512, 256, 99);
+        let mut w = World::new(512 * S, 256 * S, 99);
         for m in w.moles.iter_mut() { m.hunger = 30.; }
         let food0 = w.inv[molehill_sim::craft::Item::Grub as usize];
         for _ in 0..1200 { w.step(); }
@@ -168,7 +173,7 @@ mod v3b {
     }
     #[test]
     fn quake_loosens_overhangs() {
-        let mut w = World::new(512, 256, 5);
+        let mut w = World::new(512 * S, 256 * S, 5);
         use molehill_sim::disasters::Kind2;
         let mut d = std::mem::replace(&mut w.disasters, molehill_sim::disasters::Disasters::new(1));
         assert!(d.schedule(&mut w, Kind2::Quake)); w.disasters = d;
@@ -178,34 +183,36 @@ mod v3b {
     }
 }
 #[test] fn endless_world_shifts_deterministically() {
-    let mut w = World::new(256, 256, 5); let oy0 = w.oy;
+    let mut w = World::new(256 * S, 256 * S, 5); let oy0 = w.oy;
     assert!(w.depth_m(0, (-oy0) as usize).abs() < 0.01, "start layer is depth 0");
-    let top: Vec<u8> = w.g.mat[..256 * 8].to_vec();
-    w.shift(128); assert_eq!(w.oy, oy0 + 128);
-    w.shift(256 - 128 - 128 + 128); // deeper still
-    w.shift(-128); w.shift(-128); assert_eq!(w.oy, oy0);
-    assert_eq!(&w.g.mat[..256 * 8], &top[..], "rows restored from cache");
+    let (n, sl) = (w.g.w * 8, 128 * S as i64);
+    let top: Vec<u8> = w.g.mat[..n].to_vec();
+    w.shift(sl); assert_eq!(w.oy, oy0 + sl);
+    w.shift(sl); // deeper still
+    w.shift(-sl); w.shift(-sl); assert_eq!(w.oy, oy0);
+    assert_eq!(&w.g.mat[..n], &top[..], "rows restored from cache");
     // fresh deep rows are generated identically per seed
-    let mut a = World::new(256, 256, 5); let mut b = World::new(256, 256, 5);
-    for _ in 0..4 { a.shift(128); b.shift(128); } assert_eq!(a.g.mat, b.g.mat);
+    let mut a = World::new(256 * S, 256 * S, 5); let mut b = World::new(256 * S, 256 * S, 5);
+    for _ in 0..4 { a.shift(128 * S as i64); b.shift(128 * S as i64); } assert_eq!(a.g.mat, b.g.mat);
     assert_eq!(a.g.count(Mat::Bedrock) , b.g.count(Mat::Bedrock));
     // no surface: no grass or sky anywhere, more lava than water deep down
     assert_eq!(a.g.count(Mat::Grass), 0);
 }
 #[test] fn mushrooms_grow_in_dark_damp_and_air_goes_stale() {
-    let mut w = World::new(256, 256, 21);
+    let mut w = World::new(256 * S, 256 * S, 21);
     w.torches.clear();
-    let (x, y) = (w.moles[0].x + 3, w.moles[0].y);
+    let (x, y) = (w.moles[0].x + 3 * S, w.moles[0].y);
     w.plant(x, y).expect("plant");
     let (bright, _moist) = w.farm_conditions(x, y); assert!(!bright, "no torch nearby");
     for _ in 0..60 * 60 * 3 { w.step(); }
     assert!(w.harvested > 0 || w.inv[Item::Mushroom as usize] > 0 || w.farms.iter().any(|f| f.growth > 0.3), "mushrooms grow");
     // a sealed pocket fills with CO2 from breathing; a vent clears it
-    let mut a = molehill_sim::air::Air::new(64, 64);
-    let mut g = Grid::new(64, 64); for i in 0..64 * 64 { g.mat[i] = Mat::Granite as u8; } for y in 20..40 { for x in 20..40 { let i = g.idx(x, y); g.mat[i] = 0; } }
-    for _ in 0..1000 { a.add(30, 30, 4. * 0.08); a.update(&g, &[]); } // four moles, ~4 min
-    let stale = a.at(30, 30); assert!(stale > 0.45, "sealed tunnel goes stale: {stale}");
-    for _ in 0..100 { a.update(&g, &[(30, 30)]); } assert!(a.at(30, 30) < stale * 0.5, "vent clears");
+    let n = 64 * S; let (c, lo, hi) = (30 * S, 20 * S, 40 * S);
+    let mut a = molehill_sim::air::Air::new(n, n);
+    let mut g = Grid::new(n, n); for i in 0..n * n { g.mat[i] = Mat::Granite as u8; } for y in lo..hi { for x in lo..hi { let i = g.idx(x, y); g.mat[i] = 0; } }
+    for _ in 0..1000 { a.add(c, c, 4. * molehill_sim::air::MOLE_CO2); a.update(&g, &[]); } // four moles, ~4 min
+    let stale = a.at(c, c); assert!(stale > 0.45, "sealed tunnel goes stale: {stale}");
+    for _ in 0..100 { a.update(&g, &[(c, c)]); } assert!(a.at(c, c) < stale * 0.5, "vent clears");
 }
 
 /// Fresh worlds must not shed their caves: < 0.1% of static cells lost in 5 minutes (18000 ticks), many seeds.
@@ -213,7 +220,7 @@ mod v3b {
 fn fresh_worlds_are_stable_multi_seed() {
     let seeds = [1u32, 4, 777, 9630, 1295, 12822, 11, 14];
     let hs: Vec<_> = seeds.iter().map(|&s| std::thread::spawn(move || {
-        let mut w = molehill_sim::world::World::new(1024, 512, s); w.disasters.enabled = false;
+        let mut w = molehill_sim::world::World::new(1024 * S, 512 * S, s); w.disasters.enabled = false;
         let solid = (0..w.g.mat.len()).filter(|&i| w.g.is_static(i)).count();
         for _ in 0..18000 { w.step(); }
         (s, w.crumbled as f64 / solid as f64)
@@ -224,7 +231,7 @@ fn fresh_worlds_are_stable_multi_seed() {
 /// Old (surface-era, version < 3), truncated or garbage saves are refused with a message, never a panic.
 #[test]
 fn old_and_broken_saves_fail_cleanly() {
-    let w = molehill_sim::world::World::new(256, 256, 3);
+    let w = molehill_sim::world::World::new(256 * S, 256 * S, 3);
     let good = molehill_sim::save::save(&w);
     let mut old = good.clone(); old[8..12].copy_from_slice(&2u32.to_le_bytes());
     let e = molehill_sim::save::load(&old).err().expect("old save refused"); assert!(e.contains("new holt"), "{e}");
@@ -237,7 +244,7 @@ fn old_and_broken_saves_fail_cleanly() {
 #[test]
 fn start_burrow_is_safe() {
     let hs: Vec<_> = [4242u32, 1, 2, 3, 11, 777, 9630, 31337].into_iter().map(|s| std::thread::spawn(move || {
-        let mut w = molehill_sim::world::World::new(1024, 512, s); w.disasters.enabled = false;
+        let mut w = molehill_sim::world::World::new(1024 * S, 512 * S, s); w.disasters.enabled = false;
         for _ in 0..1800 { w.step(); }
         (s, w.moles.iter().filter(|m| m.alive).count())
     })).collect();
@@ -248,23 +255,23 @@ fn start_burrow_is_safe() {
 #[test]
 fn player_can_dig_out_of_the_burrow() {
     for s in [3636u32, 777] {
-        let mut w = molehill_sim::world::World::new(1024, 512, s); w.disasters.enabled = false;
+        let mut w = molehill_sim::world::World::new(1024 * S, 512 * S, s); w.disasters.enabled = false;
         let y = w.moles[0].y; let x0 = w.moles[0].x;
         // walk right, mining whatever blocks the way at head and chest height
         w.input.right = true; let mut best = x0;
-        for _ in 0..60 * 40 { let (x, yy) = ((w.pl.px + 1.2) as usize, w.moles[0].y); // the column the body's leading edge pushes into
-            let t = (0..3).map(|j| (x, yy - j)).find(|&(a, b)| w.g.is_solidish(w.g.idx(a, b))); w.input.mine = t; w.step(); best = best.max(w.moles[0].x); }
-        assert!(best > x0 + 30, "seed {s}: tunnelled out ({x0} -> {best}, y {y})");
+        for _ in 0..60 * 40 { let (x, yy) = ((w.pl.px + 1.2 * SF) as usize, w.moles[0].y); // the column the body's leading edge pushes into
+            let t = (0..3 * S).map(|j| (x, yy - j)).find(|&(a, b)| w.g.is_solidish(w.g.idx(a, b))); w.input.mine = t; w.step(); best = best.max(w.moles[0].x); }
+        assert!(best > x0 + 30 * S, "seed {s}: tunnelled out ({x0} -> {best}, y {y})");
     }
 }
 #[test] fn dig_tools_bite_fast_and_scale() {
-    let mut w = World::new(512, 256, 11); w.disasters.enabled = false;
+    let mut w = World::new(512 * S, 256 * S, 11); w.disasters.enabled = false;
     for _ in 0..30 { w.step(); }
     let (x, y) = (w.moles[0].x, w.moles[0].y);
     // a pickaxe bite into dirt is near-instant and clears a mole-sized disc
-    let (tx, ty) = (x + 8, y - 1);
+    let (tx, ty) = (x + 8 * S, y - S);
     for c in w.bite_cells(tx, ty) { w.g.set(c, Mat::Dirt); }
-    w.input.tool = 1; let n_bite = w.bite_cells(tx, ty).len(); assert!(n_bite >= 15, "pickaxe bite is mole-sized ({n_bite} cells)");
+    w.input.tool = 1; let n_bite = w.bite_cells(tx, ty).len(); assert!(n_bite >= 15 * S * S, "pickaxe bite is mole-sized ({n_bite} cells)");
     w.input.mine = Some((tx, ty)); let mut t = 0; while w.g.get(tx, ty) != Mat::Empty && t < 200 { w.step(); t += 1; }
     assert!(t <= 9, "dirt bite took {t} ticks (want ~0.1 s)");
     let cleared = w.bite_cells(tx, ty).iter().filter(|&&c| w.g.m(c) == Mat::Empty || w.g.m(c) == Mat::Water).count(); assert!(cleared * 10 >= n_bite * 8, "bite cleared {cleared}/{n_bite}");
@@ -279,9 +286,9 @@ fn player_can_dig_out_of_the_burrow() {
 }
 /// A clean arena around the spawn: open box, granite floor and walls.
 fn arena() -> (World, usize, usize) {
-    let mut w = World::new(512, 256, 11); w.disasters.enabled = false;
+    let mut w = World::new(512 * S, 256 * S, 11); w.disasters.enabled = false;
     let (x0, y0) = (w.moles[0].x, w.moles[0].y);
-    for y in y0 - 30..=y0 + 3 { for x in x0 - 40..=x0 + 40 { let i = w.g.idx(x, y); w.g.set(i, if y > y0 || x < x0 - 30 || x > x0 + 30 { Mat::Granite } else { Mat::Empty }); w.g.flags[i] = 0; } }
+    for y in y0 - 30 * S..=y0 + 3 * S { for x in x0 - 40 * S..=x0 + 40 * S { let i = w.g.idx(x, y); w.g.set(i, if y > y0 || x < x0 - 30 * S || x > x0 + 30 * S { Mat::Granite } else { Mat::Empty }); w.g.flags[i] = 0; } }
     w.drops.clear(); w.torches.clear(); w.farms.clear();
     for _ in 0..10 { w.step(); }
     (w, x0, y0)
@@ -292,68 +299,68 @@ fn press(w: &mut World, n: usize, f: impl Fn(&mut Input)) -> (f32, f32) { let (m
     let y0 = w.pl.py;
     let (top, _) = press(&mut w, 40, |i| i.jump = true); let full = y0 - top;
     press(&mut w, 60, |i| i.jump = false); assert!(w.pl.grounded, "lands again");
-    assert!((4.5..9.).contains(&full), "full jump {full} cells");
+    assert!((4.5 * SF..9. * SF).contains(&full), "full jump {full} cells");
     let (top2, _) = press(&mut w, 3, |i| i.jump = true); let (top3, _) = press(&mut w, 40, |i| i.jump = false); let hop = y0 - top2.min(top3);
     assert!(hop < full * 0.6, "short hop {hop} vs full {full}");
     // ground speed: max in ~3 frames, stops almost instantly
     press(&mut w, 60, |_| {}); press(&mut w, 3, |i| { i.jump = false; i.right = true; }); assert!(w.pl.vx > 0.8 * TUNE.run, "accel: vx {}", w.pl.vx);
-    press(&mut w, 3, |i| i.right = false); assert!(w.pl.vx.abs() < 0.5, "decel: vx {}", w.pl.vx);
+    press(&mut w, 3, |i| i.right = false); assert!(w.pl.vx.abs() < 0.5 * SF, "decel: vx {}", w.pl.vx);
 }
 #[test] fn coyote_time_and_wall_climb() {
     let (mut w, x0, y0) = arena();
     // a ledge: raise a platform under the mole and run off its right edge
-    for x in x0 - 30..=x0 + 2 { for y in y0 - 14..=y0 { let i = w.g.idx(x, y); w.g.set(i, Mat::Granite); } }
-    w.moles[0].y = y0 - 15; w.pl.sync = None; press(&mut w, 30, |_| {}); assert!(w.pl.grounded, "on the ledge");
+    for x in x0 - 30 * S..=x0 + 2 * S { for y in y0 - 14 * S..=y0 { let i = w.g.idx(x, y); w.g.set(i, Mat::Granite); } }
+    w.moles[0].y = y0 - 15 * S; w.pl.sync = None; press(&mut w, 30, |_| {}); assert!(w.pl.grounded, "on the ledge");
     let ylev = w.pl.py;
     let mut t = 0; while w.pl.grounded && t < 120 { w.input.right = true; w.step(); t += 1; }
     press(&mut w, 3, |i| i.right = true); // 3 frames after leaving the edge
-    let (top, _) = press(&mut w, 20, |i| { i.right = false; i.jump = true; }); assert!(top < ylev - 2., "coyote jump worked: top {top} ledge {ylev}");
+    let (top, _) = press(&mut w, 20, |i| { i.right = false; i.jump = true; }); assert!(top < ylev - 2. * SF, "coyote jump worked: top {top} ledge {ylev}");
     press(&mut w, 120, |i| i.jump = false); assert!(w.pl.grounded);
     // too late: 15 frames after the edge, no jump
     let (mut w, x0, y0) = arena();
-    for x in x0 - 30..=x0 + 2 { for y in y0 - 14..=y0 { let i = w.g.idx(x, y); w.g.set(i, Mat::Granite); } }
-    w.moles[0].y = y0 - 15; w.pl.sync = None; press(&mut w, 30, |_| {});
+    for x in x0 - 30 * S..=x0 + 2 * S { for y in y0 - 14 * S..=y0 { let i = w.g.idx(x, y); w.g.set(i, Mat::Granite); } }
+    w.moles[0].y = y0 - 15 * S; w.pl.sync = None; press(&mut w, 30, |_| {});
     let mut t = 0; while w.pl.grounded && t < 120 { w.input.right = true; w.step(); t += 1; }
-    let ya = w.pl.py; press(&mut w, 15, |i| i.right = false); let (top, _) = press(&mut w, 20, |i| i.jump = true); assert!(top >= ya - 0.1, "no late jump: {top} vs {ya}");
+    let ya = w.pl.py; press(&mut w, 15, |i| i.right = false); let (top, _) = press(&mut w, 20, |i| i.jump = true); assert!(top >= ya - 0.1 * SF, "no late jump: {top} vs {ya}");
     // wall climb: run right into the arena wall, jump, cling, climb up, then wall-jump away
     let (mut w, _, _) = arena(); press(&mut w, 1, |i| i.jump = false);
     press(&mut w, 120, |i| i.right = true);
     press(&mut w, 10, |i| { i.right = true; i.jump = true; }); press(&mut w, 4, |i| { i.right = true; i.jump = false; });
     assert_eq!(w.pl.cling, 1, "clinging to the right wall");
-    let yc = w.pl.py; press(&mut w, 40, |i| { i.right = true; i.up = true; }); assert!(w.pl.py < yc - 3., "climbed: {} -> {}", yc, w.pl.py);
+    let yc = w.pl.py; press(&mut w, 40, |i| { i.right = true; i.up = true; }); assert!(w.pl.py < yc - 3. * SF, "climbed: {} -> {}", yc, w.pl.py);
     let xw = w.pl.px; press(&mut w, 2, |i| { i.up = false; i.jump = true; }); press(&mut w, 10, |i| i.jump = true);
-    assert!(w.pl.px < xw - 1.5 && w.pl.cling == 0, "wall-jumped away: {} -> {}", xw, w.pl.px);
+    assert!(w.pl.px < xw - 1.5 * SF && w.pl.cling == 0, "wall-jumped away: {} -> {}", xw, w.pl.px);
 }
 #[test] fn jump_held_through_a_menu_does_not_fire() {
     // the menu closes on Space; the same press must not make the mole jump when play resumes
     let (mut w, _, _) = arena(); let y0 = w.pl.py;
     w.swallow_held(); let (top, _) = press(&mut w, 30, |i| i.jump = true); assert!(top >= y0 - 0.05, "held Space jumped: {top} vs {y0}");
-    press(&mut w, 1, |i| i.jump = false); let (top, _) = press(&mut w, 20, |i| i.jump = true); assert!(top < y0 - 3., "a fresh press jumps: {top} vs {y0}");
+    press(&mut w, 1, |i| i.jump = false); let (top, _) = press(&mut w, 20, |i| i.jump = true); assert!(top < y0 - 3. * SF, "a fresh press jumps: {top} vs {y0}");
     // a fresh world (or respawn / load) with Space already down doesn't jump either
     let (mut w, _, _) = arena(); w.pl.sync = None; let y0 = w.pl.py; let (top, _) = press(&mut w, 30, |i| i.jump = true); assert!(top >= y0 - 0.05, "held Space jumped after resync");
 }
 #[test] fn digging_and_placing_give_instant_feedback() {
     let (mut w, x0, y0) = arena();
-    for y in y0 - 4..=y0 { for x in x0 + 4..=x0 + 9 { let i = w.g.idx(x, y); w.g.set(i, Mat::Rock); } }
+    for y in y0 - 4 * S..=y0 { for x in x0 + 4 * S..=x0 + 9 * S { let i = w.g.idx(x, y); w.g.set(i, Mat::Rock); } }
     press(&mut w, 1, |_| {});
     // the strike is heard on the very first tick of holding the mouse, long before the rock gives
-    w.input.mine = Some((x0 + 5, y0 - 1)); w.input.tool = 1; w.step();
+    w.input.mine = Some((x0 + 5 * S, y0 - S)); w.input.tool = 1; w.step();
     assert!(w.events.contains(&Event::Dig), "no strike on press: {:?}", w.events);
     let mut bite = None; for _ in 0..60 { w.step(); if let Some(m) = w.marks.iter().find(|m| m.0 == 0) { bite = Some(*m); break; } }
     let b = bite.expect("bite cleared within 1 s");
-    assert!((b.1 - (x0 + 5) as f32 - 0.5).abs() < 1e-3 && b.3 > 1., "bite mark at the aim: {b:?}");
+    assert!((b.1 - (x0 + 5 * S) as f32 - 0.5).abs() < 1e-3 && b.3 > SF, "bite mark at the aim: {b:?}");
     assert!(w.shake > 0.2, "a bite jolts the view: {}", w.shake);
     w.input.mine = None; press(&mut w, 120, |_| {});
     // placing a pillar marks the cell the same tick
-    let (cx, cy) = (x0 - 3, y0); w.place_block(cx, cy, Item::WoodPillar).unwrap();
+    let (cx, cy) = (x0 - 3 * S, y0); w.place_block(cx, cy, Item::WoodPillar).unwrap();
     assert!(w.marks.iter().any(|m| m.0 == 1 && m.1 as usize == cx && m.2 as usize == cy), "place mark: {:?}", w.marks);
 }
 
 #[test] fn window_does_not_thrash_near_its_edge() {
     // a 256-row window used to slide up and straight back down every 30 ticks with the mole at y≈90
-    let mut w = World::new(512, 256, 11); w.disasters.enabled = false;
-    let (x0, y0) = (w.moles[0].x, 90usize);
-    for y in y0 - 8..=y0 + 6 { for x in x0 - 10..=x0 + 10 { let i = w.g.idx(x, y); w.g.set(i, if y > y0 || y < y0 - 4 || x < x0 - 6 || x > x0 + 6 { Mat::Granite } else { Mat::Empty }); w.g.flags[i] = 0; } }
+    let mut w = World::new(512 * S, 256 * S, 11); w.disasters.enabled = false;
+    let (x0, y0) = (w.moles[0].x, 90 * S);
+    for y in y0 - 8 * S..=y0 + 6 * S { for x in x0 - 10 * S..=x0 + 10 * S { let i = w.g.idx(x, y); w.g.set(i, if y > y0 || y < y0 - 4 * S || x < x0 - 6 * S || x > x0 + 6 * S { Mat::Granite } else { Mat::Empty }); w.g.flags[i] = 0; } }
     w.moles[0].y = y0; w.pl = Default::default(); w.pl.fall_from = y0;
     let oy = w.oy; let mut shifts = 0; let mut last = oy;
     for _ in 0..600 { w.step(); if w.oy != last { shifts += 1; last = w.oy; } }
@@ -364,8 +371,8 @@ fn press(w: &mut World, n: usize, f: impl Fn(&mut Input)) -> (f32, f32) { let (m
 #[test] fn load_deep_does_not_fall_damage() {
     let (mut w, x0, y0) = arena();
     // a pocket 60 cells below the arena floor, and move the mole there as if it had dug down
-    let y1 = y0 + 60; for y in y1 - 4..=y1 { for x in x0 - 3..=x0 + 3 { let i = w.g.idx(x, y); w.g.set(i, Mat::Empty); } }
-    for x in x0 - 4..=x0 + 4 { let i = w.g.idx(x, y1 + 1); w.g.set(i, Mat::Granite); }
+    let y1 = y0 + 60 * S; for y in y1 - 4 * S..=y1 { for x in x0 - 3 * S..=x0 + 3 * S { let i = w.g.idx(x, y); w.g.set(i, Mat::Empty); } }
+    for x in x0 - 4 * S..=x0 + 4 * S { let i = w.g.idx(x, y1 + 1); w.g.set(i, Mat::Granite); }
     w.moles[0].y = y1; w.pl.sync = None; for _ in 0..5 { w.step(); }
     assert_eq!(w.moles[0].hp, 100.);
     let b = molehill_sim::save::save(&w); let mut w2 = molehill_sim::save::load(&b).expect("load");
@@ -376,22 +383,22 @@ fn press(w: &mut World, n: usize, f: impl Fn(&mut Input)) -> (f32, f32) { let (m
 /// and a knot placed on copperline gives that copperline back.
 #[test] fn wire_and_device_pack_accounting() {
     use molehill_sim::logic::Dev;
-    let (mut w, x0, y0) = arena(); let (x, y) = (x0 + 8, y0 - 2);
+    let (mut w, x0, y0) = arena(); let (x, y) = (x0 + 8 * S, y0 - 2 * S); let k = molehill_sim::logic::B;
     let cu = |w: &World| w.inv[Item::CopperWire as usize]; let kn = |w: &World| w.inv[Item::Gate as usize];
     let (c0, k0) = (cu(&w), kn(&w));
     assert!(w.place_device(Dev::And, x, y).is_ok()); assert_eq!(kn(&w), k0 - 1);
     for _ in 0..10 { assert!(!w.lay_wire(x, y)); } assert_eq!(cu(&w), c0, "no copperline lost on a knot");
-    assert!(w.lay_wire(x + 4, y)); assert_eq!(cu(&w), c0 - 1); assert!(!w.lay_wire(x + 4, y), "already wired");
-    assert!(w.place_device(Dev::Or, x + 4, y).is_ok()); assert_eq!(cu(&w), c0, "knot on copperline refunds it");
-    w.inv[Item::Lamp as usize] = 1; assert!(w.lay_wire(x + 8, y)); assert!(w.place_device(Dev::Lamp, x + 8, y).is_ok());
-    let c1 = cu(&w); assert_eq!(w.pick_up(x + 8, y), Some(Dev::Lamp)); assert_eq!(cu(&w), c1 + 1, "wire under a device refunded");
-    assert_eq!(w.pick_up(x, y), Some(Dev::And)); assert_eq!(w.pick_up(x + 4, y), Some(Dev::Or)); assert_eq!(kn(&w), k0);
-    assert!(w.place_device(Dev::Lever, x + 60, y).is_err(), "out of reach");
+    assert!(w.lay_wire(x + k, y)); assert_eq!(cu(&w), c0 - 1); assert!(!w.lay_wire(x + k, y), "already wired");
+    assert!(w.place_device(Dev::Or, x + k, y).is_ok()); assert_eq!(cu(&w), c0, "knot on copperline refunds it");
+    w.inv[Item::Lamp as usize] = 1; assert!(w.lay_wire(x + 2 * k, y)); assert!(w.place_device(Dev::Lamp, x + 2 * k, y).is_ok());
+    let c1 = cu(&w); assert_eq!(w.pick_up(x + 2 * k, y), Some(Dev::Lamp)); assert_eq!(cu(&w), c1 + 1, "wire under a device refunded");
+    assert_eq!(w.pick_up(x, y), Some(Dev::And)); assert_eq!(w.pick_up(x + k, y), Some(Dev::Or)); assert_eq!(kn(&w), k0);
+    assert!(w.place_device(Dev::Lever, x + 60 * S, y).is_err(), "out of reach");
 }
 /// A fuse cord picked up while burning, then put down again, is a fresh unlit cord.
 #[test] fn replaced_fuse_is_not_burning() {
     use molehill_sim::logic::Dev;
-    let (mut w, x0, y0) = arena(); let (x, y) = (x0 + 8, y0 - 2); let b = w.logic.block_of(x, y);
+    let (mut w, x0, y0) = arena(); let (x, y) = (x0 + 8 * S, y0 - 2 * S); let b = w.logic.block_of(x, y);
     assert!(w.place_device(Dev::Fuse, x, y).is_ok()); assert!(w.use_device(x, y)); w.step(); assert!(w.logic.lit(b));
     w.pick_up(x, y); assert!(w.place_device(Dev::Fuse, x, y).is_ok()); w.step(); assert!(!w.logic.lit(b));
 }
@@ -415,8 +422,8 @@ fn press(w: &mut World, n: usize, f: impl Fn(&mut Input)) -> (f32, f32) { let (m
     let max = |b| brush_range(b).unwrap().1;
     assert!(max(Brush::Dig(1)) < max(Brush::Dig(2)) && max(Brush::Dig(2)) < max(Brush::Dig(3)), "bigger tools allow bigger bites");
     assert_eq!(brush_radius(Brush::Dig(1), 99.), max(Brush::Dig(1)));
-    assert_eq!(brush_radius(Brush::Place(Item::IronBeam), 99.), 2.0);
-    assert_eq!(brush_radius(Brush::Place(Item::WoodPillar), 0.01), 0.5);
+    assert_eq!(brush_radius(Brush::Place(Item::IronBeam), 99.), 2.0 * SF);
+    assert_eq!(brush_radius(Brush::Place(Item::WoodPillar), 0.01), 0.5 * SF);
     assert!(brush_range(Brush::Place(Item::Torch)).is_none(), "torches are not a brush");
     assert_eq!(disc(0.5).len(), 1); assert_eq!(disc(1.0).len(), 5); assert_eq!(disc(2.0).len(), 13); assert_eq!(disc(3.0).len(), 29);
     assert_eq!(disc(2.0)[0], (0, 0), "centre first");

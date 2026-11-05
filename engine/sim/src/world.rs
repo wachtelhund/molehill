@@ -578,6 +578,27 @@ impl World {
             while cy > 0 && !self.passable(cx, cy) { cy -= 1; } if cy == 0 { return false; } let j = self.g.idx(cx, cy); self.g.set(j, m); self.g.set(i, Mat::Empty); }
         true
     }
+    /// Loose grains (sand, rubble) overlapping the body move out: just behind the body (away from where the
+    /// mole is heading), else up the column above the head, else just ahead. Only when every overlapping cell is
+    /// loose; solid rock in the body is a real burial and stays.
+    fn shove_grains(&mut self, dir: i32) {
+        let (x0, x1) = ((self.pl.px - BODY_HW).floor() as i32, (self.pl.px + BODY_HW - 1e-3).floor() as i32);
+        let (y0, y1) = ((self.pl.py - BODY_H).floor() as i32, (self.pl.py - 1e-3).floor() as i32);
+        let mut cells = vec![];
+        for y in y0..=y1 { for x in x0..=x1 { if !self.g.in_bounds(x, y) { return; } let (ux, uy) = (x as usize, y as usize); if self.passable(ux, uy) { continue; }
+            let i = self.g.idx(ux, uy); if !(self.g.m(i).kind() == Kind::Powder || self.g.loose(i)) { return; } cells.push((x, y)); } }
+        if cells.len() > 2 * S * S { return; } // more than a few grains: that's a burial, the wriggle/breath rules apply
+        let side = if dir != 0 { dir } else { 1 };
+        for (x, y) in cells {
+            let free = |w: &World, a: i32, b: i32| w.g.in_bounds(a, b) && w.g.mat[w.g.idx(a as usize, b as usize)] == 0;
+            let up = (1..=4 * S as i32).map(|k| y0 - k).take_while(|&b| self.g.in_bounds(x, b) && !self.g.is_static(self.g.idx(x as usize, b as usize))).find(|&b| free(self, x, b)).map(|b| (x, b));
+            let beside = |s: i32| (1..=2 * S as i32).map(|k| if s > 0 { x1 + k } else { x0 - k }).find(|&a| free(self, a, y)).map(|a| (a, y));
+            if let Some((a, b)) = beside(-side).or(up).or_else(|| beside(side)) {
+                let (i, j) = (self.g.idx(x as usize, y as usize), self.g.idx(a as usize, b as usize));
+                let (m, f) = (self.g.mat[i], self.g.flags[i]); self.g.set(j, Mat::from_u8(m)); self.g.flags[j] = f; self.g.set(i, Mat::Empty);
+            }
+        }
+    }
     /// Keys already held when control returns (a menu closing on Space, a load) must not act: a held
     /// jump only counts again after it is released and pressed anew.
     /// Rising into a corner: the x within `max` cells of the body that would let it pass (left or right edge
@@ -698,6 +719,9 @@ impl World {
             let rock = (y0..=y1).any(|y| (x0..=x1).any(|x| !self.g.in_bounds(x, y) || self.g.is_static(self.g.idx(x as usize, y as usize))));
             if rock { break; }
             if !self.box_hits(self.pl.px, self.pl.py - k as f32) { self.pl.py -= k as f32; break; } } }
+        // a few grains that trickled into the body (the sand doesn't know the mole is there) and can't
+        // be wriggled out of get shoved aside, so a stray grain never wedges the mole in place
+        if self.box_hits(self.pl.px, self.pl.py) { self.shove_grains(dir); }
         self.pl.px = self.pl.px.clamp(2. * SF, self.g.w as f32 - 2. * SF); self.pl.py = self.pl.py.clamp(BODY_H + 1., self.g.h as f32 - 2.);
         let (x, y) = (self.pl.px as usize, (self.pl.py - 0.001) as usize);
         let landed = self.box_hits(self.pl.px, self.pl.py + 0.05);
@@ -801,7 +825,11 @@ impl World {
             (w.g.mat[i] == 0 || matches!(w.g.m(i), Mat::Water | Mat::Steam)) && w.in_reach(cx, cy)
                 && !w.moles.iter().any(|m| m.alive && m.x == cx && cy <= m.y && cy + MOLE_H > m.y)
         };
-        let mut todo: Vec<(i32, i32)> = disc(r).into_iter().map(|(dx, dy)| (x as i32 + dx, y as i32 + dy)).filter(|&(nx, ny)| ok(self, nx, ny)).collect();
+        // blocks go down in whole legacy tiles (S×S cells, on the global tile grid): a radius-r brush is
+        // a disc of tiles, so building comes out the same at any resolution
+        let (k, rt) = (S as i32, r / SF); let (tx, ty) = (x as i32 / k, y as i32 / k);
+        let mut todo: Vec<(i32, i32)> = disc(rt).into_iter().flat_map(|(dx, dy)| (0..k * k).map(move |j| ((tx + dx) * k + j % k, (ty + dy) * k + j / k)))
+            .filter(|&(nx, ny)| ok(self, nx, ny)).collect();
         if todo.is_empty() { return Err(if self.in_reach(x, y) { "cell is not open" } else { "out of reach" }); }
         let mut n = 0;
         loop {

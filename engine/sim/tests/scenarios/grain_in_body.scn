@@ -1,0 +1,13 @@
+// Sand trickles into the mole's body (the CA doesn't know the mole is there). In a low tunnel there's
+// no room to wriggle up, and walking only shoves powder in the leading column, so a grain behind the
+// leading edge used to wedge the mole for good. Stray grains inside the body are shoved aside now.
+map
+################
+#..............#
+#..............#
+#....s@........#
+################
+end
+hold 1-60 right
+expect 60 dx >= 5
+expect 60 count:Sand == 1      // pushed aside, not lost

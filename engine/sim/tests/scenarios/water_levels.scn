@@ -12,7 +12,7 @@ map
 #wwwwwwww......................#.@.#
 #####################################
 end
-expect 120 is:-3,-1,Water == 1   // reached the far wall, two rows deep
+expect 160 is:-3,-1,Water == 1   // reached the far wall, two rows deep (pressure has twice the cells to cross at 8 cells/m)
 expect 120 is:-31,-2,Water == 1  // only the 4-cell remainder sits on top
 expect 120 is:-31,-3,Water == 0
 expect 400 count:Water == 64     // nothing lost

@@ -1,7 +1,7 @@
 use molehill_sim::{grid::Grid, gen, stress::Stress, mat::Mat};
 use std::time::Instant;
 fn main() {
-    let mut g = Grid::new(1024, 512);
+    let mut g = Grid::new(1024 * molehill_sim::mat::S, 512 * molehill_sim::mat::S);
     let t = Instant::now(); let (_, info) = gen::generate(&mut g, 42, -256); println!("gen {:?} chests {}", t.elapsed(), info.chests.len());
     let mut st = Stress::new(1024 * 512);
     let t = Instant::now(); let f = st.solve(&g); println!("solve {:?} fails {}", t.elapsed(), f.len());

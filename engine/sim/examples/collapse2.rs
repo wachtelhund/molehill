@@ -1,6 +1,6 @@
 use molehill_sim::{world::World, mat::Mat};
 fn main() {
-    let mut w = World::new(1024, 512, 9630);
+    let mut w = World::new(1024 * molehill_sim::mat::S, 512 * molehill_sim::mat::S, 9630);
     println!("initial cracking {}", w.st.cracking.len());
     let mut first = None;
     for k in 0..300 { let b = w.crumbled; let snap = w.g.mat.clone(); w.step(); if w.crumbled > b && first.is_none() { first = Some(k);

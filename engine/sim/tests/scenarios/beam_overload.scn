@@ -16,7 +16,7 @@ map
 #########################################
 end
 expect 1 static:WoodBeam == 34
-expect 300 static:WoodBeam <= 2          // only the two end cells resting on the granite ledge remain
+expect 300 static:WoodBeam <= 3          // only the two end tiles resting on the granite ledge remain (and a sliver at finer cells)
 expect 300 is:10,0,WoodBeam == 1         // wooden debris lies on the floor
 expect 300 count:WoodBeam >= 20
 expect 300 count:Sand >= 150

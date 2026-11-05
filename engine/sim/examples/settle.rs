@@ -5,7 +5,7 @@ fn main() {
     let seeds = if seeds.is_empty() { vec![9630, 49934, 1, 777, 31337] } else { seeds };
     for s in seeds {
         let t = std::time::Instant::now();
-        let mut w = World::new(1024, 512, s);
+        let mut w = World::new(1024 * molehill_sim::mat::S, 512 * molehill_sim::mat::S, s);
         let solid = (0..w.g.mat.len()).filter(|&i| w.g.is_static(i)).count();
         let mut hist = std::collections::BTreeMap::new();
         for k in 0..7200 { let before = w.g.mat.clone(); let c0 = w.crumbled; w.step();

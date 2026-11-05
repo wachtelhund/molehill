@@ -26,4 +26,5 @@ expect 6 is:3,-1,WoodBeam == 0
 tool 10 1
 brush 10 9
 mine 10-20 17 -4
-expect 20 count:Dirt == 83        // 112 - 29
+expect 20 count:Dirt >= 82.5      // 112 - 29 (a round bite in finer cells lands within a tile of that)
+expect 20 count:Dirt <= 84
