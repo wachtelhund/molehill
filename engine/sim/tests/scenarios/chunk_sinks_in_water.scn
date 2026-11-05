@@ -1,0 +1,24 @@
+// A clump of rock and iron ore left sitting in a pool has no load path: it gives way within a few
+// ticks and its debris (sand, gravel: denser than water) sinks and piles on the bottom.
+map
+##############################
+#............................#
+#............................#
+#..........rrriii............#
+#wwwwwwwwwwrrriiiwwwwwwwwwwww#
+#wwwwwwwwwwrrriiiwwwwwwwwwwww#
+#wwwwwwwwwwwwwwwwwwwwwwwwwwww#
+#wwwwwwwwwwwwwwwwwwwwwwwwwwww#
+#wwwwwwwwwwwwwwwwwwwwwwwwwwww#
+#wwwwwwwwwwwwwwwwwwwwwwwwwwww#
+##############################
+#...######################
+#...######################
+#.@.######################
+##########################
+end
+expect 20 static:Rock == 0       // no floating clump (40-tick creak is for overloaded rock, not this)
+expect 20 static:IronOre == 0
+expect 300 is:10,-4,Water == 0   // debris piled on the pool floor ...
+expect 300 is:10,-10,Water == 1  // ... and water where the clump floated
+expect 300 count:Water == 156

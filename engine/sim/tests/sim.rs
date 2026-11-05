@@ -324,6 +324,16 @@ fn press(w: &mut World, n: usize, f: impl Fn(&mut Input)) -> (f32, f32) { let (m
     let xw = w.pl.px; press(&mut w, 2, |i| { i.up = false; i.jump = true; }); press(&mut w, 10, |i| i.jump = true);
     assert!(w.pl.px < xw - 1.5 && w.pl.cling == 0, "wall-jumped away: {} -> {}", xw, w.pl.px);
 }
+#[test] fn window_does_not_thrash_near_its_edge() {
+    // a 256-row window used to slide up and straight back down every 30 ticks with the mole at y≈90
+    let mut w = World::new(512, 256, 11); w.disasters.enabled = false;
+    let (x0, y0) = (w.moles[0].x, 90usize);
+    for y in y0 - 8..=y0 + 6 { for x in x0 - 10..=x0 + 10 { let i = w.g.idx(x, y); w.g.set(i, if y > y0 || y < y0 - 4 || x < x0 - 6 || x > x0 + 6 { Mat::Granite } else { Mat::Empty }); w.g.flags[i] = 0; } }
+    w.moles[0].y = y0; w.pl = Default::default(); w.pl.fall_from = y0;
+    let oy = w.oy; let mut shifts = 0; let mut last = oy;
+    for _ in 0..600 { w.step(); if w.oy != last { shifts += 1; last = w.oy; } }
+    assert_eq!(shifts, 0, "window slid {shifts} times (mole y {})", w.moles[0].y);
+}
 
 /// Loading a save where the mole stands far below the burrow must not count as a fall (it used to kill).
 #[test] fn load_deep_does_not_fall_damage() {
@@ -399,4 +409,21 @@ fn press(w: &mut World, n: usize, f: impl Fn(&mut Input)) -> (f32, f32) { let (m
         assert!(!d.trim().is_empty() && d.len() <= 110, "{n}: tooltip must be one short line ({d:?})");
         let l = d.to_lowercase(); for b in banned { assert!(!l.contains(b), "{n}: tooltip uses '{b}': {d}"); }
     }
+}
+#[test] fn rock_falls_when_its_support_slumps_away() {
+    // a slab resting on a heap of loose rubble held in by two temporary walls. Pulling the walls
+    // triggers one stress update while the rubble still props the slab; then the rubble slumps out
+    // sideways through CA moves alone. Those moves must tell the solver, or the slab hangs in the air.
+    let (mut w, x0, y0) = arena();
+    let (sx, sy) = (x0 + 8, y0); // rubble: columns sx..=sx+3, rows sy-3..=sy
+    for y in sy - 3..=sy { for x in sx..=sx + 3 { let i = w.g.idx(x, y); w.g.set(i, Mat::Gravel); w.g.set_loose(i); } }
+    let walls: Vec<usize> = (sy - 3..=sy).flat_map(|y| [w.g.idx(sx - 1, y), w.g.idx(sx + 4, y)]).collect();
+    for &i in &walls { w.g.set(i, Mat::Granite); }
+    for x in sx..=sx + 3 { let i = w.g.idx(x, sy - 4); w.g.set(i, Mat::Rock); } // slab, resting only on the rubble
+    let rock = |w: &World| (sx..=sx + 3).filter(|&x| { let i = w.g.idx(x, sy - 4); w.g.m(i) == Mat::Rock && !w.g.loose(i) }).count();
+    for _ in 0..30 { w.step(); } assert_eq!(rock(&w), 4, "slab rests on the rubble");
+    while w.tick % 6 != 5 { w.step(); }
+    for &i in &walls { w.g.set(i, Mat::Empty); } // solved on the very next tick, rubble still in place
+    for _ in 0..240 { w.step(); }
+    assert_eq!(rock(&w), 0, "slab fell once the rubble slumped from under it");
 }

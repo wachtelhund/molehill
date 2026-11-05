@@ -1,20 +1,20 @@
-// A wood pillar built on a sand floor rests on it (sand carries load straight down): it doesn't crack.
+// A pillar standing on a sand floor (resting on rock) is still rigid: load passes down through the sand.
 map
-##########################################
-#........................................#
-#........................................#
-#........................................#
-#........................................#
-#........................................#
-#..@.....................................#
-#ssssssssssssssssssssssssssssssssssssssss#
-#ssssssssssssssssssssssssssssssssssssssss#
-##########################################
+##############################
+#............................#
+#............................#
+#............................#
+#............................#
+#.@..........................#
+#ssssssssssssssssssssssssssss#
+##############################
 end
-give WoodPillar 10
-place 5 8 0 WoodPillar
-place 6 8 -1 WoodPillar
-place 7 8 -2 WoodPillar
-expect 10 count:WoodBeam == 3
-expect 300 is:8,-2,WoodBeam == 1
-expect 300 crumbled == 0
+give WoodPillar 20
+put 2 8 0 WoodPillar
+put 3 8 -1 WoodPillar
+put 4 8 -2 WoodPillar
+put 5 9 0 WoodPillar
+put 6 10 0 WoodPillar
+put 7 10 -1 WoodPillar
+expect 400 count:WoodBeam == 6
+expect 400 crumbled == 0

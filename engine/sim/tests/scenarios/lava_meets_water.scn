@@ -1,0 +1,23 @@
+// Lava poured onto a water pool quenches into loose scoria (basalt) with a burst of steam; afterwards
+// the steam is gone and the chamber goes quiet.
+map
+##############################
+#..........llllll............#
+#..........llllll............#
+#..........llllll............#
+#............................#
+#............................#
+#............................#
+#wwwwwwwwwwwwwwwwwwwwwwwwwwww#
+#wwwwwwwwwwwwwwwwwwwwwwwwwwww#
+##############################
+#...######################
+#...######################
+#.@.######################
+##########################
+end
+expect 30 count:Steam > 0
+expect 600 count:Basalt > 0
+expect 600 count:Lava < 8        // nearly all quenched (a few cells may rest on the crust, dry)
+expect 900 count:Steam == 0
+expect 900 awake == 0

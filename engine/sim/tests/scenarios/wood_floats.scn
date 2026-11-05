@@ -1,0 +1,24 @@
+// Wood is lighter than water (600 vs 1000 kg/m3): a wooden clump left loose underwater breaks free,
+// its debris bobs up and floats on the surface, while a rock clump beside it sinks.
+map
+##############################
+#............................#
+#............................#
+#............................#
+#wwwwwwwwwwwwwwwwwwwwwwwwwwww#
+#wwwwwwwwwwwwwwwwwwwwwwwwwwww#
+#wwwwwbbbwwwwwwwwwwrrrwwwwwww#
+#wwwwwbbbwwwwwwwwwwrrrwwwwwww#
+#wwwwwwwwwwwwwwwwwwwwwwwwwwww#
+#wwwwwwwwwwwwwwwwwwwwwwwwwwww#
+##############################
+#...######################
+#...######################
+#.@.######################
+##########################
+end
+expect 300 is:4,-9,WoodBeam == 1  // wood debris at the surface
+expect 300 static:WoodBeam == 0
+expect 300 count:WoodBeam == 6
+expect 300 count:Rock == 0
+expect 300 is:18,-4,Sand == 1     // rock debris on the bottom

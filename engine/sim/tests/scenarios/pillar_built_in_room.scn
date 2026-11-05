@@ -1,0 +1,25 @@
+// A wood pillar built cell by cell in a wide granite room stands rigid: no cracking, no flowing.
+map
+##########################################
+#........................................#
+#........................................#
+#........................................#
+#........................................#
+#........................................#
+#........................................#
+#.@......................................#
+##########################################
+end
+give WoodPillar 20
+place 5 4 0 WoodPillar
+place 6 4 -1 WoodPillar
+place 7 4 -2 WoodPillar
+place 8 4 -3 WoodPillar
+place 9 4 -4 WoodPillar
+place 10 4 -5 WoodPillar
+place 11 4 -6 WoodPillar
+expect 12 count:WoodBeam == 7
+expect 300 count:WoodBeam == 7
+expect 300 is:4,0,WoodBeam == 1
+expect 300 is:4,-3,WoodBeam == 1
+expect 300 crumbled == 0

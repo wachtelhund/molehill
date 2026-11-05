@@ -5,7 +5,7 @@ Everything below runs headless. `molehill-sim` has no Bevy dependency, so these 
 ## 1. Unit and integration tests
 
 ```bash
-cargo test --release -p molehill-sim          # about 50 s; build the release profile, debug is very slow
+cargo test --release -p molehill-sim          # about 10 s; build the release profile, debug is very slow
 cargo test --release -p molehill-sim --test sim -- jump coyote   # filter by name
 ```
 
@@ -55,6 +55,7 @@ use 10 12 -1            // right mouse on the device there: flip a lever, light 
 pickup 40 12 -1         // Ctrl+right mouse: take the device and copperline there back into the pack
 wire 4 1 -1 13 -1       // lay copperline from (dx,dy) to (dx2,dy2), one per 1 m block (a single block if only one point)
 saveload 60             // save the world to bytes and load it back (checks persistence mid-scenario)
+put 2 8 0 WoodPillar    // put exactly one block cell at (dx,dy) at tick T, no reach check (scripted building)
 dump 50                 // print the JSON state after tick T
 ascii 80                // print the map region after tick T
 expect 60 rise >= 4.5   // assertion after tick T: <var> <op> <number>, ops: < <= > >= == !=
@@ -62,7 +63,7 @@ expect 60 rise >= 4.5   // assertion after tick T: <var> <op> <number>, ops: < <
 
 The map is stamped with its top-left so that `@` lands on the world spawn. A 20-cell granite frame is put around it, so the generated world can't leak in. Disasters are off. Rows shorter than the widest row are padded with `#`.
 
-Map legend: `.` empty, `#` granite, `B` bedrock, `r` rock, `d` dirt, `c` clay, `s` sand, `g` gravel, `w` water, `l` lava, `o` coal, `i` iron ore, `b` wood beam, `I` iron beam, `k` stone brick (`~` steam, `?` other, only in output).
+Map legend: `.` empty, `#` granite, `B` bedrock, `r` rock, `d` dirt, `c` clay, `s` sand, `g` gravel, `w` water, `l` lava, `o` coal, `i` iron ore, `a` basalt, `b` wood beam, `I` iron beam, `k` stone brick (`~` steam, `?` other, only in output).
 
 **Assertion variables:**
 
@@ -74,6 +75,7 @@ Map legend: `.` empty, `#` granite, `B` bedrock, `r` rock, `d` dirt, `c` clay, `
 | `grounded` `cling` | 0 or 1; cling is -1 (left wall), 0 or 1 (right wall) |
 | `hp` `breath` `deaths` | Mole vitals |
 | `crumbled` | Cells that have crumbled (world counter) |
+| `awake` | CA chunks overlapping the map that are still awake (0 = everything there has settled) |
 | `count:<Mat>` | Cells of that material inside the map rectangle, e.g. `count:Water` |
 | `is:DX,DY,<Mat>` | 1 if the cell at an offset from `@` is that material |
 | `inv:<Item>` | Inventory count |
@@ -91,7 +93,7 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 
 | file | checks |
 |---|---|
-| `run_jump.scn` | Top speed in under 8 ticks; full-jump height 4.5-9 cells; lands |
+| `run_jump.scn` | Top speed in under 8 ticks; full-jump height 4.5-9 cells; lands; the 11 m granite ceiling doesn't crumble |
 | `coyote.scn` / `coyote_late.scn` | A jump 4 ticks after leaving a ledge works; 12 ticks after, it doesn't |
 | `wall_climb.scn` | Cling to a wall, then climb more than 6 cells with W |
 | `wall_jump.scn` | Space while clinging launches you away from the wall |
@@ -99,15 +101,25 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `water_flood.scn` | Mining a dirt plug floods the room below |
 | `tnt_collapse.scn` | A blast removes rock, and the sand cap falls |
 | `cave_stability.scn` | A small granite cave shows no crumbling over 600 ticks |
+| `hall_sag_arrests.scn` | An over-wide granite hall sags out of midspan and the cave-in stops (< 60 cells) |
+| `pillar_holds.scn` / `pillar_on_sand.scn` | Placed wood pillars stay rigid, also when standing on a sand floor |
+| `pillar_wide_hall.scn` | A lone pillar in a wide, sound hall isn't crushed |
+| `roof_unpropped.scn` / `roof_propped.scn` | A wide clay roof caves in; four pillar columns hold it |
+| `water_levels.scn` / `lava_flows.scn` | A heap levels to the right depth (water by tick 120, lava much later), nothing lost, then sleeps |
+| `sand_sinks.scn` / `sand_floats_lava.scn` | Sand sinks through water and piles on the bottom; it floats on lava |
+| `player_lava_sink.scn` | Running onto a lava pool: you sink in, wade slowly, burn and die |
+| `chunk_sinks_in_water.scn` / `wood_floats.scn` | An unsupported rock/ore clump in a pool gives way fast and its debris sinks; wood debris rises and floats |
+| `lava_meets_water.scn` | Lava on water quenches to basalt with steam; the steam clears and the chamber sleeps |
+| `beam_span.scn` / `beam_overload_sand.scn` | An iron beam bridges an 8-cell gap; a sand-loaded wood beam breaks into loose debris |
 | `pillar_holds_roof.scn` | Placed pillars (full height, a short stub, a ledge off a wall) stay rigid |
 | `pillar_on_rubble.scn` | Pillars, a ledge and bricks built on a sand floor stay rigid; no new sand appears |
 | `beam_spans_gap.scn` | Iron beams placed across a pit stay put, and the mole runs across them |
 | `beam_overload.scn` | A long wood span under deep sand cracks and falls as wooden debris |
 | `brush_place.scn` | A radius-2 brick brush fills the open part of the disc and uses items 4 cells to one |
 | `brush_clamp.scn` | Brush radius is clamped per item (iron beam max 2, pillar min 0.5, pickaxe max 3) |
-| `pillar_holds.scn` | A wood pillar built cell by cell in a granite room stays rigid |
+| `pillar_built_in_room.scn` | A wood pillar built cell by cell in a granite room stays rigid |
 | `pillars_rock_roof.scn` / `roof_needs_pillar.scn` | Two pillars at the third points save a 12 m rock roof that caves in (bending) without them |
-| `pillar_on_sand.scn` | A pillar built on a sand floor rests on it |
+| `pillar_sand_floor.scn` | A pillar built on a sand floor rests on it |
 | `beam_bridge_ledges.scn` | A wood beam bridging a 3.5 m gap between ledges high in a cave stays put |
 | `tnt_inert.scn` | Placed TNT is inert; right mouse lights a 1.5 s fuse, then it blows |
 | `tnt_lever.scn` / `tnt_thrum.scn` | Remote detonation: a lever on copperline, or a thrummer knocking through 2 m of granite to a listener |
@@ -128,6 +140,10 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 Tuning constants for movement live in one place: `TUNE` in `sim/src/world.rs`. After changing them, rerun both the tests and the scenarios.
 
 Zoom limits and brush ranges also have unit tests in `sim/tests/sim.rs` (`zoom_is_clamped_both_ways`, `brush_sizes_clamp_per_item`), as do tooltip texts (`every_thing_has_a_lore_safe_tooltip`).
+
+## 2b. Settling / performance check
+
+`cargo run --release -p molehill-sim --example wakediag [seed]` generates a world, runs 1200 ticks and reports how many CA chunks are still awake and what is still changing. A settled world should be close to 0 awake chunks.
 
 ## 3. Visual check (optional)
 

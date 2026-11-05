@@ -19,5 +19,5 @@ hold 31-70 jump
 expect 70 rise >= 4.5
 expect 70 rise <= 9
 expect 130 grounded == 1
+expect 130 crumbled == 0     // the 11 m granite ceiling holds (it used to crack and rain gravel)
 expect 130 dx > 7
-dump 130

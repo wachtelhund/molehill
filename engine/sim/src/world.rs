@@ -66,10 +66,12 @@ pub const BODY_HW: f32 = 0.9; pub const BODY_H: f32 = 2.9;
 #[derive(Clone, Copy, Debug)]
 pub struct Tune { pub run: f32, pub ground_accel: f32, pub ground_decel: f32, pub air_accel: f32, pub gravity: f32, pub fall_mul: f32, pub cut_mul: f32, pub jump_v: f32, pub terminal: f32,
     pub coyote: f32, pub buffer: f32, pub climb: f32, pub slide: f32, pub wall_jump_x: f32, pub wall_jump_y: f32, pub wall_lock: f32, pub step: f32, pub mantle: f32,
-    pub swim_mul: f32, pub swim_grav: f32, pub buoyancy: f32, pub swim_up: f32, pub swim_max: f32, pub lava_dps: f32, pub safe_fall: usize }
+    pub swim_mul: f32, pub swim_grav: f32, pub buoyancy: f32, pub swim_up: f32, pub swim_max: f32, pub lava_dps: f32, pub safe_fall: usize,
+    pub lava_mul: f32, pub lava_sink: f32, pub lava_up: f32 }
 pub const TUNE: Tune = Tune { run: 15., ground_accel: 900., ground_decel: 1400., air_accel: 260., gravity: 150., fall_mul: 1.7, cut_mul: 3.0, jump_v: 42., terminal: 60.,
     coyote: 0.1, buffer: 0.1, climb: 9., slide: 3., wall_jump_x: 17., wall_jump_y: 36., wall_lock: 0.13, step: 2., mantle: 3.,
-    swim_mul: 0.55, swim_grav: 0.35, buoyancy: 40., swim_up: 70., swim_max: 11., lava_dps: 60., safe_fall: 20 };
+    swim_mul: 0.55, swim_grav: 0.35, buoyancy: 40., swim_up: 70., swim_max: 11., lava_dps: 75., safe_fall: 20,
+    lava_mul: 0.25, lava_sink: 3., lava_up: 22. }; // lava: thick, you wade and slowly sink, and it burns fast
 #[derive(Clone)]
 pub struct Drop { pub x: usize, pub y: usize, pub item: Item, pub n: u32, pub claimed: bool }
 /// A mushroom plot: the open cell where the mushroom stands, on soil. `growth` 0..1, `why` = what's
@@ -181,10 +183,14 @@ impl World {
     fn follow_colony(&mut self) {
         let h = self.g.h; let ys: Vec<usize> = self.moles.iter().filter(|m| m.alive).map(|m| m.y).collect(); if ys.is_empty() { return; }
         let (lo, hi) = (*ys.iter().min().unwrap(), *ys.iter().max().unwrap());
-        if hi > h - 100 && lo > 160 { self.shift(128); } else if lo < 100 && hi < h - 160 { self.shift(-128); }
+        // margin m from either edge triggers a 128-row slide; m ≤ (h-128)/2 guarantees the slide
+        // lands the colony inside [m, h-m], so it can't immediately trigger the opposite slide
+        // (with m = 100 a 256-row window thrashed back and forth every 30 ticks)
+        let m = 100.min(h.saturating_sub(128) / 2);
+        if hi > h - m && lo >= m + 128 { self.shift(128); } else if lo < m && hi + 128 <= h - m { self.shift(-128); }
     }
 
-    #[inline] fn passable(&self, x: usize, y: usize) -> bool { let m = self.g.get(x, y); matches!(m, Mat::Empty | Mat::Steam | Mat::Water) && !self.is_building_cell(x, y, false) }
+    #[inline] fn passable(&self, x: usize, y: usize) -> bool { let m = self.g.get(x, y); matches!(m, Mat::Empty | Mat::Steam | Mat::Water | Mat::Lava | Mat::Fire) && !self.is_building_cell(x, y, false) }
     fn is_building_cell(&self, _x: usize, _y: usize, _solid: bool) -> bool { false }
     pub fn standable(&self, x: usize, y: usize) -> bool {
         let g = &self.g; if x < 1 || x + 1 >= g.w || y < MOLE_H || y + 1 >= g.h { return false; }
@@ -281,6 +287,7 @@ impl World {
         self.tick += 1; self.events.clear();
         self.g.step_ca();
         if self.g.reactions.swap(0, Relaxed) != 0 { self.react_pending = true; }
+        if self.g.undermined.swap(0, Relaxed) != 0 && self.g.struct_dirty.is_none() { self.g.struct_dirty = Some((0, 0, 0, 0)); }
         if (self.tick % 6 == 0 && self.g.struct_dirty.is_some()) || (self.tick % 24 == 0 && self.react_pending) {
             self.react_pending = false;
             self.g.struct_dirty = None; let f = self.st.solve(&self.g);
@@ -391,7 +398,7 @@ impl World {
     fn mole_physics(&mut self, k: usize) {
         let (x, y) = (self.moles[k].x, self.moles[k].y);
         let head = self.g.idx(x, y - 1); let hm = self.g.m(head);
-        let in_lava = (0..MOLE_H).any(|j| matches!(self.g.get(x, y - j), Mat::Lava | Mat::Fire));
+        let in_lava = (0..MOLE_H).any(|j| matches!(self.g.get(x, y - j), Mat::Lava | Mat::Fire) && !(k == 0 && self.g.get(x, y - j) == Mat::Lava));
         let m = &mut self.moles[k];
         if in_lava { m.hp -= 4.; }
         // needs (rates per second at 60 tps; step_moles runs every 2nd tick → dt = 1/30 s)
@@ -482,7 +489,9 @@ impl World {
     }
     fn body_fluid_at(&self, px: f32, py: f32) -> (bool, bool) {
         let (x, ym) = (px as usize, (py - BODY_H * 0.5) as usize); if x >= self.g.w || ym >= self.g.h { return (false, false); }
-        let m = self.g.get(x, ym); (m == Mat::Water, m == Mat::Lava || self.g.get(x, (py - 0.5) as usize) == Mat::Lava)
+        let m = self.g.get(x, ym);
+        let lava = [py - 0.5, py - BODY_H * 0.5, py - BODY_H + 0.2].iter().any(|&yy| yy >= 0. && (yy as usize) < self.g.h && self.g.get(x, yy as usize) == Mat::Lava);
+        (m == Mat::Water, lava)
     }
     fn body_fluid(&self) -> (bool, bool) { self.body_fluid_at(self.pl.px, self.pl.py) }
     /// Walking into loose sand/gravel shoves the leading cells up over the mole's head. True if it made room.
@@ -515,7 +524,7 @@ impl World {
         { let m = &self.moles[0]; if self.pl.sync != Some((m.x, m.y)) { self.pl.px = m.x as f32 + 0.5; self.pl.py = m.y as f32 + 1.0; self.pl.vx = 0.; self.pl.vy = 0.; self.pl.ppx = self.pl.px; self.pl.ppy = self.pl.py; self.pl.fall_from = m.y; self.pl.grounded = true; } }
         self.pl.ppx = self.pl.px; self.pl.ppy = self.pl.py;
         let (wet, lava) = self.body_fluid();
-        if lava { self.moles[0].hp -= t.lava_dps * dt; }
+        if lava { self.moles[0].hp -= t.lava_dps * dt; if self.tick % 20 == 0 { self.events.push(Event::Hurt); } }
         let dir = inp.right as i32 - inp.left as i32;
         let jump_edge = inp.jump && !self.pl.jump_was; self.pl.jump_was = inp.jump;
         if jump_edge { self.pl.buffer = t.buffer; } else { self.pl.buffer = (self.pl.buffer - dt).max(0.); }
@@ -525,9 +534,9 @@ impl World {
         self.pl.lock = (self.pl.lock - dt).max(0.);
         // wall cling: airborne, touching a wall and pressing into it (or already clinging and still touching)
         let side = if wall_r && (dir > 0 || self.pl.cling == 1) { 1 } else if wall_l && (dir < 0 || self.pl.cling == -1) { -1 } else { 0 };
-        self.pl.cling = if !ground && !wet && side != 0 && (self.pl.vy >= 0. || self.pl.cling != 0) && !(dir == -side) { side as i8 } else { 0 };
+        self.pl.cling = if !ground && !wet && !lava && side != 0 && (self.pl.vy >= 0. || self.pl.cling != 0) && !(dir == -side) { side as i8 } else { 0 };
         if dir != 0 { self.moles[0].facing = dir as i8; }
-        let swim = if wet { t.swim_mul } else { 1. };
+        let swim = if lava { t.lava_mul } else if wet { t.swim_mul } else { 1. };
         // horizontal: near-instant on the ground, slightly softer in the air, locked briefly after a wall jump
         let target = if self.pl.lock > 0. { self.pl.vx } else { dir as f32 * t.run * swim };
         let a = if ground { if dir == 0 || (target * self.pl.vx) < 0. { t.ground_decel } else { t.ground_accel } } else { t.air_accel } * dt;
@@ -540,6 +549,12 @@ impl World {
             if self.pl.buffer > 0. { // wall jump away
                 self.pl.vx = -(self.pl.cling as f32) * t.wall_jump_x; self.pl.vy = -t.wall_jump_y; self.pl.lock = t.wall_lock; self.pl.buffer = 0.; self.pl.cling = 0; self.pl.coyote = 0.; self.events.push(Event::Place);
             }
+        } else if lava {
+            // molten rock is thick: you sink slowly through it and can only claw upward a little
+            self.pl.vy += t.gravity * 0.2 * dt;
+            if inp.jump || inp.up { self.pl.vy -= t.lava_up * dt; }
+            self.pl.vy = self.pl.vy.clamp(-t.lava_sink, t.lava_sink);
+            if self.pl.buffer > 0. && ground { self.pl.vy = -t.jump_v * 0.35; self.pl.buffer = 0.; } // a weak push off the bottom
         } else if wet {
             self.pl.vy += (t.gravity * t.swim_grav - t.buoyancy) * dt;
             if inp.jump || inp.up { self.pl.vy -= t.swim_up * dt; }
@@ -578,8 +593,8 @@ impl World {
         self.pl.px = self.pl.px.clamp(2., self.g.w as f32 - 2.); self.pl.py = self.pl.py.clamp(BODY_H + 1., self.g.h as f32 - 2.);
         let (x, y) = (self.pl.px as usize, (self.pl.py - 0.001) as usize);
         let landed = self.box_hits(self.pl.px, self.pl.py + 0.05);
-        if landed && !self.pl.grounded && !wet { let f = y.saturating_sub(self.pl.fall_from); if f > t.safe_fall { self.moles[0].hp -= (f - t.safe_fall) as f32 * 3.; self.events.push(Event::Hurt); } }
-        if landed || wet || self.pl.cling != 0 || self.pl.vy < 0. { self.pl.fall_from = y; }
+        if landed && !self.pl.grounded && !wet && !lava { let f = y.saturating_sub(self.pl.fall_from); if f > t.safe_fall { self.moles[0].hp -= (f - t.safe_fall) as f32 * 3.; self.events.push(Event::Hurt); } }
+        if landed || wet || lava || self.pl.cling != 0 || self.pl.vy < 0. { self.pl.fall_from = y; }
         let _ = airfall;
         self.pl.grounded = landed;
         if self.pl.vx.abs() > 0.5 && landed || self.pl.cling != 0 && self.pl.vy.abs() > 1. { self.moles[0].anim += 1; }
@@ -609,8 +624,12 @@ impl World {
     }
     /// Place a block item (pillar, brick, beam) into an open cell within reach, touching something solid.
     pub fn place_block(&mut self, x: usize, y: usize, it: Item) -> Result<(), &'static str> {
-        let d = match it { Item::WoodPillar => D_WOOD, Item::Brick => D_BRICK, Item::IronBeam => D_IRON, _ => return Err("not a block") };
         if !self.in_reach(x, y) { return Err("out of reach"); }
+        self.place_block_at(x, y, it)
+    }
+    /// `place_block` without the reach check (scripted building, scenarios).
+    pub fn place_block_at(&mut self, x: usize, y: usize, it: Item) -> Result<(), &'static str> {
+        let d = match it { Item::WoodPillar => D_WOOD, Item::Brick => D_BRICK, Item::IronBeam => D_IRON, _ => return Err("not a block") };
         if x < 1 || y < 1 || x + 1 >= self.g.w || y + 1 >= self.g.h { return Err("out of bounds"); }
         let i = self.g.idx(x, y); if self.g.mat[i] != 0 && !matches!(self.g.m(i), Mat::Water | Mat::Steam) { return Err("cell is not open"); }
         if self.moles.iter().any(|m| m.alive && m.x == x && y <= m.y && y + MOLE_H > m.y) { return Err("you are standing there"); }

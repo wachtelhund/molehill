@@ -34,6 +34,7 @@ pub struct Stress {
     pub thr: f32,
 }
 pub const CRACK_TICKS: u8 = 40;
+pub const LOOSE_TICKS: u8 = 8;
 
 impl Stress {
     pub fn new(n: usize) -> Self { Stress { util: vec![0; n], pending: vec![0; n], cracking: vec![], overburden: vec![0.; n], last_fail: 0, reach: vec![], thr: 1.0 } }
@@ -64,9 +65,6 @@ impl Stress {
             if st(i) { ctop[i] = if y > 0 && st(i - w) { ctop[i - w] } else { y as u32 }; }
             else if open(i) { vtop[i] = if y == 0 { 0 } else if open(i - w) { vtop[i - w] } else { (y - 1) as u32 }; }
         } }
-        // weight actually resting on a cell: the unbroken non-open column above it (air in between carries nothing)
-        let resting = |i: usize| -> f32 { let (x, mut y) = (i % w, i / w); let mut acc = 0f32; let mut k = 0;
-            while y > 0 && k < ARCH { y -= 1; let m = g.m(y * w + x); if matches!(m.kind(), Kind::Empty | Kind::Gas) { break; } acc += PROPS[m as usize].density * G * CELL_M / 1000.; k += 1; } acc };
         let mut util = vec![0f32; n];
         // 2. connectivity (BFS from bedrock)
         let mut reach = vec![false; n]; let mut q: Vec<u32> = Vec::with_capacity(n / 4);
@@ -97,8 +95,15 @@ impl Stress {
                 for xx in xa..=xb {
                     let mut k = 0; while k < cap && y >= k && st((y - k) * w + xx) { rho += PROPS[g.mat[(y - k) * w + xx] as usize].density; k += 1; }
                     hmin = hmin.min(k); tmin = tmin.min(PROPS[g.mat[y * w + xx] as usize].tensile);
-                    if k < cap && y + 1 > k { qtop = qtop.max(resting((y + 1 - k) * w + xx) + if open((y - k) * w + xx) { 0. } else { PROPS[g.mat[(y - k) * w + xx] as usize].density * G * CELL_M / 1000. }); } // rubble/water resting on the beam
+                    // superimposed load: only loose rubble / sand / water lying directly on the beam.
+                    // Static rock above (beyond the arch cap) carries itself; an open cave above is
+                    // carried by its own roof, so neither loads this beam.
+                    if k < cap && y >= k { let mut yy = y - k; let mut n = 0; let mut qq = 0f32;
+                        loop { let j = yy * w + xx; let m = g.m(j); if matches!(m.kind(), Kind::Empty | Kind::Gas) || st(j) || n >= ARCH { break; }
+                            qq += PROPS[m as usize].density * G * CELL_M / 1000.; n += 1; if yy == 0 { break; } yy -= 1; }
+                        qtop += qq; }
                 }
+                qtop /= (xb - xa + 1) as f32; // spread over the span (uniformly distributed load)
                 let cnt: usize = (xa..=xb).map(|xx| { let mut k = 0; while k < cap && y >= k && st((y - k) * w + xx) { k += 1; } k }).sum();
                 rho /= cnt.max(1) as f32;
                 let hd = (hmin.max(1) as f32 * CELL_M).min(span.max(CELL_M));
@@ -107,7 +112,16 @@ impl Stress {
                 let span_eff = if left || right { span } else { span.max(CELL_M) };
                 let sigma = 6. * k * wload * span_eff * span_eff / (hd * hd);
                 let u = sigma / tmin.max(1e-3);
-                for xx in xa..=xb { let j = y * w + xx; if u > util[j] { util[j] = u; } }
+                // the moment isn't uniform along the beam: M(x) ∝ x(L-x) when both ends rest
+                // (peak at midspan), ∝ (distance from the free tip)² for a cantilever (peak at the
+                // root). Overloaded roofs therefore break where M peaks and leave the rest standing,
+                // so a cave-in sags out of the middle into a stable arch instead of peeling whole rows.
+                let n = (xb - xa + 1) as f32;
+                for xx in xa..=xb {
+                    let t = (xx - xa) as f32 + 0.5;
+                    let f = if left && right { 4. * t * (n - t) / (n * n) } else if left { ((n - t + 0.5) / n).powi(2) } else if right { ((t + 0.5) / n).powi(2) } else { 1. };
+                    let j = y * w + xx; let uu = u * f.min(1.); if uu > util[j] { util[j] = uu; }
+                }
             }
         }
         // 4. compression of horizontal solid runs (pillars / walls)
@@ -117,16 +131,27 @@ impl Stress {
                 if !st(y * w + x) { x += 1; continue; }
                 let xa = x; while x < w && st(y * w + x) { x += 1; } let xb = x - 1;
                 let mut load: f32 = (xa..=xb).map(|xx| p[y * w + xx]).sum();
-                // the voids beside the run hand it half their roof load, but only if the run's static
-                // column actually reaches up to that roof (a free-standing stub carries no roof)
+                // Tributary load from the open space beside the run, but only if the run's static column
+                // actually reaches up to that void's roof (a free-standing stub carries no roof). Above
+                // an opening of width n the rock arches, so only the loosened zone (≈ n+1 cells of rock)
+                // bears down on the supports: a lone prop in a sound hall isn't crushed.
                 let rt = (xa..=xb).map(|xx| ctop[y * w + xx]).min().unwrap_or(0);
-                let trib = |j: usize| if open(j) && rt > vtop[j] { 0. } else { p[j] };
-                let mut l = xa; let mut vl = 0f32; let mut nl = 0; while l > 0 && !st(y * w + l - 1) { l -= 1; vl += trib(y * w + l); nl += 1; if nl > 400 { break; } }
-                let mut r = xb; let mut vr = 0f32; let mut nr = 0; while r + 1 < w && !st(y * w + r + 1) { r += 1; vr += trib(y * w + r); nr += 1; if nr > 400 { break; } }
+                let cell_w = PROPS[Mat::Granite as usize].density * G * CELL_M / 1000.;
+                let mut nl = 0; while xa > nl && !st(y * w + xa - nl - 1) && nl < 400 { nl += 1; }
+                let mut nr = 0; while xb + nr + 1 < w && !st(y * w + xb + nr + 1) && nr < 400 { nr += 1; }
+                let (cl, cr) = ((nl + 1) as f32 * cell_w, (nr + 1) as f32 * cell_w);
+                let trib = |j: usize, cap: f32| if open(j) && rt > vtop[j] { 0. } else { p[j].min(cap) };
+                let vl: f32 = (1..=nl).map(|k| trib(y * w + xa - k, cl)).sum();
+                let vr: f32 = (1..=nr).map(|k| trib(y * w + xb + k, cr)).sum();
                 load += 0.5 * (vl + vr);
                 let wid = (xb - xa + 1) as f32;
                 let sigma = load / wid;
-                for xx in xa..=xb { let j = y * w + xx; let u = sigma / PROPS[g.mat[j] as usize].compressive.max(1e-3); if u > util[j] { util[j] = u; } }
+                // Confinement (Mohr-Coulomb, σ3 ≈ K0·σv): a cell held in on both sides by the rest
+                // of the run can't crush; only cells at a free face (the run's ends) see the
+                // unconfined strength. So an overloaded body spalls at its faces instead of the
+                // whole mass turning to rubble at once.
+                for xx in [xa, xb] { let j = y * w + xx; let u = sigma / PROPS[g.mat[j] as usize].compressive.max(1e-3); if u > util[j] { util[j] = u; } }
+                if xb > xa + 1 { for xx in xa + 1..xb { let j = y * w + xx; let u = 0.5 * sigma / PROPS[g.mat[j] as usize].compressive.max(1e-3); if u > util[j] { util[j] = u.min(0.9); } } }
             }
         }
         self.reach = reach;
@@ -142,7 +167,9 @@ impl Stress {
     /// Start crack timers on failing cells.
     pub fn crack(&mut self, fail: &[u32]) {
         self.last_fail = fail.len();
-        for &i in fail { let i = i as usize; if self.pending[i] == 0 { self.pending[i] = CRACK_TICKS; self.cracking.push(i as u32); } }
+        // cells with no load path at all (a clump left hanging on water or air) give way almost at
+        // once; overloaded ones creak for CRACK_TICKS first so there's time to react
+        for &i in fail { let i = i as usize; if self.pending[i] == 0 { self.pending[i] = if self.reach.get(i) == Some(&false) { LOOSE_TICKS } else { CRACK_TICKS }; self.cracking.push(i as u32); } }
     }
     /// Advance cracks; returns cells that crumble now.
     pub fn tick(&mut self, g: &Grid) -> Vec<u32> {
