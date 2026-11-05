@@ -24,6 +24,8 @@ impl Run {
             "grounded" => p.grounded as u8 as f64, "cling" => p.cling as f64, "hp" => m.hp as f64, "breath" => m.breath as f64,
             "deaths" => p.deaths as f64, "awake" => self.awake() as f64, "crumbled" => self.w.crumbled as f64 / (kf * kf), "tick" => self.w.tick as f64,
             "flash" => p.flash as f64, "shake" => self.w.shake as f64,
+            // how far the body moved this tick, in tiles (catches teleport pops a velocity check misses)
+            "step" => ((p.px - p.ppx).powi(2) + (p.py - p.ppy).powi(2)).sqrt() as f64 / kf,
             _ if v.starts_with("count:") => { let mt = mat_by_name(&v[6..])?; let mut n = 0; for y in self.oy..self.oy + self.mh { for x in self.ox..self.ox + self.mw { if self.w.g.get(x, y) == mt { n += 1; } } } n as f64 / (kf * kf) }
             _ if v.starts_with("static:") => { let mt = mat_by_name(&v[7..])?; let mut n = 0; for y in self.oy..self.oy + self.mh { for x in self.ox..self.ox + self.mw { let i = self.w.g.idx(x, y); if self.w.g.get(x, y) == mt && !self.w.g.loose(i) { n += 1; } } } n as f64 / (kf * kf) }
             _ if v.starts_with("util:") => { // util:DX,DY  stress utilisation of a cell (1.0 = at capacity)
@@ -138,7 +140,7 @@ fn run_file(path: &str, json: bool) -> bool {
         if tick > 0 {
             let mut inp = molehill_sim::world::Input::default(); inp.tool = r.w.input.tool; inp.brush = r.w.input.brush;
             for a in &acts { match a {
-                Act::Hold(a, b, ks) if (*a..=*b).contains(&tick) => for k in ks { match k.as_str() { "left" => inp.left = true, "right" => inp.right = true, "jump" => inp.jump = true, "up" => inp.up = true, "down" => inp.down = true, o => panic!("unknown key {o}") } },
+                Act::Hold(a, b, ks) if (*a..=*b).contains(&tick) => for k in ks { match k.as_str() { "left" => inp.left = true, "right" => inp.right = true, "jump" => inp.jump = true, "up" => inp.up = true, "down" => inp.down = true, "sprint" => inp.sprint = true, o => panic!("unknown key {o}") } },
                 Act::Mine(a, b, dx, dy) if (*a..=*b).contains(&tick) => inp.mine = Some(r.at(*dx, *dy)),
                 Act::Dig(a, b, dx, dy) if (*a..=*b).contains(&tick) => { let m = &r.w.moles[0]; let k = K as i32; inp.mine = Some(((m.x as i32 + dx * k) as usize, (m.y as i32 + dy * k) as usize)); }
                 Act::Tool(t, n) if *t == tick => inp.tool = *n,

@@ -34,7 +34,8 @@ pub struct Mole {
 }
 /// What the player is pressing this tick (the game fills it in; the sim never reads the keyboard).
 #[derive(Clone, Default, Debug)]
-pub struct Input { pub left: bool, pub right: bool, pub jump: bool, pub up: bool, pub down: bool, pub mine: Option<(usize, usize)>, /// dig tool in hand: 0 claws (pack tools), 1 pickaxe, 2 drill, 3 bore
+pub struct Input { pub left: bool, pub right: bool, pub jump: bool, pub up: bool, pub down: bool, /// held: run faster (`TUNE.sprint`), costs a little food
+    pub sprint: bool, pub mine: Option<(usize, usize)>, /// dig tool in hand: 0 claws (pack tools), 1 pickaxe, 2 drill, 3 bore
     pub tool: u8,
     /// brush radius (cells) the player picked for the item in hand; 0 = that item's default. Always clamped by `brush_range`.
     pub brush: f32 }
@@ -44,7 +45,9 @@ pub struct Player { pub px: f32, pub py: f32, pub ppx: f32, pub ppy: f32, pub sy
     /// hit flash (s left) after taking a knock; `hp_was` = hp after the last tick, to spot the knock
     pub flash: f32, pub hp_was: f32,
     /// wall-jump grace (s left) after leaving a cling, and the side that wall was on
-    pub wall_t: f32, pub wall_side: i8 }
+    pub wall_t: f32, pub wall_side: i8,
+    /// rolling over a ledge after a climb (s left; direction = `wall_side`): carried onto the top, no gravity
+    pub mantle: f32 }
 pub const REACH_CELLS: f32 = 4.5 * CPM as f32; // 4.5 m
 /// Mining brush radius (cells) per dig tool: claws, pickaxe, drill, bore. A pickaxe bite is about a mole tall.
 pub const BITES: [f32; 4] = [1.8 * SF, 2.5 * SF, 3.2 * SF, 4.2 * SF];
@@ -78,13 +81,14 @@ pub const BODY_HW: f32 = 0.9 * SF; pub const BODY_H: f32 = 2.9 * SF;
 #[derive(Clone, Copy, Debug)]
 pub struct Tune { pub run: f32, pub ground_accel: f32, pub ground_decel: f32, pub air_accel: f32, /// air drag with no direction held (keeps wall-jump and run-off momentum)
     pub air_decel: f32, pub gravity: f32, pub fall_mul: f32, pub cut_mul: f32, pub jump_v: f32, pub terminal: f32,
-    pub coyote: f32, pub buffer: f32, pub climb: f32, pub slide: f32, pub wall_jump_x: f32, pub wall_jump_y: f32, pub wall_lock: f32, pub step: f32, pub mantle: f32, /// corner correction (cells): head slides round corners, feet slot into tunnel mouths
+    pub coyote: f32, pub buffer: f32, pub climb: f32, pub slide: f32, pub wall_jump_x: f32, pub wall_jump_y: f32, pub wall_lock: f32, pub step: f32, /// sprint speed multiplier (Shift); climb acceleration (cells/s²); speed when rolling over a ledge
+    pub sprint: f32, pub climb_accel: f32, pub mantle_v: f32, /// corner correction (cells): head slides round corners, feet slot into tunnel mouths
     pub nudge: f32,
     pub swim_mul: f32, pub swim_grav: f32, pub buoyancy: f32, pub swim_up: f32, pub swim_max: f32, pub lava_dps: f32, pub safe_fall: usize,
     pub lava_mul: f32, pub lava_sink: f32, pub lava_up: f32 }
 /// Lengths are written in legacy 0.25 m tiles times SF, so the feel is the same in metres at any CPM.
 pub const TUNE: Tune = Tune { run: 15. * SF, ground_accel: 900. * SF, ground_decel: 1400. * SF, air_accel: 480. * SF, air_decel: 60. * SF, gravity: 150. * SF, fall_mul: 1.7, cut_mul: 3.0, jump_v: 42. * SF, terminal: 60. * SF,
-    coyote: 0.1, buffer: 0.1, climb: 10.5 * SF, slide: 3. * SF, wall_jump_x: 17. * SF, wall_jump_y: 36. * SF, wall_lock: 0.13, step: 2. * SF, mantle: 3. * SF, nudge: 0.6 * SF,
+    coyote: 0.1, buffer: 0.1, climb: 10.5 * SF, slide: 3. * SF, wall_jump_x: 17. * SF, wall_jump_y: 36. * SF, wall_lock: 0.13, step: 2. * SF, sprint: 1.6, climb_accel: 240. * SF, mantle_v: 9. * SF, nudge: 0.6 * SF,
     swim_mul: 0.55, swim_grav: 0.35, buoyancy: 40. * SF, swim_up: 70. * SF, swim_max: 11. * SF, lava_dps: 75., safe_fall: 20 * S,
     lava_mul: 0.25, lava_sink: 3. * SF, lava_up: 22. * SF }; // lava: thick, you wade and slowly sink, and it burns fast
 #[derive(Clone)]
@@ -634,10 +638,32 @@ impl World {
     /// aligned to the cell boundary), nearest first.
     fn corner_nudge(&self, ny: f32, max: f32) -> Option<f32> {
         let px = self.pl.px; let r = (px - BODY_HW).ceil() + BODY_HW; let l = (px + BODY_HW).floor() - BODY_HW;
-        let mut c = [r, l]; if (l - px).abs() < (r - px).abs() { c.swap(0, 1); }
+        let mut c: Vec<f32> = (0..=2 * S).flat_map(|k| [r + k as f32, l - k as f32]).collect(); c.sort_by(|a, b| (a - px).abs().total_cmp(&(b - px).abs()));
         c.into_iter().find(|&x| (x - px).abs() <= max && (x - px).abs() > 1e-4 && !self.box_hits(x, ny) && !self.box_hits(x, self.pl.py))
     }
     pub fn swallow_held(&mut self) { self.pl.jump_was = true; }
+    /// A vertical wall right beside the body on `side` (1 = right): solid in the column just past that edge,
+    /// over the rows the body spans (inset a little, so a ceiling or floor the body only touches doesn't count:
+    /// you can cling to and climb side walls, never ceilings).
+    fn side_wall(&self, side: i32) -> bool { self.side_wall_at(self.pl.px, self.pl.py, side, 0.08 * SF) }
+    /// `side_wall` for a body at (px, py), looking `reach` cells past its edge.
+    fn side_wall_at(&self, px: f32, py: f32, side: i32, reach: f32) -> bool {
+        let (c0, c1) = if side > 0 { ((px + BODY_HW - 1e-3).floor() as i32 + 1, (px + BODY_HW + reach - 1e-3).floor() as i32) }
+            else { ((px - BODY_HW - reach).floor() as i32, (px - BODY_HW).floor() as i32 - 1) };
+        let (y0, y1) = ((py - BODY_H + 0.1 * SF).floor() as i32, (py - 0.1 * SF).floor() as i32);
+        (c0..=c1).any(|col| (y0..=y1).any(|y| !self.g.in_bounds(col, y) || !self.passable(col as usize, y as usize)))
+    }
+    /// Climbing on `side`: the top of the wall beside the body, if it ends below the head and there's room to
+    /// stand on it (feet row as f32). A wall that only steps back a cell (a recess) isn't a ledge: you climb on.
+    fn ledge(&self, side: i8) -> Option<f32> {
+        let (px, py) = (self.pl.px, self.pl.py);
+        let col = if side > 0 { (px + BODY_HW + 0.08 * SF - 1e-3).floor() as i32 } else { (px - BODY_HW - 0.08 * SF).floor() as i32 };
+        let (y0, y1) = ((py - BODY_H + 0.1 * SF).floor() as i32, (py - 0.1 * SF).floor() as i32);
+        let r = (y0..=y1).find(|&y| !self.g.in_bounds(col, y) || !self.passable(col as usize, y as usize))?;
+        if r == y0 { return None; } // the wall goes on past the head
+        let (r, sx) = (r as f32, px + side as f32 * SF);
+        (!self.box_hits(px, r) && !self.box_hits(sx, r) && !self.side_wall_at(sx, r, side as i32, 0.08 * SF)).then_some(r)
+    }
     /// Kick off the wall on `side` (1 = wall to the right): away and up, steering locked briefly.
     fn wall_jump(&mut self, side: i8) {
         let t = TUNE;
@@ -670,25 +696,47 @@ impl World {
         let jump_edge = inp.jump && !self.pl.jump_was; self.pl.jump_was = inp.jump;
         if jump_edge { self.pl.buffer = t.buffer; } else { self.pl.buffer = (self.pl.buffer - dt).max(0.); }
         let ground = self.box_hits(self.pl.px, self.pl.py + 0.05);
-        let wall_l = self.box_hits(self.pl.px - 0.08, self.pl.py - 0.02); let wall_r = self.box_hits(self.pl.px + 0.08, self.pl.py - 0.02);
+        let (wall_l, wall_r) = (self.side_wall(-1), self.side_wall(1));
         if ground { self.pl.coyote = t.coyote; } else { self.pl.coyote = (self.pl.coyote - dt).max(0.); }
         self.pl.lock = (self.pl.lock - dt).max(0.);
         // wall cling: airborne, touching a wall and pressing into it (or already clinging and still touching)
-        let side = if wall_r && (dir > 0 || self.pl.cling == 1) { 1 } else if wall_l && (dir < 0 || self.pl.cling == -1) { -1 } else { 0 };
-        self.pl.cling = if !ground && !wet && !lava && side != 0 && (self.pl.vy >= 0. || self.pl.cling != 0) && !(dir == -side) { side as i8 } else { 0 };
+        // (an existing cling holds across a gap or recess of up to a cell, and is pulled back to the wall)
+        let c = self.pl.cling as i32;
+        let side = if wall_r && (dir > 0 || c == 1) { 1 } else if wall_l && (dir < 0 || c == -1) { -1 }
+            else if c != 0 && self.side_wall_at(self.pl.px, self.pl.py, c, 1.1 * SF) { c } else { 0 };
+        // grab as soon as the rise has slowed to climbing speed (no float up to the apex first)
+        self.pl.cling = if !ground && !wet && !lava && self.pl.mantle <= 0. && side != 0 && (self.pl.vy >= -t.climb || c != 0) && !(dir == -side) { side as i8 } else { 0 };
         if self.pl.cling != 0 { self.pl.wall_t = t.coyote; self.pl.wall_side = self.pl.cling; } else if ground { self.pl.wall_t = 0.; } else { self.pl.wall_t = (self.pl.wall_t - dt).max(0.); }
         if dir != 0 { self.moles[0].facing = dir as i8; }
         let swim = if lava { t.lava_mul } else if wet { t.swim_mul } else { 1. };
         // horizontal: near-instant on the ground, slightly softer in the air, locked briefly after a wall jump
-        let target = if self.pl.lock > 0. { self.pl.vx } else { dir as f32 * t.run * swim };
+        let sprint = inp.sprint && dir != 0 && !wet && !lava;
+        if sprint && ground { self.moles[0].hunger = (self.moles[0].hunger - 0.5 * dt).max(0.); } // a little food
+        let target = if self.pl.lock > 0. { self.pl.vx } else { dir as f32 * t.run * swim * if sprint { t.sprint } else { 1. } };
         let a = if ground { if dir == 0 || (target * self.pl.vx) < 0. { t.ground_decel } else { t.ground_accel } } else if dir == 0 { t.air_decel } else { t.air_accel } * dt;
         self.pl.vx += (target - self.pl.vx).clamp(-a, a);
         // vertical
-        if self.pl.cling != 0 {
-            self.moles[0].facing = self.pl.cling;
-            self.pl.vy = if inp.up { -t.climb } else if inp.down { t.climb * 1.3 } else { t.slide };
-            self.pl.vx = self.pl.cling as f32 * 2. * SF; // keep pressed against the wall
-            if self.pl.buffer > 0. { self.wall_jump(self.pl.cling); }
+        if self.pl.mantle > 0. {
+            // rolling over the ledge: carried sideways onto the top at the ledge's height
+            self.pl.mantle -= dt; self.pl.vy = 0.; self.pl.vx = self.pl.wall_side as f32 * t.mantle_v;
+            if self.pl.buffer > 0. { self.pl.mantle = 0.; self.pl.vy = -t.jump_v; self.pl.buffer = 0.; self.pl.coyote = 0.; }
+        } else if self.pl.cling != 0 {
+            let c = self.pl.cling; self.moles[0].facing = c;
+            // climb speed eases in quickly; a grab while falling catches at once
+            let want = if inp.up { -t.climb } else if inp.down { t.climb * 1.3 } else { t.slide };
+            let a = t.climb_accel * dt; self.pl.vy = if self.pl.vy > want { want } else { self.pl.vy + (want - self.pl.vy).clamp(-a, a) };
+            // pressed against the wall; pulled back to it across a gap or into a recess
+            // (only into a wall that steps back for good: a shallow notch is climbed straight past)
+            let opens = !self.side_wall(c as i32) && !self.side_wall_at(self.pl.px, self.pl.py - 2. * SF, c as i32, 0.08 * SF);
+            self.pl.vx = c as f32 * if self.side_wall(c as i32) { 2. * SF } else if opens { 8. * SF } else { 0. };
+            // a small outcrop overhead: ease out round it in good time instead of bumping into it
+            if self.pl.vy < 0. && self.box_hits(self.pl.px, self.pl.py - 1.5 * SF) && !self.box_hits(self.pl.px - c as f32 * 1.05 * SF, self.pl.py - 1.5 * SF) && !self.box_hits(self.pl.px - c as f32 * 1.05 * SF, self.pl.py) { self.pl.vx = -(c as f32) * 8. * SF; }
+            if self.pl.buffer > 0. { self.wall_jump(c); }
+            else if inp.up || dir == c as i32 { if let Some(r) = self.ledge(c) {
+                // the wall ends below the head: rise to its top at climbing speed, then roll over it
+                if self.pl.py - r <= t.climb * dt + 1e-3 { self.pl.py = r; self.pl.vy = 0.; self.pl.mantle = 0.12; self.pl.wall_side = c; self.pl.cling = 0; self.pl.vx = c as f32 * t.mantle_v; }
+                else { self.pl.vy = self.pl.vy.min(-t.climb); }
+            } }
         } else if lava {
             // molten rock is thick: you sink slowly through it and can only claw upward a little
             self.pl.vy += t.gravity * 0.2 * dt;
@@ -717,11 +765,11 @@ impl World {
                 if !self.box_hits(nx, self.pl.py) { self.pl.px = nx; }
                 else {
                     // step up 1-2 cells (on the ground) or mantle a ledge (clinging) without losing speed
-                    let lift = if ground || self.pl.coyote > 0. { t.step } else if self.pl.cling != 0 { t.mantle } else { 0. };
+                    let lift = if ground || self.pl.coyote > 0. { t.step } else { 0. }; // ledges while climbing: see `ledge`
                     let mut k = 1.; let mut ok = false;
                     while k <= lift { let ny = (self.pl.py - k).ceil(); if !self.box_hits(nx, ny) && !self.box_hits(self.pl.px, ny) { self.pl.py = ny; self.pl.px = nx; ok = true; break; } k += 1.; }
                     // airborne: slot into a tunnel mouth when the feet are within a little of its floor row
-                    if !ok && !ground { let ny = self.pl.py.round(); if (ny - self.pl.py).abs() <= t.nudge && !self.box_hits(nx, ny) && !self.box_hits(self.pl.px, ny) { self.pl.py = ny; self.pl.px = nx; ok = true; } }
+                    if !ok && !ground && self.pl.cling == 0 && self.pl.mantle <= 0. { let ny = self.pl.py.round(); if (ny - self.pl.py).abs() <= t.nudge && !self.box_hits(nx, ny) && !self.box_hits(self.pl.px, ny) { self.pl.py = ny; self.pl.px = nx; ok = true; } }
                     if !ok && !self.push_powder(nx, self.pl.py, sx.signum() as i32) { self.pl.vx = 0.; }
                     else if !ok { self.pl.vx *= 0.85; }
                 }
@@ -729,7 +777,7 @@ impl World {
             let sy = dy / n as f32; let ny = self.pl.py + sy;
             if sy != 0. {
                 if !self.box_hits(self.pl.px, ny) { self.pl.py = ny; }
-                else if let Some(cx) = (sy < 0.).then(|| self.corner_nudge(ny, t.nudge)).flatten() { self.pl.px = cx; self.pl.py = ny; } // head clipped a corner: slide around it
+                else if let Some(cx) = (sy < 0.).then(|| self.corner_nudge(ny, if self.pl.cling != 0 { 1.1 * SF } else { t.nudge })).flatten() { self.pl.px = cx; self.pl.py = ny; } // head clipped a corner: slide around it
                 else {
                     // snap against the floor/ceiling, but never search more than a cell past where we
                     // were: when already wedged in (buried), an unbounded search pops you out through rock

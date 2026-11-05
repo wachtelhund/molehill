@@ -459,6 +459,41 @@ fn press(w: &mut World, n: usize, f: impl Fn(&mut Input)) -> (f32, f32) { let (m
     for _ in 0..240 { w.step(); }
     assert_eq!(rock(&w), 0, "slab fell once the rubble slumped from under it");
 }
+/// A damaged or stale save (e.g. an old autosave in localStorage) must fail to load or load into a world
+/// that steps safely: never a panic (on the web a panic kills the page).
+#[test] fn corrupt_saves_never_panic() {
+    let mut w = World::new(256 * S, 128 * S, 77); w.disasters.enabled = false;
+    for _ in 0..30 { w.step(); }
+    let good = molehill_sim::save::save(&w);
+    let mut s = 0x2545F4914F6CDD1Du64; let mut rnd = |k: usize| { s ^= s << 13; s ^= s >> 7; s ^= s << 17; (s % k as u64) as usize };
+    for case in 0..120 {
+        let mut b = good.clone();
+        match case % 3 { 0 => b.truncate(rnd(b.len())), 1 => { for _ in 0..1 + rnd(4) { let i = rnd(b.len()); b[i] = rnd(256) as u8; } }, _ => { let i = rnd(b.len()); b[i] ^= 1 << rnd(8); } }
+        let r = std::panic::catch_unwind(|| { if let Ok(mut l) = molehill_sim::save::load(&b) { for _ in 0..20 { l.step(); } } });
+        assert!(r.is_ok(), "case {case} panicked");
+    }
+}
+
+/// The hotbar spun by itself on the web: `f32::signum(0.0)` is 1.0, so an idle wheel stepped a slot every frame.
+#[test] fn wheel_idle_is_still_and_trackpad_flick_is_one_notch() {
+    use molehill_sim::view::Wheel;
+    let dt = 1. / 60.;
+    let mut w = Wheel::default();
+    assert_eq!((0..600).map(|_| w.feed(0., false, dt)).sum::<i32>(), 0, "idle wheel: no notches (line units)");
+    assert_eq!((0..600).map(|_| w.feed(0., true, dt)).sum::<i32>(), 0, "idle wheel: no notches (pixel units)");
+    assert_eq!((0..60).map(|_| w.feed(-0.0, true, dt)).sum::<i32>(), 0, "negative zero is no scroll");
+    // a notched mouse wheel: each click is a notch
+    let mut w = Wheel::default(); let n: i32 = (0..5).map(|_| { let a = w.feed(1., false, dt); w.feed(0., false, dt); a }).sum(); assert_eq!(n, 5);
+    let mut w = Wheel::default(); assert_eq!(w.feed(-1., false, dt), -1);
+    // a trackpad flick with ~2 s of momentum: one slot, not dozens
+    let mut w = Wheel::default(); let flick: i32 = (0..120).map(|i| w.feed(-30. * (1. - i as f32 / 120.), true, dt)).sum();
+    assert_eq!(flick, -1, "flick + momentum is one notch");
+    for _ in 0..10 { w.feed(0., true, dt); }
+    assert_eq!((0..20).map(|_| w.feed(8., true, dt)).sum::<i32>(), 1, "after a pause the next swipe (other way) counts once");
+    // a tiny brush of the pad is not a notch
+    let mut w = Wheel::default(); assert_eq!((0..3).map(|_| w.feed(2., true, dt)).sum::<i32>(), 0);
+    assert_eq!(w.feed(f32::NAN, true, dt), 0);
+}
 #[test] fn world_hover_explains_cells() {
     use molehill_sim::{tips::{describe, strain_word}, grid::F_SEEN, world::Farm};
     let (mut w, x0, y0) = arena();
@@ -496,4 +531,21 @@ fn press(w: &mut World, n: usize, f: impl Fn(&mut Input)) -> (f32, f32) { let (m
     assert_eq!(part, want, "failing cells near the change");
     let mut diff = 0; for y in bx.1 - k..=bx.3 + k { for x in bx.0 - k..=bx.2 + k { let i = w.g.idx(x, y); if w.st.util[i] != full.util[i] { diff += 1; } } }
     assert_eq!(diff, 0, "utilisation differs in {diff} cells");
+}
+/// Shift is sprint: scrolling while sprinting changes the hotbar slot like a plain wheel (it used to zoom).
+#[test] fn wheel_modifiers_sprint_does_not_zoom() {
+    use molehill_sim::view::{wheel_use, wheel_delta, Mods, WheelUse::*};
+    let sprint = Mods { shift: true, ..Default::default() };
+    for brush in [false, true] {
+        assert_eq!(wheel_use(Mods::default(), brush), Hotbar);
+        assert_eq!(wheel_use(sprint, brush), Hotbar, "sprinting keeps the wheel on the hotbar");
+        assert_eq!(wheel_use(Mods { ctrl: true, ..Default::default() }, brush), Zoom);
+        assert_eq!(wheel_use(Mods { cmd: true, shift: true, ..Default::default() }, brush), Zoom);
+    }
+    assert_eq!(wheel_use(Mods { alt: true, ..Default::default() }, true), Brush, "brush size has its own modifier");
+    assert_eq!(wheel_use(Mods { alt: true, shift: true, ..Default::default() }, true), Brush);
+    assert_eq!(wheel_use(Mods { alt: true, ..Default::default() }, false), Hotbar, "no brush in hand: the wheel stays on the hotbar");
+    // Shift turns a vertical wheel sideways on macOS / in browsers: it still counts, the same way round
+    assert_eq!(wheel_delta(-100., 0., sprint), 100.); assert_eq!(wheel_delta(0., -3., sprint), -3.);
+    assert_eq!(wheel_delta(-100., 0., Mods::default()), 0., "a sideways swipe without Shift is not the wheel");
 }

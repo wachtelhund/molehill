@@ -6,10 +6,10 @@ use bevy::window::{MonitorSelection, PrimaryWindow, WindowMode};
 use crate::{Game, audio::Audio};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)] pub enum Screen { Off, Main, Pause, Settings, Controls }
-#[derive(Clone, Copy, PartialEq, Debug)] enum Item { Continue, NewHolt, Seed, Settings, Controls, Quit, Resume, Restart, Save, Load, MainMenu, Volume, Zoom, Fullscreen, Back }
+#[derive(Clone, Copy, PartialEq, Debug)] enum Item { Continue, NewHolt, Seed, Settings, Controls, Quit, Resume, Restart, Save, Load, MainMenu, Volume, Music, Zoom, Fullscreen, Back }
 
-#[derive(Resource)] pub struct Menu { pub screen: Screen, back: Screen, sel: usize, pub seed_text: String, pub volume: f32, pub zoom: f32, pub fullscreen: bool, has_save: bool }
-impl Default for Menu { fn default() -> Self { Menu { screen: Screen::Main, back: Screen::Main, sel: 0, seed_text: String::new(), volume: 0.8, zoom: molehill_sim::view::ZOOM_DEFAULT, fullscreen: false, has_save: false } } }
+#[derive(Resource)] pub struct Menu { pub screen: Screen, back: Screen, sel: usize, pub seed_text: String, pub volume: f32, pub music: f32, music_on: f32, pub zoom: f32, pub fullscreen: bool, has_save: bool }
+impl Default for Menu { fn default() -> Self { Menu { screen: Screen::Main, back: Screen::Main, sel: 0, seed_text: String::new(), volume: 0.8, music: MUSIC_DEFAULT, music_on: MUSIC_DEFAULT, zoom: molehill_sim::view::ZOOM_DEFAULT, fullscreen: false, has_save: false } } }
 impl Menu {
     pub fn open(&self) -> bool { self.screen != Screen::Off }
     fn items(&self) -> Vec<Item> {
@@ -17,7 +17,7 @@ impl Menu {
         match self.screen {
             Screen::Main => { let mut v = vec![]; if self.has_save { v.push(Continue); } v.extend([NewHolt, Seed, Settings, Controls]); if cfg!(not(target_arch = "wasm32")) { v.push(Quit); } v }
             Screen::Pause => vec![Resume, Restart, NewHolt, Save, Load, Settings, Controls, MainMenu],
-            Screen::Settings => { let mut v = vec![Volume, Zoom]; if cfg!(not(target_arch = "wasm32")) { v.push(Fullscreen); } v.push(Back); v }
+            Screen::Settings => { let mut v = vec![Volume, Music, Zoom]; if cfg!(not(target_arch = "wasm32")) { v.push(Fullscreen); } v.push(Back); v }
             Screen::Controls => vec![Back], Screen::Off => vec![],
         }
     }
@@ -27,17 +27,19 @@ impl Menu {
             Item::Seed => format!("Seed  {}", if self.seed_text.is_empty() { "random  (type digits)".into() } else { self.seed_text.clone() + "_" }),
             Item::Settings => "Settings".into(), Item::Controls => "Controls".into(), Item::Quit => "Quit".into(),
             Item::Resume => "Resume".into(), Item::Restart => "Restart (same seed)".into(), Item::Save => "Save".into(), Item::Load => "Load".into(), Item::MainMenu => "Main Menu".into(),
-            Item::Volume => format!("Volume   <  {:>3}%  >", (self.volume * 100.).round()), Item::Zoom => format!("Zoom     <  {:.1}x  >", molehill_sim::view::zoom_level(self.zoom)),
+            Item::Volume => format!("Volume   <  {:>3}%  >", (self.volume * 100.).round()),
+            Item::Music => if self.music <= 0. { "Music    <   off  >".into() } else { format!("Music    <  {:>3}%  >", (self.music * 100.).round()) }, Item::Zoom => format!("Zoom     <  {:.1}x  >", molehill_sim::view::zoom_level(self.zoom)),
             Item::Fullscreen => format!("Fullscreen   {}", if self.fullscreen { "on" } else { "off" }), Item::Back => "Back".into(),
         }
     }
     /// Zoom by `steps` notches (positive = closer), clamped, applied to the camera and saved.
     pub fn zoom_by(&mut self, steps: f32, cam: &mut Transform) { let z = molehill_sim::view::zoom_step(self.zoom, steps); if z != self.zoom { self.zoom = z; self.persist(); } cam.scale = Vec3::splat(self.zoom); }
-    pub fn persist(&self) { let _ = crate::storage_put("molehill-settings", format!("{} {} {}", self.volume, self.zoom, self.fullscreen as u8).as_bytes()); }
+    pub fn persist(&self) { let _ = crate::storage_put("molehill-settings", format!("{} {} {} {}", self.volume, self.zoom, self.fullscreen as u8, self.music).as_bytes()); }
     pub fn load() -> Menu {
         let mut m = Menu::default();
         if let Some(b) = crate::storage_get("molehill-settings") { let s = String::from_utf8_lossy(&b).to_string(); let v: Vec<&str> = s.split_whitespace().collect();
-            if v.len() == 3 { m.volume = v[0].parse().unwrap_or(0.8); m.zoom = molehill_sim::view::clamp_zoom(v[1].parse().unwrap_or(f32::NAN)); m.fullscreen = v[2] == "1"; } }
+            if v.len() >= 3 { m.volume = v[0].parse().unwrap_or(0.8); m.zoom = molehill_sim::view::clamp_zoom(v[1].parse().unwrap_or(f32::NAN)); m.fullscreen = v[2] == "1"; }
+            if let Some(mv) = v.get(3).and_then(|x| x.parse::<f32>().ok()).filter(|x| x.is_finite()) { m.music = mv.clamp(0., 1.); if m.music > 0. { m.music_on = m.music; } } }
         m.has_save = crate::storage_get("molehill-manual").is_some() || crate::storage_get("molehill-auto").is_some(); m
     }
     pub fn go(&mut self, s: Screen) { if matches!(s, Screen::Settings | Screen::Controls) { self.back = self.screen; } self.screen = s; self.sel = 0; if s == Screen::Main { self.has_save = crate::storage_get("molehill-manual").is_some() || crate::storage_get("molehill-auto").is_some(); } }
@@ -48,6 +50,8 @@ impl Menu {
 #[derive(Component)] pub struct MenuHint;
 #[derive(Component)] pub struct MenuRow(usize);
 const ROWS: usize = 9;
+/// Music starts quiet: it should sit under everything else.
+pub const MUSIC_DEFAULT: f32 = 0.35;
 const INK: Color = Color::srgb(0.93, 0.90, 0.84);
 const ACCENT: Color = Color::srgb(0.95, 0.72, 0.38);
 
@@ -64,9 +68,9 @@ pub fn setup(commands: &mut Commands, f: &Handle<Font>) {
 
 /// Every control, as (action, keys). Shown as a two-column table on the Controls screen and the H overlay.
 pub const CONTROL_ROWS: &[(&str, &str)] = &[
-    ("Move", "A / D"), ("Jump", "Space  (or W off a wall)"), ("Walls", "hold into a wall: W / S climb, Space wall-jump"),
+    ("Move", "A / D  (Shift: sprint)"), ("Jump", "Space  (or W off a wall)"), ("Walls", "hold into a wall: W / S climb, Space wall-jump"),
     ("Dig down", "S"), ("Use item", "Left mouse"), ("Interact", "Right mouse  (levers, thrum patterns)"), ("Pick up", "Ctrl + Right mouse  (copperline, devices)"),
-    ("Brush size", "[ / ]  or  Ctrl + wheel"), ("Hotbar", "1 - 0  or  wheel"), ("Pack", "I"), ("Zoom", "+ / -  or  Shift + wheel"),
+    ("Brush size", "[ / ]  or  Alt + wheel"), ("Hotbar", "1 - 0  or  wheel"), ("Pack", "I"), ("Zoom", "+ / -  or  Ctrl + wheel"),
     ("Pause", "Esc"), ("Save / load", "K / L"), ("Controls", "H"), ("Dev info", "F3"),
 ];
 /// A two-column table of `CONTROL_ROWS`: actions dim and right-aligned, keys in ink.
@@ -109,6 +113,8 @@ pub fn update(mut m: ResMut<Menu>, mut g: ResMut<Game>, keys: Res<ButtonInput<Ke
         let mut z = |m: &mut Menu, d: f32| { if let Ok(mut ct) = cam.single_mut() { m.zoom_by(d, &mut ct); } };
         match it {
             Item::Volume if adj != 0. || act => { m.volume = if adj != 0. { (m.volume + adj * 0.1).clamp(0., 1.) } else if m.volume > 0. { 0. } else { 0.8 }; au.set_volume(m.volume); m.persist(); }
+            // music: A/D in 10% steps; Enter or a click mutes, and again brings back the last level
+            Item::Music if adj != 0. || act => { if adj != 0. { m.music = (m.music + adj * 0.1).clamp(0., 1.); if m.music > 0. { m.music_on = m.music; } } else { m.music = if m.music > 0. { 0. } else { m.music_on.max(0.1) }; } m.persist(); }
             Item::Zoom if adj != 0. || act => z(&mut m, if adj != 0. { adj } else if clicked { click_dir } else { 1. }),
             _ if act => match it {
                 Item::Continue => { if crate::load_saved(&mut g, &mut commands) { m.go(Screen::Off); } }

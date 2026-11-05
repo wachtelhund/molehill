@@ -18,5 +18,6 @@ bevy = { version = "0.20", default-features = false, features = ["multi_threaded
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 js-sys = "0.3"
+console_error_panic_hook = "0.1"
 bevy = { version = "0.20", default-features = false, features = ["webgl2", "web"] }
-web-sys = { version = "0.3", features = ["AudioContext", "AudioNode", "AudioParam", "AudioDestinationNode", "OscillatorNode", "OscillatorType", "GainNode", "BiquadFilterNode", "BiquadFilterType", "AudioBuffer", "AudioBufferSourceNode", "AudioScheduledSourceNode", "BaseAudioContext", "Storage", "Window", "Location"] }
+web-sys = { version = "0.3", features = ["AudioContext", "AudioContextState", "ConvolverNode", "DelayNode", "AudioNode", "AudioParam", "AudioDestinationNode", "OscillatorNode", "OscillatorType", "GainNode", "BiquadFilterNode", "BiquadFilterType", "AudioBuffer", "AudioBufferSourceNode", "AudioScheduledSourceNode", "BaseAudioContext", "Storage", "Window", "Location"] }

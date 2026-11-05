@@ -73,6 +73,7 @@ Map legend: `.` empty, `#` granite, `B` bedrock, `r` rock, `d` dirt, `c` clay, `
 | variable | meaning |
 |---|---|
 | `flash` `shake` | Hit-flash time left (s); view-shake strength (decays each tick) |
+| `step` | Distance the body moved this tick (tiles); catches teleport pops that a velocity check misses |
 | `px` `py` `vx` `vy` | Player body in tiles from the map's top-left (py is the feet). Velocities are in tiles/s; +y is down |
 | `dx` `dy` | Offset from the start position (dy < 0 means higher) |
 | `rise` | Highest point reached so far, measured above the start |
@@ -107,6 +108,10 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `wall_climb.scn` | Cling to a wall, then climb more than 6 cells with W |
 | `wall_jump.scn` | Space while clinging launches you away from the wall |
 | `wall_jump_away.scn` | Pressing away plus Space, or Space within 0.1 s of letting go, still wall-jumps; later it doesn't |
+| `no_ceiling_climb.scn` | Jumping into a low ceiling while holding sideways and `W` never clings; the mole falls back down |
+| `sprint_speed.scn` | `Shift` sprint reaches 1.6x run speed in 2 ticks, stops at once, and a sprint jump carries further |
+| `climb_smooth.scn` | Climbing a ragged wall (a notch, an outcrop overhead) holds a constant speed every tick, easing round the outcrop |
+| `climb_mantle.scn` | Climbing over the top with only `W`: never moves down, never moves more than 0.25 cell in a tick, ends on the ledge |
 | `dig_tiers.scn` | The pickaxe clears rock within 40 ticks; the bore within 10 |
 | `water_flood.scn` | Mining a dirt plug floods the room below |
 | `tnt_collapse.scn` | A blast removes rock, and the sand cap falls |

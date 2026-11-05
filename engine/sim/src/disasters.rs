@@ -20,7 +20,7 @@ const FLOOD_VOL: f32 = 0.004; const LAVA_VOL: f32 = 0.002; const QUAKE_BUDGET: f
 const WARN_S: u32 = 10; const ACTIVE_S: u32 = 6;
 
 impl Disasters {
-    pub fn new(seed: u32) -> Self { Disasters { rng: seed as u64 * 0x9E3779B97F4A7C15 | 1, phase: Phase::Calm, kind: Kind2::Quake, x: 0, y: 0, ticks_left: 150 * HZ, enabled: true, budget: 0., rate: 0. } }
+    pub fn new(seed: u32) -> Self { Disasters { rng: (seed as u64).wrapping_mul(0x9E3779B97F4A7C15) | 1, phase: Phase::Calm, kind: Kind2::Quake, x: 0, y: 0, ticks_left: 150 * HZ, enabled: true, budget: 0., rate: 0. } }
     fn r(&mut self) -> u32 { self.rng ^= self.rng << 13; self.rng ^= self.rng >> 7; self.rng ^= self.rng << 17; (self.rng >> 32) as u32 }
     fn rf(&mut self) -> f32 { self.r() as f32 / u32::MAX as f32 }
     pub fn seconds_left(&self) -> f32 { self.ticks_left as f32 / HZ as f32 }

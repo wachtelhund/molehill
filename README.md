@@ -23,7 +23,7 @@ python3 -m http.server -d site 8080
 
 To rebuild the web version, run `cd engine && ./build-web.sh` (needs wasm-bindgen-cli 0.2.130 and the wasm32-unknown-unknown target), then `rm -rf site && cp -r dist site`.
 
-The game opens on a main menu: Continue (if there is a save), New Holt (with an optional seed), Settings (volume, default zoom, and fullscreen on native), Controls, and Quit (native).
+The game opens on a main menu: Continue (if there is a save), New Holt (with an optional seed), Settings (volume, music volume or off, default zoom, and fullscreen on native), Controls, and Quit (native).
 
 Tests: `cd engine && cargo test --release -p molehill-sim`. Headless scenarios: `cargo run --release -p molehill-sim --example scenario -- sim/tests/scenarios/*.scn` (see [TESTING.md](TESTING.md)). For agents, see [AGENTS.md](AGENTS.md). Collapse check: `cargo run --release -p molehill-sim --example settle`.
 
@@ -50,11 +50,11 @@ You play one mole. The controls work like Terraria or Core Keeper.
 | Water / lava | `W` / `Space` swim up (water); lava burns |
 | `S` | Dig down (on the ground) |
 | Left mouse | Use the item in hand. A dig tool carves a round bite under the cursor and a block (pillar, brick, beam) places a round brush; the ring shows its size. Other items place a torch, copperline, device, spore, TNT or station. TNT goes down inert |
-| `[` / `]`, `Ctrl`+wheel | Brush size for the dig tool or block in hand, within that item's range (bigger tools allow bigger bites) |
+| `[` / `]`, `Alt`+wheel | Brush size for the dig tool or block in hand, within that item's range (bigger tools allow bigger bites) |
 | Right mouse | Interact: flip a lever, set a thrum channel, light a TNT charge (1.5 s fuse) or a fuse cord. `Ctrl`+right mouse picks up copperline or a device (a lit charge is defused) |
-| `1`-`0` / wheel | Select a hotbar slot |
+| `1`-`0` / wheel | Select a hotbar slot (also while sprinting) |
 | `I` | Inventory grid. Click a slot to pick its item up, then click another slot to drop or swap it (the hotbar is the bottom row) |
-| `+` / `-`, `Shift`+wheel | Zoom (also in Settings; clamped and saved) |
+| `+` / `-`, `Ctrl`/`Cmd`+wheel | Zoom (also in Settings; clamped and saved) |
 | `H` | Controls overlay |
 | `Esc` | Pause menu (Resume, Restart same seed, New Holt, Save, Load, Settings, Controls, Main Menu), or close a panel |
 | `K` / `L` | Save / load |
@@ -96,6 +96,7 @@ For testing, all three tools and generous stacks of every item start in the pack
     * A link holds while 60 dB − losses > 0. Dense stone carries the knock tens of metres, loose dirt muffles it, and tunnels block it (tested).
 * **Disasters:** floods, lava surges and quakes. Each starts with a 10 s warning banner and lasts 6 s, with camera shake. The first comes at about 2.5 min, then one every 90–180 s.
 * **Sound:** procedural WebAudio effects plus an ambient rumble that changes with depth. It is web only (native is silent) and starts after the first input.
+* **Music:** generative ambient (`game/src/music.rs`), no audio files: soft pads, kalimba-like plucks, rare bells and low drones through a cave reverb and echo. Pieces of 1–2 minutes alternate with long quiet rests. The mood follows the mole: airy and major up in the wet layers, earthy at home, darker deeper, low and smouldering near lava. It has its own quiet volume in Settings (default 35%; Enter mutes).
 * **Save/load:** a binary run-length-encoded format. It goes to localStorage on web and to files on native. It autosaves every 30 s and autoloads at start.
 
 ## World generation (`sim/src/gen.rs`)

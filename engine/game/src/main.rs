@@ -4,13 +4,15 @@
 //! stations and torches.
 mod art;
 mod audio;
+mod music;
 mod ui;
 mod menu;
 use molehill_sim::logic::{Dev, DEVS, B as LB};
 use molehill_sim::disasters::{Phase, Kind2};
 use bevy::prelude::*;
-use bevy::input::mouse::AccumulatedMouseScroll;
+use bevy::input::mouse::{AccumulatedMouseScroll, MouseScrollUnit};
 use bevy::window::PrimaryWindow;
+use molehill_sim::view as sv;
 use molehill_sim::craft::{self, Item, Station, ITEMS, NITEM, QUESTS, RECIPES, STATIONS};
 use molehill_sim::grid::{hash3, F_SEEN};
 use molehill_sim::mat::{Kind, Mat, PROPS, S, SF};
@@ -31,11 +33,15 @@ const FAR: usize = 4; // chunk rows drawn beyond each end of the simulated windo
     pub brush: [f32; 7],
     /// dev only (`--shot-walk`): hold right as if `D` were down
     pub demo_right: bool,
+    /// wheel → notches (see `view::Wheel`: an idle wheel is still, a trackpad flick is one notch)
+    wheel: molehill_sim::view::Wheel,
     /// mouse buttons held since a menu closed: ignored until released (the click that closed the menu must not dig or place)
     pub mouse_latch: bool,
     /// a jump pressed since the last sim step (kept for that step even if already released, so a quick tap
     /// between two 60 Hz steps on a faster display isn't lost); `jump_key` = the jump keys' held state
     jump_tap: bool, jump_key: bool,
+    /// `W` is acting as jump: pressed fresh while not clinging, and still held
+    w_jump: bool,
     /// in-world feedback pops: (kind 0 bite / 1 placed block, x, y, radius in cells, start time s)
     pub pops: Vec<(u8, f32, f32, f32, f32)>,
     /// smoothed camera lookahead (cells)
@@ -96,6 +102,7 @@ fn cell_to_world(x: f32, y: f32) -> Vec2 { Vec2::new(x * CPX - W as f32 * CPX / 
 fn world_to_cell(p: Vec2) -> (i32, i32) { (((p.x + W as f32 * CPX / 2.) / CPX).floor() as i32, ((H as f32 * CPX / 2. - p.y) / CPX).floor() as i32) }
 
 fn main() {
+    #[cfg(target_arch = "wasm32")] std::panic::set_hook(Box::new(console_error_panic_hook::hook));
     App::new()
         .add_plugins(DefaultPlugins.set(WindowPlugin { primary_window: Some(Window { title: "Molehill".into(), canvas: Some("#bevy".into()), fit_canvas_to_parent: true, prevent_default_event_handling: true, ..default() }), ..default() }))
         .insert_resource(ClearColor(Color::srgb(0.04, 0.035, 0.05)))
@@ -244,7 +251,7 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, mut fonts: R
         px: images.add(art::image(1, 1, vec![255; 4], true)),
     };
     commands.insert_resource(sp);
-    let disp = Vec2::new(sx, sy + 1.5 * SF); commands.insert_resource(Game { w, chunks, buf: vec![1; W * H * 4], uploads: 0, acc: 0., paused: true, speed: 1, frame: 0, last_light: 0, msg: String::new(), help: false, ev: vec![], shake_off: Vec2::ZERO, autosave: 0., last_oy: oy0, far, far_done, inv_open: false, aim: None, slots: default_slots(), held: None, hot: 0, sel_t: 0., toasts: vec![], log_seen: 0, show_dev: false, disp, seed, brush: [0.; 7], demo_right: false, mouse_latch: false, jump_tap: false, jump_key: false, pops: vec![], look: Vec2::ZERO });
+    let disp = Vec2::new(sx, sy + 1.5 * SF); commands.insert_resource(Game { w, chunks, buf: vec![1; W * H * 4], uploads: 0, acc: 0., paused: true, speed: 1, frame: 0, last_light: 0, msg: String::new(), help: false, ev: vec![], shake_off: Vec2::ZERO, autosave: 0., last_oy: oy0, far, far_done, inv_open: false, aim: None, slots: default_slots(), held: None, hot: 0, sel_t: 0., toasts: vec![], log_seen: 0, show_dev: false, disp, seed, brush: [0.; 7], demo_right: false, wheel: Default::default(), mouse_latch: false, jump_tap: false, jump_key: false, w_jump: false, pops: vec![], look: Vec2::ZERO });
 }
 
 pub fn save_now(g: &mut Game) { let b = molehill_sim::save::save(&g.w); g.msg = match storage_put("molehill-manual", &b) { Ok(()) => "Game saved".into(), Err(e) => format!("Save failed: {e}") }; }
@@ -258,6 +265,7 @@ pub fn begin(g: &mut Game, commands: &mut Commands, seed: u32) { g.w = make_worl
 /// Load the manual save (or the autosave). Returns false if there is none or it failed.
 pub fn load_saved(g: &mut Game, commands: &mut Commands) -> bool {
     match storage_get("molehill-manual").or_else(|| storage_get("molehill-auto")).map(|b| molehill_sim::save::load(&b)) {
+        Some(Ok(w)) if w.g.w != W || w.g.h != H => { g.msg = format!("Load failed: save is {}x{}, this build is {W}x{H}", w.g.w, w.g.h); false }
         Some(Ok(w)) => { g.w = w; for v in g.w.inv.iter_mut() { *v = (*v).max(999); } reset_view(g, commands); g.msg = "Game loaded".into(); true }
         Some(Err(e)) => { g.msg = format!("Load failed: {e}"); false } None => { g.msg = "No save yet".into(); false } }
 }
@@ -286,21 +294,29 @@ fn input(mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<Button
     let upk = keys.pressed(KeyCode::KeyW) || keys.pressed(KeyCode::ArrowUp);
     g.w.input.up = upk; g.w.input.down = keys.pressed(KeyCode::KeyS) || keys.pressed(KeyCode::ArrowDown);
     // Space jumps (and wall-jumps); W also jumps when not on a wall, and climbs when clinging
-    let jk = keys.pressed(KeyCode::Space) || upk && g.w.pl.cling == 0;
-    if keys.just_pressed(KeyCode::Space) || (keys.just_pressed(KeyCode::KeyW) || keys.just_pressed(KeyCode::ArrowUp)) && g.w.pl.cling == 0 { g.jump_tap = true; }
+    // W jumps only from a fresh press off a wall (held through a climb and mantle it doesn't hop on arrival)
+    let upj = (keys.just_pressed(KeyCode::KeyW) || keys.just_pressed(KeyCode::ArrowUp)) && g.w.pl.cling == 0;
+    g.w_jump = upk && (g.w_jump || upj);
+    let jk = keys.pressed(KeyCode::Space) || g.w_jump;
+    if keys.just_pressed(KeyCode::Space) || upj { g.jump_tap = true; }
+    // Shift held while moving: sprint (Shift-click stays free for other uses)
+    g.w.input.sprint = keys.pressed(KeyCode::ShiftLeft) || keys.pressed(KeyCode::ShiftRight);
     g.jump_key = jk; g.w.input.jump = jk || g.jump_tap;
     g.w.input.mine = None;
     let sel0 = g.hot;
-    // wheel: hotbar; Ctrl+wheel: brush size with a brush item in hand, else zoom; Shift+wheel: zoom.
-    // + / - zoom too; [ / ] resize the brush. Zoom is shared with Settings (clamped, saved).
-    let shift = keys.pressed(KeyCode::ShiftLeft) || keys.pressed(KeyCode::ShiftRight);
+    // wheel: hotbar (Shift is sprint and changes nothing); Ctrl/Cmd+wheel: zoom; Alt/Option+wheel: brush size.
+    // + / - zoom too; [ / ] resize the brush. Zoom is shared with Settings (clamped, saved). See `view::wheel_use`.
+    let mods = sv::Mods { shift: keys.pressed(KeyCode::ShiftLeft) || keys.pressed(KeyCode::ShiftRight), ctrl,
+        cmd: keys.pressed(KeyCode::SuperLeft) || keys.pressed(KeyCode::SuperRight), alt: keys.pressed(KeyCode::AltLeft) || keys.pressed(KeyCode::AltRight) };
     let held_brush = brush_of(g.slots[g.hot]);
-    let notch = scroll.delta.y.signum();
+    let notch = g.wheel.feed(sv::wheel_delta(scroll.delta.x, scroll.delta.y, mods), scroll.unit == MouseScrollUnit::Pixel, time.delta_secs()) as f32;
     let mut resize = if keys.just_pressed(KeyCode::BracketRight) { 1. } else if keys.just_pressed(KeyCode::BracketLeft) { -1. } else { 0. };
     if notch != 0. {
-        if ctrl && held_brush.is_some() { resize += notch; }
-        else if ctrl || shift { menu.zoom_by(notch, &mut ct); }
-        else { g.hot = (g.hot as i32 - notch as i32).rem_euclid(10) as usize; }
+        match sv::wheel_use(mods, held_brush.is_some()) {
+            sv::WheelUse::Brush => resize += notch,
+            sv::WheelUse::Zoom => menu.zoom_by(notch, &mut ct),
+            sv::WheelUse::Hotbar => g.hot = (g.hot as i32 - notch as i32).rem_euclid(10) as usize,
+        }
     }
     if keys.just_pressed(KeyCode::Equal) || keys.just_pressed(KeyCode::NumpadAdd) { menu.zoom_by(1., &mut ct); }
     if keys.just_pressed(KeyCode::Minus) || keys.just_pressed(KeyCode::NumpadSubtract) { menu.zoom_by(-1., &mut ct); }
@@ -685,9 +701,16 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
     for wn in want { if !used.contains(&(wn.0, wn.1)) { commands.spawn((Sprite { image: wn.4, custom_size: Some(wn.5), flip_x: wn.6, color: wn.7, ..default() }, Transform::from_translation(wn.2.extend(wn.3)), Pooled(wn.0, wn.1))); } }
 }
 
-fn sound(mut g: ResMut<Game>, mut au: NonSendMut<audio::Audio>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<ButtonInput<MouseButton>>) {
+fn sound(mut g: ResMut<Game>, mut au: NonSendMut<audio::Audio>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<ButtonInput<MouseButton>>, menu: Res<menu::Menu>, mut place: Local<(f32, f32)>) {
     if keys.get_just_pressed().next().is_some() || mouse.get_just_pressed().next().is_some() { au.unlock(); }
+    au.set_volume(menu.volume); au.set_music(menu.music);
     let ev = std::mem::take(&mut g.ev);
     for e in ev { au.play(e, if e == sw::Event::Dig { 0.6 } else { 1. }); }
     if g.frame % 30 == 0 { let d = g.w.max_depth / 60.; au.ambient(d); }
+    // where the music thinks we are: the mole's depth, and how much lava is around it (sampled every second)
+    if g.frame % 60 == 0 { if let Some(m) = g.w.moles.first() {
+        let (mx, my) = (m.x as i32, m.y as i32); let (mut lava, mut n) = (0, 0);
+        let k = S as i32; for y in (my - 40 * k..=my + 40 * k).step_by(4 * S) { for x in (mx - 60 * k..=mx + 60 * k).step_by(4 * S) { if x < 0 || y < 0 || x >= W as i32 || y >= H as i32 { continue; } n += 1; if g.w.g.m(y as usize * W + x as usize) == Mat::Lava { lava += 1; } } }
+        *place = (g.w.depth_m(m.x, m.y), lava as f32 / n.max(1) as f32); } }
+    au.music(place.0, place.1);
 }

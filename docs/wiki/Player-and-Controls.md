@@ -11,17 +11,18 @@ You play one Delver: a body about **45 × 73 cm** (1.8 × 2.9 tiles of 0.25 m, i
 | input | action |
 |---|---|
 | `A` / `D` | Run. Instant start and stop. Steps of 1–2 cells are climbed at full speed, and you shove through loose sand |
-| `Space` (or `W` off a wall) | Jump. Hold for a full jump, tap for a short hop |
-| Into a wall in the air | Cling. `W` / `S` climb up or down; let go and you slide slowly. `Space` wall-jumps away (also pressing away plus `Space`, or `Space` within 0.1 s of letting go); at the top you mantle the ledge |
+| `Shift` held while running | Sprint: 1.6× speed (instant), so jumps carry further; burns a little food. Shift-click is left free |
+| `Space` (or a fresh `W` press off a wall) | Jump. Hold for a full jump, tap for a short hop |
+| Into a wall in the air | Cling (side walls only: a ceiling just stops the jump). `W` / `S` climb up or down (speed eases in over ~3 ticks; a grab while falling catches at once); let go and you slide slowly. You grab as soon as a jump's rise slows to climbing speed, hold on across a notch, and ease out round a one-cell outcrop. `Space` wall-jumps away (also pressing away plus `Space`, or `Space` within 0.1 s of letting go); at the top you rise to the edge and roll over it smoothly (holding `W` or toward the wall); holding `W` through it doesn't hop |
 | `W` / `Space` in water | Swim up |
 | `S` | Dig down (on the ground) |
 | Left mouse | Use the item in hand: dig, place a block brush, torch, copperline, device, spore, TNT or station |
 | Right mouse | Interact: flip a lever, step a thrum pattern or ticker beat, light TNT or a fuse cord |
 | `Ctrl` + right mouse | Pick up copperline or a device (a lit charge is defused) |
-| `[` / `]`, `Ctrl` + wheel | Brush size for the tool or block in hand, within its range |
-| `1`–`0`, wheel | Hotbar slot |
+| `[` / `]`, `Alt` / `Option` + wheel | Brush size for the tool or block in hand, within its range |
+| `1`–`0`, wheel | Hotbar slot (a trackpad flick moves one slot, momentum included). Sprinting doesn't change this |
 | `I` | Pack (inventory grid): click a slot to pick it up, click another to drop or swap. The bottom row is the hotbar |
-| `+` / `-`, `Shift` + wheel | Zoom (clamped to scale 0.12–0.75 and saved) |
+| `+` / `-`, `Ctrl` / `Cmd` + wheel (or pinch) | Zoom (clamped to scale 0.12–0.75 and saved) |
 | `H` | Controls overlay |
 | `Esc` | Pause menu, or close a panel |
 | `K` / `L` | Quick save / quick load |
@@ -53,15 +54,17 @@ Every movement constant lives in one place, `TUNE` in `world.rs`. Values in the 
 | `jump_v` | 42 | take-off speed (a full jump rises about 6 cells) |
 | `terminal` | 60 | maximum fall speed |
 | `coyote`, `buffer` | 0.1, 0.1 | grace windows (s) |
-| `climb`, `slide` | 10.5, 3 | wall climb speed; slow slide when clinging without input |
+| `climb`, `slide`, `climb_accel` | 10.5, 3, 240 | wall climb speed; slow slide when clinging without input; how fast climbing speeds up |
 | `wall_jump_x`, `wall_jump_y`, `wall_lock` | 17, 36, 0.13 | wall-jump kick and how long steering is locked after it |
-| `step`, `mantle` | 2, 3 | cells climbed automatically on the ground / over a ledge |
+| `step` | 2 | cells stepped up automatically on the ground |
+| `mantle_v` | 9 | sideways speed rolling over a ledge at the top of a climb |
+| `sprint` | 1.6 | run speed multiplier with `Shift` |
 | `nudge` | 0.6 | corner-correction reach |
 | `swim_mul`, `swim_grav`, `buoyancy`, `swim_up`, `swim_max` | 0.55, 0.35, 40, 70, 11 | water |
 | `lava_mul`, `lava_sink`, `lava_up`, `lava_dps` | 0.25, 3, 22, 75 | lava |
 | `safe_fall` | 20 | cells you can fall without harm |
 
-Change `TUNE`, then rerun the tests and scenarios. The feel scenarios (`run_jump`, `coyote`, `coyote_late`, `air_turn`, `wall_jump`, `wall_jump_away`, `wall_climb`, `mantle`, `step_up`, `shaft_jump`, `tunnel_mouth`) assert the numbers that matter: rise, `vx` after N ticks, and the coyote window.
+Change `TUNE`, then rerun the tests and scenarios. The feel scenarios (`run_jump`, `coyote`, `coyote_late`, `air_turn`, `wall_jump`, `wall_jump_away`, `no_ceiling_climb`, `wall_climb`, `climb_smooth`, `climb_mantle`, `mantle`, `sprint_speed`, `step_up`, `shaft_jump`, `tunnel_mouth`) assert the numbers that matter: rise, `vx` after N ticks, and the coyote window.
 
 ## Water and lava
 
@@ -74,7 +77,7 @@ The mole has **health**, **food** and **breath**, shown as the three bars in the
 
 * **Falls:** each cell beyond 20 costs 3 hp.
 * **Hunger** drains over time. Below 40 the mole eats from the pack on its own: a grub restores 45, a mushroom 35 and fungus 25. Starving hurts.
-* **Breath** drains in stale air (CO2 above 0.45), underwater and when buried by falling rock or sand. If there's room, a buried mole wriggles up.
+* **Breath** drains in stale air (CO2 above 0.45), underwater and when buried by falling rock or sand. A mole buried in loose ground wriggles up through it. Under rock it stays put: the collision snap searches at most one cell, so it can never pop out through a slab into the room above (`buried_under_rock`, `buried_in_sand`).
 * **Death:** after 2.5 s you respawn in the burrow with full health and breath (the window slides back to it if needed). The death count is kept in saves.
 
 ## Digging and reach
