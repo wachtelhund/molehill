@@ -714,6 +714,26 @@ fn material_table_is_consistent() {
     w.g.active = None; w.g.step_ca(); w.g.step_ca(); // (region covering it again)
     assert_ne!(w.g.get(far.0, far.1 - 6), Mat::Sand, "and falls once the region covers it");
 }
+
+/// Brush size keys work on any layout: `[` typed as Option+8 (Swedish/German Mac) counts, and Option+digit
+/// no longer picks a hotbar slot (it used to jump to slot 8 instead of shrinking the brush).
+#[test] fn brush_keys_any_layout() {
+    use molehill_sim::view::*; use molehill_sim::world::Brush;
+    assert_eq!(brush_key_steps(true, false, false, false), -1, "typed [");
+    assert_eq!(brush_key_steps(false, true, false, false), 1, "typed ]");
+    assert_eq!(brush_key_steps(true, false, true, false), -1, "US layout: typed and physical [ in the same frame count once");
+    assert_eq!(brush_key_steps(false, false, false, true), 1, "physical ] (key right of P)");
+    assert!(!digit_selects_slot(Mods { alt: true, ..Default::default() }), "Option+8 is [ on a Swedish Mac, not slot 8");
+    assert!(digit_selects_slot(Mods::default()) && digit_selects_slot(Mods { shift: true, ..Default::default() }));
+    // every brush item resizes, each keeps its own size, and the label is in metres
+    let mut b = BrushSizes::default();
+    for br in [Brush::Dig(1), Brush::Dig(2), Brush::Dig(3), Brush::Place(Item::WoodPillar), Brush::Place(Item::Brick), Brush::Place(Item::IronBeam)] {
+        let r0 = b.radius(br); b.step(br, -1); b.step(br, 1); b.step(br, 1); assert!(b.radius(br) >= r0, "{br:?} grows");
+        assert!(b.label(br).ends_with(" m"), "{}", b.label(br));
+    }
+    b.snap = true; assert!(b.snapping(Brush::Place(Item::Brick)) && !b.snapping(Brush::Dig(1)), "snap is for building only");
+    assert!(b.label(Brush::Place(Item::Brick)).starts_with("grid "));
+}
 #[test] fn fresh_copperline_reads_idle_before_the_next_tick() {
     // the game draws between sim ticks: copperline laid since the last net rebuild has no net yet and
     // must read as idle, not index out of bounds

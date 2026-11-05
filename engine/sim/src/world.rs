@@ -995,18 +995,44 @@ impl World {
     pub fn place_brush(&mut self, x: usize, y: usize, it: Item, want: f32) -> Result<usize, &'static str> {
         let d = match it { Item::WoodPillar => D_WOOD, Item::Brick => D_BRICK, Item::IronBeam => D_IRON, _ => return Err("not a block") };
         let r = brush_radius(Brush::Place(it), want);
-        let ok = |w: &World, nx: i32, ny: i32| -> bool {
-            if nx < 1 || ny < 1 || nx as usize + 1 >= w.g.w || ny as usize + 1 >= w.g.h { return false; }
-            let (cx, cy) = (nx as usize, ny as usize); let i = w.g.idx(cx, cy);
-            (w.g.mat[i] == 0 || w.g.m(i).has(OPEN)) && w.in_reach(cx, cy)
-                && !w.moles.iter().any(|m| m.alive && m.x == cx && cy <= m.y && cy + MOLE_H > m.y)
-        };
         // blocks go down in whole legacy tiles (S×S cells, on the global tile grid): a radius-r brush is
         // a disc of tiles, so building comes out the same at any resolution
         let (k, rt) = (S as i32, r / SF); let (tx, ty) = (x as i32 / k, y as i32 / k);
         let mut todo: Vec<(i32, i32)> = disc(rt).into_iter().flat_map(|(dx, dy)| (0..k * k).map(move |j| ((tx + dx) * k + j % k, (ty + dy) * k + j / k)))
-            .filter(|&(nx, ny)| ok(self, nx, ny)).collect();
+            .filter(|&(nx, ny)| self.open_for_block(nx, ny)).collect();
         if todo.is_empty() { return Err(if self.in_reach(x, y) { "cell is not open" } else { "out of reach" }); }
+        let n = self.fill_cells(todo, it, d)?; self.marks.push((1, x as f32 + 0.5, y as f32 + 0.5, r)); Ok(n)
+    }
+    /// Grid snap: fill the squares of `n` cells (aligned to the n-cell grid) along a straight line from the
+    /// square holding `a` toward the one holding `b`. The line runs along whichever axis the drag mostly
+    /// follows, so a drag lays a clean row or column. Same rules as the brush: open cells in reach, never the
+    /// mole, each new cell resting on something. Returns how many cells were placed.
+    pub fn place_line(&mut self, a: (usize, usize), b: (usize, usize), n: usize, it: Item) -> Result<usize, &'static str> {
+        let d = match it { Item::WoodPillar => D_WOOD, Item::Brick => D_BRICK, Item::IronBeam => D_IRON, _ => return Err("not a block") };
+        let n = n.clamp(1, 64) as i64; let (ax, ay, bx, by) = (a.0 as i64 / n, a.1 as i64 / n, b.0 as i64 / n, b.1 as i64 / n);
+        let (ex, ey) = if (bx - ax).abs() >= (by - ay).abs() { (bx, ay) } else { (ax, by) };
+        let mut todo = vec![];
+        for gy in ay.min(ey)..=ay.max(ey) { for gx in ax.min(ex)..=ax.max(ex) {
+            for j in 0..n * n { let (cx, cy) = (gx * n + j % n, gy * n + j / n); if self.open_for_block(cx as i32, cy as i32) { todo.push((cx as i32, cy as i32)); } }
+        } }
+        if todo.is_empty() { return Err(if self.in_reach(b.0, b.1) { "cell is not open" } else { "out of reach" }); }
+        let k = self.fill_cells(todo, it, d)?; self.marks.push((1, b.0 as f32 + 0.5, b.1 as f32 + 0.5, n as f32 * 0.5)); Ok(k)
+    }
+    /// The squares `place_line` would fill, as (x0, y0, x1, y1) inclusive cells: for drawing the outline.
+    pub fn line_extent(a: (usize, usize), b: (usize, usize), n: usize) -> (usize, usize, usize, usize) {
+        let n = n.clamp(1, 64); let (ax, ay, bx, by) = (a.0 / n, a.1 / n, b.0 / n, b.1 / n);
+        let (ex, ey) = if bx.abs_diff(ax) >= by.abs_diff(ay) { (bx, ay) } else { (ax, by) };
+        (ax.min(ex) * n, ay.min(ey) * n, ax.max(ex) * n + n - 1, ay.max(ey) * n + n - 1)
+    }
+    fn open_for_block(&self, nx: i32, ny: i32) -> bool {
+        if nx < 1 || ny < 1 || nx as usize + 1 >= self.g.w || ny as usize + 1 >= self.g.h { return false; }
+        let (cx, cy) = (nx as usize, ny as usize); let i = self.g.idx(cx, cy);
+        (self.g.mat[i] == 0 || self.g.m(i).has(OPEN)) && self.in_reach(cx, cy)
+            && !self.moles.iter().any(|m| m.alive && m.x == cx && cy <= m.y && cy + MOLE_H > m.y)
+    }
+    /// Place the open cells in `todo`, growing out from what they rest on (a cell needs a solid neighbour,
+    /// which can be one placed just before), while the pack lasts.
+    fn fill_cells(&mut self, mut todo: Vec<(i32, i32)>, it: Item, d: u8) -> Result<usize, &'static str> {
         let mut n = 0;
         loop {
             let before = todo.len();
@@ -1019,7 +1045,7 @@ impl World {
             if todo.is_empty() || todo.len() == before { break; }
         }
         if n == 0 { return Err(if self.place_acc[d as usize] == 0 && self.inv[it as usize] == 0 { "none left" } else { "needs something to rest on" }); }
-        self.marks.push((1, x as f32 + 0.5, y as f32 + 0.5, r)); Ok(n)
+        Ok(n)
     }
     /// Craft one recipe at once; needs the right station built within 16 cells of the mole.
     pub fn craft_now(&mut self, r: usize) -> Result<(), String> {

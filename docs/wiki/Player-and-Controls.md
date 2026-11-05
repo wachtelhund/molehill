@@ -20,7 +20,8 @@ You play one Delver: a body about **45 × 73 cm** (1.8 × 2.9 tiles of 0.25 m, i
 | `Q` held, then released | Throw the item in hand toward the cursor: hold to charge (0.8 s to full power, dots show the arc), release to throw. Only throwable things fly (see [Tools and Items](Tools-and-Items.md#what-each-item-does)); a TNT charge goes out lit |
 | Right mouse | Interact: flip a lever, step a thrum pattern or ticker beat, light TNT or a fuse cord. On an empty spot it sets down the device or TNT in hand (unlit) |
 | `E` | Pick up what is under the cursor: a device, unlit TNT, a torch, or one copperline segment (the device on a block comes up before the copperline under it). Hold and sweep to take up a run. A lit charge or burning fuse can't be picked up. With the pack open, `E` closes it |
-| `[` / `]`, `Alt` / `Option` + wheel | Brush size for the tool or block in hand, within its range |
+| `[` / `]`, `Alt` / `Option` + wheel | Brush size for the tool or block in hand, within its range. `[` / `]` count by the character typed, so they work on any layout (Option+8 / Option+9 on a Swedish Mac); Option+digit doesn't pick a hotbar slot |
+| `X` | Grid snap for blocks on/off (see [Tools and Items](Tools-and-Items.md)) |
 | `1`–`0`, wheel | Hotbar slot (a trackpad flick moves one slot, momentum included). Sprinting doesn't change this |
 | `I` | Pack (inventory grid): click a slot to pick it up, click another to drop or swap. The bottom row is the hotbar |
 | `+` / `-`, `Ctrl` / `Cmd` + wheel (or pinch) | Zoom (clamped to scale 0.12–0.75 and saved) |

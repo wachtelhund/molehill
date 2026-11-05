@@ -18,7 +18,8 @@ The colony also knows **pack tools** (stone, bronze and iron), crafted at statio
 
 Dig tools and building blocks share one idea: a **round brush** centred under the cursor, shown as a ring.
 
-* `[` / `]` or `Alt` / `Option` + wheel resize it within the item's range. The label above the hotbar shows `brush r`.
+* `[` / `]` or `Alt` / `Option` + wheel resize it within the item's range, one step (an eighth of a metre of radius) at a time. Each dig tool and block keeps its own size (`view::BrushSizes`). The size is written beside the outline and over the hotbar, in metres across (scenario `brush_size_keys`).
+* **Grid snap** (`X`, blocks only): the brush becomes a square of 0.25, 0.5 or 1 m on a fixed grid (the size keys step between them), drawn as a crisp square outline. Holding left mouse and dragging lays a straight row or column of squares from where the drag started, along the axis the drag mostly follows; the outline shows the whole line. The usual rules hold: open cells in reach, never the mole, and each square grows from something solid (scenario `place_grid_snap`).
 * Radii here are in tiles (0.25 m = 2 cells). Digging carves a disc of cells; **blocks go down in whole tiles** on the global tile grid, so a radius of 0.5 places one tile (2 × 2 cells) and 1.0 a plus of five tiles.
 * **Placing grows from support.** Each new cell of a block brush must touch something solid, so a stroke grows out of what it rests on and never floats.
 
