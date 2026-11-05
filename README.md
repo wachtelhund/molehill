@@ -47,11 +47,12 @@ You play one mole. The controls work like Terraria or Core Keeper.
 | Into a wall in the air | Cling to it. `W` / `S` climb up or down; let go and you slide slowly. `Space` wall-jumps away. At the top you mantle the ledge |
 | Water / lava | `W` / `Space` swim up (water); lava burns |
 | `S` | Dig down (on the ground) |
-| Left mouse | Use the item in hand. A dig tool carves a round, mole-sized bite under the cursor (the ring shows its size). Other items place a pillar, brick, beam, torch, copperline, device, spore, TNT or station. TNT goes down inert |
+| Left mouse | Use the item in hand. A dig tool carves a round bite under the cursor and a block (pillar, brick, beam) places a round brush; the ring shows its size. Other items place a torch, copperline, device, spore, TNT or station. TNT goes down inert |
+| `[` / `]`, `Ctrl`+wheel | Brush size for the dig tool or block in hand, within that item's range (bigger tools allow bigger bites) |
 | Right mouse | Interact: flip a lever, set a thrum channel, light a TNT charge (1.5 s fuse) or a fuse cord. `Ctrl`+right mouse picks up copperline or a device (a lit charge is defused) |
 | `1`-`0` / wheel | Select a hotbar slot |
 | `I` | Inventory grid. Click a slot to pick its item up, then click another slot to drop or swap it (the hotbar is the bottom row) |
-| `+` / `-`, `Ctrl`+wheel | Zoom |
+| `+` / `-`, `Shift`+wheel | Zoom (also in Settings; clamped and saved) |
 | `H` | Controls overlay |
 | `Esc` | Pause menu (Resume, Restart same seed, New Holt, Save, Load, Settings, Controls, Main Menu), or close a panel |
 | `K` / `L` | Save / load |
@@ -82,7 +83,7 @@ For testing, all three tools and generous stacks of every item start in the pack
 * **Crafting, quests and chests:** stations, a recipe queue and a quest chain.
 * **Wiring and logic:**
   * Copperline on a 1 m block layer forms nets. Knots (both = AND, either = OR, turn = NOT, odd = XOR, catch = latch) switch one tick after their inputs change.
-  * Devices include levers, plates, sensors, doors, floodgates, pumps, lamps, TNT and tickers. TNT is inert until lit (right mouse, fire or lava: a 1.5 s fuse that water puts out) or set off at once by current on its copperline (lever, knot or a listener: remote detonation by thrumming), by a blast nearby, or by a fuse cord burning into it. Power comes from **heatstones** (live while lava touches neighbouring blocks) and **water wheels** (turn while water flows through their block).
+  * Devices include levers, plates, sensors, doors, floodgates, pumps, lamps, TNT and tickers. TNT is inert until lit (right mouse, fire or lava: a 1.5 s fuse that water puts out) or set off at once by current on its copperline (lever, knot or a listener: remote detonation by thrumming), by a blast nearby, or by a fuse cord burning into it. Doors never shut on a mole in the doorway. Power comes from **heatstones** (live while lava touches neighbouring blocks) and **water wheels** (turn while water flows through their block).
   * **Thrumming** sends a knock through the rock from a thrummer to listeners on the same channel; relay thrummers pass it on. It is modelled as an elastic wave, with every number derived from the material table:
     * stiffness E ≈ 300 × compressive strength (rock-mass modulus ratio); water uses the bulk modulus 2.2 GPa and air 142 kPa;
     * wave speed c = √(E/ρ) and impedance Z = ρc;
@@ -121,15 +122,15 @@ Units: cell edge s = 0.25 m, unit depth b = 1 m, g = 9.81 m/s². Densities are i
 | wood beam | 600 | 3000 | 8000 |
 | iron beam | 7800 | 40000 | 120000 |
 
-1. **Overburden:** P(x,y) = Σ ρ·g·s / 1000 [kPa] over the non-empty cells resting *contiguously* on the cell, up to 16 m (64 cells). An air gap breaks the column: a beam or post standing free in a cave carries only what rests on it, not the roof above the gap. This is the pressure-arch height: load from deeper overhead is carried around openings by the ground arch, as in Terzaghi arching. The window's top and bottom rows count as anchors, because the rock continues beyond them.
-2. **Load path:** static solids that are not 4-connected to bedrock (through static solids) fail. The path may also climb straight up through sand or rubble, so a post built on a sand floor rests on it. Floating islands fall.
+1. **Overburden:** P(x,y) = Σ ρ·g·s / 1000 [kPa] over the non-empty cells in the 16 m (64 cells) above. This is the pressure-arch height: load from deeper overhead is carried around openings by the ground arch, as in Terzaghi arching. The window's top and bottom rows count as anchors, because the rock continues beyond them.
+2. **Load path:** static solids that are not 4-connected to bedrock (through static solids) fail. Floating islands fall.
 3. **Roof bending:** every horizontal run of static cells with nothing static under it is a beam with span L = n·s. Its depth h is the static thickness above it, capped at L (arching: only about one span of rock works as the beam). q is the superimposed load on top of that beam, counted only when the static thickness ends inside the cap.
    * M = k·(ρ g h + q)·L², with k = 1/8 when both ends rest on supported cells and k = 1/2 for a cantilever.
    * Z = b·h²/6.
    * σ_t = M/Z, compared with the weakest tensile strength along the run.
    * Example: a 1 m span of 1 m-thick dirt holds, while a 6 m span fails (tested). Wood pillars every 1 m save a wide dirt room (tested).
-4. **Pillar and wall compression:** every horizontal run of static cells of width w carries its own overburden plus half the overburden of the voids on each side (tributary area), but only from a side where the run reaches up to that void's ceiling (a wall, or a pillar up to the roof). σ_c = (Σ_run P + ½Σ_left void P + ½Σ_right void P)/w, compared with each cell's compressive strength.
-5. **Utilisation:** u = σ/strength. When u > 1 the cell cracks (visible), with a 40-tick countdown. If the load is relieved in time (by a pillar or by digging less), the crack heals. Otherwise the cell crumbles into its loose form (dirt, gravel or sand; placed wood and iron break into loose splinters and scrap you can dig back up) and joins the falling-sand sim, which can load the next roof and cascade.
+4. **Pillar and wall compression:** every horizontal run of static cells of width w carries its own overburden plus half the overburden of the voids on each side (tributary area). σ_c = (Σ_run P + ½Σ_left void P + ½Σ_right void P)/w, compared with each cell's compressive strength.
+5. **Utilisation:** u = σ/strength. When u > 1 the cell cracks (visible), with a 40-tick countdown. If the load is relieved in time (by a pillar or by digging less), the crack heals. Otherwise the cell crumbles into its loose form (dirt, gravel or sand) and joins the falling-sand sim, which can load the next roof and cascade.
 6. **When it re-solves:** after structural edits (every 6 ticks while anything is dirty) and after lava/fire reactions (every 24 ticks). A full solve of 512k cells takes about 10 ms natively.
 
 ## Light and fog (`sim/src/light.rs`)

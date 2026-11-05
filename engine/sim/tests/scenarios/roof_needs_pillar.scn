@@ -1,16 +1,16 @@
-// Control for pillar_holds_roof: the same 6 m dirt roof with no pillar sags and caves in.
+// Control for pillars_rock_roof.scn: a 12 m rock roof with no pillars fails in bending and caves in.
 map
-##################################
-#dddddddddddddddddddddddddddddddd#
-#dddddddddddddddddddddddddddddddd#
-#dddddddddddddddddddddddddddddddd#
-#dddddddddddddddddddddddddddddddd#
-#####........................#####
-#####........................#####
-#####........................#####
-#####........................#####
-#####........................#####
-#####...........@............#####
-##################################
+##########################################################
+#rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr#
+#rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr#
+#rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr#
+#####................................................#####
+#####................................................#####
+#####................................................#####
+#####................................................#####
+#####................................................#####
+#####........................@.......................#####
+##########################################################
 end
-expect 300 crumbled > 10
+expect 13 util:0,-6 > 1
+expect 300 crumbled > 50

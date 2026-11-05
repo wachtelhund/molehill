@@ -1,0 +1,29 @@
+// Brush sizes are clamped per item: an iron beam brush asked for radius 9 places a radius-2 disc
+// (its max), a wood pillar brush asked for 0.1 places a single cell (its min), and a pickaxe asked
+// for 9 digs a radius-3 bite (29 cells), not a crater.
+map
+#####################################
+#...................dddddddddddddd###
+#...................dddddddddddddd###
+#...................dddddddddddddd###
+#...................dddddddddddddd###
+#...................dddddddddddddd###
+#...................dddddddddddddd###
+#...................dddddddddddddd###
+#.....@.............dddddddddddddd###
+#####################################
+end
+give IronBeam 40
+give WoodPillar 40
+brush 1 9
+place 2 -3 0 IronBeam
+expect 3 static:IronBeam == 9
+brush 4 0.1
+place 5 3 0 WoodPillar
+expect 6 static:WoodBeam == 1
+expect 6 is:3,-1,WoodBeam == 0
+// dig: pickaxe, asked radius 9 -> 3 (29 cells of dirt)
+tool 10 1
+brush 10 9
+mine 10-20 17 -4
+expect 20 count:Dirt == 83        // 112 - 29

@@ -1,0 +1,33 @@
+// Placed blocks resting on loose ground (sand, rubble) are carried by it: a pillar stub and a
+// ledge built on a sand floor stay rigid instead of crumbling into powder and rolling away.
+map
+################################
+################################
+#..............................#
+#..............................#
+#..............................#
+#..............................#
+#..............................#
+#...............@..............#
+#ssssssssssssssssssssssssssssss#
+#ssssssssssssssssssssssssssssss#
+################################
+end
+give WoodPillar 20
+give Brick 20
+brush 1 0.5             // single cells (the brick brush defaults to a small plus)
+place 2 6 0 WoodPillar
+place 3 6 -1 WoodPillar
+place 4 6 -2 WoodPillar
+place 5 6 -3 WoodPillar
+// a short ledge off the stub's top
+place 6 7 -3 WoodPillar
+place 7 8 -3 WoodPillar
+// a brick stub on the sand to the left
+place 8 -5 0 Brick
+place 9 -5 -1 Brick
+expect 20 static:WoodBeam == 6
+expect 600 static:WoodBeam == 6
+expect 600 static:StoneBrick == 2
+expect 600 is:8,-3,WoodBeam == 1
+expect 600 count:Sand == 60

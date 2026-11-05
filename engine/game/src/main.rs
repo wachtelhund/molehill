@@ -21,12 +21,23 @@ const PAD: usize = 512;
 const CH: usize = 64; // texture chunk size in cells
 const FAR: usize = 4; // chunk rows drawn beyond each end of the simulated window (the camera roams there; nothing simulates)
 
-#[derive(Resource)] pub struct Game { pub w: World, chunks: Vec<Handle<Image>>, buf: Vec<u8>, pub uploads: usize, acc: f32, pub paused: bool, speed: u32, pub frame: u64, last_light: u64, msg: String, pub help: bool, ev: Vec<sw::Event>, shake_off: Vec2, autosave: f32, last_oy: i64, far: Vec<Handle<Image>>, far_done: Vec<bool>, pub inv_open: bool, aim: Option<(usize, usize, bool)>,
-    pub slots: Vec<Option<Thing>>, pub held: Option<Thing>, pub hot: usize, pub sel_t: f32, pub toasts: Vec<(String, f32)>, log_seen: u64, pub show_dev: bool, disp: Vec2, pub seed: u32 }
+#[derive(Resource)] pub struct Game { pub w: World, chunks: Vec<Handle<Image>>, buf: Vec<u8>, pub uploads: usize, acc: f32, pub paused: bool, speed: u32, pub frame: u64, last_light: u64, msg: String, pub help: bool, ev: Vec<sw::Event>, shake_off: Vec2, autosave: f32, last_oy: i64, far: Vec<Handle<Image>>, far_done: Vec<bool>, pub inv_open: bool, pub aim: Option<(usize, usize, bool)>,
+    pub slots: Vec<Option<Thing>>, pub held: Option<Thing>, pub hot: usize, pub sel_t: f32, pub toasts: Vec<(String, f32)>, log_seen: u64, pub show_dev: bool, disp: Vec2, pub seed: u32,
+    /// chosen brush radius per brush item (`brush_slot`), 0 = the item's default
+    pub brush: [f32; 7],
+    /// dev only (`--shot-walk`): hold right as if `D` were down
+    pub demo_right: bool }
 /// What an inventory slot holds. Counts come from the shared pack (`World::inv`).
 #[derive(Clone, Copy, PartialEq, Debug)] pub enum Thing { Pick(u8), Item(Item), Dev(usize), Station(usize) }
 pub const NSLOT: usize = 70;
+/// The round brush an inventory thing uses, if any (dig tools and placeable blocks).
+pub fn brush_of(t: Option<Thing>) -> Option<sw::Brush> { match t { Some(Thing::Pick(n)) => Some(sw::Brush::Dig(n)), Some(Thing::Item(it @ (Item::WoodPillar | Item::Brick | Item::IronBeam))) => Some(sw::Brush::Place(it)), _ => None } }
+fn brush_slot(b: sw::Brush) -> usize { match b { sw::Brush::Dig(n) => (n as usize).min(3), sw::Brush::Place(Item::WoodPillar) => 4, sw::Brush::Place(Item::Brick) => 5, _ => 6 } }
+/// The radius the brush of this thing will actually use (the player's choice, clamped to the item's range).
+pub fn brush_r(g: &Game, b: sw::Brush) -> f32 { sw::brush_radius(b, g.brush[brush_slot(b)]) }
 pub fn thing_name(_g: &Game, t: Thing) -> String { match t { Thing::Pick(n) => ["Pickaxe", "Drill", "Bore"][(n as usize - 1).min(2)].into(), Thing::Item(it) => it.name().into(), Thing::Dev(d) => DEVS[d].name().into(), Thing::Station(s) => STATIONS[s].name().into() } }
+/// Tooltip line for an inventory thing.
+pub fn thing_desc(t: Thing) -> &'static str { match t { Thing::Pick(1) => "Breaks soil and soft stone in a mole-sized bite.", Thing::Pick(2) => "Copperline-driven auger. Cuts granite, basalt and ore.", Thing::Pick(_) => "Heavy heat-bore. The widest bite; cuts the hardest stone.", Thing::Item(it) => it.desc(), Thing::Dev(d) => DEVS[d].desc(), Thing::Station(s) => STATIONS[s].desc() } }
 pub fn thing_count(g: &Game, t: Thing) -> Option<u32> { match t { Thing::Item(it) => Some(g.w.inv[it as usize]), Thing::Dev(d) => dev_cost(DEVS[d]).map(|it| g.w.inv[it as usize]), _ => None } }
 fn default_slots() -> Vec<Option<Thing>> {
     let mut v: Vec<Thing> = vec![Thing::Pick(1), Thing::Pick(2), Thing::Pick(3), Thing::Item(Item::WoodPillar), Thing::Item(Item::Brick), Thing::Item(Item::IronBeam), Thing::Item(Item::Torch), Thing::Item(Item::Tnt), Thing::Item(Item::CopperWire), Thing::Dev(DEVS.iter().position(|&d| d == Dev::Lever).unwrap_or(0))];
@@ -70,10 +81,39 @@ fn main() {
         .insert_resource(ClearColor(Color::srgb(0.04, 0.035, 0.05)))
         .add_systems(Startup, setup)
         .insert_non_send(audio::Audio::new())
-        .add_systems(Update, (menu::update, input, simulate, render_world, sync_sprites, ui::update, sound).chain())
+        .add_systems(Update, (dev_shot, menu::update, input, simulate, render_world, sync_sprites, ui::update, sound).chain())
         .run();
 }
 
+/// Dev visual check (native): `--shot=FILE` starts a holt straight away, saves one frame after
+/// `--shot-at=N` frames (default 150) and quits. `--shot-ui=pause|inv|help|dev` opens that panel first,
+/// `--shot-walk` holds right. One still frame only: no videos.
+fn dev_shot(mut n: Local<u32>, mut g: ResMut<Game>, mut m: ResMut<menu::Menu>, mut commands: Commands, mut exit: MessageWriter<AppExit>) {
+    #[cfg(not(target_arch = "wasm32"))] {
+        let arg = |k: &str| std::env::args().find_map(|a| a.strip_prefix(k).map(|v| v.to_string()));
+        let Some(path) = arg("--shot=") else { return };
+        let at: u32 = arg("--shot-at=").and_then(|v| v.parse().ok()).unwrap_or(150); let ui = arg("--shot-ui=").unwrap_or_default();
+        *n += 1;
+        if *n == 2 { m.go(menu::Screen::Off); g.paused = false; g.demo_right = std::env::args().any(|a| a == "--shot-walk"); }
+        if *n == at.saturating_sub(5) { match ui.as_str() { "pause" => { m.go(menu::Screen::Pause); g.paused = true; } "inv" => g.inv_open = true, "help" => g.help = true, "dev" => g.show_dev = true, _ => {} } }
+        if *n == at { commands.spawn(bevy::render::view::screenshot::Screenshot::primary_window()).observe(move |c: On<bevy::render::view::screenshot::ScreenshotCaptured>| write_bmp(&path, &c.image)); }
+        if *n == at + 40 { exit.write(AppExit::Success); }
+    }
+    #[cfg(target_arch = "wasm32")] { let _ = (&mut n, &mut g, &mut m, &mut commands, &mut exit); }
+}
+/// 24-bit BMP writer for `--shot` (no image codecs are compiled in). Handles Rgba8/Bgra8 targets.
+#[cfg(not(target_arch = "wasm32"))]
+fn write_bmp(path: &str, im: &Image) {
+    let (w, h) = (im.width() as usize, im.height() as usize); let Some(d) = im.data.as_ref() else { return };
+    info!("shot {}x{} {:?}, {} non-zero bytes", w, h, im.texture_descriptor.format, d.iter().filter(|&&v| v != 0).count());
+    let bgra = matches!(im.texture_descriptor.format, bevy::render::render_resource::TextureFormat::Bgra8UnormSrgb | bevy::render::render_resource::TextureFormat::Bgra8Unorm);
+    let row = (w * 3 + 3) & !3; let size = 54 + row * h; let mut b = Vec::with_capacity(size);
+    let le32 = |b: &mut Vec<u8>, v: u32| b.extend_from_slice(&v.to_le_bytes());
+    b.extend_from_slice(b"BM"); le32(&mut b, size as u32); le32(&mut b, 0); le32(&mut b, 54); le32(&mut b, 40); le32(&mut b, w as u32); le32(&mut b, h as u32);
+    b.extend_from_slice(&1u16.to_le_bytes()); b.extend_from_slice(&24u16.to_le_bytes()); for _ in 0..6 { le32(&mut b, 0); }
+    for y in (0..h).rev() { for x in 0..w { let o = (y * w + x) * 4; let (r, g, bl) = if bgra { (d[o + 2], d[o + 1], d[o]) } else { (d[o], d[o + 1], d[o + 2]) }; b.extend_from_slice(&[bl, g, r]); } for _ in 0..row - w * 3 { b.push(0); } }
+    let _ = std::fs::write(path, b);
+}
 fn make_world(seed: u32) -> World { let mut w = World::new(W, H, seed); w.disasters.enabled = false; for v in w.inv.iter_mut() { *v = (*v).max(999); } stage_scene(&mut w); w }
 /// --scene=water|tnt (native, for recording): stage a set piece next to the burrow. Play is unchanged.
 fn stage_scene(w: &mut World) {
@@ -140,7 +180,7 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, mut fonts: R
         px: images.add(art::image(1, 1, vec![255; 4], true)),
     };
     commands.insert_resource(sp);
-    let disp = Vec2::new(sx, sy + 1.5); commands.insert_resource(Game { w, chunks, buf: vec![1; W * H * 4], uploads: 0, acc: 0., paused: true, speed: 1, frame: 0, last_light: 0, msg: String::new(), help: false, ev: vec![], shake_off: Vec2::ZERO, autosave: 0., last_oy: oy0, far, far_done, inv_open: false, aim: None, slots: default_slots(), held: None, hot: 0, sel_t: 0., toasts: vec![], log_seen: 0, show_dev: false, disp, seed });
+    let disp = Vec2::new(sx, sy + 1.5); commands.insert_resource(Game { w, chunks, buf: vec![1; W * H * 4], uploads: 0, acc: 0., paused: true, speed: 1, frame: 0, last_light: 0, msg: String::new(), help: false, ev: vec![], shake_off: Vec2::ZERO, autosave: 0., last_oy: oy0, far, far_done, inv_open: false, aim: None, slots: default_slots(), held: None, hot: 0, sel_t: 0., toasts: vec![], log_seen: 0, show_dev: false, disp, seed, brush: [0.; 7], demo_right: false });
 }
 
 pub fn save_now(g: &mut Game) { let b = molehill_sim::save::save(&g.w); g.msg = match storage_put("molehill-manual", &b) { Ok(()) => "Game saved".into(), Err(e) => format!("Save failed: {e}") }; }
@@ -164,9 +204,9 @@ fn make_bg(w: &World) -> Bg {
 fn dev_cost(d: Dev) -> Option<Item> { d.cost() }
 fn input(mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<ButtonInput<MouseButton>>, scroll: Res<AccumulatedMouseScroll>,
          win: Query<&Window, With<PrimaryWindow>>, mut cam: Query<&mut Transform, With<Camera2d>>, time: Res<Time>,
-         mut commands: Commands) {
+         mut commands: Commands, mut menu: ResMut<menu::Menu>) {
     let Ok(win) = win.single() else { return }; let Ok(mut ct) = cam.single_mut() else { return };
-    if g.paused { g.w.input = Default::default(); return; } // a menu is open
+    if g.paused { g.w.input = Default::default(); g.aim = None; return; } // a menu is open: no input, no aim ring
     let dt = time.delta_secs(); let sc = ct.scale.x; let now = time.elapsed_secs();
     let ctrl = keys.pressed(KeyCode::ControlLeft) || keys.pressed(KeyCode::ControlRight);
     // toasts: short game messages and new world log lines (deduplicated, at most 3 live)
@@ -178,20 +218,31 @@ fn input(mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<Button
     // movement → the sim's input (applied every tick)
     let dead = !g.w.moles.first().map_or(false, |m| m.alive);
     g.w.input.left = keys.pressed(KeyCode::KeyA) || keys.pressed(KeyCode::ArrowLeft);
-    g.w.input.right = keys.pressed(KeyCode::KeyD) || keys.pressed(KeyCode::ArrowRight);
+    g.w.input.right = keys.pressed(KeyCode::KeyD) || keys.pressed(KeyCode::ArrowRight) || g.demo_right;
     let upk = keys.pressed(KeyCode::KeyW) || keys.pressed(KeyCode::ArrowUp);
     g.w.input.up = upk; g.w.input.down = keys.pressed(KeyCode::KeyS) || keys.pressed(KeyCode::ArrowDown);
     // Space jumps (and wall-jumps); W also jumps when not on a wall, and climbs when clinging
     g.w.input.jump = keys.pressed(KeyCode::Space) || upk && g.w.pl.cling == 0;
     g.w.input.mine = None;
     let sel0 = g.hot;
-    // zoom: + / - or Ctrl+wheel; plain wheel cycles the hotbar
-    if scroll.delta.y != 0. {
-        if ctrl { let z = (sc * (1. - scroll.delta.y.signum() * 0.12)).clamp(0.12, 1.5); ct.scale = Vec3::splat(z); }
-        else { g.hot = (g.hot as i32 - scroll.delta.y.signum() as i32).rem_euclid(10) as usize; }
+    // wheel: hotbar; Ctrl+wheel: brush size with a brush item in hand, else zoom; Shift+wheel: zoom.
+    // + / - zoom too; [ / ] resize the brush. Zoom is shared with Settings (clamped, saved).
+    let shift = keys.pressed(KeyCode::ShiftLeft) || keys.pressed(KeyCode::ShiftRight);
+    let held_brush = brush_of(g.slots[g.hot]);
+    let notch = scroll.delta.y.signum();
+    let mut resize = if keys.just_pressed(KeyCode::BracketRight) { 1. } else if keys.just_pressed(KeyCode::BracketLeft) { -1. } else { 0. };
+    if notch != 0. {
+        if ctrl && held_brush.is_some() { resize += notch; }
+        else if ctrl || shift { menu.zoom_by(notch, &mut ct); }
+        else { g.hot = (g.hot as i32 - notch as i32).rem_euclid(10) as usize; }
     }
-    if keys.just_pressed(KeyCode::Equal) { ct.scale = Vec3::splat((sc * 0.8).max(0.12)); }
-    if keys.just_pressed(KeyCode::Minus) { ct.scale = Vec3::splat((sc * 1.25).min(1.5)); }
+    if keys.just_pressed(KeyCode::Equal) || keys.just_pressed(KeyCode::NumpadAdd) { menu.zoom_by(1., &mut ct); }
+    if keys.just_pressed(KeyCode::Minus) || keys.just_pressed(KeyCode::NumpadSubtract) { menu.zoom_by(-1., &mut ct); }
+    let _ = sc;
+    if let (Some(b), true) = (held_brush, resize != 0.) {
+        let k = brush_slot(b); let r = brush_r(&g, b); let (lo, hi, _) = sw::brush_range(b).unwrap_or((0.5, 0.5, 0.5));
+        g.brush[k] = (r + resize * 0.5).clamp(lo, hi); g.sel_t = now;
+    }
     // render interpolation between the last two fixed sim steps; tight camera with a little lookahead
     { let a = g.acc.clamp(0., 1.); let pl = &g.w.pl; g.disp = Vec2::new(pl.ppx + (pl.px - pl.ppx) * a, pl.ppy + (pl.py - pl.ppy) * a - 1.0);
       let look = Vec2::new(g.w.pl.vx * 0.12, g.w.pl.vy.max(0.) * 0.05);
@@ -222,7 +273,7 @@ fn input(mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<Button
     if g.hot != sel0 { g.sel_t = now; }
     let sel = g.slots[g.hot];
     let pick = match sel { Some(Thing::Pick(n)) => n, _ => 1 };
-    g.w.input.tool = pick;
+    g.w.input.tool = pick; g.w.input.brush = brush_r(&g, sw::Brush::Dig(pick));
     if dead { g.aim = None; return; }
     // S: dig straight down (with the pick in hand, else the pickaxe)
     let (mx, my) = (g.w.moles[0].x, g.w.moles[0].y);
@@ -243,7 +294,7 @@ fn input(mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<Button
     let (lp, lj) = (mouse.pressed(MouseButton::Left), mouse.just_pressed(MouseButton::Left));
     match sel {
         Some(Thing::Pick(_)) if lp => g.w.input.mine = Some((cx, cy)),
-        Some(Thing::Item(it @ (Item::WoodPillar | Item::Brick | Item::IronBeam))) if lp => { if let Err(e) = g.w.place_block(cx, cy, it) { if lj { g.msg = format!("Can't place: {e}"); } } }
+        Some(Thing::Item(it @ (Item::WoodPillar | Item::Brick | Item::IronBeam))) if lp => { let r = brush_r(&g, sw::Brush::Place(it)); if let Err(e) = g.w.place_brush(cx, cy, it, r) { if lj { g.msg = format!("Can't place: {e}"); } } }
         Some(Thing::Item(Item::CopperWire)) if lp => { g.w.lay_wire(cx, cy); }
         Some(Thing::Item(Item::Torch)) if lj => { if !g.w.place_torch(cx, cy) { g.msg = "Needs open space".into(); } }
         // TNT goes down inert; right mouse lights it, or wire it to a lever / knot / listener
@@ -450,10 +501,12 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, mut q: Q
     for (k, f) in w.farms.iter().enumerate() { let st = if f.growth < 0.3 { 0 } else if f.growth < 0.85 { 1 } else { 2 }; want.push((5, k, cell_to_world(f.x as f32 + 0.5, f.y as f32 - 0.9), 3.5, sp.shroom[st].clone(), Vec2::splat(10.), false, lightf(f.x, f.y))); }
     // aim: a faint outline on the cell under the cursor; mining: the targeted cell brightens and cracks as it gives way
     // aim: with a dig tool, a soft ring shows the brush; otherwise a faint cell outline. Mining: the ring tightens as the bite gives way.
-    let picking = matches!(g.slots[g.hot], Some(Thing::Pick(_)));
+    let brush = brush_of(g.slots[g.hot]);
     if let Some((x, y, reach)) = g.aim {
-        if picking { let d = 2. * sw::BITES[w.input.tool.min(3) as usize] * CPX; let f = w.pl.mine.map_or(0., |(_, a, b)| a as f32 / b.max(1) as f32);
-            let c = if reach { Color::srgba(1., 0.97, 0.9, 0.6 + 0.4 * f) } else { Color::srgba(1., 0.45, 0.35, 0.35) };
+        if let Some(b) = brush { let r = brush_r(&g, b); let d = 2. * r.max(0.5) * CPX + CPX * 0.5;
+            let f = if matches!(b, sw::Brush::Dig(_)) { w.pl.mine.map_or(0., |(_, a, b)| a as f32 / b.max(1) as f32) } else { 0. };
+            // dig: warm white ring that tightens as the bite gives way; place: ring in the block's colour
+            let c = if !reach { Color::srgba(1., 0.45, 0.35, 0.35) } else if let sw::Brush::Place(it) = b { let k = it.color(); Color::srgba(k[0] as f32 / 255. * 1.2, k[1] as f32 / 255. * 1.2, k[2] as f32 / 255. * 1.2, 0.8) } else { Color::srgba(1., 0.97, 0.9, 0.6 + 0.4 * f) };
             want.push((7, 0, cell_to_world(x as f32 + 0.5, y as f32 + 0.5), 6., sp.ring.clone(), Vec2::splat(d * (1. - 0.15 * f)), false, c)); }
         else { let c = if reach { Color::srgba(1., 1., 0.85, 0.22) } else { Color::srgba(1., 0.4, 0.3, 0.10) }; want.push((7, 0, cell_to_world(x as f32 + 0.5, y as f32 + 0.5), 6., sp.px.clone(), Vec2::splat(CPX), false, c)); }
     }

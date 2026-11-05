@@ -1,46 +1,36 @@
-// Wood pillars built floor-to-roof every ~1 m (placed cell by cell, as the player does) saves a 6 m dirt
-// roof that caves in without it (roof_needs_pillar.scn). The pillars stay rigid: it neither cracks nor flows.
+// Placed wood pillars are rigid: a full pillar under the roof and a short free-standing stub
+// in a wide room both stay put (no tributary roof load on a stub that doesn't touch the roof).
 map
-##################################
-#dddddddddddddddddddddddddddddddd#
-#dddddddddddddddddddddddddddddddd#
-#dddddddddddddddddddddddddddddddd#
-#dddddddddddddddddddddddddddddddd#
-#####........................#####
-#####........................#####
-#####........................#####
-#####........................#####
-#####........................#####
-#####...........@............#####
-##################################
+#################################
+#################################
+#...............................#
+#...............................#
+#...............................#
+#...............................#
+#...............................#
+#...............................#
+#...............@...............#
+#################################
+#################################
 end
-give WoodPillar 40
-place 2 -7 -0 WoodPillar
-place 2 -2 -0 WoodPillar
-place 2 3 -0 WoodPillar
-place 2 8 -0 WoodPillar
-place 3 -7 -1 WoodPillar
-place 3 -2 -1 WoodPillar
-place 3 3 -1 WoodPillar
-place 3 8 -1 WoodPillar
-place 4 -7 -2 WoodPillar
-place 4 -2 -2 WoodPillar
-place 4 3 -2 WoodPillar
-place 4 8 -2 WoodPillar
-place 5 -7 -3 WoodPillar
-place 5 -2 -3 WoodPillar
-place 5 3 -3 WoodPillar
-place 5 8 -3 WoodPillar
-place 6 -7 -4 WoodPillar
-place 6 -2 -4 WoodPillar
-place 6 3 -4 WoodPillar
-place 6 8 -4 WoodPillar
-place 7 -7 -5 WoodPillar
-place 7 -2 -5 WoodPillar
-place 7 3 -5 WoodPillar
-place 7 8 -5 WoodPillar
-expect 10 count:WoodBeam == 24
-expect 600 count:WoodBeam == 24
-expect 600 is:-7,-5,WoodBeam == 1
-expect 600 is:8,-5,WoodBeam == 1
-expect 600 crumbled == 0
+give WoodPillar 20
+// full pillar 6 right of the mole, floor to roof (7 cells)
+place 2 6 0 WoodPillar
+place 3 6 -1 WoodPillar
+place 4 6 -2 WoodPillar
+place 5 6 -3 WoodPillar
+place 6 6 -4 WoodPillar
+place 7 6 -5 WoodPillar
+place 8 6 -6 WoodPillar
+// a 3-cell stub 6 left of the mole, not touching the roof
+place 10 -6 0 WoodPillar
+place 11 -6 -1 WoodPillar
+place 12 -6 -2 WoodPillar
+// a ledge: two pillar cells sticking out of the left wall at mid height
+place 14 -15 -3 WoodPillar
+place 15 -14 -3 WoodPillar
+expect 20 count:WoodBeam == 12
+expect 600 static:WoodBeam == 12
+expect 600 is:6,-6,WoodBeam == 1
+expect 600 is:-6,-2,WoodBeam == 1
+expect 600 is:-14,-3,WoodBeam == 1

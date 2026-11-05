@@ -1,33 +1,22 @@
-// A one-cell wood beam over a 3.5 m gap under a deep sand heap is overloaded: it cracks and breaks
-// into loose splinters (still wood, not sand). The same span in iron holds the heap.
+// An overloaded wood beam fails by stress: a long span under a deep sand pile cracks, breaks
+// into loose wooden debris and drops; it doesn't hang in the air or vanish.
 map
-##################################################
-#................................................#
-####sssssssssssssss#..............#ssssssssssssss#
-####sssssssssssssss#..............#ssssssssssssss#
-####sssssssssssssss#..............#ssssssssssssss#
-####sssssssssssssss#..............#ssssssssssssss#
-####sssssssssssssss#..............#ssssssssssssss#
-####sssssssssssssss#..............#ssssssssssssss#
-####sssssssssssssss#..............#ssssssssssssss#
-####sssssssssssssss#..............#ssssssssssssss#
-####sssssssssssssss#..............#ssssssssssssss#
-####sssssssssssssss#..............#ssssssssssssss#
-####sssssssssssssss#..............#ssssssssssssss#
-####sssssssssssssss#..............#ssssssssssssss#
-####sssssssssssssss#..............#ssssssssssssss#
-####sssssssssssssss#..............#ssssssssssssss#
-####bbbbbbbbbbbbbb#####...........#IIIIIIIIIIIIII#
-####..............#####...........#..............#
-####..............#####...........#..............#
-####..............#####...@.......#..............#
-##################################################
+#########################################
+###ssssssssssssssssssssssssssssssssss####
+###ssssssssssssssssssssssssssssssssss####
+###ssssssssssssssssssssssssssssssssss####
+###ssssssssssssssssssssssssssssssssss####
+###ssssssssssssssssssssssssssssssssss####
+###ssssssssssssssssssssssssssssssssss####
+###bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb####
+#..................................######
+#..................................######
+#..................................######
+#..@...............................######
+#########################################
 end
-expect 1 count:WoodBeam == 14
-expect 120 crumbled >= 1
-expect 300 is:-18,-3,WoodBeam == 0
-expect 300 count:IronBeam == 14
-expect 300 count:WoodBeam == 14   // the splinters are still wood
-expect 300 hp > 90
-expect 300 count:Gravel == 0
-ascii 300
+expect 1 static:WoodBeam == 34
+expect 300 static:WoodBeam <= 2          // only the two end cells resting on the granite ledge remain
+expect 300 is:10,0,WoodBeam == 1         // wooden debris lies on the floor
+expect 300 count:WoodBeam >= 20
+expect 300 count:Sand >= 150

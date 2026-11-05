@@ -1,0 +1,25 @@
+// Placing is a round brush like digging: a radius-2 brick brush on the floor fills the open half
+// of a 13-cell disc (9 cells; the 4 below the floor line are rock already).
+map
+###############################
+#.............................#
+#.............................#
+#.............................#
+#.............................#
+#.....@.......................#
+###############################
+end
+give Brick 40
+brush 1 2
+place 2 6 0 Brick
+expect 3 static:StoneBrick == 9
+expect 3 is:6,-2,StoneBrick == 1
+expect 3 is:4,0,StoneBrick == 1
+expect 3 is:8,0,StoneBrick == 1
+expect 3 is:6,-3,StoneBrick == 0
+// bricks come 4 cells to an item: 9 cells use 3 bricks
+expect 3 inv:Brick == 37
+// a second stroke in open air touching the first fills only what can rest on something
+place 10 9 -2 Brick
+expect 12 is:9,-2,StoneBrick == 1
+expect 300 static:StoneBrick >= 15

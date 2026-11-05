@@ -27,4 +27,5 @@ Molehill is a falling-sand mole platformer and colony sim in Rust and Bevy 0.20.
 * `A`/`D` run; `Space` jumps (also `W` when you're not on a wall).
 * Into a wall in the air you cling: `W`/`S` climb, `Space` wall-jumps.
 * `S` digs down. Left mouse uses the item in hand; right mouse interacts. `1`-`0` or the wheel pick a hotbar slot; `I` opens the pack.
+* Dig tools and blocks use a round brush: `[`/`]` or `Ctrl`+wheel resize it within the item's range (`brush_range` in `world.rs`). `+`/`-` or `Shift`+wheel zoom (`sim/src/view.rs`).
 * `Esc` opens the pause menu; `K`/`L` quick save and load; `F3` shows dev info.
