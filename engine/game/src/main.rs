@@ -19,13 +19,13 @@ const PAD: usize = 512;
 const CH: usize = 64; // texture chunk size in cells
 const FAR: usize = 4; // chunk rows drawn beyond each end of the simulated window (the camera roams there; nothing simulates)
 
-#[derive(Resource)] struct Game { w: World, chunks: Vec<Handle<Image>>, buf: Vec<u8>, uploads: usize, acc: f32, paused: bool, speed: u32, tool: Tool, brush: usize, recipe: usize, station: usize, frame: u64, last_light: u64, msg: String, help: bool, dev: usize, ev: Vec<sw::Event>, shake_off: Vec2, autosave: f32, last_oy: i64, far: Vec<Handle<Image>>, far_done: Vec<bool> }
+#[derive(Resource)] struct Game { w: World, chunks: Vec<Handle<Image>>, buf: Vec<u8>, uploads: usize, acc: f32, paused: bool, speed: u32, tool: Tool, brush: usize, recipe: usize, station: usize, frame: u64, last_light: u64, msg: String, help: bool, dev: usize, ev: Vec<sw::Event>, shake_off: Vec2, autosave: f32, last_oy: i64, far: Vec<Handle<Image>>, far_done: Vec<bool>, inv_open: bool, aim: Option<(usize, usize, bool)> }
 #[derive(Clone, Copy, PartialEq, Debug)] enum Tool { Wire, Device, Dig, Farm, Wood, Brick, Iron, Torch, Tnt, Station, Cancel, Stockpile }
 #[derive(Resource)] struct Bg { layers: Vec<(Vec<u8>, f32)> }
 #[derive(Component)] struct WorldSprite;
 #[derive(Component)] struct Hud; #[derive(Component)] struct HudRight; #[derive(Component)] struct HudBottom;
 #[derive(Component)] struct Pooled(u8, usize);
-#[derive(Resource)] struct Sprites { mole: [Handle<Image>; 2], icons: Vec<Handle<Image>>, chest: [Handle<Image>; 2], station: Vec<[Handle<Image>; 2]>, torch: Handle<Image>, shroom: [Handle<Image>; 3] }
+#[derive(Resource)] struct Sprites { mole: [Handle<Image>; 2], icons: Vec<Handle<Image>>, chest: [Handle<Image>; 2], station: Vec<[Handle<Image>; 2]>, torch: Handle<Image>, shroom: [Handle<Image>; 3], px: Handle<Image> }
 
 fn seed_now() -> u32 {
     // ?seed=N (web) / --seed=N (native) pins the first world
@@ -86,9 +86,9 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
     } }
     let far_done = vec![false; far.len()];
     commands.insert_resource(make_bg(&w));
-    let (sx, sy) = (w.moles[0].x as f32, w.moles[0].y as f32 - 10.);
+    let (sx, sy) = (w.moles[0].x as f32, w.moles[0].y as f32 - 1.5);
     let p = cell_to_world(sx, sy);
-    commands.spawn((Camera2d, Transform::from_xyz(p.x, p.y, 100.).with_scale(Vec3::splat(0.45))));
+    commands.spawn((Camera2d, Transform::from_xyz(p.x, p.y, 100.).with_scale(Vec3::splat(0.32))));
     let font = |s: f32| TextFont { font_size: s.into(), ..default() };
     commands.spawn((Text::new(""), font(14.), TextColor(Color::srgb(0.95, 0.93, 0.88)), Node { position_type: PositionType::Absolute, left: Val::Px(10.), top: Val::Px(8.), ..default() }, Hud));
     commands.spawn((Text::new(""), font(13.), TextColor(Color::srgb(0.9, 0.9, 0.85)), Node { position_type: PositionType::Absolute, right: Val::Px(10.), top: Val::Px(8.), max_width: Val::Px(420.), ..default() }, HudRight));
@@ -100,43 +100,64 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
         station: (0..4u8).map(|k| [images.add(art::station(k, false)), images.add(art::station(k, true))]).collect(),
         torch: images.add(art::icon([255, 190, 90], 3)),
         shroom: [images.add(art::mushroom(0)), images.add(art::mushroom(1)), images.add(art::mushroom(2))],
+        px: images.add(art::image(1, 1, vec![255; 4], true)),
     };
     commands.insert_resource(sp);
-    commands.insert_resource(Game { w, chunks, buf: vec![1; W * H * 4], uploads: 0, acc: 0., paused: false, speed: 1, tool: Tool::Dig, brush: 4, recipe: 0, station: 0, frame: 0, last_light: 0, msg: String::new(), help: true, dev: 0, ev: vec![], shake_off: Vec2::ZERO, autosave: 0., last_oy: oy0, far, far_done });
+    commands.insert_resource(Game { w, chunks, buf: vec![1; W * H * 4], uploads: 0, acc: 0., paused: false, speed: 1, tool: Tool::Dig, brush: 4, recipe: 0, station: 0, frame: 0, last_light: 0, msg: String::new(), help: true, dev: 0, ev: vec![], shake_off: Vec2::ZERO, autosave: 0., last_oy: oy0, far, far_done, inv_open: false, aim: None });
 }
 
 fn make_bg(w: &World) -> Bg {
     let mk = |k, f| (art::layer(k, w.oy, &w.info.biome, W, H, PAD, 1, w.info.seed).0, f);
     Bg { layers: vec![mk(art::Layer::Strata, 0.8), mk(art::Layer::Caves, 0.6), mk(art::Layer::Veins, 0.35)] }
 }
+/// Hotbar slots (1-9, 0). LMB always mines; RMB uses the selected slot.
+const HOTBAR: [Tool; 10] = [Tool::Dig, Tool::Wood, Tool::Brick, Tool::Iron, Tool::Torch, Tool::Wire, Tool::Device, Tool::Farm, Tool::Tnt, Tool::Station];
+fn slot_name(g: &Game, t: Tool) -> String {
+    match t { Tool::Dig => "Claws/pick".into(), Tool::Wood => "Wood pillar".into(), Tool::Brick => "Brick".into(), Tool::Iron => "Iron beam".into(), Tool::Torch => "Torch".into(), Tool::Wire => "Copperline".into(),
+        Tool::Device => format!("{} (G)", DEVS[g.dev].name()), Tool::Farm => "Spore".into(), Tool::Tnt => "TNT".into(), Tool::Station => format!("{} (Tab)", STATIONS[g.station].name()), _ => format!("{:?}", t) }
+}
+fn slot_count(g: &Game, t: Tool) -> Option<u32> {
+    let it = match t { Tool::Wood => Item::WoodPillar, Tool::Brick => Item::Brick, Tool::Iron => Item::IronBeam, Tool::Torch => Item::Torch, Tool::Wire => Item::CopperWire, Tool::Farm => Item::Spore, Tool::Tnt => Item::Tnt,
+        Tool::Device => match dev_cost(DEVS[g.dev]) { Some(i) => i, None => return None }, _ => return None };
+    Some(g.w.inv[it as usize])
+}
+fn dev_cost(d: Dev) -> Option<Item> { if d == Dev::Tnt { Some(Item::Tnt) } else if d.is_thrum() { Some(Item::Thrummer) } else if d.is_gate() { Some(Item::Gate) } else if d == Dev::Lamp { Some(Item::Lamp) } else if d == Dev::Vent { Some(Item::Vent) } else if d == Dev::Heat { Some(Item::IronIngot) } else if d == Dev::Wheel { Some(Item::Wood) } else { None } }
 fn input(mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<ButtonInput<MouseButton>>, scroll: Res<AccumulatedMouseScroll>,
          win: Query<&Window, With<PrimaryWindow>>, mut cam: Query<&mut Transform, With<Camera2d>>, time: Res<Time>,
          mut commands: Commands) {
     let Ok(win) = win.single() else { return }; let Ok(mut ct) = cam.single_mut() else { return };
     let dt = time.delta_secs(); let sc = ct.scale.x;
-    let pan = 900. * sc * dt * if keys.pressed(KeyCode::ShiftLeft) { 2.5 } else { 1. };
-    if keys.pressed(KeyCode::KeyA) || keys.pressed(KeyCode::ArrowLeft) { ct.translation.x -= pan; }
-    if keys.pressed(KeyCode::KeyD) || keys.pressed(KeyCode::ArrowRight) { ct.translation.x += pan; }
-    if keys.pressed(KeyCode::KeyW) || keys.pressed(KeyCode::ArrowUp) { ct.translation.y += pan; }
-    if keys.pressed(KeyCode::KeyS) || keys.pressed(KeyCode::ArrowDown) { ct.translation.y -= pan; }
-    if scroll.delta.y != 0. { let z = (sc * (1. - scroll.delta.y.signum() * 0.12)).clamp(0.12, 2.5); ct.scale = Vec3::splat(z); }
+    let ctrl = keys.pressed(KeyCode::ControlLeft) || keys.pressed(KeyCode::ControlRight);
+    // movement → the sim's input (applied every tick)
+    let dead = !g.w.moles.first().map_or(false, |m| m.alive);
+    g.w.input.left = keys.pressed(KeyCode::KeyA) || keys.pressed(KeyCode::ArrowLeft);
+    g.w.input.right = keys.pressed(KeyCode::KeyD) || keys.pressed(KeyCode::ArrowRight);
+    g.w.input.jump = keys.pressed(KeyCode::KeyW) || keys.pressed(KeyCode::Space) || keys.pressed(KeyCode::ArrowUp);
+    g.w.input.mine = None;
+    // zoom: + / - or Ctrl+wheel; plain wheel cycles the hotbar
+    if scroll.delta.y != 0. {
+        if ctrl { let z = (sc * (1. - scroll.delta.y.signum() * 0.12)).clamp(0.12, 1.5); ct.scale = Vec3::splat(z); }
+        else { let k = HOTBAR.iter().position(|&t| t == g.tool).unwrap_or(0) as i32; let n = (k - scroll.delta.y.signum() as i32).rem_euclid(10) as usize; g.tool = HOTBAR[n]; }
+    }
     if keys.just_pressed(KeyCode::Equal) { ct.scale = Vec3::splat((sc * 0.8).max(0.12)); }
-    if keys.just_pressed(KeyCode::Minus) { ct.scale = Vec3::splat((sc * 1.25).min(2.5)); }
+    if keys.just_pressed(KeyCode::Minus) { ct.scale = Vec3::splat((sc * 1.25).min(1.5)); }
+    // camera follows the mole smoothly
+    if let Some(m) = g.w.moles.first() {
+        let p = cell_to_world(m.x as f32 + 0.5, m.y as f32 - 1.5); let k = 1. - (-7. * dt).exp();
+        ct.translation.x += (p.x - ct.translation.x) * k; ct.translation.y += (p.y - ct.translation.y) * k;
+    }
     let half = Vec2::new(W as f32 * CPX / 2., H as f32 * CPX / 2.);
-    ct.translation.x = ct.translation.x.clamp(-half.x, half.x); { let hh = (win.height() / 2. * sc).min(half.y - 1.); let fy = half.y + (FAR * CH) as f32 * CPX; ct.translation.y = ct.translation.y.clamp(-fy + hh, fy - hh); }
-    // the Deepholt is endless: near the window's top or bottom edge, slide the window (simulate() re-centres the camera)
-    { let (_, cyc) = world_to_cell(ct.translation.truncate()); let ys: Vec<usize> = g.w.moles.iter().filter(|m| m.alive).map(|m| m.y).collect();
-      let (lo, hi) = (ys.iter().copied().min().unwrap_or(H / 2), ys.iter().copied().max().unwrap_or(H / 2));
-      if cyc < 96 && hi + 128 < H - 100 { g.w.shift(-128); } else if cyc > H as i32 - 96 && lo > 100 + 128 { g.w.shift(128); } }
-    let tools = [(KeyCode::Digit0, Tool::Wire), (KeyCode::Digit1, Tool::Dig), (KeyCode::Digit2, Tool::Wood), (KeyCode::Digit3, Tool::Brick), (KeyCode::Digit4, Tool::Iron), (KeyCode::Digit5, Tool::Torch), (KeyCode::Digit6, Tool::Tnt), (KeyCode::Digit7, Tool::Station), (KeyCode::Digit8, Tool::Stockpile), (KeyCode::Digit9, Tool::Cancel), (KeyCode::KeyP, Tool::Farm)];
-    for (k, t) in tools { if keys.just_pressed(k) { g.tool = t; } }
-    if keys.just_pressed(KeyCode::Space) { g.paused = !g.paused; }
+    ct.translation.x = ct.translation.x.clamp(-half.x, half.x); { let fy = half.y + (FAR * CH) as f32 * CPX; ct.translation.y = ct.translation.y.clamp(-fy, fy); }
+    let digits = [KeyCode::Digit1, KeyCode::Digit2, KeyCode::Digit3, KeyCode::Digit4, KeyCode::Digit5, KeyCode::Digit6, KeyCode::Digit7, KeyCode::Digit8, KeyCode::Digit9, KeyCode::Digit0];
+    for (k, d) in digits.iter().enumerate() { if keys.just_pressed(*d) { g.tool = HOTBAR[k]; } }
+    if keys.just_pressed(KeyCode::Escape) { g.paused = !g.paused; }
     if keys.just_pressed(KeyCode::KeyF) { g.speed = if g.speed >= 4 { 1 } else { g.speed * 2 }; }
-    if keys.just_pressed(KeyCode::BracketLeft) { g.brush = g.brush.saturating_sub(1).max(1); }
-    if keys.just_pressed(KeyCode::BracketRight) { g.brush = (g.brush + 1).min(12); }
-    if keys.just_pressed(KeyCode::KeyQ) { g.recipe = (g.recipe + RECIPES.len() - 1) % RECIPES.len(); }
-    if keys.just_pressed(KeyCode::KeyE) { g.recipe = (g.recipe + 1) % RECIPES.len(); }
-    if keys.just_pressed(KeyCode::Enter) || keys.just_pressed(KeyCode::KeyC) { let r = g.recipe; g.w.queue_craft(r); g.msg = format!("Queued: {}", RECIPES[r].name); }
+    if keys.just_pressed(KeyCode::KeyI) { g.inv_open = !g.inv_open; }
+    if g.inv_open {
+        if keys.just_pressed(KeyCode::KeyQ) { g.recipe = (g.recipe + RECIPES.len() - 1) % RECIPES.len(); }
+        if keys.just_pressed(KeyCode::KeyE) { g.recipe = (g.recipe + 1) % RECIPES.len(); }
+        if keys.just_pressed(KeyCode::Enter) || keys.just_pressed(KeyCode::KeyC) { let r = g.recipe; g.msg = match g.w.craft_now(r) { Ok(()) => format!("Crafted {}", RECIPES[r].name), Err(e) => format!("Can't craft {}: {e}", RECIPES[r].name) }; }
+    }
     if keys.just_pressed(KeyCode::Tab) { g.station = (g.station + 1) % 4; g.tool = Tool::Station; }
     if keys.just_pressed(KeyCode::KeyH) { g.help = !g.help; }
     if keys.just_pressed(KeyCode::KeyG) { if g.tool == Tool::Device { g.dev = (g.dev + 1) % DEVS.len(); } g.tool = Tool::Device; }
@@ -150,38 +171,47 @@ fn input(mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<Button
     if keys.just_pressed(KeyCode::KeyN) {
         let seed = seed_now() % 100000; g.w = make_world(seed); g.last_oy = g.w.oy; g.far_done.iter_mut().for_each(|v| *v = false);
         commands.insert_resource(make_bg(&g.w)); g.buf.iter_mut().for_each(|v| *v = 1);
-        let p = cell_to_world(g.w.moles[0].x as f32, g.w.moles[0].y as f32 - 10.); ct.translation.x = p.x; ct.translation.y = p.y;
+        let p = cell_to_world(g.w.moles[0].x as f32, g.w.moles[0].y as f32 - 1.5); ct.translation.x = p.x; ct.translation.y = p.y;
         g.msg = format!("New world, seed {}", seed);
     }
-    let Some(cur) = win.cursor_position() else { return };
+    if dead { return; }
+    // S: dig straight down
+    let (mx, my) = (g.w.moles[0].x, g.w.moles[0].y);
+    if keys.pressed(KeyCode::KeyS) || keys.pressed(KeyCode::ArrowDown) { g.w.input.mine = Some((mx, my + 1)); }
+    let Some(cur) = win.cursor_position() else { g.aim = None; return };
     let wp = Vec2::new(ct.translation.x + (cur.x - win.width() / 2.) * sc, ct.translation.y - (cur.y - win.height() / 2.) * sc);
-    let (cx, cy) = world_to_cell(wp); if cx < 0 || cy < 0 || cx as usize >= W || cy as usize >= H { return; }
+    let (cx, cy) = world_to_cell(wp); if cx < 0 || cy < 0 || cx as usize >= W || cy as usize >= H { g.aim = None; return; }
     let (cx, cy) = (cx as usize, cy as usize);
-    let (b, t) = (g.brush, g.tool);
+    let reach = g.w.in_reach(cx, cy); g.aim = Some((cx, cy, reach));
     let blk = g.w.logic.block_of(cx, cy);
-    if mouse.pressed(MouseButton::Right) { if matches!(t, Tool::Wire | Tool::Device) { let gw = &mut g.w; if let Some(d) = gw.logic.remove(&mut gw.g, blk) { if d == Dev::Tnt { gw.inv[Item::Tnt as usize] += 1; } } } else { g.w.designate(cx, cy, b, 0); } }
-    if keys.just_pressed(KeyCode::KeyR) { g.w.logic.interact(blk); g.w.events.push(sw::Event::Click); }
-    if mouse.pressed(MouseButton::Left) && t == Tool::Wire && g.w.logic.wire[blk] == 0 { if g.w.inv[Item::CopperWire as usize] > 0 { g.w.inv[Item::CopperWire as usize] -= 1; g.w.logic.place_wire(blk); } else { g.msg = "No copperline - draw it at a furnace".into(); } }
-    if mouse.just_pressed(MouseButton::Left) && t == Tool::Device {
-        let d = DEVS[g.dev];
-        let cost = if d == Dev::Tnt { Some(Item::Tnt) } else if d.is_thrum() { Some(Item::Thrummer) } else if d.is_gate() { Some(Item::Gate) } else if d == Dev::Lamp { Some(Item::Lamp) } else if d == Dev::Vent { Some(Item::Vent) } else if d == Dev::Heat { Some(Item::IronIngot) } else if d == Dev::Wheel { Some(Item::Wood) } else { None };
+    if mouse.pressed(MouseButton::Left) { g.w.input.mine = Some((cx, cy)); }
+    // E / R: use what's under the cursor (lever, thrum channel, ticker) or open a chest
+    if (keys.just_pressed(KeyCode::KeyR) || (!g.inv_open && keys.just_pressed(KeyCode::KeyE))) && reach {
         if g.w.logic.dev[blk] != 0 { g.w.logic.interact(blk); g.w.events.push(sw::Event::Click); }
-        else if cost.map_or(true, |it| g.w.inv[it as usize] > 0) { let gw = &mut g.w; if gw.logic.place(&mut gw.g, d, blk) { if let Some(it) = cost { gw.inv[it as usize] -= 1; } gw.events.push(sw::Event::Place); } else { g.msg = "Needs open space".into(); } }
-        else { g.msg = format!("No {} in stockpile", cost.unwrap().name()); }
     }
-    if mouse.pressed(MouseButton::Left) {
+    if !reach { if mouse.just_pressed(MouseButton::Right) { g.msg = "Out of reach".into(); } return; }
+    let t = g.tool;
+    // RMB places the selected item; Ctrl+RMB on copperline/devices picks them back up
+    if mouse.pressed(MouseButton::Right) && ctrl && matches!(t, Tool::Wire | Tool::Device) { let gw = &mut g.w; if let Some(d) = gw.logic.remove(&mut gw.g, blk) { if let Some(it) = dev_cost(d) { gw.inv[it as usize] += 1; } } return; }
+    if mouse.pressed(MouseButton::Right) {
         match t {
-            Tool::Dig => g.w.designate(cx, cy, b, sw::D_DIG), Tool::Wood => g.w.designate(cx, cy, b.min(2), sw::D_WOOD), Tool::Brick => g.w.designate(cx, cy, b.min(2), sw::D_BRICK),
-            Tool::Iron => g.w.designate(cx, cy, b.min(2), sw::D_IRON), Tool::Cancel => g.w.designate(cx, cy, b, 0), _ => {}
+            Tool::Wood | Tool::Brick | Tool::Iron => { let it = match t { Tool::Wood => Item::WoodPillar, Tool::Brick => Item::Brick, _ => Item::IronBeam }; if let Err(e) = g.w.place_block(cx, cy, it) { if mouse.just_pressed(MouseButton::Right) { g.msg = format!("Can't place: {e}"); } } }
+            Tool::Wire => { if g.w.logic.wire[blk] == 0 { if g.w.inv[Item::CopperWire as usize] > 0 { g.w.inv[Item::CopperWire as usize] -= 1; g.w.logic.place_wire(blk); } else { g.msg = "No copperline - draw it at an anvil".into(); } } }
+            _ => {}
         }
     }
-    if mouse.just_pressed(MouseButton::Left) {
+    if mouse.just_pressed(MouseButton::Right) {
         match t {
+            Tool::Device => {
+                let d = DEVS[g.dev]; let cost = dev_cost(d);
+                if g.w.logic.dev[blk] != 0 { g.w.logic.interact(blk); g.w.events.push(sw::Event::Click); }
+                else if cost.map_or(true, |it| g.w.inv[it as usize] > 0) { let gw = &mut g.w; if gw.logic.place(&mut gw.g, d, blk) { if let Some(it) = cost { gw.inv[it as usize] -= 1; } gw.events.push(sw::Event::Place); } else { g.msg = "Needs open space".into(); } }
+                else { g.msg = format!("No {} in your pack", cost.unwrap().name()); }
+            }
             Tool::Farm => { g.msg = match g.w.plant(cx, cy) { Ok(()) => "Spore planted - keep it dark and damp".into(), Err(e) => format!("Can't plant: {e}") }; }
             Tool::Torch => { if !g.w.place_torch(cx, cy) { g.msg = "No torches (craft at a workbench) or not open space".into(); } }
-            Tool::Tnt => { if g.w.inv[Item::Tnt as usize] > 0 { g.w.inv[Item::Tnt as usize] -= 1; g.w.explode(cx, cy, 9., 6); } else { g.msg = "No TNT - craft at workbench (2 coal + 2 sand)".into(); } }
-            Tool::Station => { let s = STATIONS[g.station]; g.msg = match g.w.place_building(s, cx.saturating_sub(Station::W / 2), cy) { Ok(()) => format!("{} blueprint placed", s.name()), Err(e) => format!("Can't place {}: {}", s.name(), e) }; }
-            Tool::Stockpile => { g.w.stockpile = (cx.saturating_sub(6), cy.saturating_sub(3), cx + 6, cy); g.msg = "Stockpile moved".into(); }
+            Tool::Tnt => { if g.w.inv[Item::Tnt as usize] > 0 { g.w.inv[Item::Tnt as usize] -= 1; g.w.explode(cx, cy, 9., 6); } else { g.msg = "No TNT".into(); } }
+            Tool::Station => { let s = STATIONS[g.station]; g.msg = match g.w.place_building(s, cx.saturating_sub(Station::W / 2), cy) { Ok(()) => format!("Built a {}", s.name()), Err(e) => format!("Can't build {}: {}", s.name(), e) }; }
             _ => {}
         }
     }
@@ -233,6 +263,7 @@ fn render_world(mut gm: ResMut<Game>, bg: Res<Bg>, mut images: ResMut<Assets<Ima
     let wd = &g.w; let gr = &wd.g;
     let camx = (ct.translation.x / CPX) as f32; // cells from world centre
     let bw = W + 2 * PAD;
+    let (pmx, pmy) = wd.moles.first().filter(|m| m.alive).map(|m| (m.x as f32, m.y as f32 - 1.5)).unwrap_or((-999., -999.));
     let sample = |layer: &Vec<u8>, f: f32, x: usize, y: usize| -> [f32; 4] {
         let u = (x as f32 - camx * f) as i32 + PAD as i32; let u = u.clamp(0, bw as i32 - 1) as usize; let o = (y * bw + u) * 4;
         [layer[o] as f32, layer[o + 1] as f32, layer[o + 2] as f32, layer[o + 3] as f32 / 255.]
@@ -249,7 +280,10 @@ fn render_world(mut gm: ResMut<Game>, bg: Res<Bg>, mut images: ResMut<Assets<Ima
         } else {
             let lit = x >= lr.0 && x <= lr.2 && y >= lr.1 && y <= lr.3;
             let l = if lit { wd.light.at(i) } else { [0.05; 3] };
-            let l = [l[0].max(0.17), l[1].max(0.16), l[2].max(0.19)]; // remembered rock stays faintly visible
+            let l = [l[0].max(0.22), l[1].max(0.21), l[2].max(0.24)]; // remembered rock stays faintly visible
+            // the mole's own warm glow (its whiskers' sense of the rock nearby)
+            let dd = ((x as f32 - pmx).powi(2) + (y as f32 - pmy).powi(2)).sqrt(); let gl = (1. - dd / 22.).max(0.) * 0.75;
+            let l = [l[0].max(gl), l[1].max(gl * 0.92), l[2].max(gl * 0.8)];
             match p.kind {
                 Kind::Empty | Kind::Gas => {
                     let lum = (l[0] * 0.3 + l[1] * 0.5 + l[2] * 0.2).min(1.3);
@@ -287,14 +321,6 @@ fn render_world(mut gm: ResMut<Game>, bg: Res<Bg>, mut images: ResMut<Assets<Ima
             }
         }
         let mut px = px;
-        let d = wd.desig[i];
-        if d != 0 && seen {
-            let stripe = (x + y) % 4 < 2;
-            let col: [u8; 3] = match d { sw::D_DIG => [255, 210, 80], sw::D_WOOD => [190, 140, 80], sw::D_BRICK => [220, 110, 80], _ => [150, 170, 220] };
-            let a = if stripe { 0.45 } else { 0.22 };
-            for k in 0..3 { px[k] = (px[k] as f32 * (1. - a) + col[k] as f32 * a) as u8; } 
-        }
-        let sp = wd.stockpile; if x >= sp.0 && x <= sp.2 && y >= sp.1 && y <= sp.3 && (x == sp.0 || x == sp.2 || y == sp.3) && !gr.is_solidish(i) { px = [(px[0] as u16 / 2 + 60) as u8, (px[1] as u16 / 2 + 100) as u8, (px[2] as u16 / 2 + 70) as u8, 255]; }
         if seen { // wiring / device overlay on the 1 m block layer
             let lg = &wd.logic; let bw = lg.bw; let bk = (y / LB) * bw + x / LB; let (lx, ly) = (x % LB, y % LB);
             let con = |c: usize| c < lg.wire.len() && (lg.wire[c] != 0 || lg.dev[c] != 0);
@@ -367,7 +393,7 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, mut q: Q
     let mut want: Vec<(u8, usize, Vec2, f32, Handle<Image>, Vec2, bool, Color)> = vec![];
     let lightf = |x: usize, y: usize| { let l = w.light.at(y.min(H - 1) * W + x.min(W - 1)); let v = (l[0] * 0.3 + l[1] * 0.5 + l[2] * 0.2).clamp(0.12, 1.2); Color::srgb(v.min(1.) , v.min(1.), v.min(1.)) };
     for (k, m) in w.moles.iter().enumerate() { if !m.alive { continue; }
-        let walking = !m.path.is_empty() || m.work > 0;
+        let walking = w.input.left || w.input.right || w.pl.mine.is_some();
         let c = if m.hp < 40. { Color::srgb(1., 0.6, 0.6) } else { lightf(m.x, m.y - 1) };
         want.push((0, k, cell_to_world(m.x as f32 + 0.5, m.y as f32 + 1.0 - 1.6), 5., sp.mole[if walking { ((m.anim / 6) % 2) as usize } else { 0 }].clone(), Vec2::new(26., 19.5), m.facing < 0, c)); }
     for (k, d) in w.drops.iter().enumerate() { if w.g.flags[d.y * W + d.x] & F_SEEN == 0 { continue; } want.push((1, k, cell_to_world(d.x as f32 + 0.5, d.y as f32 + 0.2), 4., sp.icons[d.item as usize].clone(), Vec2::splat(12.), false, lightf(d.x, d.y))); }
@@ -375,6 +401,10 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, mut q: Q
     for (k, b) in w.buildings.iter().enumerate() { want.push((3, k, cell_to_world(b.x as f32 + Station::W as f32 / 2., b.y as f32 + 1. - Station::H as f32 / 2.), 2., sp.station[b.kind as usize][b.built as usize].clone(), Vec2::new(Station::W as f32 * CPX, Station::H as f32 * CPX), false, lightf(b.x + 5, b.y - 2))); }
     for (k, &(x, y)) in w.torches.iter().enumerate() { want.push((4, k, cell_to_world(x as f32 + 0.5, y as f32 + 0.5), 4.5, sp.torch.clone(), Vec2::splat(10.), false, Color::WHITE)); }
     for (k, f) in w.farms.iter().enumerate() { let st = if f.growth < 0.3 { 0 } else if f.growth < 0.85 { 1 } else { 2 }; want.push((5, k, cell_to_world(f.x as f32 + 0.5, f.y as f32 - 0.9), 3.5, sp.shroom[st].clone(), Vec2::splat(10.), false, lightf(f.x, f.y))); }
+    // aim: a faint outline on the cell under the cursor; mining: the targeted cell brightens and cracks as it gives way
+    if let Some((x, y, reach)) = g.aim { let c = if reach { Color::srgba(1., 1., 0.85, 0.22) } else { Color::srgba(1., 0.4, 0.3, 0.10) }; want.push((7, 0, cell_to_world(x as f32 + 0.5, y as f32 + 0.5), 6., sp.px.clone(), Vec2::splat(CPX), false, c)); }
+    if let Some((i, wk, need)) = w.pl.mine { let (x, y) = (i % W, i / W); let f = wk as f32 / need.max(1) as f32;
+        want.push((6, 0, cell_to_world(x as f32 + 0.5, y as f32 + 0.5), 6.1, sp.px.clone(), Vec2::splat(CPX * (1. - 0.35 * f)), false, Color::srgba(1., 0.9, 0.6, 0.35 - 0.2 * f))); }
     let mut used = std::collections::HashSet::new();
     for (e, p, mut t, mut s, mut vis) in &mut q {
         if let Some(wn) = want.iter().find(|wn| wn.0 == p.0 && wn.1 == p.1) {
@@ -393,31 +423,35 @@ fn sound(mut g: ResMut<Game>, mut au: NonSendMut<audio::Audio>, keys: Res<Button
 fn hud(g: Res<Game>, mut q: Query<&mut Text, With<Hud>>, mut qr: Query<&mut Text, (With<HudRight>, Without<Hud>)>, mut qb: Query<&mut Text, (With<HudBottom>, Without<Hud>, Without<HudRight>)>, time: Res<Time>) {
     if g.frame % 6 != 0 { return; }
     let w = &g.w;
-    let alive = w.moles.iter().filter(|m| m.alive).count();
-    let tool = match g.tool { Tool::Station => format!("Station: {}", STATIONS[g.station].name()), Tool::Device => format!("Device: {}", DEVS[g.dev].name()), t => format!("{:?}", t) };
-    let view_d = w.moles.iter().find(|m| m.alive).map(|m| w.depth_m(m.x, m.y)).unwrap_or(0.);
-    let mut s = format!("MOLEHILL - the Deepholt  seed {}   fps {:.0}  tex {}/128   {}{}\nMoles {}   colony at {:+.1} m   deepest {:+.1} m   tool [{}] brush {}   tier {}\n",
-        w.info.seed, 1. / time.delta_secs().max(1e-3), g.uploads, if g.paused { "PAUSED " } else { "" }, if g.speed > 1 { format!("x{}", g.speed) } else { String::new() },
-        alive, view_d, w.max_depth, tool, g.brush, ["claws", "stone", "bronze", "iron"][craft::tool_tier(&w.inv) as usize]);
+    let me = &w.moles[0];
+    let view_d = w.depth_m(me.x, me.y);
+    let mut s = format!("MOLEHILL - the Deepholt  seed {}   fps {:.0}   {}{}\n{}  at {:+.1} m   deepest {:+.1} m   tools: {}   deaths {}\n",
+        w.info.seed, 1. / time.delta_secs().max(1e-3), if g.paused { "PAUSED " } else { "" }, if g.speed > 1 { format!("x{}", g.speed) } else { String::new() },
+        me.name, view_d, w.max_depth, ["claws", "stone", "bronze", "iron"][craft::tool_tier(&w.inv) as usize], w.pl.deaths);
+    if !me.alive { s += &format!("** You were crushed/burnt/starved. Back to the burrow in {:.0}s **\n", (150u32.saturating_sub(w.pl.dead_t)) as f32 / 60.); }
+    let bar = |v: f32| { let n = (v / 10.).round().clamp(0., 10.) as usize; format!("{}{}", "#".repeat(n), ".".repeat(10 - n)) };
+    let c = w.air.at(me.x, me.y.saturating_sub(1));
+    s += &format!("HP [{}] {:>3.0}   Food [{}] {:>3.0}   Breath [{}] {:>3.0}  air {}\n", bar(me.hp), me.hp, bar(me.hunger), me.hunger, bar(me.breath), me.breath, if c > 0.45 { "STALE" } else if c > 0.25 { "close" } else { "fresh" });
     if w.quest < QUESTS.len() { let q = &QUESTS[w.quest]; s += &format!("Quest {}/{}: {}{}\n", w.quest + 1, QUESTS.len(), q.text, if w.quest_done(w.quest) { " [done]" } else { "" }); } else { s += "All quests complete!\n"; }
-    s += &format!("Chests {}/{}   cracking {}   collapsed {}   mushroom plots {} (harvested {})\n", w.chests_opened, w.chests.len(), w.st.cracking.len(), w.crumbled, w.farms.len(), w.harvested);
     let d = &w.disasters;
     match d.phase { Phase::Warning => s += &format!("!! {} in {:.0}s !!\n", d.kind.name(), d.seconds_left()), Phase::Active => s += &format!("!! {}! ({:.0}s) !!\n", d.kind.name().to_uppercase(), d.seconds_left()), Phase::Calm => {} }
-    for m in w.moles.iter().filter(|m| m.alive) { s += &format!("{:<8} hp {:>3.0} food {:>3.0} sleep {:>3.0} breath {:>3.0} air {} {}\n", m.name, m.hp, m.hunger, m.sleep, m.breath, { let c = w.air.at(m.x, m.y - 1); if c > 0.45 { "STALE" } else if c > 0.25 { "close" } else { "fresh" } }, match &m.job { Some(sw::Job::Sleep) => "zzz", Some(sw::Job::Eat) => "eating", Some(sw::Job::Dig) => "digging", Some(sw::Job::Build) => "building", Some(sw::Job::Haul(_)) | Some(sw::Job::Deliver) => "hauling", Some(sw::Job::Craft(_)) => "crafting", Some(sw::Job::Station(_)) => "constructing", _ => "idle" }); }
-    s += "\nStockpile:\n";
+    if let Some((i, wk, need)) = w.pl.mine { s += &format!("Mining {} {:.0}%\n", w.g.m(i).p().name, wk as f32 * 100. / need as f32); }
+    // hotbar
+    s += "\n"; for (k, &t) in HOTBAR.iter().enumerate() { let sel = t == g.tool; let n = slot_count(&g, t).map(|n| format!(" {n}")).unwrap_or_default(); s += &format!("{}{} {}{}{} ", if sel { "[" } else { " " }, (k + 1) % 10, slot_name(&g, t), n, if sel { "]" } else { " " }); if k == 4 { s += "\n"; } }
+    s += "\n";
+    if !g.inv_open { if let Ok(mut t) = q.single_mut() { t.0 = s.clone(); } }
+    if g.inv_open { s += "\nPack (I to close):\n";
     let mut line = String::new(); let mut n = 0;
     for k in 0..NITEM { if w.inv[k] > 0 { line += &format!("{} {}   ", ITEMS[k].name(), w.inv[k]); n += 1; if n % 4 == 0 { s += &line; s += "\n"; line.clear(); } } }
-    s += &line;
-    if let Ok(mut t) = q.single_mut() { t.0 = s; }
+    s += &line; if let Ok(mut t) = q.single_mut() { t.0 = s; } }
     let r = &RECIPES[g.recipe];
     let inputs: Vec<String> = r.inputs.iter().map(|&(it, n)| format!("{} {}/{}", it.name(), w.inv[it as usize].min(n), n)).collect();
     let has = w.buildings.iter().any(|b| b.built && b.kind == r.station);
-    let mut rs = format!("Recipe (Q/E, Enter to queue):\n  {} @ {}{}\n  needs {}\nQueue: {}\n\n", r.name, r.station.name(), if has { "" } else { " (not built)" }, inputs.join(", "),
-        w.craft_queue.iter().map(|&k| RECIPES[k].name).collect::<Vec<_>>().join(", "));
-    let st = STATIONS[g.station]; rs += &format!("Station (Tab, tool 7): {} - {}\n\n", st.name(), st.cost().iter().map(|&(it, n)| format!("{} {}", it.name(), n)).collect::<Vec<_>>().join(", "));
+    let mut rs = if g.inv_open { format!("Craft (Q/E pick, Enter craft - stand near the station):\n  {} @ {}{}\n  needs {}\n\n", r.name, r.station.name(), if has { "" } else { " (not built)" }, inputs.join(", ")) } else { "I: pack & crafting\n\n".to_string() };
+    let st = STATIONS[g.station]; rs += &format!("Station (Tab, slot 0): {} - {}\n\n", st.name(), st.cost().iter().map(|&(it, n)| format!("{} {}", it.name(), n)).collect::<Vec<_>>().join(", "));
     for (t, l) in w.log.iter().rev().take(8) { let _ = t; rs += &format!("* {}\n", l); }
     if !g.msg.is_empty() { rs += &format!("\n> {}", g.msg); }
     if let Ok(mut t) = qr.single_mut() { t.0 = rs; }
-    let help = if g.help { "LMB designate/place   RMB clear   wheel/+- zoom   WASD pan (Shift fast)   [ ] brush   Space pause   F speed   N new world   H hide help   K save  L load  B disaster\n0 Copperline  G device (cycle: knots, thrummers, vent, heatstone, water wheel)  R interact (lever / thrum channel / ticker)  P plant spore  1 Dig  2 Wood pillar  3 Brick  4 Iron beam  5 Torch  6 TNT  7 Station (Tab cycles)  8 Move stockpile  9 Cancel" } else { "H for help" };
+    let help = if g.help { "A/D walk   W/Space jump (climbs 1-cell steps)   S dig down   LMB hold: mine under cursor (reach 4.5 m)   RMB: place selected   1-9,0 / wheel: hotbar   Ctrl+wheel or +/-: zoom\nI pack & crafting (Q/E pick, Enter craft near the station)   Tab station type   G device type   E/R use lever/thrum/ticker   Ctrl+RMB pick up line/device   Esc pause  F speed  K save  L load  N new world  B disaster  H hide help" } else { "H for help" };
     if let Ok(mut t) = qb.single_mut() { t.0 = help.into(); }
 }

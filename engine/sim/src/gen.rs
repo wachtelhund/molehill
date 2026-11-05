@@ -152,6 +152,8 @@ pub fn generate(g: &mut Grid, seed: u32, oy: i64) -> (Gen, GenInfo) {
     stabilize_keep(g, &mut st, 0, usize::MAX, Some(keep));
     // the burrow floor stays soil (farms need it), even where the stability pass reinforced it
     for x in cx0..=cx1 { let i = (cy1 + 1) * w + x; if matches!(Mat::from_u8(g.mat[i]), Mat::Granite | Mat::Limestone) { g.mat[i] = Mat::Clay as u8; } }
+    // claws can always dig down out of the burrow: no granite just below its floor
+    for y in cy1 + 2..cy1 + 9 { for x in cx0 - 4..=cx1 + 4 { let i = y * w + x; if g.mat[i] == Mat::Granite as u8 { g.mat[i] = Mat::Limestone as u8; } } }
     g.struct_dirty = Some((0, 0, w - 1, h - 1)); g.wake_all();
     let biome = gen.biome.clone();
     (gen, GenInfo { surface: vec![0; w], biome, chests: vec![], start: (sx / 4, cy1 / 4), seed })

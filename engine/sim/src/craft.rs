@@ -94,9 +94,9 @@ pub enum Goal { Depth(f32), Have(Item, u32), Built(Station), Chests(u32), Pillar
 pub struct Quest { pub text: &'static str, pub goal: Goal, pub reward: &'static [(Item, u32)] }
 pub static QUESTS: &[Quest] = &[
     Quest { text: "Dig down to 5 m", goal: Goal::Depth(5.), reward: &[(Item::Torch, 6)] },
-    Quest { text: "Stockpile 6 wood", goal: Goal::Have(Item::Wood, 6), reward: &[(Item::Wood, 4)] },
+    Quest { text: "Gather 6 wood", goal: Goal::Have(Item::Wood, 6), reward: &[(Item::Wood, 4)] },
     Quest { text: "Build a workbench", goal: Goal::Built(Station::Workbench), reward: &[(Item::Coal, 4)] },
-    Quest { text: "Farm mushrooms: stockpile 4", goal: Goal::Have(Item::Mushroom, 4), reward: &[(Item::Spore, 4), (Item::Vent, 1)] },
+    Quest { text: "Farm mushrooms: gather 4", goal: Goal::Have(Item::Mushroom, 4), reward: &[(Item::Spore, 4), (Item::Vent, 1)] },
     Quest { text: "Prop a tunnel: place 8 pillar cells", goal: Goal::Pillars(8), reward: &[(Item::WoodPillar, 8)] },
     Quest { text: "Craft stone tools", goal: Goal::Have(Item::StoneTools, 1), reward: &[(Item::Torch, 8)] },
     Quest { text: "Reach 15 m", goal: Goal::Depth(15.), reward: &[(Item::Clay, 6)] },

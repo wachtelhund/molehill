@@ -51,14 +51,42 @@ fn slab(m: Mat, span: usize, thick: usize) -> (Grid, Vec<u32>) {
     assert!(w.crumbled < 400, "crumbled {}", w.crumbled);
     assert!(w.g.count(Mat::Water) > 0 && w.g.count(Mat::Coal) > 0);
 }
-#[test] fn moles_dig_and_haul() {
-    let mut w = World::new(512, 256, 11);
-    let m = w.moles[0].clone(); w.designate(m.x, m.y + 4, 4, D_DIG);
-    let before = w.g.count(Mat::Empty);
-    for _ in 0..3000 { w.step(); }
-    assert!(w.g.count(Mat::Empty) > before + 10, "moles should dig");
-    let stocked: u32 = [Item::Dirt, Item::Clay, Item::Stone, Item::Sand, Item::Gravel].iter().map(|&i| w.inv[i as usize]).sum();
-    assert!(stocked > 0 || !w.drops.is_empty(), "digging yields items");
+#[test] fn player_walks_jumps_and_mines() {
+    let mut w = World::new(512, 256, 11); w.disasters.enabled = false;
+    assert_eq!(w.moles.len(), 1, "exactly one mole: the player");
+    for _ in 0..30 { w.step(); }
+    let x0 = w.moles[0].x;
+    assert!(w.pl.grounded, "starts on the burrow floor");
+    // walk right for half a second
+    w.input.right = true; for _ in 0..30 { w.step(); } w.input.right = false;
+    assert!(w.moles[0].x > x0 + 2, "walked right: {} -> {}", x0, w.moles[0].x);
+    // jump: rises, then lands back on the floor
+    for _ in 0..20 { w.step(); } let yb = w.moles[0].y;
+    w.input.jump = true; let mut top = yb; for _ in 0..40 { w.step(); top = top.min(w.moles[0].y); } w.input.jump = false;
+    assert!(yb - top >= 3, "jumped at least 3 cells (from {yb} up to {top})");
+    for _ in 0..90 { w.step(); } assert!(w.pl.grounded && w.moles[0].y == yb, "landed");
+    // mine the floor under its feet: hold the mouse there until it opens, then it falls in
+    let (x, y) = (w.moles[0].x, w.moles[0].y);
+    let i = w.g.idx(x, y + 1); assert!(w.mine_time(i).is_some(), "floor is mineable");
+    w.input.mine = Some((x, y + 1)); let mut t = 0; while w.g.mat[i] != 0 && t < 2000 { w.step(); t += 1; }
+    assert_eq!(w.g.mat[i], 0, "mined the floor cell"); assert!(t > 1, "mining takes time");
+    w.input.mine = None; for _ in 0..30 { w.step(); }
+    assert!(w.moles[0].y > y, "dropped into the hole");
+    // out of reach does nothing
+    let far = w.g.idx(x, (y + 40).min(250)); w.input.mine = Some((x, (y + 40).min(250))); let m0 = w.g.mat[far]; for _ in 0..600 { w.step(); }
+    assert_eq!(w.g.mat[far], m0, "can't mine beyond reach");
+}
+#[test] fn player_places_pillar_and_respawns() {
+    let mut w = World::new(512, 256, 11); w.disasters.enabled = false;
+    for _ in 0..30 { w.step(); }
+    let (x, y) = (w.moles[0].x, w.moles[0].y); let n0 = w.inv[Item::WoodPillar as usize];
+    assert!(w.place_block(x + 3, y, Item::WoodPillar).is_ok());
+    assert_eq!(w.g.get(x + 3, y), Mat::WoodBeam);
+    assert!(w.place_block(x, y, Item::WoodPillar).is_err(), "not inside yourself");
+    assert!(w.place_block(x + 60, y, Item::WoodPillar).is_err(), "not out of reach");
+    assert!(w.inv[Item::WoodPillar as usize] <= n0);
+    w.moles[0].hp = -1.; for _ in 0..400 { w.step(); }
+    assert!(w.moles[0].alive && w.pl.deaths == 1, "respawned at the burrow");
 }
 
 #[test]
@@ -213,20 +241,19 @@ fn start_burrow_is_safe() {
         for _ in 0..1800 { w.step(); }
         (s, w.moles.iter().filter(|m| m.alive).count())
     })).collect();
-    for h in hs { let (s, n) = h.join().unwrap(); assert_eq!(n, 4, "seed {s}: a mole died in the start burrow"); }
+    for h in hs { let (s, n) = h.join().unwrap(); assert_eq!(n, 1, "seed {s}: the mole died in the start burrow"); }
 }
 
-/// The start burrow is not a cage: claws can dig out through its walls.
+/// The start burrow is not a cage: the player can mine out through its walls.
 #[test]
-fn colony_can_dig_out_of_the_burrow() {
+fn player_can_dig_out_of_the_burrow() {
     for s in [3636u32, 777] {
         let mut w = molehill_sim::world::World::new(1024, 512, s); w.disasters.enabled = false;
-        let (x0, y) = (w.moles[3].x + 6, w.moles[3].y - 1);
-        let before: Vec<u8> = (x0..x0 + 12).map(|x| w.g.mat[y * 1024 + x]).collect();
-        for x in x0..x0 + 12 { w.designate(x, y - 1, 1, molehill_sim::world::D_DIG); }
-        for _ in 0..60 * 90 { w.step(); }
-        // open, or dug and then caved in to rubble: either way the wall rock is breached
-        let dug = (x0..x0 + 12).filter(|&x| { let m = w.g.mat[y * 1024 + x]; m == 0 || m != before[x - x0] }).count();
-        assert!(dug >= 9, "seed {s}: only {dug}/12 tunnel cells dug");
+        let y = w.moles[0].y; let x0 = w.moles[0].x;
+        // walk right, mining whatever blocks the way at head and chest height
+        w.input.right = true; let mut best = x0;
+        for _ in 0..60 * 40 { let (x, yy) = (w.moles[0].x, w.moles[0].y);
+            let t = (0..3).map(|j| (x + 1, yy - j)).find(|&(a, b)| w.g.is_solidish(w.g.idx(a, b))); w.input.mine = t; w.step(); best = best.max(w.moles[0].x); }
+        assert!(best > x0 + 30, "seed {s}: tunnelled out ({x0} -> {best}, y {y})");
     }
 }
