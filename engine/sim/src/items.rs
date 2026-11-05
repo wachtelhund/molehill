@@ -55,6 +55,8 @@ impl World {
         d.vx = aim.0 / len * sp + self.pl.vx * 0.5; d.vy = aim.1 / len * sp + self.pl.vy.min(0.) * 0.5; d.hold = PICK_HOLD;
         if it == Item::Tnt { d.fuse = TNT_FUSE; }
         self.moles[0].facing = if aim.0 >= 0. { 1 } else { -1 };
+        // the throw is felt (a flick, a heave at full power) and seen: a pop at the paw
+        self.shake = self.shake.max(0.08 + 0.2 * power.clamp(0., 1.)); self.marks.push((1, d.px, d.py, 0.6 * crate::mat::SF));
         self.drops.push(d); self.events.push(Event::Click); Ok(())
     }
 

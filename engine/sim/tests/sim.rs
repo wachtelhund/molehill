@@ -842,7 +842,7 @@ fn material_table_is_consistent() {
         assert!(it.uses().place, "{it:?} can't be placed"); assert!(!it.controls().is_empty(), "{it:?} has no controls line");
     } }
     let (mut w, x0, y0) = arena(); w.inv = [0; molehill_sim::craft::NITEM];
-    w.inv[Item::Wood as usize] = 6; w.place_building(Station::Workbench, x0 - 30, y0).unwrap();
+    for &(it, n) in Station::Workbench.cost() { w.inv[it as usize] = n; } w.place_building(Station::Workbench, x0 - 30, y0).unwrap();
     w.inv[Item::Wood as usize] = 4;
     let r = RECIPES.iter().position(|r| r.out.0 == Item::Table).unwrap();
     w.craft_now(r).unwrap(); assert_eq!(w.inv[Item::Table as usize], 1); assert_eq!(w.inv[Item::Wood as usize], 0);
@@ -866,14 +866,37 @@ mod progression {
         assert_eq!((at("Pickaxe"), at("Drill"), at("Bore")), (Station::Workbench, Station::Workshop, Station::Forge));
         for &(it, _) in RECIPES[recipe_by_name("Pickaxe").unwrap()].inputs { assert!(matches!(it, Item::Wood | Item::Stone)); }
     }
+    /// The tool ladder can be climbed from the Survival kit with what each tier can dig: no deadlock like
+    /// "iron ore needs the drill, the drill needs iron". The forge burns coal (dug with the pickaxe) when it
+    /// has no lava, and a lever (free) powers the workshop's copperline.
+    #[test] fn survival_ladder_is_reachable() {
+        use molehill_sim::{mat::{Mat, NMAT}, survival::KIT};
+        let mut have = [false; NITEM]; for &(it, _) in KIT { have[it as usize] = true; }
+        for it in [Item::Grub, Item::Root, Item::Fungus, Item::Spore, Item::Mushroom] { have[it as usize] = true; } // found and farmed
+        let mut order = vec![]; let mut iron_before_drill = false;
+        for _round in 0..20 {
+            if !have[Item::Drill as usize] && (have[Item::IronIngot as usize] || have[Item::IronOre as usize]) { iron_before_drill = true; }
+            let tier = tool_tier(&std::array::from_fn(|k| have[k] as u32));
+            for k in 0..NMAT { let m = Mat::from_u8(k as u8); if m == Mat::Bedrock { continue; }
+                // claws and up take anything of tier 1 or less; harder rock needs the tool
+                if m.p().tier <= tier.max(1) { if let Some(it) = drop_of(m) { have[it as usize] = true; } } }
+            let built = |s: Station, have: &[bool; NITEM]| s.cost().iter().all(|&(it, _)| have[it as usize]);
+            let ready = |s: Station, have: &[bool; NITEM]| match s { Station::Forge => have[Item::Coal as usize] || have[Item::Charcoal as usize], Station::Workshop => have[Item::CopperWire as usize], _ => true };
+            for r in RECIPES.iter() {
+                if !have[r.out.0 as usize] && built(r.station, &have) && ready(r.station, &have) && r.inputs.iter().all(|&(it, _)| have[it as usize]) { have[r.out.0 as usize] = true; order.push(r.name); }
+            }
+        }
+        for t in [Item::Pickaxe, Item::Drill, Item::Bore, Item::IronIngot, Item::CopperWire, Item::IronBeam] { assert!(have[t as usize], "{t:?} is out of reach in Survival (made: {order:?})"); }
+        assert!(!iron_before_drill, "iron ore needs the drill, so the drill can't need iron");
+    }
     #[test] fn survival_starts_bare_and_learns() {
         use molehill_sim::survival::Mode;
         let mut w = World::new(256 * molehill_sim::mat::S, 128 * molehill_sim::mat::S, 3); w.set_mode(Mode::Survival); w.step();
         assert!(w.rules.crafting && tool_tier(&w.inv) == 1, "the kit's pickaxe only");
         w.input.tool = 3; assert_eq!(w.dig_power(), 1, "a tool in hand you don't own doesn't dig");
         let pick = recipe_by_name("Pickaxe").unwrap(); let cu = recipe_by_name("Copper ingot").unwrap();
-        assert!(!w.recipe_known(pick) && !w.recipe_known(cu), "nothing in the kit is wood, stone or copper ore");
-        w.inv[Item::Wood as usize] = 2; w.step(); assert!(w.recipe_known(pick), "picking up wood shows the pickaxe");
+        assert!(w.recipe_known(pick), "the kit's wood shows the pickaxe (and the workbench's other wood recipes)");
+        assert!(!w.recipe_known(cu), "copper ore isn't in the kit");
         assert!(w.craft_now(cu).is_err(), "an unknown recipe can't be made");
         w.inv[Item::CopperOre as usize] = 2; w.step(); assert!(w.known[Item::CopperOre as usize] && w.recipe_known(cu));
         assert!(w.log.iter().any(|(_, l)| l.contains("New recipes") && l.contains("Copper ingot")), "the log says what opened");
@@ -881,7 +904,7 @@ mod progression {
         // saved and loaded: mode and what you know
         let l = save::load(&save::save(&w)).unwrap(); assert_eq!(l.mode, Mode::Survival); assert_eq!(l.known, w.known);
         // Creative: free access, anywhere
-        let mut c = World::new(256 * molehill_sim::mat::S, 128 * molehill_sim::mat::S, 3); c.set_mode(Mode::Creative); c.inv[Item::IronIngot as usize] = 3; c.inv[Item::CopperIngot as usize] = 2;
+        let mut c = World::new(256 * molehill_sim::mat::S, 128 * molehill_sim::mat::S, 3); c.set_mode(Mode::Creative);
         let d0 = c.inv[Item::Drill as usize]; assert!(c.craft_now(recipe_by_name("Drill").unwrap()).is_ok() && c.inv[Item::Drill as usize] == d0 + 1, "Creative crafts anywhere");
         c.input.tool = 3; assert_eq!(c.dig_power(), 3);
     }

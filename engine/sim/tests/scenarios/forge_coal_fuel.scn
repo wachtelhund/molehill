@@ -1,0 +1,32 @@
+// With no lava or fire in reach, the forge burns a coal (or charcoal) from the pack per job: that is how
+// the first copper is smelted. With no fuel at all it's cold and refuses.
+map
+BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+#................................................#
+#................................................#
+#................................................#
+#................................................#
+#................................................#
+#................................................#
+#................................................#
+#................................................#
+#................................................#
+#...................@............................#
+##################################################
+##################################################
+end
+give Stone 10
+give Clay 4
+give CopperOre 6
+give Coal 2
+mode survival
+station 2 2 0 Forge
+craft 4 Copper_ingot
+expect 5 inv:CopperIngot == 1
+expect 5 inv:Coal == 1                 // one coal burnt
+craft 6 Copper_ingot
+expect 7 inv:CopperIngot == 2
+expect 7 inv:Coal == 0
+craft 8 Copper_ingot
+expect 9 inv:CopperIngot == 2          // cold now: no fuel left
+expect 9 inv:CopperOre == 2

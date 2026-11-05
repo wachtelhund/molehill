@@ -59,6 +59,8 @@ pub struct Input { pub left: bool, pub right: bool, pub jump: bool, pub up: bool
 pub struct Player { pub px: f32, pub py: f32, pub ppx: f32, pub ppy: f32, pub sync: Option<(usize, usize)>, pub coyote: f32, pub buffer: f32, pub lock: f32, pub cling: i8, pub jump_was: bool, pub vx: f32, pub vy: f32, pub ax: f32, pub ay: f32, pub grounded: bool, pub fall_from: usize, pub mine: Option<(usize, u32, u32)>, pub spawn: (usize, i64), pub dead_t: u32, pub deaths: u32,
     /// hit flash (s left) after taking a knock; `hp_was` = hp after the last tick, to spot the knock
     pub flash: f32, pub hp_was: f32,
+    /// the cell a dig was refused on (too hard for the tools owned): said once, until the aim moves on
+    pub deny: Option<usize>,
     /// wall-jump grace (s left) after leaving a cling, and the side that wall was on
     pub wall_t: f32, pub wall_side: i8,
     /// rolling over a ledge after a climb (s left; direction = `wall_side`): carried onto the top, no gravity
@@ -362,7 +364,7 @@ impl World {
     pub fn place_torch(&mut self, x: usize, y: usize) -> bool {
         if self.inv[Item::Torch as usize] == 0 || self.g.is_solidish(self.g.idx(x, y)) { return false; }
         if self.rules.fuel && !self.take_oil() { self.say("A torch needs fungus oil to burn".into()); return false; }
-        self.inv[Item::Torch as usize] -= 1; self.torches.push((x, y)); self.events.push(Event::Place); true
+        self.inv[Item::Torch as usize] -= 1; self.torches.push((x, y)); self.events.push(Event::Place); self.marks.push((1, x as f32 + 0.5, y as f32 + 0.5, 0.6 * SF)); true
     }
     pub fn place_building(&mut self, kind: Station, x: usize, y: usize) -> Result<(), &'static str> {
         if self.buildings.iter().any(|b| b.kind == kind) { return Err("already have one"); }
@@ -916,7 +918,7 @@ impl World {
         self.pl.px = self.pl.px.clamp(2. * SF, self.g.w as f32 - 2. * SF); self.pl.py = self.pl.py.clamp(BODY_H + 1., self.g.h as f32 - 2.);
         let (x, y) = (self.pl.px as usize, (self.pl.py - 0.001) as usize);
         let landed = self.box_hits(self.pl.px, self.pl.py + 0.05);
-        if landed && !self.pl.grounded && !wet && !lava { let f = y.saturating_sub(self.pl.fall_from); if f >= 8 * S { self.shake = self.shake.max(0.25 + f as f32 * 0.02 / SF); } if f > t.safe_fall { self.moles[0].hp -= (f - t.safe_fall) as f32 * 3. / SF; self.events.push(Event::Hurt); } }
+        if landed && !self.pl.grounded && !wet && !lava { let f = y.saturating_sub(self.pl.fall_from); if f >= 8 * S { self.shake = self.shake.max(0.25 + f as f32 * 0.02 / SF); } else if f >= 2 * S { self.shake = self.shake.max(0.1); /* even a hop down lands with a bump */ } if f > t.safe_fall { self.moles[0].hp -= (f - t.safe_fall) as f32 * 3. / SF; self.events.push(Event::Hurt); } }
         if landed || wet || lava || self.pl.cling != 0 || self.pl.vy < 0. { self.pl.fall_from = y; }
         let _ = airfall;
         self.pl.grounded = landed;
@@ -933,13 +935,22 @@ impl World {
                     let i = self.g.idx(mx, my);
                     let work = match self.pl.mine { Some((j, w, _)) if (j % self.g.w).abs_diff(mx) <= 2 * S && (j / self.g.w).abs_diff(my) <= 2 * S => w + 1, _ => 1 };
                     self.moles[0].facing = if mx >= x { 1 } else { -1 };
-                    if work % 10 == 1 { self.events.push(Event::Dig); } // the strike is heard on press, then every 1/6 s
+                    if work % 10 == 1 { self.events.push(Event::Dig); self.shake = self.shake.max(0.1 + 0.03 * self.tool() as f32); } // each strike is heard and felt: on press, then every 1/6 s
                     if work >= need { self.pl.mine = None; for c in cells { if self.mine_time(c).is_some() { self.dig_cell(c, x, y); } }
                         let b = brush_radius(Brush::Dig(self.tool()), self.input.brush); self.marks.push((0, mx as f32 + 0.5, my as f32 + 0.5, b)); self.shake = self.shake.max(0.3 + 0.1 * self.tool() as f32); }
                     else { self.pl.mine = Some((i, work, need)); }
-                } else { self.pl.mine = None; }
+                } else {
+                    self.pl.mine = None;
+                    // nothing here gives to your tools: say so at once (a clink and a word), not silence
+                    let i = self.g.idx(mx, my); let m = self.g.m(i);
+                    if m.kind() == Kind::Solid && self.pl.deny != Some(i) {
+                        self.pl.deny = Some(i); self.events.push(Event::Crack); self.shake = self.shake.max(0.08);
+                        let need = match m.p().tier { 2 => Some("a drill"), 3 => Some("a bore"), _ => None };
+                        if let (Some(n), true) = (need, m != Mat::Bedrock) { self.say(format!("{} is too hard: it needs {n}.", m.p().name)); } else if m == Mat::Bedrock { self.say("Bedrock. Nothing digs it.".into()); }
+                    }
+                }
             }
-            _ => self.pl.mine = None,
+            _ => { self.pl.mine = None; self.pl.deny = None; }
         }
         // pick up anything lying within 3 cells
         let mut k = 0;
@@ -1036,7 +1047,7 @@ impl World {
     pub fn use_device(&mut self, x: usize, y: usize) -> bool {
         if x >= self.g.w || y >= self.g.h || !self.in_reach(x, y) { return false; }
         let b = self.logic.block_of(x, y); if self.logic.dev[b] == 0 { return false; }
-        self.logic.interact(b); self.events.push(Event::Click); true
+        self.logic.interact(b); self.events.push(Event::Click); let (cx, cy) = self.logic.centre(b); self.marks.push((1, cx as f32 + 0.5, cy as f32 + 0.5, 0.7 * SF)); true
     }
     /// Lay one copperline on the block under (x, y). False if it can't (already wired, a knot, none left).
     pub fn lay_wire(&mut self, x: usize, y: usize) -> bool {
@@ -1064,7 +1075,7 @@ impl World {
         } else if self.logic.wire[b] != 0 {
             self.logic.wire[b] = 0; self.logic.invalidate(); self.inv[Item::CopperWire as usize] += 1; Picked::Wire
         } else { return None };
-        self.events.push(Event::Click); Some(got)
+        self.events.push(Event::Click); self.marks.push((1, x as f32 + 0.5, y as f32 + 0.5, SF)); Some(got)
     }
     // ---------- furnishing ----------
     /// Paint with a pigment: a disc of radius `want` (0 = default, clamped like a brush) around (x, y).
@@ -1210,6 +1221,14 @@ impl World {
         let m = self.moles.first()?;
         self.buildings.iter().find(|b| b.built && b.kind == kind && (b.x + Station::W / 2).abs_diff(m.x) <= 16 * S && b.y.abs_diff(m.y) <= 10 * S)
     }
+    /// Is the forge hot without burning fuel: lava or fire within 3 m, or a heatstone fed by lava within 3 m?
+    pub fn forge_hot(&self, b: &Building) -> bool {
+        let (x0, x1, y0, y1) = (b.x, b.x + Station::W - 1, (b.y + 1).saturating_sub(Station::H), b.y);
+        let r = 3 * CPM; let (ax, ay, bx, by) = (x0.saturating_sub(r), y0.saturating_sub(r), (x1 + r).min(self.g.w - 1), (y1 + r).min(self.g.h - 1));
+        (ay..=by).any(|y| (ax..=bx).any(|x| self.g.get(x, y).p().heat >= 1))
+            || self.logic.dev_list.iter().any(|&k| { let (cx, cy) = self.logic.centre(k);
+                self.logic.dev[k] == Dev::Heat as u8 && self.logic.dev_s[k] != 0 && cx + r >= x0 && cx <= x1 + r && cy + r >= y0 && cy <= y1 + r })
+    }
     /// Is this station working? The workbench always is; the forge needs heat (lava or fire within 3 m, or a
     /// heatstone fed by lava within 3 m); the workshop needs a live copperline in or touching its footprint.
     pub fn station_ready(&self, b: &Building) -> Result<(), &'static str> {
@@ -1217,11 +1236,8 @@ impl World {
         match b.kind {
             Station::Workbench => Ok(()),
             Station::Forge => {
-                let r = 3 * CPM; let (ax, ay, bx, by) = (x0.saturating_sub(r), y0.saturating_sub(r), (x1 + r).min(self.g.w - 1), (y1 + r).min(self.g.h - 1));
-                let hot = (ay..=by).any(|y| (ax..=bx).any(|x| self.g.get(x, y).p().heat >= 1));
-                let stone = self.logic.dev_list.iter().any(|&k| { let (cx, cy) = self.logic.centre(k);
-                    self.logic.dev[k] == Dev::Heat as u8 && self.logic.dev_s[k] != 0 && cx + r >= x0 && cx <= x1 + r && cy + r >= y0 && cy <= y1 + r });
-                if hot || stone { Ok(()) } else { Err("the forge is cold: bring lava or fire within 3 m, or a heatstone") }
+                if self.forge_hot(b) || self.inv[Item::Coal as usize] + self.inv[Item::Charcoal as usize] > 0 { Ok(()) }
+                else { Err("the forge is cold: bring coal to burn, or lava or fire within 3 m, or a heatstone") }
             }
             Station::Workshop => {
                 let bb = crate::logic::B; let (ax, ay, bx, by) = (x0.saturating_sub(bb), y0.saturating_sub(bb), (x1 + bb).min(self.g.w - 1), (y1 + bb).min(self.g.h - 1));
@@ -1233,13 +1249,15 @@ impl World {
     /// Craft one recipe at once. Survival: the recipe must be known and the mole must stand at a working
     /// station of its kind (`rules.crafting`). Creative: anywhere (free access), still paid from the pack.
     pub fn craft_now(&mut self, r: usize) -> Result<(), String> {
-        let rec = &RECIPES[r]; if self.moles.is_empty() { return Err("no mole".into()); }
+        let rec = &RECIPES[r]; if self.moles.is_empty() { return Err("no mole".into()); } let mut fuel: Option<Item> = None;
         if self.rules.crafting {
             if !self.recipe_known(r) { return Err("you haven't found what that needs yet".into()); }
             let Some(b) = self.station_here(rec.station) else { return Err(format!("stand at a {}", rec.station.name().to_lowercase())) };
             self.station_ready(b)?;
+            fuel = if b.kind == Station::Forge && !self.forge_hot(b) { Some(if self.inv[Item::Coal as usize] > 0 { Item::Coal } else { Item::Charcoal }) } else { None };
         }
-        if let Some(&(it, n)) = rec.inputs.iter().find(|&&(it, n)| self.inv[it as usize] < n) { return Err(format!("need {} {}", n, it.name().to_lowercase())); }
+        if let Some(&(it, n)) = rec.inputs.iter().find(|&&(it, n)| self.inv[it as usize] < n + (fuel == Some(it)) as u32) { return Err(format!("need {} {}", n + (fuel == Some(it)) as u32, it.name().to_lowercase())); }
+        if let Some(f) = fuel { if self.inv[f as usize] == 0 { return Err("the forge needs a coal to burn".into()); } self.inv[f as usize] -= 1; }
         for &(it, n) in rec.inputs { self.inv[it as usize] -= n; } self.inv[rec.out.0 as usize] += rec.out.1;
         self.events.push(Event::Craft); self.say(format!("Crafted {}.", rec.name)); self.learn(); Ok(())
     }

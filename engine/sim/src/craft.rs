@@ -162,16 +162,17 @@ pub fn drop_of(m: Mat) -> Option<Item> {
 
 /// Stations, not menus: you craft standing at one you have built (see PROGRESSION.md).
 /// * the **workbench** for wood, stone, simple devices and furniture;
-/// * the **forge**, which needs heat (lava or fire within 3 m, or a heatstone fed by lava), for smelting and metalwork;
+/// * the **forge**, which needs heat (lava or fire within 3 m, a heatstone fed by lava, or else it burns a coal or
+///   charcoal from the pack per job), for smelting and metalwork;
 /// * the **workshop**, which needs a live copperline touching it, for machines, thrummers and fine parts.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Station { Workbench, Forge, Workshop }
 pub const STATIONS: [Station; 3] = [Station::Workbench, Station::Forge, Station::Workshop];
 impl Station {
     pub fn name(self) -> &'static str { ["Workbench", "Forge", "Workshop"][self as usize] }
-    pub fn desc(self) -> &'static str { ["Saw and bench: wood, stone, simple devices and furniture.", "Smelts ore, fires brick and glass, works metal. Needs heat: lava or fire close by, or a heatstone.", "Fine work: knots, thrummers and the drill. Needs a live copperline run to it."][self as usize] }
+    pub fn desc(self) -> &'static str { ["Saw and bench: wood, stone, simple devices and furniture.", "Smelts ore, fires brick and glass, works metal. Needs heat: lava or fire near, a heatstone, or coal.", "Fine work: knots, thrummers and the drill. Needs a live copperline run to it."][self as usize] }
     pub fn cost(self) -> &'static [(Item, u32)] {
-        match self { Station::Workbench => &[(Item::Wood, 6)], Station::Forge => &[(Item::Stone, 10), (Item::Clay, 4)], Station::Workshop => &[(Item::Wood, 4), (Item::Stone, 4), (Item::CopperWire, 6)] }
+        match self { Station::Workbench => &[(Item::Wood, 4), (Item::Stone, 4)], Station::Forge => &[(Item::Stone, 10), (Item::Clay, 4)], Station::Workshop => &[(Item::Wood, 2), (Item::Stone, 6), (Item::CopperWire, 6)] }
     }
     /// Which station art to draw (the workbench, the furnace for the forge, the anvil bench for the workshop).
     pub fn art(self) -> u8 { [0, 2, 3][self as usize] }
@@ -223,7 +224,7 @@ pub static RECIPES: &[Recipe] = &[
     Recipe { name: "Lamp", station: Station::Forge, inputs: &[(Item::Glass, 1), (Item::Fungus, 2)], out: (Item::Lamp, 1), ticks: 90 },
     Recipe { name: "Bore", station: Station::Forge, inputs: &[(Item::IronIngot, 6), (Item::CopperIngot, 2), (Item::Crystal, 2)], out: (Item::Bore, 1), ticks: 300 },
     // workshop: copperline and power. Machines and fine parts
-    Recipe { name: "Drill", station: Station::Workshop, inputs: &[(Item::IronIngot, 3), (Item::CopperIngot, 2)], out: (Item::Drill, 1), ticks: 240 },
+    Recipe { name: "Drill", station: Station::Workshop, inputs: &[(Item::CopperIngot, 3), (Item::TinIngot, 2)], out: (Item::Drill, 1), ticks: 240 },
     Recipe { name: "Knot", station: Station::Workshop, inputs: &[(Item::CopperIngot, 1), (Item::Quartz, 1)], out: (Item::Gate, 1), ticks: 100 },
     Recipe { name: "Thrummer", station: Station::Workshop, inputs: &[(Item::Crystal, 2), (Item::CopperIngot, 2), (Item::Glass, 1)], out: (Item::Thrummer, 1), ticks: 200 },
 ];
