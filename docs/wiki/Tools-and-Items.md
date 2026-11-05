@@ -12,7 +12,7 @@ There are three hand tools on the hotbar. Each tier takes a bigger bite, digs fa
 | Drill | 2 | 3.2 | 0.5–4 | adds granite, basalt, iron ore, quartz and crystal. A copperline-driven auger |
 | Bore | 3 | 4.2 | 1–5.5 | everything but bedrock, fastest. A heavy heat-bore with the widest bite |
 
-The colony also knows **pack tools** (stone, bronze and iron), crafted at stations, which set the tier of bare-handed digging (claws are tier 0). Bedrock can't be dug at all.
+The colony also knows **pack tools** (the Pickaxe, the bronze Drill and the iron Bore, see [Tool tiers](#tool-tiers)), crafted at stations, which set the tier of bare-handed digging (claws are tier 0). Bedrock can't be dug at all.
 
 ## The round brush
 
@@ -125,7 +125,7 @@ In **Survival** (see [Progression](Progression.md#survival-mode-today)) crafting
 |---|---|---|---|---|
 | 0 | claws | (always) | | dirt, clay, sand, gravel; soft stone (sandstone, limestone, coal, copper and tin ore) slowly |
 | 1 | Pickaxe | workbench (Survival starts with one) | 2 wood + 4 stone | the same, faster |
-| 2 | Drill | workshop | 3 copper ingots + 2 tin ingots | granite and iron ore |
+| 2 | Drill | workshop | 4 bronze ingots | granite and iron ore |
 | 3 | Bore | forge | 6 iron ingots + 2 copper ingots + 2 crystal | basalt |
 
 In Survival a dig tool you don't own isn't in the hotbar, and holding a better tool's slot doesn't help: digging uses the best tool in the pack (`World::tool`, scenario `tool_tiers_survival`). Without any tool, claws still take soft stone, slowly.
@@ -148,7 +148,7 @@ A recipe appears the first time **any** of its inputs reaches the pack: picked u
 
 ## Recipes
 
-Chains are short: nothing is more than two steps from the ground (ore → ingot → tool), checked by the test `recipes_are_short_chains`. The balance follows a survey of what lies around the burrow across seeds (`survey` example): wood is scarce near spawn, so the kit carries it; lava is 20–34 m away, so a forge can burn coal until then; copper and tin come before iron, so the drill is made from them. The test `survival_ladder_is_reachable` checks the whole tool ladder can be made from the kit and the ground.
+Chains are short: nothing is more than two steps from the ground (ore → ingot → tool), checked by the test `recipes_are_short_chains`. The balance follows a survey of what lies around the burrow across seeds (`survey` example): wood is scarce near spawn, so the kit carries it; lava is 20–34 m away, so a forge can burn coal until then; copper and tin come before iron, so the drill is bronze, their alloy (test `bronze_makes_the_drill`). Bronze can be co-smelted straight from the two ores, so the bronze drill stays two steps from the ground. The test `survival_ladder_is_reachable` checks the whole tool ladder can be made from the kit and the ground.
 
 | station | makes | from |
 |---|---|---|
@@ -164,6 +164,7 @@ Chains are short: nothing is more than two steps from the ground (ore → ingot 
 | | copper ingot / tin ingot | 2 ore |
 | | iron ingot | 2 iron ore + 1 coal |
 | | 4 bronze | 3 copper + 1 tin ingot |
+| | 2 bronze | 3 copper ore + 1 tin ore (co-smelted) |
 | | 8 copperline | 1 copper ingot |
 | | 4 iron beams | 1 iron ingot |
 | | 8 pressure tube | 1 iron ingot + 2 glass |
@@ -171,13 +172,13 @@ Chains are short: nothing is more than two steps from the ground (ore → ingot 
 | | mine cart | 2 copper ingots + 4 wood |
 | | lamp | 1 glass + 2 fungus |
 | | Bore | 6 iron ingots + 2 copper ingots + 2 crystal |
-| Workshop | Drill | 3 copper ingots + 2 tin ingots |
+| Workshop | Drill | 4 bronze ingots |
 | | knot | 1 copper ingot + 1 quartz |
 | | thrummer | 2 crystal + 2 copper ingots + 1 glass |
 | | lift | 2 iron ingots + 4 wood + 1 copper ingot |
 | | tube hopper | 2 iron ingots + 2 copper ingots + 1 glass |
 
-The chain is the design: wood and stone give a bench and a pickaxe; heat (fire at first, lava deeper) lights a forge for copper and iron; copperline and a lever power a workshop for the drill; and iron, copper and crystal from the deep make the bore.
+The chain is the design: wood and stone give a bench and a pickaxe; heat (fire at first, lava deeper) lights a forge for copper and iron; copper and tin alloy into bronze, and copperline and a lever power a workshop to make the bronze drill; and iron, copper and crystal from the deep make the bore.
 
 **Adding a recipe** (furniture, decor): add the item at the **end** of `Item` (saves store items by index) with its name, description, colour and `uses`, then one `Recipe` line with its station. Unlocking and the crafting list need nothing more.
 

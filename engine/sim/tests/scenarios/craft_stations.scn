@@ -2,7 +2,7 @@
 // * Workbench: always works. The pickaxe (tier 1) is made here, and then the pick digs limestone.
 // * Forge: needs heat. Cold, it refuses; lava run into a pit beside it (within 3 m) lights it.
 // * Workshop: needs power. Unpowered, it refuses; a thrown lever on copperline into it powers it, and the
-//   drill (tier 2: copper and tin) is made here.
+//   drill (tier 2: bronze, alloyed at the forge from copper and tin) is made here.
 // (bedrock roof: a 70-tile room would cave in otherwise)
 map
 BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
@@ -46,9 +46,10 @@ craft 16 Copper_ingot
 craft 17 Copper_ingot
 craft 18 Copper_ingot
 craft 19 Tin_ingot
-craft 20 Tin_ingot
-expect 21 inv:CopperIngot == 3
-expect 21 inv:TinIngot == 2
+craft 20 Bronze_x4
+expect 21 inv:CopperIngot == 0
+expect 21 inv:TinIngot == 0
+expect 21 inv:BronzeIngot == 4        // 3 copper + 1 tin ingot
 // the workshop, over to the right
 hold 22-60 right
 station 62 14 0 Workshop
