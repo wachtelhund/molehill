@@ -70,6 +70,23 @@ Polish only: no new features or concepts. Each entry is one commit.
     the body's edge, over the rows the body spans, inset 0.1 at the head and feet. A ceiling only stops the
     rise and the mole falls. Scenario: `no_ceiling_climb` (16 take-offs both ways plus straight up, cling
     checked every tick).
+13. **Sprint (request from Hampus).** `Shift` held while moving runs at 1.6x (`TUNE.sprint`), reached in 2
+    ticks and dropped at once like the run; it applies in the air too, so a sprint jump goes ~11.5 cells
+    instead of ~7.5. It burns 0.5 food/s on the ground. Shift-click is left free. Scenario: `sprint_speed`.
+14. **Smooth wall climbing (request from Hampus).** Climbing felt clunky; traced tick by tick:
+    * the grab waited for the jump's apex: now it catches as soon as the rise slows to climbing speed;
+    * climb speed was set instantly: now it eases in at `climb_accel` 240 (about 3 ticks) and a grab while
+      falling still catches at once;
+    * the top of a wall was a 1-3 cell teleport (`TUNE.mantle`, removed): now the mole rises to the edge at
+      climb speed and is carried over it at `mantle_v` 9 (`Player.mantle`), never moving more than a quarter
+      cell a tick, with `W` alone or toward the wall;
+    * a one-cell outcrop overhead stopped the climb dead: the mole now eases out round it 1.5 cells early
+      (corner correction also tries one cell further while clinging) and back in after it;
+    * a shallow notch pulled the mole in and bumped it back out: a cling now holds across a gap of up to a
+      cell, and is only pulled into a wall that steps back for good;
+    * `W` held through the mantle hopped on arrival: `W` now jumps only on a fresh press.
+    The sprite needed no change: its claws already sit on the wall face. Scenarios: `climb_smooth`
+    (constant `vy` every tick on a ragged wall), `climb_mantle` (harness var `step`: distance moved this tick).
 
 ## Open issues
 * `main`'s solver still sends overburden through open caves, so dirt seams under deep rock are crushed in

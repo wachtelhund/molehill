@@ -35,6 +35,8 @@ const FAR: usize = 4; // chunk rows drawn beyond each end of the simulated windo
     /// a jump pressed since the last sim step (kept for that step even if already released, so a quick tap
     /// between two 60 Hz steps on a faster display isn't lost); `jump_key` = the jump keys' held state
     jump_tap: bool, jump_key: bool,
+    /// `W` is acting as jump: pressed fresh while not clinging, and still held
+    w_jump: bool,
     /// in-world feedback pops: (kind 0 bite / 1 placed block, x, y, radius in cells, start time s)
     pub pops: Vec<(u8, f32, f32, f32, f32)>,
     /// smoothed camera lookahead (cells)
@@ -243,7 +245,7 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, mut fonts: R
         px: images.add(art::image(1, 1, vec![255; 4], true)),
     };
     commands.insert_resource(sp);
-    let disp = Vec2::new(sx, sy + 1.5); commands.insert_resource(Game { w, chunks, buf: vec![1; W * H * 4], uploads: 0, acc: 0., paused: true, speed: 1, frame: 0, last_light: 0, msg: String::new(), help: false, ev: vec![], shake_off: Vec2::ZERO, autosave: 0., last_oy: oy0, far, far_done, inv_open: false, aim: None, slots: default_slots(), held: None, hot: 0, sel_t: 0., toasts: vec![], log_seen: 0, show_dev: false, disp, seed, brush: [0.; 7], demo_right: false, wheel: Default::default(), mouse_latch: false, jump_tap: false, jump_key: false, pops: vec![], look: Vec2::ZERO });
+    let disp = Vec2::new(sx, sy + 1.5); commands.insert_resource(Game { w, chunks, buf: vec![1; W * H * 4], uploads: 0, acc: 0., paused: true, speed: 1, frame: 0, last_light: 0, msg: String::new(), help: false, ev: vec![], shake_off: Vec2::ZERO, autosave: 0., last_oy: oy0, far, far_done, inv_open: false, aim: None, slots: default_slots(), held: None, hot: 0, sel_t: 0., toasts: vec![], log_seen: 0, show_dev: false, disp, seed, brush: [0.; 7], demo_right: false, wheel: Default::default(), mouse_latch: false, jump_tap: false, jump_key: false, w_jump: false, pops: vec![], look: Vec2::ZERO });
 }
 
 pub fn save_now(g: &mut Game) { let b = molehill_sim::save::save(&g.w); g.msg = match storage_put("molehill-manual", &b) { Ok(()) => "Game saved".into(), Err(e) => format!("Save failed: {e}") }; }
@@ -286,8 +288,13 @@ fn input(mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<Button
     let upk = keys.pressed(KeyCode::KeyW) || keys.pressed(KeyCode::ArrowUp);
     g.w.input.up = upk; g.w.input.down = keys.pressed(KeyCode::KeyS) || keys.pressed(KeyCode::ArrowDown);
     // Space jumps (and wall-jumps); W also jumps when not on a wall, and climbs when clinging
-    let jk = keys.pressed(KeyCode::Space) || upk && g.w.pl.cling == 0;
-    if keys.just_pressed(KeyCode::Space) || (keys.just_pressed(KeyCode::KeyW) || keys.just_pressed(KeyCode::ArrowUp)) && g.w.pl.cling == 0 { g.jump_tap = true; }
+    // W jumps only from a fresh press off a wall (held through a climb and mantle it doesn't hop on arrival)
+    let upj = (keys.just_pressed(KeyCode::KeyW) || keys.just_pressed(KeyCode::ArrowUp)) && g.w.pl.cling == 0;
+    g.w_jump = upk && (g.w_jump || upj);
+    let jk = keys.pressed(KeyCode::Space) || g.w_jump;
+    if keys.just_pressed(KeyCode::Space) || upj { g.jump_tap = true; }
+    // Shift held while moving: sprint (Shift-click stays free for other uses)
+    g.w.input.sprint = keys.pressed(KeyCode::ShiftLeft) || keys.pressed(KeyCode::ShiftRight);
     g.jump_key = jk; g.w.input.jump = jk || g.jump_tap;
     g.w.input.mine = None;
     let sel0 = g.hot;
