@@ -17,13 +17,14 @@ You play one Delver: a body about **45 × 73 cm** (1.8 × 2.9 tiles of 0.25 m, i
 | `W` / `Space` in water | Swim up |
 | `S` | Dig down (on the ground) |
 | Left mouse | Use the item in hand: dig, place a block brush, torch, copperline, device, spore, TNT or station |
+| `Q` held, then released | Throw the item in hand toward the cursor: hold to charge (0.8 s to full power, dots show the arc), release to throw. A TNT charge goes out lit |
 | Right mouse | Interact: flip a lever, step a thrum pattern or ticker beat, light TNT or a fuse cord |
 | `Ctrl` + right mouse | Pick up copperline or a device (a lit charge is defused) |
 | `[` / `]`, `Alt` / `Option` + wheel | Brush size for the tool or block in hand, within its range |
 | `1`–`0`, wheel | Hotbar slot (a trackpad flick moves one slot, momentum included). Sprinting doesn't change this |
 | `I` | Pack (inventory grid): click a slot to pick it up, click another to drop or swap. The bottom row is the hotbar |
 | `+` / `-`, `Ctrl` / `Cmd` + wheel (or pinch) | Zoom (clamped to scale 0.12–0.75 and saved) |
-| `Q` | Headlamp lit / out (also in Settings; saved). The fungus-oil lamp on the mole's hat throws a beam toward the cursor and reveals the way ahead |
+| `G` | Headlamp lit / out (also in Settings; saved). The fungus-oil lamp on the mole's hat throws a beam toward the cursor and reveals the way ahead |
 | `H` | Controls overlay |
 | `Esc` | Pause menu, or close a panel |
 | `K` / `L` | Quick save / quick load |

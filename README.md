@@ -55,7 +55,7 @@ You play one mole. The controls work like Terraria or Core Keeper.
 | `1`-`0` / wheel | Select a hotbar slot (also while sprinting) |
 | `I` | Inventory grid. Click a slot to pick its item up, then click another slot to drop or swap it (the hotbar is the bottom row) |
 | `+` / `-`, `Ctrl`/`Cmd`+wheel | Zoom (also in Settings; clamped and saved) |
-| `Q` | Headlamp lit / out |
+| `G` | Headlamp lit / out |
 | `H` | Controls overlay |
 | `Esc` | Pause menu (Resume, Restart same seed, New Holt, Save, Load, Settings, Controls, Main Menu), or close a panel |
 | `K` / `L` | Save / load |
@@ -75,7 +75,7 @@ For testing, all three tools and generous stacks of every item start in the pack
 * **Structural stress:** overburden, bending, compression and connectivity. Cracked cells crumble after 40 ticks. With no player action, the start burrow stands and a fresh world collapses only a little in the first 2 minutes (this is tested). Some natural caves may still settle in the fog away from the colony.
 * **Endless Deepholt:** you start in the middle layer of earth (depth 0 m). The 1024×512-cell grid is a sliding window over an infinite column: when the camera or colony nears the top or bottom edge, the window slides by 128 rows. Leaving rows are stored as 8 m bands with everything in them (your digging, devices, torches and stations are kept), and new rows are generated on demand from a pure per-cell function of (seed, x, absolute row), so the world is deterministic per seed. Horizontally it is still bounded by bedrock walls.
 * **Seeded procgen:** biomes, strata by depth, caves, and pockets of water and lava. Water is common in shallow layers and lava deeper down (details below).
-* **Lighting:** unlit tunnels stay dark. Torches, powered lamps, kilns, a torch in the paws and the mole's fungus-oil headlamp (`Q`) cast light with soft falloff and rock shadows; lava, crystal and fungus glow. There is also fog of war and a deep-earth parallax background. There is no sky light and no day cycle.
+* **Lighting:** unlit tunnels stay dark. Torches, powered lamps, kilns, a torch in the paws and the mole's fungus-oil headlamp (`G`) cast light with soft falloff and rock shadows; lava, crystal and fungus glow. There is also fog of war and a deep-earth parallax background. There is no sky light and no day cycle.
 * **Moles:**
   * They dig, haul, build and craft.
   * Their needs are hunger, sleep and breath. They eat grubs (+45), mushrooms (+35) and fungus (+25) at the stockpile, and sleep when tired.

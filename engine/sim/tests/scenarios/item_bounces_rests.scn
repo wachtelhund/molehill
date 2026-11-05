@@ -1,0 +1,33 @@
+// Loose items bounce on stone and come to rest; soft dirt swallows the bounce. Two stones dropped from 12
+// tiles: the one over granite bounces back up, the one over dirt doesn't; both end up asleep on the floor.
+map
+BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#...@......................................................#
+####################dddddddddddddddddddd####################
+end
+drop 1 Stone 8 -12
+drop 1 IronOre 26 -12
+expect 1 items:Stone == 1
+// they land around tick 24: the stone kicks back up off the granite, the ore stops dead in the dirt
+expect 26 ivy:Stone < -5
+expect 26 ivy:IronOre >= 0
+expect 30 iy:IronOre > -0.2
+// both lie still and sleep, on the floor, without drifting off sideways
+expect 90 irest:Stone == 1
+expect 90 irest:IronOre == 1
+expect 90 iy:Stone > -0.2
+expect 90 ix:Stone == 8
+expect 90 ix:IronOre == 26

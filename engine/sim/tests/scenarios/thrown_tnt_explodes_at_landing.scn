@@ -1,0 +1,42 @@
+// A lit charge thrown hard: it flies, bounces and rolls, and goes off where its fuse runs out (1.5 s),
+// far from the thrower, blowing a crater in the floor there. A second charge lobbed into a water pit is
+// doused and lies there as a dud.
+map
+BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+#....................................................................#
+#....................................................................#
+#....................................................................#
+#....................................................................#
+#....................................................................#
+#....................................................................#
+#....................................................................#
+#....................................................................#
+#....................................................................#
+#....................................................................#
+#....................................................................#
+#....................................................................#
+#....................................................................#
+#...................@................................................#
+#wwwwwwwwrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr#
+#wwwwwwww#############################################################
+######################################################################
+end
+give Tnt 2
+throw 2 Tnt 1 -1 1
+expect 2 inv:Tnt == 1
+expect 2 ilit:Tnt == 1
+// still flying at 0.5 s, still lit while it rolls, then gone with a bang
+expect 30 ivy:Tnt > 0
+expect 60 ilit:Tnt == 1
+expect 60 ev:Explode == 0
+expect 95 ev:Explode == 1
+expect 95 items:Tnt == 0
+// the crater is out where it landed (~25 tiles away), the floor under the thrower is untouched
+expect 95 is:27,1,Rock == 0
+expect 95 is:0,1,Rock == 1
+expect 95 hp > 99
+// lob the other one back into the trough: the water puts the fuse out
+throw 100 Tnt -1 -1 0.6
+expect 200 items:Tnt == 1
+expect 200 ilit:Tnt == 0
+expect 260 ev:Explode == 1

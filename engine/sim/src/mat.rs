@@ -44,6 +44,9 @@ pub struct Props {
     /// liquids: how far a cell runs along a surface per tick, in legacy 0.25 m tiles, and on how many
     /// ticks in 10 it moves at all (viscosity: lava is slow)
     pub spread: u8, pub flow_in_10: u8,
+    /// loose items landing on it: how much of the impact speed bounces back (0..1), and the sliding
+    /// friction coefficient (soft earth grabs, stone and iron let things skid and roll)
+    pub bounce: f32, pub friction: f32,
     pub flags: u16,
 }
 /// Floor a mushroom plot can grow on.
@@ -61,7 +64,7 @@ pub const NOTABLE: u16 = 16;
 pub const OPEN: u16 = 32;
 const BASE: Props = Props { name: "", desc: "", kind: Kind::Solid, density: 0., tensile: 0., compressive: 0., dig: 0, tier: 0, blast: 0,
     emit: [0, 0, 0], opacity: 0, color: [0, 0, 0], crumbles_to: Mat::Empty, repose: 0., heat: 0, ignite: 0, cools_to: Mat::Empty, life: 0,
-    spread: 0, flow_in_10: 10, flags: 0 };
+    spread: 0, flow_in_10: 10, bounce: 0.35, friction: 0.5, flags: 0 };
 use Kind::*;
 use Mat as X;
 pub static PROPS: [Props; NMAT] = [
@@ -71,28 +74,28 @@ pub static PROPS: [Props; NMAT] = [
     Props { name: "Sandstone", desc: "Soft stone. A pickaxe cuts it.", kind: Solid, density: 2300., tensile: 300., compressive: 8000., dig: 8, tier: 1, blast: 5, opacity: 120, color: [170, 132, 92], crumbles_to: X::Sand, ..BASE },
     Props { name: "Limestone", desc: "Pale, even stone. Strong in a roof.", kind: Solid, density: 2500., tensile: 400., compressive: 9000., dig: 9, tier: 1, blast: 5, opacity: 120, color: [178, 170, 150], crumbles_to: X::Gravel, flags: NOTABLE, ..BASE },
     Props { name: "Basalt", desc: "Dark, hard stone from cooled lava. Needs a drill.", kind: Solid, density: 2900., tensile: 700., compressive: 18000., dig: 12, tier: 2, blast: 7, opacity: 120, color: [62, 60, 70], crumbles_to: X::Gravel, flags: NOTABLE, ..BASE },
-    Props { name: "Dirt", desc: "Loose earth. Quick to dig, weak under load.", kind: Solid, density: 1600., tensile: 15., compressive: 250., dig: 2, blast: 2, opacity: 110, color: [122, 88, 58], crumbles_to: X::Dirt, repose: 0.15, flags: SOIL | POROUS | GRUBS, ..BASE },
-    Props { name: "Clay", desc: "Stiff earth. Holds water back.", kind: Solid, density: 1800., tensile: 40., compressive: 400., dig: 3, blast: 3, opacity: 110, color: [168, 104, 78], crumbles_to: X::Clay, repose: 0.45, flags: SOIL | POROUS | GRUBS | NOTABLE, ..BASE },
-    Props { name: "Sand", desc: "Flows when nothing holds it.", kind: Powder, density: 1600., tensile: 0., compressive: 150., dig: 1, blast: 1, opacity: 110, color: [222, 196, 132], crumbles_to: X::Sand, flags: POROUS, ..BASE },
-    Props { name: "Gravel", desc: "Rubble that shifts when disturbed.", kind: Solid, density: 1900., tensile: 3., compressive: 300., dig: 2, blast: 2, opacity: 110, color: [140, 134, 124], crumbles_to: X::Gravel, repose: 0.4, flags: SOIL | POROUS | GRUBS, ..BASE },
+    Props { name: "Dirt", desc: "Loose earth. Quick to dig, weak under load.", kind: Solid, density: 1600., tensile: 15., compressive: 250., dig: 2, blast: 2, opacity: 110, color: [122, 88, 58], crumbles_to: X::Dirt, repose: 0.15, flags: SOIL | POROUS | GRUBS, bounce: 0.05, friction: 0.9, ..BASE },
+    Props { name: "Clay", desc: "Stiff earth. Holds water back.", kind: Solid, density: 1800., tensile: 40., compressive: 400., dig: 3, blast: 3, opacity: 110, color: [168, 104, 78], crumbles_to: X::Clay, repose: 0.45, flags: SOIL | POROUS | GRUBS | NOTABLE, bounce: 0.08, friction: 0.95, ..BASE },
+    Props { name: "Sand", desc: "Flows when nothing holds it.", kind: Powder, density: 1600., tensile: 0., compressive: 150., dig: 1, blast: 1, opacity: 110, color: [222, 196, 132], crumbles_to: X::Sand, flags: POROUS, bounce: 0.05, friction: 0.9, ..BASE },
+    Props { name: "Gravel", desc: "Rubble that shifts when disturbed.", kind: Solid, density: 1900., tensile: 3., compressive: 300., dig: 2, blast: 2, opacity: 110, color: [140, 134, 124], crumbles_to: X::Gravel, repose: 0.4, flags: SOIL | POROUS | GRUBS, bounce: 0.15, friction: 0.7, ..BASE },
     Props { name: "Coal", desc: "Black seam. Dig it for coal.", kind: Solid, density: 1350., tensile: 60., compressive: 2000., dig: 5, blast: 4, opacity: 120, color: [40, 38, 42], crumbles_to: X::Gravel, ignite: 2, flags: NOTABLE, ..BASE },
     Props { name: "Copper ore", desc: "Seam of copper ore.", kind: Solid, density: 3200., tensile: 120., compressive: 4000., dig: 8, tier: 1, blast: 5, opacity: 120, color: [150, 110, 80], crumbles_to: X::Gravel, flags: NOTABLE, ..BASE },
     Props { name: "Tin ore", desc: "Seam of tin ore.", kind: Solid, density: 3400., tensile: 120., compressive: 4000., dig: 8, tier: 1, blast: 5, opacity: 120, color: [140, 140, 150], crumbles_to: X::Gravel, flags: NOTABLE, ..BASE },
     Props { name: "Iron ore", desc: "Seam of iron ore. Needs a drill.", kind: Solid, density: 3800., tensile: 150., compressive: 5000., dig: 11, tier: 2, blast: 6, opacity: 120, color: [130, 86, 70], crumbles_to: X::Gravel, flags: NOTABLE, ..BASE },
-    Props { name: "Quartz", desc: "Clear stone. Light passes through.", kind: Solid, density: 2650., tensile: 250., compressive: 9000., dig: 12, tier: 2, blast: 7, opacity: 50, color: [228, 224, 236], crumbles_to: X::Gravel, flags: NOTABLE, ..BASE },
-    Props { name: "Crystal", desc: "Glowing stone. Lights the dark.", kind: Solid, density: 2600., tensile: 300., compressive: 20000., dig: 10, tier: 2, blast: 6, emit: [90, 170, 255], opacity: 40, color: [120, 200, 255], crumbles_to: X::Gravel, flags: NOTABLE, ..BASE },
-    Props { name: "Roots", desc: "Tangle of roots. Gives wood.", kind: Solid, density: 700., tensile: 60., compressive: 300., dig: 2, blast: 2, opacity: 100, color: [118, 84, 50], crumbles_to: X::Dirt, repose: 0.2, ignite: 1, flags: SOIL | POROUS | GRUBS, ..BASE },
-    Props { name: "Fungus", desc: "Soft glowing growth.", kind: Powder, density: 400., tensile: 4., compressive: 50., dig: 1, blast: 1, emit: [40, 110, 60], opacity: 70, color: [96, 168, 110], crumbles_to: X::Dirt, repose: 1.0, ignite: 1, flags: SOIL | POROUS | NOTABLE, ..BASE },
-    Props { name: "Grass", desc: "Mossy earth.", kind: Solid, density: 1500., tensile: 20., compressive: 250., dig: 2, blast: 2, opacity: 110, color: [92, 140, 60], crumbles_to: X::Dirt, repose: 0.15, flags: SOIL | GRUBS, ..BASE },
-    Props { name: "Wood beam", desc: "Wooden prop. Holds up what rests on it.", kind: Solid, density: 600., tensile: 3000., compressive: 8000., dig: 4, blast: 3, opacity: 150, color: [196, 150, 90], crumbles_to: X::WoodBeam, repose: 0.3, ignite: 1, flags: BUILT, ..BASE },
+    Props { name: "Quartz", desc: "Clear stone. Light passes through.", kind: Solid, density: 2650., tensile: 250., compressive: 9000., dig: 12, tier: 2, blast: 7, opacity: 50, color: [228, 224, 236], crumbles_to: X::Gravel, flags: NOTABLE, bounce: 0.4, friction: 0.35, ..BASE },
+    Props { name: "Crystal", desc: "Glowing stone. Lights the dark.", kind: Solid, density: 2600., tensile: 300., compressive: 20000., dig: 10, tier: 2, blast: 6, emit: [90, 170, 255], opacity: 40, color: [120, 200, 255], crumbles_to: X::Gravel, flags: NOTABLE, bounce: 0.4, friction: 0.35, ..BASE },
+    Props { name: "Roots", desc: "Tangle of roots. Gives wood.", kind: Solid, density: 700., tensile: 60., compressive: 300., dig: 2, blast: 2, opacity: 100, color: [118, 84, 50], crumbles_to: X::Dirt, repose: 0.2, ignite: 1, flags: SOIL | POROUS | GRUBS, bounce: 0.15, friction: 0.8, ..BASE },
+    Props { name: "Fungus", desc: "Soft glowing growth.", kind: Powder, density: 400., tensile: 4., compressive: 50., dig: 1, blast: 1, emit: [40, 110, 60], opacity: 70, color: [96, 168, 110], crumbles_to: X::Dirt, repose: 1.0, ignite: 1, flags: SOIL | POROUS | NOTABLE, bounce: 0.05, friction: 1.0, ..BASE },
+    Props { name: "Grass", desc: "Mossy earth.", kind: Solid, density: 1500., tensile: 20., compressive: 250., dig: 2, blast: 2, opacity: 110, color: [92, 140, 60], crumbles_to: X::Dirt, repose: 0.15, flags: SOIL | GRUBS, bounce: 0.1, friction: 0.9, ..BASE },
+    Props { name: "Wood beam", desc: "Wooden prop. Holds up what rests on it.", kind: Solid, density: 600., tensile: 3000., compressive: 8000., dig: 4, blast: 3, opacity: 150, color: [196, 150, 90], crumbles_to: X::WoodBeam, repose: 0.3, ignite: 1, flags: BUILT, bounce: 0.3, friction: 0.55, ..BASE },
     Props { name: "Stone brick", desc: "Laid brick.", kind: Solid, density: 2400., tensile: 600., compressive: 15000., dig: 8, tier: 1, blast: 6, opacity: 160, color: [150, 150, 160], crumbles_to: X::Gravel, flags: BUILT, ..BASE },
-    Props { name: "Iron beam", desc: "Iron girder. Spans wide gaps.", kind: Solid, density: 7800., tensile: 40000., compressive: 120000., dig: 20, tier: 2, blast: 9, opacity: 200, color: [170, 176, 190], crumbles_to: X::IronBeam, flags: BUILT, ..BASE },
-    Props { name: "Door", desc: "Opens and shuts with current.", kind: Solid, density: 700., tensile: 2000., compressive: 5000., dig: 4, blast: 3, opacity: 150, color: [140, 104, 64], crumbles_to: X::WoodBeam, repose: 0.3, ignite: 1, flags: BUILT, ..BASE },
+    Props { name: "Iron beam", desc: "Iron girder. Spans wide gaps.", kind: Solid, density: 7800., tensile: 40000., compressive: 120000., dig: 20, tier: 2, blast: 9, opacity: 200, color: [170, 176, 190], crumbles_to: X::IronBeam, flags: BUILT, bounce: 0.45, friction: 0.35, ..BASE },
+    Props { name: "Door", desc: "Opens and shuts with current.", kind: Solid, density: 700., tensile: 2000., compressive: 5000., dig: 4, blast: 3, opacity: 150, color: [140, 104, 64], crumbles_to: X::WoodBeam, repose: 0.3, ignite: 1, flags: BUILT, bounce: 0.3, friction: 0.55, ..BASE },
     Props { name: "Water", desc: "Fills every hollow it can reach.", kind: Liquid, density: 1000., opacity: 16, color: [52, 120, 200], crumbles_to: X::Water, spread: 6, flow_in_10: 10, flags: NOTABLE | OPEN, ..BASE },
     Props { name: "Lava", desc: "Molten rock. Burns, and lights the dark.", kind: Liquid, density: 2700., emit: [255, 110, 30], opacity: 30, color: [255, 110, 32], crumbles_to: X::Lava, heat: 2, cools_to: X::Basalt, spread: 2, flow_in_10: 3, flags: NOTABLE, ..BASE },
     Props { name: "Steam", desc: "Hot vapour from water meeting lava.", kind: Gas, density: 0.6, opacity: 8, color: [210, 216, 222], crumbles_to: X::Steam, life: 90, flags: OPEN, ..BASE },
     Props { name: "Fire", desc: "Burning. Spreads to wood and roots.", kind: Gas, density: 0.3, emit: [255, 150, 50], opacity: 4, color: [255, 160, 60], crumbles_to: X::Empty, heat: 1, cools_to: X::Steam, life: 70, ..BASE },
-    Props { name: "Glass", desc: "Clear pane.", kind: Solid, density: 2500., tensile: 100., compressive: 2000., dig: 3, blast: 2, opacity: 20, color: [190, 220, 230], crumbles_to: X::Sand, flags: BUILT, ..BASE },
+    Props { name: "Glass", desc: "Clear pane.", kind: Solid, density: 2500., tensile: 100., compressive: 2000., dig: 3, blast: 2, opacity: 20, color: [190, 220, 230], crumbles_to: X::Sand, flags: BUILT, bounce: 0.4, friction: 0.3, ..BASE },
 ];
 impl Mat {
     #[inline] pub fn from_u8(v: u8) -> Mat { if (v as usize) < NMAT { unsafe { std::mem::transmute(v) } } else { Mat::Empty } }

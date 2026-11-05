@@ -50,6 +50,7 @@ The rest of a material's behaviour is in the same row (`Props` in `mat.rs`), and
 
 * **Heat.** `heat` is what it gives off (a flame 1, lava 2): it burns a mole, feeds the air's fire load and lights fuses. `ignite` is the heat needed to set it alight: wood, roots, fungus and doors catch from any flame; coal only from lava. `cools_to` is what it sets into when it loses heat: lava becomes basalt (shattered scoria when water quenches it), and a flame touching water becomes steam.
 * **Flow.** Liquids carry `spread` (how far a cell runs along a surface per tick, in 0.25 m tiles: water 6, lava 2) and `flow_in_10` (on how many ticks in 10 it moves: water 10, lava 3). `life` is how long steam and fire last.
+* **Loose items.** `bounce` (how much of a landing's speed bounces back) and `friction` (how hard the surface grabs a sliding item) are per material: granite 0.35/0.5, dirt 0.05/0.9, iron beam 0.45/0.35. An item floats or sinks by comparing its density (its material's, see `Item::density`) with the liquid's, and drags more in lava than in water (`flow_in_10`).
 * **Thrum conduction** is derived from density and compressive strength (see Thrumming below).
 * **Flags** sort materials for the few rules that need a category: `SOIL` (a mushroom plot can grow on it), `POROUS` (lets stale air seep away), `GRUBS` (digging turns up grubs), `BUILT` (placed by moles: breaks into its own debris, never bulks, a quake doesn't loosen it), `NOTABLE` (a discovery note the first time it's seen) and `OPEN` (a placed block displaces it).
 
@@ -183,7 +184,7 @@ L(i) = max(L(i), L(n) · t(i) · d)     t = 0.90 open, 0.80 liquid, ≈ 0.3 into
 | headlamp glow | warm | 3 m |
 | the mole's own glow (lamp out) | faint | 2 m |
 
-The **headlamp** sits on the mole's hard hat and points at the cursor, or ahead and a little down when nothing is aimed at. While it's lit, it also reveals fog of war along its beam. Toggle it with `Q` or in Settings (saved).
+The **headlamp** sits on the mole's hard hat and points at the cursor, or ahead and a little down when nothing is aimed at. While it's lit, it also reveals fog of war along its beam. Toggle it with `G` or in Settings (saved).
 
 Light is computed only over the camera view plus a margin, every second frame: about 3 ms natively for the view, plus about 0.6 ms for the headlamp and 20 torches (`cargo run --release -p molehill-sim --example stepbench`).
 

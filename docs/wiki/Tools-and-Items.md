@@ -51,7 +51,11 @@ The pack (`I`) is a grid of 70 slots, and the bottom row is the hotbar (`1`–`0
 
 ## Digging drops
 
-Digging drops items: one per 6 tiles dug, or one per 3 for gems. In the colony design, moles haul drops to the **stockpile**, and only stockpiled items count. The first sighting of each ore, fluid or rock is a **discovery** with a small reward.
+Digging drops items: one per 6 tiles dug, or one per 3 for gems. Loose items are small physics bodies (`items.rs`): they pop out of the bite, fall, bounce and skid on what they land on (stone is lively, dirt swallows a bounce), float or sink by density (wood floats, ingots sink, a grub sinks slowly), burn up in lava or fire if they burn, and fall asleep once still. Walking past picks them up.
+
+## Throwing
+
+Hold `Q` to charge a throw of the item in hand and release to throw it at the cursor; 0.8 s of charge is a full throw, which carries about 6 m on the level, and dots show the arc. You can't catch your own throw for half a second. A thrown **TNT** charge goes out lit: it flies, bounces and rolls, and goes off where its 1.5 s fuse runs out, with the same blast as placed TNT. Water puts it out (it lies there as a dud you can pick up again), and lava or fire lights one lying loose. A lit charge can't be picked up. Blasts throw loose items around. In the colony design, moles haul drops to the **stockpile**, and only stockpiled items count. The first sighting of each ore, fluid or rock is a **discovery** with a small reward.
 
 ## Stations
 
