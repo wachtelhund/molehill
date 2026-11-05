@@ -196,3 +196,15 @@ bit-identical to before (checked before flipping it).
 * Soft rock now loses ~250 tiles in a pocket (was 100), ~155 in a tunnel (was 84), ~38 in a cave (was 31);
   granite ~22 (was 7), basalt ~4 (was 3).
 * Debris buried by a heap lands at the nearest open cell (out to 3 m) instead of hovering and being dropped.
+
+## Granite pass and the repeating bangs
+* Granite's blast strength 1900 → 1000 kPa (quartz 1100 → 850 to keep the table in order): one charge on a tunnel
+  floor now blasts granite 0.75 m down and 0.5 m into the roof, ~60 tiles (was ~22), ~160 tamped in a pocket (was
+  ~109). Limestone stays far weaker (155 / 250), basalt still barely marks. Scenarios blast_granite_chips (before/
+  after cells, rubble), blast_granite_pocket (new); blast_granite_vs_dirt and blast_moves_sand (bedrock floor)
+  adjusted.
+* Repeating bangs after one charge: not repeated blasts (`World::blasts_run` stays at one, no further Explode) and
+  not replayed audio (the game drains its events each frame). It was the stress crumble: cracked cells round the
+  crater fail one or two at a time for seconds, and each tick with any crumble pushed Event::Crumble, which plays
+  the 2.8 s collapse rumble. Now only a crumble of CRUMBLE_LOUD (two tiles' worth) cells or more in a tick sounds.
+  Tests in tests/blast_events.rs (fail on the old rule); `blastevents` example.

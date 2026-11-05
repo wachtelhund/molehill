@@ -215,7 +215,8 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `blast_pushes_water.scn` | A blast in a flooded trough throws most of the pool up as spray, which all comes down again |
 | `blast_soft_rock_tunnel.scn` | One charge on a soft-rock tunnel floor: crater through the 1 m floor and 1.25 m into the roof, rock 3.5 m off whole, 114+ tiles broken (~155), 100+ tiles of rubble thrown 4.5 m and more along the tunnel, all landed |
 | `blast_pocket.scn` / `blast_cave_soaks.scn` | Confinement: tamped into a pocket a round crater ~5 m across (196+ tiles, ~250), on a cave floor ~38 |
-| `blast_granite_chips.scn` / `blast_basalt_holds.scn` | Granite cracks 0.5 m under the charge and scars the roof (10 to 35 tiles); basalt loses only the face under it |
+| `blast_granite_chips.scn` / `blast_granite_pocket.scn` | Granite on a tunnel floor: crater 0.75 m down and 0.5 m into the roof, 35 to 80 tiles broken, rubble lying as gravel; tamped in a pocket 104+ tiles, round crater |
+| `blast_basalt_holds.scn` | Basalt loses only the face under the charge |
 | `cart_rolls_downhill.scn` | A cart on a 1-in-4 slope rolls off on its own, speeds up, runs out on the level and stops at the end of the track |
 | `cart_push_level.scn` / `cart_load_heavier.scn` | Walking into a cart pushes it to walking pace and it coasts to rest; 30 stones of cargo make the same push about three times slower |
 | `cart_ride.scn` | Right mouse gets in; the mole rides down the slope with the cart; Space jumps out |
@@ -285,7 +286,7 @@ Zoom limits and brush ranges also have unit tests in `sim/tests/sim.rs` (`zoom_i
 
 **Web frame time:** serve `dist/` (`python3 -m http.server`) and measure `requestAnimationFrame` intervals in Chrome after starting a holt. At 8 cells/m on an M4 with the active region: 58 fps (p95 16.8 ms) from a fresh holt's first seconds, 60 fps steady state.
 
-Blast tests in `sim.rs`: `blast_overpressure_curve` (Kinney-Graham values, monotone, deterministic, bounded), `blast_is_heard_by_listeners`, `blast_debris_deterministic_and_conserved`. Transport tests in `transport.rs`: `transport_is_reachable_in_survival`, `creative_has_transport_freely`. `--example blastbench` times one charge.
+Blast tests in `sim.rs`: `blast_overpressure_curve` (Kinney-Graham values, monotone, deterministic, bounded), `blast_is_heard_by_listeners`, `blast_debris_deterministic_and_conserved`. Blast sound tests in `blast_events.rs`: `one_charge_is_heard_once_*` (one charge in a generated world: one blast, no later Explode or Quake, no collapse rumble for a cell or two trickling off the crater). Transport tests in `transport.rs`: `transport_is_reachable_in_survival`, `creative_has_transport_freely`. `--example blastbench` times one charge.
 
 Worldgen tests in `sim.rs`: `ore_sits_in_its_depth_bands` (copper just below the holt, iron in the mid granite, basalt below 90 m), `grottos_follow_the_layers` (frequency by depth band over 6 seeds, none in the deep, deterministic), `generated_grottos_hold` (fresh holts' grottos stay open with their trees up), `slides_leave_nothing_failing`, `glowmites_drift_glow_and_get_caught`.
 

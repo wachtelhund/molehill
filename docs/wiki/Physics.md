@@ -170,7 +170,7 @@ A blast (`blast.rs`) is a pressure wave, not a fixed crater. A TNT charge is **0
 
   | material | sand | dirt, gravel, roots | clay, wood beam | coal | sandstone, limestone, copper and tin ore | iron ore, crystal, stone brick | quartz | granite | basalt | iron beam | bedrock |
   |---|---|---|---|---|---|---|---|---|---|---|---|
-  | strength (kPa) | 60 | 150 | 220 | 300 | 360 | 700 | 1100 | 1900 | 6500 | 9000 | never |
+  | strength (kPa) | 60 | 150 | 220 | 300 | 360 | 700 | 850 | 1000 | 6500 | 9000 | never |
 
   Above its strength a face **cracks** into loose rubble; above 2.5× it **shatters** away, and a third of what shatters flies as rubble.
   * **Confinement** is the rock the wave hit or broke per open cell it filled: about 0.1 in a cave, 0.3 in a tunnel, near 1 in a tamped pocket. A boxed-in charge's gas keeps pushing, so the load on every face is raised by (1 + confinement).
@@ -179,7 +179,7 @@ A blast (`blast.rs`) is a pressure wave, not a fixed crater. A TNT charge is **0
     * On a tunnel floor, a crater through the 1 m floor to bedrock and 1.25 m into the roof, broken in patches out to 2.5 m along the tunnel. Rock 3.5 m off stays whole. About 155 tiles break, and the rubble is thrown metres along the tunnel (`blast_soft_rock_tunnel`).
     * Tamped into a 0.5 m pocket, a round crater about 5 m across: about 250 tiles (`blast_pocket`).
     * On a 6.5 m cave's floor, about 38 tiles (`blast_cave_soaks`).
-  * Granite cracks 0.5 m deep under the charge and scars the roof over it, about 22 tiles (`blast_granite_chips`). Basalt loses only the face it sits on, a few tiles (`blast_basalt_holds`). Dirt goes readily (`blast_granite_vs_dirt`).
+  * Granite is much tougher than soft rock but still gives way. On a tunnel floor one charge blasts it 0.75 m down and 0.5 m up into the roof: about 60 tiles broken and thrown as gravel (`blast_granite_chips`). Tamped into a pocket, about 160 tiles, a crater a couple of metres across (`blast_granite_pocket`). Basalt loses only the face it sits on, a few tiles (`blast_basalt_holds`). Dirt goes readily (`blast_granite_vs_dirt`).
 * **Throwing.** Loose ground (sand, gravel, rubble, ash), the rubble the blast cracks and liquids in the wave really fly (`debris.rs`).
   * The push on a loose face runs on into the bed or pile, fading over 0.8 m; anything still pushed by 8 kPa or more goes.
   * Each cell leaves the grid as debris at about 1 m/s per 7 kPa, at most 30 m/s. Cracked rubble goes at 0.9 of that, liquids at 0.8.
@@ -189,6 +189,7 @@ A blast (`blast.rs`) is a pressure wave, not a fixed crater. A TNT charge is **0
 * **Items** fly along the wave, harder the higher the pressure.
 * **Moles** take (P − 40 kPa) / 3 damage from the overpressure where they stand: a knock under 40 kPa, deadly at about 340. The player is also knocked along the wave.
 * **Feel.** The bang comes with a quake event and a crumble when rock breaks, and the screen shakes by the charge size and by the pressure at the player.
+* **Heard once.** One charge is one blast, and its bang and jolt are heard once. Afterwards the cracked faces round the crater go on shedding the odd cell for a few seconds. That falls silently: only a collapse of at least two tiles' worth of cells in a tick sounds the collapse rumble (`CRUMBLE_LOUD`), and a new stress crack gives its short click as ever (`blast_events` tests; the `blastevents` example logs what one charge sets off, second by second).
 * **Seeing the wave.** The wave has no outline. It shows through what it carries: the debris it throws, and a light dust.
   * Each blast keeps a record of its wave: every cell the pressure reached, the path distance the front ran to get there, its peak and its direction (`World::waves`).
   * The game raises sparse dust, the colour of the rock it was knocked off, along that path as the front passes (slowed to 22 m/s so it can be followed). It rides out with the wave down the tunnels and round corners, then slows and settles. A small puff of smoke rises from the charge. Flying debris is drawn as it moves.

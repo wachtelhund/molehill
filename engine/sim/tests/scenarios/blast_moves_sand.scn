@@ -1,7 +1,7 @@
 // Loose ground really flies: a charge set on a tunnel floor next to a bed of sand. The push runs into the
 // bed (fading over half a metre) and throws it out and up, away from the charge: dozens of tiles of sand
 // are in the air at once, the bed near the charge is scoured to the rock, and it all comes down again
-// further along (none is lost).
+// further along (none is lost: the floor is bedrock, so none falls through a cracked floor).
 map
 ############################################################
 #..........................................................#
@@ -12,7 +12,7 @@ map
 #.@........................................................#
 #..................sssssssssssssssssssssss.................#
 #..................sssssssssssssssssssssss.................#
-############################################################
+BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
 end
 expect 1 count:Sand == 46
 explode 5 16 0 0.5                // on the floor, a metre short of the bed

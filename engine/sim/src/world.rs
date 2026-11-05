@@ -33,6 +33,8 @@ pub const D_PLANK: u8 = 5; pub const D_POLISH: u8 = 6; pub const D_TILE: u8 = 7;
 pub const D_RAIL: u8 = 9; pub const D_TUBE: u8 = 10;
 /// The build code for a block item (structural or decorative).
 pub fn block_code(it: Item) -> Option<u8> { Some(match it { Item::WoodPillar => D_WOOD, Item::Brick => D_BRICK, Item::IronBeam => D_IRON, Item::Planks => D_PLANK, Item::PolishedStone => D_POLISH, Item::Tiles => D_TILE, Item::CarvedPillar => D_CARVED, Item::Rail => D_RAIL, Item::Tube => D_TUBE, _ => return None }) }
+/// The fewest cells crumbling in one tick that sound as a collapse (`Event::Crumble`): two tiles' worth.
+pub const CRUMBLE_LOUD: usize = 2 * S * S;
 pub const MOLE_H: usize = 3 * S;
 const REACH: i32 = 3 * S as i32;
 
@@ -172,6 +174,8 @@ pub struct World {
     pub debris: Vec<crate::debris::Debris>, pub waves: Vec<crate::debris::Wave>,
     /// carts and the rest of transport (see `transport.rs`)
     pub tr: crate::transport::Transport,
+    /// blasts run since the world was made (diagnostics and tests: one charge, one blast)
+    pub blasts_run: u64,
     /// glowmites caught: (grotto id, glowmite) → tick. A grotto's swarm refills: each comes back after GLOWMITE_BACK.
     pub caught: std::collections::HashMap<(u32, u8), u64>,
     /// Survival, Creative, or Plain (the bare rules: tests and scenarios); `rules` is what the mode switches on
@@ -204,7 +208,7 @@ impl World {
             st: Stress::new(w * h), light: Light::new(w, h), tick: 0, inv: [0; NITEM], dig_acc: [0; NMAT], place_acc: [0; 12], desig: vec![0; w * h],
             moles: vec![], drops: vec![], stockpile: (0, 0, 0, 0), buildings: vec![], torches: vec![], chests: vec![], furniture: vec![], paint_acc: 0,
             quest: 0, log: vec![], discovered: [false; NMAT], chests_opened: 0, pillars: 0, max_depth: 0., craft_queue: vec![], gear: Gear::default(), known: [false; NITEM], mode: Default::default(), rules: Default::default(), lamp_oil: 0., lamp_dry: false, ruins: vec![], ruins_seen: Default::default(), relics: 0, crumbled: 0,
-            light_rect: (0, 0, w - 1, h - 1), events: vec![], marks: vec![], react_pending: false, logic: Logic::new(w, h), disasters: Disasters::new(seed), shake: 0., air: Air::new(w, h), farms: vec![], harvested: 0, input: Input::default(), pl: Player::default(), gen: gn, oy, bands: Default::default(), opened: Default::default(), clues: vec![], found_clues: Default::default(), journal: vec![], grottos: vec![], caught: Default::default(), keep_blast_field: false, blast_field: vec![], debris: vec![], waves: vec![], tr: Default::default(), info, g,
+            light_rect: (0, 0, w - 1, h - 1), events: vec![], marks: vec![], react_pending: false, logic: Logic::new(w, h), disasters: Disasters::new(seed), shake: 0., air: Air::new(w, h), farms: vec![], harvested: 0, input: Input::default(), pl: Player::default(), gen: gn, oy, bands: Default::default(), opened: Default::default(), clues: vec![], found_clues: Default::default(), journal: vec![], grottos: vec![], caught: Default::default(), keep_blast_field: false, blast_field: vec![], debris: vec![], waves: vec![], tr: Default::default(), blasts_run: 0, info, g,
         }
     }
     pub fn new(w: usize, h: usize, seed: u32) -> World {
@@ -439,7 +443,9 @@ impl World {
             let f = self.solve_regions(boxes);            let before = self.st.cracking.len(); self.st.crack(&f); if self.st.cracking.len() > before { self.events.push(Event::Crack); }
         }
         let crumble = self.st.tick(&self.g);
-        if !crumble.is_empty() { self.events.push(Event::Crumble); }
+        // a collapse is heard: one of at least CRUMBLE_LOUD cells in a tick. The odd cell or two trickling off a
+        // cracked face (as round a fresh crater, for seconds after the blast) falls without a boom.
+        if crumble.len() >= CRUMBLE_LOUD { self.events.push(Event::Crumble); }
         let mut bulk = vec![];
         for &i in &crumble { let i = i as usize; let was = self.g.m(i); let c = was.p().crumbles_to; self.g.set(i, c); if c.kind() == Kind::Solid { self.g.set_loose(i); } self.crumbled += 1;
             if !was.has(BUILT) && hash3(i as u32, 77, self.tick as u32) % 10 < BULK_IN_10 { bulk.push((i, c)); } }

@@ -1,5 +1,5 @@
 // A charge between a dirt wall and a granite wall, the same distance from each: the dirt is blown out and
-// cracked to rubble for a metre or more, the granite takes it.
+// cracked to rubble for a metre or more; the granite face only loses its skin.
 map
 ############################
 #dddddddddd.....############
@@ -13,5 +13,5 @@ map
 end
 expect 1 static:Granite >= 136
 explode 5 12 -3 0.25
-expect 6 static:Dirt < 56        // of 60 dirt tiles, a good part is gone or loose
-expect 6 static:Granite >= 132   // granite: a tile or two marked at most
+expect 6 static:Dirt < 25        // of 60 dirt tiles, more than half is gone or loose (about 45)
+expect 6 static:Granite > 105    // the granite loses under a fifth of itself (about 21 tiles of 136)

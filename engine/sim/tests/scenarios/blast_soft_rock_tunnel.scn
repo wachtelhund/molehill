@@ -46,7 +46,7 @@ expect 6 static:Rock < 820        // 114+ tiles of rock broken (it was about 80 
 expect 6 static:Rock > 700        // but not 230
 expect 120 count:Sand > 100       // the rubble: 100+ tiles of it lie loose in the tunnel...
 expect 120 is:10,-9,Sand == 1     // ...thrown 4.5 m along it both ways
-expect 120 is:50,-9,Sand == 1
+expect 120 is:54,-9,Sand == 1
 expect 120 debris == 0
 expect 6 ev:Quake == 1            // and it is felt: a quake and a crumble on top of the bang
 expect 6 ev:Crumble == 1

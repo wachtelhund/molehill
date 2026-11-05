@@ -1,6 +1,7 @@
-// The same charge in the same tunnel, cut through granite: it cracks the floor half a metre deep under the
-// charge and scars the roof over it (about 22 tiles, against soft rock's 155). Basalt (blast_basalt_holds)
-// barely marks.
+// The same 0.5 kg charge on the floor of a 0.75 m tunnel cut through granite. Granite is much tougher than
+// soft rock (1000 kPa against 360) but one charge still digs a real crater: it blasts 0.75 m down into the
+// floor and 0.5 m up into the roof over it, about 60 tiles broken and thrown as gravel (soft rock loses about
+// 155; basalt barely marks, see blast_basalt_holds). Before the granite pass it only chipped about 22.
 map
 ############################################################
 ############################################################
@@ -30,11 +31,18 @@ map
 ########
 end
 expect 1 static:Granite == 1380
+expect 1 count:Gravel == 0
 explode 5 28 -9 0.5
-expect 6 is:28,-8,Granite == 0    // the face under the charge is cracked out...
-expect 6 is:28,-6,Granite == 1    // ...but 0.5 m down it holds
-expect 6 is:22,-8,Granite == 1    // 1.5 m along the floor: whole
-expect 6 is:28,-12,Granite == 0   // the roof face over it is cracked
-expect 6 is:28,-13,Granite == 1   // but no deeper
-expect 6 static:Granite > 1345    // 10 to 35 tiles
-expect 6 static:Granite < 1370
+expect 6 is:28,-8,Granite == 0    // the floor under the charge is gone...
+expect 6 is:28,-7,Granite == 0
+expect 6 is:28,-6,Granite == 0    // ...0.75 m down
+expect 6 is:28,-5,Granite == 1    // and holds below that
+expect 6 is:28,-12,Granite == 0   // the roof over it is blown out too
+expect 6 is:28,-13,Granite == 0
+expect 6 is:28,-16,Granite == 1   // a metre up it holds
+expect 6 is:20,-8,Granite == 1    // 2 m along the floor: whole
+expect 6 is:36,-8,Granite == 1
+expect 6 static:Granite < 1345    // 35+ tiles of granite broken...
+expect 6 static:Granite > 1300    // ...but not 80
+expect 120 count:Gravel > 30      // and lying about as rubble once it has landed
+expect 120 debris == 0

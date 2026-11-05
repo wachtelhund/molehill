@@ -31,7 +31,7 @@ pub const TNT_KG: f32 = 0.5;
 /// cracks into loose rubble above BLAST_CRACK × that, and shatters away above BLAST_SHATTER ×. Tuned so one
 /// 0.5 kg charge in an open 0.75 m tunnel cracks limestone and soft rock out to about 2 m (a crater about a
 /// metre deep), granite only within about half a metre, and basalt and iron hardly at all.
-pub const BLAST_KPA: [f32; 12] = [20., 60., 150., 220., 300., 360., 700., 1100., 1900., 2600., 6500., 9000.];
+pub const BLAST_KPA: [f32; 12] = [20., 60., 150., 220., 300., 360., 700., 850., 1000., 2600., 6500., 9000.];
 pub fn blast_strength(m: Mat) -> f32 { if m == Mat::Bedrock { f32::INFINITY } else { BLAST_KPA.get(m.p().blast as usize).copied().unwrap_or(f32::INFINITY) } }
 pub const BLAST_CRACK: f32 = 1.0; pub const BLAST_SHATTER: f32 = 2.5;
 /// The shock fades into rock as e^(−depth / λ) past the face it hits, λ = BLAST_PEN_M × (1 + 2·confinement),
@@ -67,6 +67,7 @@ impl World {
     pub fn blast(&mut self, cx: usize, cy: usize, kg: f32) -> BlastReport {
         let (w, h) = (self.g.w, self.g.h); let n = w * h;
         if cx >= w || cy >= h || kg <= 0. { return BlastReport::default(); }
+        self.blasts_run += 1;
         let w3 = kg.cbrt(); let cell_v = CELL_M * CELL_M; // m³ per cell (1 m deep)
         // per reached cell: overpressure, and the direction the wave arrived from
         let mut p = vec![0f32; n]; let mut dir = vec![(0i8, 0i8); n];
