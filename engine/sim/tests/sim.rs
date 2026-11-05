@@ -1037,6 +1037,27 @@ fn spawn_zone_is_pickaxe_ground_with_a_way_to_copper() {
     let mut j = vec![]; while let Some(f) = next_fragment(ClueKind::Note, &j) { j.push(f); } assert_eq!(j.len(), FRAGMENTS.iter().filter(|f| f.kind == ClueKind::Note).count());
 }
 
+/// The Ancients' ruin carvings join the Lid journal: every carving has a journal entry that shows its own
+/// text, none of them names or confirms the Lid, a carving two ruins share goes in once, and a save from
+/// before the carvings joined (ruins visited, journal without them) gets them added on load.
+#[test] fn ruin_carvings_join_the_journal() {
+    use molehill_sim::lore::{entry, ruin_entry, RUIN_BASE};
+    use molehill_sim::ruins::{fragment_of, FRAGMENTS};
+    let banned = ["sky", "sun", "surface", "magic", "spell", "radio", "electric", "signal", "the lid", "is real", "proof", "proves"];
+    for (k, f) in FRAGMENTS.iter().enumerate() {
+        let id = ruin_entry(f).expect("every carving has an entry"); assert_eq!(id, RUIN_BASE + k as u16);
+        let (label, title, text) = entry(id); assert_eq!(text, *f); assert_eq!(label, "Ancient carving"); assert!(!title.is_empty());
+        let t = format!("{title} {text}").to_lowercase(); for b in banned { assert!(!t.contains(b), "{title}: '{b}'"); }
+    }
+    let (mut w, _, _) = arena(); w.journal = vec![0]; // one clue fragment read
+    let a = 5u32 << 7; let b = a + ((FRAGMENTS.len() as u32) << 7); assert_eq!(fragment_of(a), fragment_of(b));
+    w.ruins_seen.insert(a); w.ruins_seen.insert(b); w.ruins_seen.insert(a + (1 << 7));
+    let w2 = molehill_sim::save::load(&molehill_sim::save::save(&w)).expect("load");
+    assert_eq!(w2.journal[0], 0, "the clue fragment keeps its place");
+    assert_eq!(w2.journal.len(), 3, "two different carvings, the shared one once: {:?}", w2.journal);
+    let w3 = molehill_sim::save::load(&molehill_sim::save::save(&w2)).expect("load"); assert_eq!(w3.journal, w2.journal);
+}
+
 /// Ruins of the Ancients are rare and deep: none near the holt layers or the start, none in a grotto, a few
 /// per kilometre of depth, all three kinds. A generated tube station keeps its waygate (iron frame round a
 /// sealed gate) and its tube's bore open.

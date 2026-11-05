@@ -53,6 +53,9 @@ pub const FRAGMENTS: [&str; 8] = [
     "A wide carving of the holt layers, and at its very top a thin line, worn smooth by many paws.",
 ];
 
+/// The carving a ruin with this id reads out.
+pub fn fragment_of(id: u32) -> &'static str { FRAGMENTS[(id >> 7) as usize % FRAGMENTS.len()] }
+
 impl Gen {
     /// The ruin in ruin cell (gx, gy), if it has one.
     pub fn ruin_at(&self, gx: i64, gy: i64) -> Option<Ruin> {
@@ -173,7 +176,7 @@ impl Ruin {
         })
     }
     /// The lore fragment carved here.
-    pub fn fragment(&self) -> &'static str { FRAGMENTS[(self.id >> 7) as usize % FRAGMENTS.len()] }
+    pub fn fragment(&self) -> &'static str { fragment_of(self.id) }
     /// Middle of the ruin (column, world row).
     pub fn centre(&self) -> (usize, i64) { (self.x0 + self.w / 2, self.y0 + self.h as i64 / 2) }
 }
@@ -202,6 +205,7 @@ impl crate::world::World {
         for (id, kind, frag) in near {
             self.ruins_seen.insert(id); self.events.push(crate::world::Event::Discover);
             self.say(format!("Ruins of the Ancients: a {}. {}", kind.name(), frag));
+            self.journal_ruin(frag);
             if kind == Kind::TubeStation { self.say("A waygate: a sealed capsule line runs off into the rock from here, cracked and choked, its pumps long dead. The Ancients crossed the deep by lines like this.".into()); }
         }
     }
