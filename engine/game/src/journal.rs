@@ -1,8 +1,8 @@
-//! The journal (`J`): the Lid fragments found so far, newest first, as a plain list. No cards: a title
+//! The journal (`J`): the Lid fragments and Ancient ruin carvings found so far, newest first, as a plain list. No cards: a title
 //! line per fragment (kind, title) and its text under it, in the HUD's font and ink.
 use bevy::prelude::*;
 use crate::Game;
-use molehill_sim::lore::FRAGMENTS;
+use molehill_sim::lore::entry;
 
 #[derive(Resource, Default)] pub struct Journal { pub open: bool }
 #[derive(Component)] pub struct JournalRoot;
@@ -26,8 +26,8 @@ pub fn update(g: Res<Game>, mut j: ResMut<Journal>, menu: Res<crate::menu::Menu>
     if let Ok(mut v) = root.single_mut() { *v = if j.open { Visibility::Inherited } else { Visibility::Hidden }; }
     if !j.open || (*seen == g.w.journal.len() && g.w.journal.len() > 0) { return; }
     *seen = g.w.journal.len();
-    let s = if g.w.journal.is_empty() { "Nothing yet. Old Delvers left marks in the rock, and the higher you go, the more of them there are.".to_string() }
+    let s = if g.w.journal.is_empty() { "Nothing yet. Old Delvers left marks in the rock, more of them the higher you go, and the ruins of the Ancients deep down hold carvings of their own.".to_string() }
         else { let mut s = format!("{} found\n", g.w.journal.len());
-            for &f in g.w.journal.iter().rev() { let fr = &FRAGMENTS[f as usize]; s += &format!("\n{}  ·  {}\n{}\n", fr.kind.name(), fr.title, fr.text); } s };
+            for &f in g.w.journal.iter().rev() { let (kind, title, text) = entry(f); s += &format!("\n{}  ·  {}\n{}\n", kind, title, text); } s };
     if let Ok(mut t) = text.single_mut() { if t.0 != s { t.0 = s; } }
 }

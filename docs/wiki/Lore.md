@@ -67,7 +67,7 @@ The Lid is the thread that pulls a Delver upward, but **the game never shows or 
 
 **Placement** is a pure function of the seed and a 32 m band, like chests, and doesn't change the generator. A band expects 1.2 × 2^(−depth/30 m) clues, between 0.1 and 8. That's about one per band at the start layer, doubling every 30 m upward and fading out below. Drafts and odd finds only appear above the start layer. Scenario `lore_density` checks the counts by height: 8 per band 100–200 m up, 1 around the start, 0 below 30 m.
 
-**The journal** (`J`): walking within about a metre of a clue reads it. The next unread fragment of its kind goes into the journal, with a toast and a soft sound. Twenty-four fragments (six per kind) hint, doubt and argue; none of them proves anything, and a test bans the words that would. The journal is a plain list, newest first: kind and title, then the text. It is kept in saves (v7), along with which clues were read.
+**The journal** (`J`): walking within about a metre of a clue reads it. The next unread fragment of its kind goes into the journal, with a toast and a soft sound. Twenty-four fragments (six per kind) hint, doubt and argue; none of them proves anything, and a test bans the words that would. The journal is a plain list, newest first: kind and title, then the text. Carvings from the Ancients' ruins join the same list (see [below](#the-ancients-in-the-game)). It is kept in saves (v7), along with which clues were read.
 
 ## The Ancients in the game
 
@@ -81,7 +81,7 @@ The Ancients' remains are found deep down, because they dug deeper than anyone s
 
 **Nothing in a ruin is supernatural.** It is ordinary brick, iron, doors and gravel, judged by the same stress solver as everything else. A hall stands under an open cave, but load it with sand and its brick bays fall in (`ruin_hall_stands`, `ruin_hall_caves_in`). Dig out a pillar and its roof comes down.
 
-* **Carvings.** The first time you come within 8 m of a ruin, its carving is read out: Delvers in a line digging upward, a pattern knocked into the wall, a metal plate scored with the layers and a blank band above them, a tally of fast lines. Like the Lid fragments, they point upward and prove nothing.
+* **Carvings.** The first time you come within 8 m of a ruin, its carving is read out: Delvers in a line digging upward, a pattern knocked into the wall, a metal plate scored with the layers and a blank band above them, a tally of fast lines. Like the Lid fragments, they point upward and prove nothing. Each carving also goes into the journal (`J`) as an **Ancient carving** with a short title, in the same list as the clue fragments, newest first. A carving two ruins share goes in once. The journal keeps the carvings through a save; a save from before this change gets the carvings of the ruins it had already visited added when it loads (`ruin_vault_loot`, test `ruin_carvings_join_the_journal`).
 * **Relics** are better-made versions of things Delvers know, and can't be crafted. A vault's chest holds the next one not yet found, each only once: the **Ancient bit**, which makes every bite a quarter faster, then the **Ground lens**, which halves the headlamp's oil. After both are found, vaults hold old materials (`ruin_vault_loot`).
 * **Waygates** are the end of a fast line, not a door to somewhere else. Today they can be found but not mended. Whether they can ever be repaired or extended is still [an open decision](Progression.md#ancient-waygates-open-decision); whatever is decided, a waygate stays a station on a physical line.
 
