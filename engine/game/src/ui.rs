@@ -100,7 +100,12 @@ pub fn update(g: Res<Game>, sp: Res<Sprites>, time: Res<Time>, win: Query<&Windo
         let sel = s.0 == g.hot; *bc = BorderColor::all(if sel { Color::srgba(1., 0.88, 0.55, 0.9) } else { Color::srgba(1., 1., 1., 0.10) });
         bg.0 = if sel { Color::srgba(0.25, 0.2, 0.12, 0.6) } else { Color::srgba(0.08, 0.07, 0.08, 0.5) };
     }
-    for (s, mut im, mut vis) in &mut q.p1() { match g.slots[s.0] { Some(t) if crate::thing_usable(&g, t) => { let h = icon(&sp, t); if im.image != h { im.image = h; } *vis = Visibility::Inherited; } _ => *vis = Visibility::Hidden } }
+    // in Survival a thing you have none of is drawn faint (and without a count): what you can use stands out
+    let faint = |t: Thing| crate::hotbar::adaptive(&g) && crate::hotbar::have(&g, t) == crate::hotbar::Have::None;
+    for (s, mut im, mut vis) in &mut q.p1() { match g.slots[s.0] {
+        Some(t) if crate::thing_usable(&g, t) || faint(t) => { let h = icon(&sp, t); if im.image != h { im.image = h; }
+            let c = Color::srgba(1., 1., 1., if faint(t) { 0.22 } else { 1. }); if im.color != c { im.color = c; } *vis = Visibility::Inherited; }
+        _ => *vis = Visibility::Hidden } }
     let vals = [me.hp, me.hunger, me.breath];
     for (b, row, mut n) in &mut q.p2() {
         if let Some(b) = b { n.width = Val::Percent(vals[b.0 as usize].clamp(0., 100.)); }
@@ -124,7 +129,7 @@ pub fn update(g: Res<Game>, sp: Res<Sprites>, time: Res<Time>, win: Query<&Windo
     for (l, mut t, mut c, mut n, mut v) in &mut q.p5() {
         let mut set = |t: &mut Text, s: String| if t.0 != s { t.0 = s; };
         match *l {
-            Lbl::Count(k) => { let x = g.slots[k].and_then(|th| thing_count(&g, th)).map(|n| format!("{}", n.min(999))).unwrap_or_default(); set(&mut t, x); }
+            Lbl::Count(k) => { let x = g.slots[k].filter(|&th| !faint(th)).and_then(|th| thing_count(&g, th)).map(|n| format!("{}", n.min(999))).unwrap_or_default(); set(&mut t, x); }
             Lbl::Tip => match &tip { Some((cp, name, _)) => { set(&mut t, name.clone());
                     // keep it on screen: flip left/up near the right and bottom edges (the hotbar sits at the bottom)
                     let (fx, fy) = (cp.x > ww - 300., cp.y > wh - 120.);
@@ -142,7 +147,7 @@ pub fn update(g: Res<Game>, sp: Res<Sprites>, time: Res<Time>, win: Query<&Windo
             Lbl::Brush => match (&g.brush_tag, cur) { (Some((s, r)), Some(c)) if !g.inv_open && hov.is_none() => { set(&mut t, s.clone());
                     n.left = Val::Px(c.x + r * 0.72 + 4.); n.top = Val::Px(c.y + r * 0.72 + 2.); *v = Visibility::Inherited; }
                 _ => *v = Visibility::Hidden },
-            Lbl::Sel => { set(&mut t, if g.inv_open { String::new() } else { g.slots[g.hot].map(|th| match brush_of(Some(th)) { Some(b) => format!("{}   {}", thing_name(&g, th), g.sizes.label(b)), None => thing_name(&g, th) } + &{ let c = crate::thing_controls(th); if c.is_empty() { String::new() } else { format!("\n{c}") } }).unwrap_or_default() }); c.0 = INK.with_alpha(((2.2 - (now - g.sel_t)) * 1.5).clamp(0., 0.85)); }
+            Lbl::Sel => { set(&mut t, if g.inv_open { String::new() } else { g.slots[g.hot].map(|th| match brush_of(Some(th)) { Some(b) => format!("{}   {}", thing_name(&g, th), g.sizes.label(b)), None => thing_name(&g, th) } + &{ let c = if faint(th) { "None in your pack" } else { crate::thing_controls(th) }; if c.is_empty() { String::new() } else { format!("\n{c}") } }).unwrap_or_default() }); c.0 = INK.with_alpha(((2.2 - (now - g.sel_t)) * 1.5).clamp(0., 0.85)); }
             Lbl::Center => set(&mut t, if !me.alive { "You were lost to the deep.\nCrawling back to the burrow...".to_string() } else { String::new() }),
             Lbl::Dev => { *v = if g.show_dev { Visibility::Inherited } else { Visibility::Hidden };
                 if g.show_dev && g.frame % 10 == 0 {
