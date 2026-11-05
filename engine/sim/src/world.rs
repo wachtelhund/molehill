@@ -125,7 +125,9 @@ pub struct Drop { pub x: usize, pub y: usize, pub item: Item, pub n: u32, pub cl
 #[derive(Clone)]
 pub struct Farm { pub x: usize, pub y: usize, pub growth: f32, pub why: u8 }
 #[derive(Clone)]
-pub struct Chest { pub x: usize, pub y: usize, pub opened: bool }
+pub struct Chest { pub x: usize, pub y: usize, pub opened: bool,
+    /// an Ancient vault's chest (its ruin's id): relics and old materials instead of the usual loot
+    pub ancient: Option<u32> }
 /// A piece of furniture: its item, the footprint's left column and bottom row (cells), and the pigment
 /// of its cloth (0 = undyed). It isn't solid: the mole walks past it.
 #[derive(Clone, Debug, PartialEq)]
@@ -169,6 +171,9 @@ pub struct World {
     /// Survival, Creative, or Plain (the bare rules: tests and scenarios); `rules` is what the mode switches on
     /// (see `survival.rs`). `lamp_oil` = seconds of oil left in the headlamp.
     pub mode: crate::survival::Mode, pub rules: crate::survival::Rules, pub lamp_oil: f32, pub lamp_dry: bool,
+    /// ruins of the Ancients touching the window (refreshed with the chests); the ones already visited (ids);
+    /// relics found (bit k = `ruins::RELICS[k]`): each turns up once
+    pub ruins: Vec<crate::ruins::Ruin>, pub ruins_seen: std::collections::HashSet<u32>, pub relics: u8,
 }
 /// For audio / UI feedback.
 /// What `World::pick_up` took back into the pack.
@@ -192,7 +197,7 @@ impl World {
         World {
             st: Stress::new(w * h), light: Light::new(w, h), tick: 0, inv: [0; NITEM], dig_acc: [0; NMAT], place_acc: [0; 9], desig: vec![0; w * h],
             moles: vec![], drops: vec![], stockpile: (0, 0, 0, 0), buildings: vec![], torches: vec![], chests: vec![], furniture: vec![], paint_acc: 0,
-            quest: 0, log: vec![], discovered: [false; NMAT], chests_opened: 0, pillars: 0, max_depth: 0., craft_queue: vec![], gear: Gear::default(), known: [false; NITEM], mode: Default::default(), rules: Default::default(), lamp_oil: 0., lamp_dry: false, crumbled: 0,
+            quest: 0, log: vec![], discovered: [false; NMAT], chests_opened: 0, pillars: 0, max_depth: 0., craft_queue: vec![], gear: Gear::default(), known: [false; NITEM], mode: Default::default(), rules: Default::default(), lamp_oil: 0., lamp_dry: false, ruins: vec![], ruins_seen: Default::default(), relics: 0, crumbled: 0,
             light_rect: (0, 0, w - 1, h - 1), events: vec![], marks: vec![], react_pending: false, logic: Logic::new(w, h), disasters: Disasters::new(seed), shake: 0., air: Air::new(w, h), farms: vec![], harvested: 0, input: Input::default(), pl: Player::default(), gen: gn, oy, bands: Default::default(), opened: Default::default(), clues: vec![], found_clues: Default::default(), journal: vec![], grottos: vec![], caught: Default::default(), keep_blast_field: false, blast_field: vec![], info, g,
         }
     }
@@ -222,13 +227,16 @@ impl World {
     /// Chests for every chest band overlapping the window (opened ones stay opened).
     pub fn refresh_chests(&mut self) {
         self.grottos = self.gen.grottos_in_rows(self.oy, self.oy + self.g.h as i64);
+        self.ruins = self.gen.ruins_in_rows(self.oy, self.oy + self.g.h as i64);
         let h = self.g.h as i64; self.chests.clear(); let bh = gen::CHEST_BAND as i64; let mg = 4 * S as i64;
         for band in self.oy.div_euclid(bh)..=(self.oy + h).div_euclid(bh) {
             for (x, wy) in self.gen.chests_in_band(band, self.g.w) {
                 let y = wy - self.oy; if y < mg || y >= h - mg { continue; }
-                self.chests.push(Chest { x, y: y as usize, opened: self.opened.contains(&(x, wy)) });
+                self.chests.push(Chest { x, y: y as usize, opened: self.opened.contains(&(x, wy)), ancient: None });
             }
         }
+        for r in &self.ruins { if let Some((x, wy)) = r.chest { let y = wy - self.oy; if y < mg || y >= h - mg { continue; }
+            self.chests.push(Chest { x, y: y as usize, opened: self.opened.contains(&(x, wy)), ancient: Some(r.id) }); } }
         self.refresh_clues();
     }
     /// The clues in the window, from the seed (like chests); the ones already found stay found.
@@ -464,7 +472,7 @@ impl World {
         let mut dz = std::mem::replace(&mut self.disasters, Disasters::new(0));
         dz.step(self); self.disasters = dz;
         if self.tick % air::UPDATE_TICKS == 0 { self.step_air(); }
-        if self.tick % 30 == 0 { self.step_farms(); self.check_furniture(); }
+        if self.tick % 30 == 0 { self.step_farms(); self.check_furniture(); self.step_ruins(); }
         if self.tick % 30 == 0 { self.follow_colony(); }
         self.shake *= 0.93;
         if self.tick % 30 == 0 { self.check_quests(); self.check_chests(); }
@@ -686,11 +694,11 @@ impl World {
             self.chests[c].opened = true; self.chests_opened += 1; self.opened.insert((cx, self.oy + cy as i64));
             let h = hash3(cx as u32, cy as u32, self.info.seed);
             let d = self.depth_m(cx, cy);
-            let loot: Vec<(Item, u32)> = if d > 50. { vec![(Item::Crystal, 2 + h % 3), (Item::IronIngot, 2), (Item::Tnt, 1 + h % 2)] }
+            let loot: Vec<(Item, u32)> = if self.chests[c].ancient.is_some() { self.vault_loot(h) } else if d > 50. { vec![(Item::Crystal, 2 + h % 3), (Item::IronIngot, 2), (Item::Tnt, 1 + h % 2)] }
                 else if d > 25. { vec![(Item::CopperIngot, 2 + h % 3), (Item::TinIngot, 1), (Item::Torch, 6)] }
                 else { vec![(Item::Coal, 4 + h % 4), (Item::Torch, 4), (Item::WoodPillar, 8)] };
             let mut s = String::new(); for &(it, n) in &loot { self.inv[it as usize] += n; s += &format!(" {}x{}", it.name(), n); }
-            self.events.push(Event::Chest); self.say(format!("Treasure chest at {:.0} m:{}", d.max(0.), s));
+            self.events.push(Event::Chest); self.say(format!("{} at {:.0} m:{}", if self.chests[c].ancient.is_some() { "An Ancient vault, opened" } else { "Treasure chest" }, d.max(0.), s));
         }
     }
     /// The mole's 1×3 body fits at (x, y) (y = feet).
@@ -705,7 +713,8 @@ impl World {
     /// Ticks to mine cell i with the current tools (None = can't: wrong kind or tool tier too low).
     pub fn mine_time(&self, i: usize) -> Option<u32> {
         if !self.diggable(i) { return None; }
-        let m = self.g.m(i); Some((m.p().dig as u32 * 4 / (1 + self.dig_power() as u32) + 1).max(4))
+        let m = self.g.m(i); let t = (m.p().dig as u32 * 4 / (1 + self.dig_power() as u32) + 1).max(4);
+        Some(if self.inv[Item::AncientBit as usize] > 0 { (t * 3 / 4).max(3) } else { t }) // the Ancients' bit bites a quarter faster
     }
     /// Cells in the mining bite around (x, y): a disc of the tool's brush radius (default BITES[tool]).
     pub fn bite_cells(&self, x: usize, y: usize) -> Vec<usize> {

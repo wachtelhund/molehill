@@ -1007,3 +1007,48 @@ fn spawn_zone_is_pickaxe_ground_with_a_way_to_copper() {
     // the journal reads each fragment once, in order per kind
     let mut j = vec![]; while let Some(f) = next_fragment(ClueKind::Note, &j) { j.push(f); } assert_eq!(j.len(), FRAGMENTS.iter().filter(|f| f.kind == ClueKind::Note).count());
 }
+
+/// Ruins of the Ancients are rare and deep: none near the holt layers or the start, none in a grotto, a few
+/// per kilometre of depth, all three kinds. A generated tube station keeps its waygate (iron frame round a
+/// sealed gate) and its tube's bore open.
+#[test]
+fn ruins_are_rare_deep_and_clear_of_the_start_and_grottos() {
+    use molehill_sim::gen::{Gen, GROTTO_SHELL};
+    use molehill_sim::mat::{Mat, CPM};
+    use molehill_sim::ruins::Kind;
+    let (w, c) = (1024 * S, CPM as i64); let (mut n, mut kinds) = (0, [0; 3]);
+    for seed in 0..300u32 { let gen = Gen::new(seed, w);
+        for r in gen.ruins_in_rows(-200 * c, 1000 * c) { n += 1; kinds[r.kind as usize] += 1;
+            assert!(r.y0 >= 5 * c, "seed {seed}: a ruin at {} m, up in the holt layers", r.y0 / c);
+            let (rx0, rx1, ry0, ry1) = (r.x0 as i64, (r.x0 + r.w) as i64, r.y0, r.y0 + r.h as i64);
+            assert!(!(rx1 > (w / 2) as i64 - 30 * c && rx0 < (w / 2) as i64 + 30 * c && ry0 < 30 * c), "seed {seed}: a ruin by the start");
+            for g in gen.grottos_in_rows(ry0 - 30 * c, ry1 + 30 * c) { let sh = GROTTO_SHELL as i64;
+                let (gx0, gx1, gy0, gy1) = (g.cx as i64 - g.rx as i64 - sh, g.cx as i64 + g.rx as i64 + sh, g.cy - g.ry as i64 - sh, g.cy + g.ry as i64 + sh);
+                assert!(!(gx1 > rx0 && gx0 < rx1 && gy1 > ry0 && gy0 < ry1), "seed {seed}: a ruin inside a grotto"); }
+            match r.kind { Kind::SealedVault => assert!(r.chest.is_some()), Kind::TubeStation => assert!(r.gate.is_some()), _ => {} }
+        } }
+    let per_km = n as f32 / 300. / 1.2;
+    assert!((1.0..8.0).contains(&per_km), "{per_km} ruins per seed per km");
+    assert!(kinds.iter().all(|&k| k > 20), "every kind turns up: {kinds:?}");
+    // seed 66 has a tube station in its first window (about 45 m down): generated, its waygate and bore are there
+    let wd = World::new(1024 * S, 512 * S, 66);
+    let r = wd.ruins.iter().find(|r| r.kind == Kind::TubeStation).expect("seed 66: a tube station in the window");
+    let (gx, gwy) = r.gate.unwrap(); let gy = (gwy - wd.oy) as usize;
+    assert_eq!(wd.g.get(gx, gy), Mat::Door, "the waygate's sealed gate");
+    assert_eq!(wd.g.get(gx, gy - 2 * CPM - 2), Mat::IronBeam, "its iron frame");
+}
+
+/// The relics do what they say: the Ancient bit digs a quarter faster; the Ground lens halves the oil.
+#[test]
+fn relics_bite_faster_and_save_oil() {
+    use molehill_sim::craft::Item;
+    use molehill_sim::survival::Mode;
+    let (mut w, x, y) = arena(); w.input.tool = 1;
+    let i = w.g.idx(x + 6, y); w.g.set(i, molehill_sim::mat::Mat::Limestone);
+    let t0 = w.mine_time(i).unwrap(); w.inv[Item::AncientBit as usize] = 1; let t1 = w.mine_time(i).unwrap();
+    assert!(t1 < t0 && t1 >= t0 * 3 / 4 - 1, "bit: {t0} -> {t1} ticks");
+    let burn = |lens: bool| { let (mut w, _, _) = arena(); w.set_mode(Mode::Survival); w.gear.lamp = true; if lens { w.inv[Item::GroundLens as usize] = 1; }
+        let o0 = w.lamp_oil; for _ in 0..600 { w.step(); } o0 - w.lamp_oil };
+    let (plain, lensed) = (burn(false), burn(true));
+    assert!((lensed - plain / 2.).abs() < 0.2, "oil burned in 10 s: {plain} plain, {lensed} with the lens");
+}

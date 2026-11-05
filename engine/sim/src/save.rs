@@ -13,7 +13,7 @@ use std::collections::VecDeque;
 /// v4: the world as bands (see `band.rs`): a manifest names every band (window and off-window) by start
 /// row and content hash; blobs travel inline (`save`) or as separate keys (`save_parts`). v3: one blob
 /// with a row cache of cells (still loads). Older (surface-world) saves are refused.
-pub const VERSION: u32 = 7; // 7: the Lid journal and the clues found; 6: the items ever picked up (recipes unlock by touch); 5: the game mode, the headlamp's oil, and hunger on/off
+pub const VERSION: u32 = 8; // 8: Ancient relics found and ruins visited; // 7: the Lid journal and the clues found; 6: the items ever picked up (recipes unlock by touch); 5: the game mode, the headlamp's oil, and hunger on/off
 const MAGIC: &[u8; 8] = b"MOLEHILL";
 /// The engine tag also names the cell resolution: a save at another cells-per-metre won't load.
 const ENGINE: &str = if crate::mat::CPM == 4 { "bevy-v3" } else if crate::mat::CPM == 8 { "bevy-v3-cpm8" } else { "bevy-v3-cpm?" };
@@ -53,7 +53,7 @@ fn load_v3(b: &[u8]) -> R<World> {
     }
     w.moles.truncate(1); if w.moles.is_empty() { w.moles.push(tmpl.clone()); } // one mole: the player
     w.drops.clear(); for _ in 0..r.len(1 << 20)? { let (x, y, it, nn) = (r.u32()? as usize, r.u32()? as usize, r.u8()?, r.u32()?); if x < gw && y < gh && (it as usize) < NITEM { w.drops.push(Drop::at(x as f32 + 0.5, y as f32 + 0.5, crate::craft::ITEMS[it as usize], nn)); } }
-    w.chests.clear(); for _ in 0..r.len(1 << 16)? { let (x, y, o) = (r.u32()? as usize, r.u32()? as usize, r.u8()? != 0); if x < gw && y < gh { w.chests.push(Chest { x, y, opened: o }); } }
+    w.chests.clear(); for _ in 0..r.len(1 << 16)? { let (x, y, o) = (r.u32()? as usize, r.u32()? as usize, r.u8()? != 0); if x < gw && y < gh { w.chests.push(Chest { x, y, opened: o, ancient: None }); } }
     w.buildings.clear(); for _ in 0..r.len(1 << 16)? { let (k, x, y, b) = (r.u8()?, r.u32()? as usize, r.u32()? as usize, r.u8()? != 0); if let Some(kind) = band::station_from_code(k) { if x + Station::W < gw && y < gh { w.buildings.push(Building { kind, x, y, built: b, claimed: false }); } } }
     w.torches.clear(); for _ in 0..r.len(1 << 20)? { let (x, y) = (r.u32()? as usize, r.u32()? as usize); if x < gw && y < gh { w.torches.push((x, y)); } }
     w.quest = (r.u32()? as usize).min(crate::craft::QUESTS.len()); w.chests_opened = r.u32()?; w.pillars = r.u32()?; w.max_depth = r.f32()?; w.crumbled = r.u64()?;
@@ -78,7 +78,7 @@ fn load_v3(b: &[u8]) -> R<World> {
         for b in 0..nb { if w.logic.dev[b] == 0 { w.logic.burn[b] = 0; } }
         w.pl.deaths = r.u32()?;
     }
-    let _ = (&w.chests, Chest { x: 0, y: 0, opened: false }); w.refresh_chests();
+    let _ = (&w.chests, Chest { x: 0, y: 0, opened: false, ancient: None }); w.refresh_chests();
     let _ = Item::Dirt; let _ = Mat::Empty;
     // derived state
     w.g.life.iter_mut().for_each(|v| *v = 0); w.g.wake_all(); w.st = crate::stress::Stress::new(n);
@@ -121,6 +121,7 @@ pub fn save_parts(w: &World) -> Parts<'_> {
     o.u32(w.journal.len() as u32); for &f in &w.journal { o.u32(f as u32); }
     let mut fc: Vec<(usize, i64)> = w.found_clues.iter().copied().collect(); fc.sort();
     o.u32(fc.len() as u32); for &(x, wy) in &fc { o.u32(x as u32); o.u64(wy as u64); }
+    let mut rs: Vec<u32> = w.ruins_seen.iter().copied().collect(); rs.sort(); o.u8(w.relics); o.u32(rs.len() as u32); for id in rs { o.u32(id); }
     o.u32(bands.len() as u32); for (wy0, h, b) in &bands { o.u64(*wy0 as u64); o.u64(*h); o.u32(b.len() as u32); }
     Parts { manifest: o.0, bands: bands.into_iter().map(|(wy0, h, b)| (band_key(wy0, h), b)).collect() }
 }
@@ -169,6 +170,8 @@ pub fn load_with(b: &[u8], fetch: &mut dyn FnMut(&str) -> Option<Vec<u8>>) -> R<
         let mut f = std::collections::HashSet::new(); for _ in 0..r.len(1 << 20)? { let x = r.u32()? as usize; let wy = r.u64()? as i64; f.insert((x, wy)); }
         (j.into_iter().filter(|&k| (k as usize) < crate::lore::FRAGMENTS.len()).collect(), f)
     } else { (vec![], Default::default()) };
+    // v8: the relics found and the ruins visited
+    let (relics, ruins_seen) = if ver >= 8 { let rl = r.u8()?; let mut s = std::collections::HashSet::new(); for _ in 0..r.len(1 << 20)? { s.insert(r.u32()?); } (rl, s) } else { (0, Default::default()) };
     let list: Vec<(i64, u64, usize)> = (0..r.len(1 << 20)?).map(|_| Ok((r.u64()? as i64, r.u64()?, r.len(1 << 28)?))).collect::<R<_>>()?;
     let inline = !r.done() && r.u8()? == 1;
     // the world: generated from the seed, then everything mutable comes from the bands
@@ -200,7 +203,7 @@ pub fn load_with(b: &[u8], fetch: &mut dyn FnMut(&str) -> Option<Vec<u8>>) -> R<
     w.disasters.rng = drng; w.disasters.ticks_left = dleft; w.disasters.enabled = den; w.log = log; w.opened = opened;
     w.known = known.unwrap_or_else(|| std::array::from_fn(|k| w.inv[k] > 0));
     w.harvested = harvested; w.pl.deaths = deaths; if spx < gw { w.pl.spawn = (spx, spy); }
-    w.journal = journal; w.found_clues = found_clues;
+    w.journal = journal; w.found_clues = found_clues; w.relics = relics; w.ruins_seen = ruins_seen;
     w.refresh_chests();
     w.g.life.iter_mut().for_each(|v| *v = 0); w.g.wake_all(); w.st = crate::stress::Stress::new(gw * gh);
     let f = w.st.solve(&w.g); w.st.crack(&f); w.g.clear_struct();

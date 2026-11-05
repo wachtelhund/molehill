@@ -101,6 +101,10 @@ Making the holt look like home: decorative blocks, paint and furniture. In Survi
 
 Furniture finds the floor below the cursor, or the ceiling above it for a banner. It needs two thirds of its width supported and room for its whole footprint, and pieces can't overlap (except a rug). If its floor or ceiling is dug or blasted away, it falls loose as its item. Back walls (panelling behind open cells) are designed in [PROGRESSION](../../PROGRESSION.md) but not built yet.
 
+## Relics
+
+Relics of the Ancients can't be made: they're found in sealed vaults in the ruins, each once. The **Ancient bit** makes every bite a quarter faster while it's in the pack; the **Ground lens** halves the headlamp's oil. See [World and Generation](World-and-Generation.md#ruins-of-the-ancients).
+
 ## Throwing
 
 Hold `Q` to charge a throw of a throwable item in hand and release to throw it at the cursor; 0.8 s of charge is a full throw, which carries about 6 m on the level, and dots show the arc. You can't catch your own throw for half a second. A thrown **TNT** charge goes out lit: it flies, bounces and rolls, and goes off where its 1.5 s fuse runs out, with the same blast as placed TNT. Water puts it out (it lies there as a dud you can pick up again), and lava or fire lights one lying loose. A lit charge can't be picked up. Blocks, copperline, devices, torches and tools aren't thrown: `Q` says so and keeps them. Blasts throw loose items around. In the colony design, moles haul drops to the **stockpile**, and only stockpiled items count. The first sighting of each ore, fluid or rock is a **discovery** with a small reward.

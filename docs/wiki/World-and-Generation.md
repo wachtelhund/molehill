@@ -81,6 +81,18 @@ Deep down (below 70 m) the rock is mostly **basalt**, with crystal and quartz on
 * **Glowmites** drift through every grotto: a swarm of 4–7 small, cold green-gold lights, each on its own slow loop round the hollow. Each one is a light source. Right mouse on one catches it in a jar (a **Glowmite** in the pack, which glows when held). A grotto's swarm refills, with a caught glowmite replaced after 5 minutes (`glowmite_catch`, `glowmites_drift_glow_and_get_caught`).
 * Grottos are a pure function of the seed and position like the rest of the world, so a slide or a reload regenerates them identically.
 
+## Ruins of the Ancients
+
+Rare remains of facilities built by the Ancients (`sim/src/ruins.rs`). The world is cut into 160 m × 80 m ruin cells, and a seeded hash decides whether each holds one: none above 15 m, then 5 % rising to 25 % by 60 m and below, so about 3 per kilometre of depth across the window. None comes near the start burrow, and none overlaps a grotto (`ruins_are_rare_deep_and_clear_of_the_start_and_grottos`). Three kinds, in equal numbers:
+
+* **Pumping hall** (28 × 11 m): brick walls and floor, a 1.5 m brick roof on four iron pillars, iron pump blocks beside a flooded sump. One pillar has given way (a stump in its rubble), and the Ancients slung an iron girder under that bay.
+* **Sealed vault** (9 × 6 m): 1.5 m of brick on every side under an iron lintel, no way in but through it, and a chest inside.
+* **Tube station** (56 × 8 m): a platform hall and a 2.5 m capsule tube (a quarter-metre iron skin in a metre of brick) running 42 m off into the rock, choked by an old cave-in. Where the tube meets the hall stands a broken **waygate**: an iron frame round a sealed gate. It's the hook for the Ancients' fast lines (see [Progression](Progression.md#ancient-waygates-open-decision)): found, not yet mendable.
+
+Ruins are stamped in whole at generation (their halls and tubes are kept open like grotto hollows) and are then ordinary cells: brick, iron, a door and gravel to the physics. A hall stands as built under an open cave, but under a load of sand its brick bays crack and fall in (`ruin_hall_stands`, `ruin_hall_caves_in`). Inside thick rock the rock arch carries everything, so a buried ruin only comes down if something opens above it or loads it.
+
+The first time you come within 8 m of a ruin, its **carving** is read out: one of eight short fragments (Delvers digging upward, a band left blank above the layers, a tally of fast lines), and at a tube station a note on its waygate. A **vault's chest** holds old materials (iron ingots, copperline, crystal) and the next unfound **relic**: the **Ancient bit** (carried, every bite digs a quarter faster), then the **Ground lens** (carried, the headlamp burns half the oil). Each relic turns up once; the save keeps the relics found and the ruins visited (`ruin_vault_loot`). `ruinsurvey` counts ruins over seeds and dumps one from a generated world.
+
 ## Caves
 
 A cell is open when either test passes:
