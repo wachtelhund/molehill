@@ -74,7 +74,7 @@ TNT has two uses. **Set down** (left mouse, or right mouse on an empty spot) it 
 
 **Fuse cords** burn for 24 ticks each, then light the next cord or set off the next charge, so a trail of cords is a slow, visible timer.
 
-**The blast** has a radius of 2.25 m (9 tiles) and power 6. Cells in the inner 60 % are destroyed (one in nine turns to fire), and solids in the outer ring crumble loose. It breaks dirt, clay, sand, limestone, soft rock, coal, the ores and brick, but **not granite, basalt, quartz or iron beams**. Moles within 1.5 radii take up to 80 damage. Other TNT within r + 1.5 m chains (`tnt_chain.scn`), fuse cords within r + 1 m catch, and other devices within 0.8 r are destroyed.
+**The blast** is a pressure wave from a 0.25 kg charge (see [Physics](Physics.md#blasts)). It reaches much further down a tunnel than across a cave, a wall shadows what's behind it, and rock breaks where the wave beats its strength: dirt and clay go readily, limestone and soft rock only close by or when the charge is tamped into a pocket, and granite, basalt and iron beams hardly at all. Loose ground and water are thrown, items fly, and a mole takes damage from the overpressure where it stands. Another charge in a block hit by 60 kPa or more goes off with it (`tnt_chain.scn`), a fuse cord at 30 kPa lights, and copperline and other devices are wrecked above 400 kPa. Listeners in reach through the rock hear the blast's knock on every channel for half a second.
 
 ## Thrumming
 

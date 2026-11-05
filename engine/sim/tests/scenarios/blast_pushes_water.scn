@@ -1,0 +1,23 @@
+// A blast at the end of a flooded trough throws the water up and away: the pool heaves its top layer up
+// out of the trough in a plume, which rains back down. No water is lost.
+map
+################################
+#..............................#
+#..............................#
+#..............................#
+#..............................#
+#..............................#
+#..............................#
+#..............................#
+#.@............................#
+#####......................#####
+#####wwwwwwwwwwwwwwwwwwwwww#####
+#####wwwwwwwwwwwwwwwwwwwwww#####
+################################
+end
+expect 1 count:Water == 44
+explode 5 4 2 0.25               // in the water at the trough's left end
+expect 6 is:4,2,Water == 0       // blown out of the near end
+expect 6 is:12,2,Water == 0      // the surface heaved right along the trough
+expect 6 count:Water == 44       // moved, not lost
+expect 240 count:Water == 44     // and it all lands again

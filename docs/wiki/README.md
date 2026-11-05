@@ -25,7 +25,7 @@ Molehill is a falling-sand platformer and colony sim about moles digging through
 | [Tools and Items](Tools-and-Items.md) | Dig tools, the round brush, blocks, the pack, stations, recipes and quests |
 | [Devices and Copperline](Devices-and-Copperline.md) | Nets, sources, knots, sinks, TNT and fuses, heatstones, wheels, thrummers |
 | [Testing](Testing.md) | The headless test suite and the `.scn` scenario harness |
-| [Progression](Progression.md) | *Design, not yet implemented:* depth as progression, the survival loop, tiers, crafting, furnishing, transportation, grottos, modes, the Ancients |
+| [Progression](Progression.md) | *Mostly design* (Survival and Creative modes are in): depth as progression, the survival loop, tiers, crafting, furnishing, transportation, grottos, modes, the Ancients |
 | [Architecture](Architecture.md) | Crates, the sim/engine split, the frame loop, native and web builds |
 
 ## Play it
@@ -36,6 +36,8 @@ Molehill is private and has no hosted build. From a clone:
 cd engine && cargo run --release              # native; add `-- --fresh` to skip the autosave
 python3 -m http.server -d site 8080           # web: the committed wasm build, then open localhost:8080
 ```
+
+New Holt asks for **Survival** (a small kit; you dig with the tools you own, find food and burn fungus oil for light, and your pack stays where you fall) or **Creative** (every item, nothing hurts).
 
 ## Keeping this wiki true
 

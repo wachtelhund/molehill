@@ -156,6 +156,8 @@ pub struct World {
     pub bands: std::collections::BTreeMap<i64, crate::band::Stored>, pub opened: std::collections::HashSet<(usize, i64)>,
     /// grottos touching the window (from the generator; refreshed with the chests)
     pub grottos: Vec<gen::Grotto>,
+    /// keep the last blast's overpressure field (kPa per cell) in `blast_field` (tests and the harness)
+    pub keep_blast_field: bool, pub blast_field: Vec<f32>,
     /// glowmites caught: (grotto id, glowmite) → tick. A grotto's swarm refills: each comes back after GLOWMITE_BACK.
     pub caught: std::collections::HashMap<(u32, u8), u64>,
     /// Survival, Creative, or Plain (the bare rules: tests and scenarios); `rules` is what the mode switches on
@@ -185,7 +187,7 @@ impl World {
             st: Stress::new(w * h), light: Light::new(w, h), tick: 0, inv: [0; NITEM], dig_acc: [0; NMAT], place_acc: [0; 9], desig: vec![0; w * h],
             moles: vec![], drops: vec![], stockpile: (0, 0, 0, 0), buildings: vec![], torches: vec![], chests: vec![], furniture: vec![], paint_acc: 0,
             quest: 0, log: vec![], discovered: [false; NMAT], chests_opened: 0, pillars: 0, max_depth: 0., craft_queue: vec![], gear: Gear::default(), mode: Default::default(), rules: Default::default(), lamp_oil: 0., lamp_dry: false, crumbled: 0,
-            light_rect: (0, 0, w - 1, h - 1), events: vec![], marks: vec![], react_pending: false, logic: Logic::new(w, h), disasters: Disasters::new(seed), shake: 0., air: Air::new(w, h), farms: vec![], harvested: 0, input: Input::default(), pl: Player::default(), gen: gn, oy, bands: Default::default(), opened: Default::default(), grottos: vec![], caught: Default::default(), info, g,
+            light_rect: (0, 0, w - 1, h - 1), events: vec![], marks: vec![], react_pending: false, logic: Logic::new(w, h), disasters: Disasters::new(seed), shake: 0., air: Air::new(w, h), farms: vec![], harvested: 0, input: Input::default(), pl: Player::default(), gen: gn, oy, bands: Default::default(), opened: Default::default(), grottos: vec![], caught: Default::default(), keep_blast_field: false, blast_field: vec![], info, g,
         }
     }
     pub fn new(w: usize, h: usize, seed: u32) -> World {
@@ -366,23 +368,8 @@ impl World {
         self.buildings.push(Building { kind, x, y, built: true, claimed: false }); self.events.push(Event::Place); self.say(format!("Built a {}.", kind.name())); Ok(())
     }
     pub fn queue_craft(&mut self, r: usize) { if self.craft_queue.len() < 12 { self.craft_queue.push(r); } }
-    /// A TNT charge going off at (x, y): the one place its blast radius and power are set.
-    pub fn blast_tnt(&mut self, x: usize, y: usize) { self.explode(x, y, 9. * SF, 6); }
-    pub fn explode(&mut self, cx: usize, cy: usize, r: f32, power: u8) {
-        let ri = r.ceil() as i32;
-        for dy in -ri..=ri { for dx in -ri..=ri {
-            let d = ((dx * dx + dy * dy) as f32).sqrt(); if d > r { continue; }
-            let (x, y) = (cx as i32 + dx, cy as i32 + dy); if !self.g.in_bounds(x, y) { continue; }
-            let i = y as usize * self.g.w + x as usize; let m = self.g.m(i);
-            if m == Mat::Bedrock || m.p().blast > power { continue; }
-            if d < r * 0.6 { self.g.set(i, if hash3(x as u32, y as u32, self.tick as u32) % 9 == 0 { Mat::Fire } else { Mat::Empty }); }
-            else if m.kind() == Kind::Solid { let c = m.p().crumbles_to; self.g.set(i, c); self.g.set_loose(i); }
-        } }
-        for m in self.moles.iter_mut() { let d = ((m.x as f32 - cx as f32).powi(2) + (m.y as f32 - cy as f32).powi(2)).sqrt(); if d < r * 1.5 { m.hp -= 80. * (1. - d / (r * 1.5)); } }
-        self.fling_items(cx as f32 + 0.5, cy as f32 + 0.5, r);
-        self.logic.on_explosion(&mut self.g, cx, cy, r);
-        self.events.push(Event::Explode); self.shake = self.shake.max(r / (3. * SF));
-    }
+    /// A TNT charge going off at (x, y): a pressure wave (see `blast.rs`), the one place its size is set.
+    pub fn blast_tnt(&mut self, x: usize, y: usize) { self.blast(x, y, crate::blast::TNT_KG); }
 
     pub fn step(&mut self) {
         self.tick += 1; self.events.clear(); self.marks.clear();

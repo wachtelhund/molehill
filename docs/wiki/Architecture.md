@@ -43,6 +43,7 @@ The rule is simple: **gameplay goes in the sim.** If it changes what happens in 
 | `gen.rs` | seeded procgen per `(seed, x, absolute row)` and the stability pass |
 | `world.rs` | `World`: the step order, the player (`step_player`, `TUNE`), colony moles, digging, placing, the brush, the endless window, quests and chests |
 | `logic.rs` | copperline nets, devices, knots, fuses, TNT, thrumming |
+| `survival.rs` | game modes and their rules: **Survival** (start kit, dig only with owned tools, fungus-oil fuel, the pack dropped at death, optional hunger off), **Creative** (999 of everything, nothing hurts) and **Plain** (no mode rules, used by tests and scenarios) |
 | `items.rs` | loose items as physics bodies: dug, dropped and thrown things fly, bounce, skid, float or sink, burn, and sleep when still; thrown TNT |
 | `tips.rs` | the world hover text: what's under a cell, in plain Delver words |
 | `light.rs` | per-cell RGB light and fog of war |
@@ -113,7 +114,7 @@ A save (format 4) is a small **manifest** plus band blobs. The manifest starts w
 * **One blob** (`save::save` / `save::load`, used by tests and the harness): the manifest followed by every band inline.
 * **Loading** builds an empty world shell for the seed (`World::blank`, no generation, so a load takes about 50 ms) and unpacks the window's bands into it. Each blob is checked against its hash. A missing or damaged band in the window fails the load; one off-window is dropped (the generator makes it again) and the log says so. Every read is bounds-checked, so a bad save gives a readable error and never panics (`corrupt_saves_never_panic`). A save from a build with a different world size is refused. Format 3 saves (one blob with a row cache of cells) still load, and their cached rows become bands.
 
-The game autosaves every 30 s and loads the autosave at start. `K` and `L` use a separate manual slot. Autosaves (`*.save`) are gitignored.
+The holt's mode and its hunger option are saved with it; a save from before modes loads as Creative. The game autosaves every 30 s and loads the autosave at start. `K` and `L` use a separate manual slot. Autosaves (`*.save`) are gitignored.
 
 ## Working on the code
 

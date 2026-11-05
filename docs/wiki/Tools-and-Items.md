@@ -69,7 +69,7 @@ One table (`Item::uses` in `craft.rs`) says whether an item is **set down**, **t
 | Torch | left mouse | no | yes |
 | Lamp, vent; levers, knots, thrummers and other devices | left mouse, or right mouse on an empty spot | no | yes |
 | Spore | left mouse (plant on soil) | yes | no |
-| Loose materials, ingots, charcoal, grubs, mushrooms | no | yes | (lying loose: walk over it) |
+| Loose materials, ingots, charcoal, grubs, mushrooms, roots, fungus oil | no | yes | (lying loose: walk over it) |
 | Tools, glass | no | no | no |
 
 ## Furnishing
