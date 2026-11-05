@@ -69,6 +69,22 @@ The Lid is the thread that pulls a Delver upward, but **the game never shows or 
 
 **The journal** (`J`): walking within about a metre of a clue reads it. The next unread fragment of its kind goes into the journal, with a toast and a soft sound. Twenty-four fragments (six per kind) hint, doubt and argue; none of them proves anything, and a test bans the words that would. The journal is a plain list, newest first: kind and title, then the text. It is kept in saves (v7), along with which clues were read.
 
+## The Ancients in the game
+
+The Ancients' remains are found deep down, because they dug deeper than anyone since (`sim/src/ruins.rs`; details on [World and Generation](World-and-Generation.md#ruins-of-the-ancients)). There are none above 15 m, they get commoner with depth, and none sits near the holt. Three kinds:
+
+| ruin | what's left |
+|---|---|
+| **Pumping hall** | A long brick hall roofed in brick on iron pillars, with iron pump blocks beside a flooded sump. One pillar has already given way, and the Ancients slung an iron girder under that bay. |
+| **Sealed vault** | Thick brick on every side under an iron lintel, with no way in but through it, and a chest inside. |
+| **Tube station** | A platform hall and a capsule tube running off into the rock, choked by an old cave-in. A broken **waygate** stands where the two meet: an iron frame round a sealed gate. |
+
+**Nothing in a ruin is supernatural.** It is ordinary brick, iron, doors and gravel, judged by the same stress solver as everything else. A hall stands under an open cave, but load it with sand and its brick bays fall in (`ruin_hall_stands`, `ruin_hall_caves_in`). Dig out a pillar and its roof comes down.
+
+* **Carvings.** The first time you come within 8 m of a ruin, its carving is read out: Delvers in a line digging upward, a pattern knocked into the wall, a metal plate scored with the layers and a blank band above them, a tally of fast lines. Like the Lid fragments, they point upward and prove nothing.
+* **Relics** are better-made versions of things Delvers know, and can't be crafted. A vault's chest holds the next one not yet found, each only once: the **Ancient bit**, which makes every bite a quarter faster, then the **Ground lens**, which halves the headlamp's oil. After both are found, vaults hold old materials (`ruin_vault_loot`).
+* **Waygates** are the end of a fast line, not a door to somewhere else. Today they can be found but not mended. Whether they can ever be repaired or extended is still [an open decision](Progression.md#ancient-waygates-open-decision); whatever is decided, a waygate stays a station on a physical line.
+
 ## Glossary
 
 | word | meaning |
@@ -88,3 +104,5 @@ The Lid is the thread that pulls a Delver upward, but **the game never shows or 
 | root-tree | A cave tree that drinks seeping water; it grows back from its roots |
 | glowmite | A small insect that makes its own glow; caught in a jar, it lights a lantern |
 | the Ancients | Delvers of long ago, who left facilities, ruins and relics |
+| waygate | The station at the end of an Ancient fast line; found broken |
+| Ancient bit, Ground lens | The two relics so far: a finer digging bit and a lens that stretches the headlamp's oil |
