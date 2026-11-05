@@ -60,3 +60,4 @@ Polish only: no new features. Each item has a scenario in `engine/sim/tests/scen
 * Lava never cools on its own; dry lava resting on a basalt crust stays lava.
 * Thin roofs are still judged only by their bottom fibre's tensile strength (a 1-cell clay skin
   under granite limits the whole roof).
+* `site/` not rebuilt: the `wasm32-unknown-unknown` target isn't installed here (`rustup target add wasm32-unknown-unknown`, then the AGENTS.md rebuild line).
