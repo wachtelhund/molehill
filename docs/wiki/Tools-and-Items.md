@@ -37,7 +37,7 @@ Placed blocks are ordinary cells, judged by the same structural solver as the ro
 | Torch | Placed on a wall or floor. Lights a few metres around it and slowly stales the air |
 | Copperline | Lays wire, one per 1 m block, as you drag |
 | Device (lever, knot, lamp, vent…) | Placed in the 1 m block under the cursor. See [Devices and Copperline](Devices-and-Copperline.md) |
-| TNT | Placed **inert**. Light it with right mouse (1.5 s fuse) or set it off with current |
+| TNT | Set down **inert** (left mouse, or right mouse on an empty spot); light it with right mouse (1.5 s fuse) or set it off with current, or pick it back up with `E` while unlit. Thrown with `Q`, it goes out lit |
 | Spore | Planted on soil to start a mushroom plot |
 | Station | Placed as a 2.5 × 1.75 m building (10 × 7 tiles) |
 
