@@ -24,6 +24,10 @@ use crate::grid::Grid;
 use crate::mat::{Kind, Mat, CELL_M, CPM, G, PROPS, S};
 
 const ARCH: usize = 16 * CPM; // 16 m
+/// Side margin of a region solve. Runs, voids, roof rows and overburden reach past it exactly (they read
+/// the stored whole-window state); only the load-path search is cut at the region's edge, where cells
+/// that had a path last time anchor it.
+pub const SIDE: usize = 8 * CPM;
 pub struct Stress {
     pub util: Vec<u8>,      // utilisation ×128 (128 = at capacity, 255 = ≥2× or no load path)
     pub pending: Vec<u8>,   // crack countdown
@@ -31,21 +35,45 @@ pub struct Stress {
     pub overburden: Vec<f32>,
     pub last_fail: usize,
     pub reach: Vec<bool>,
+    /// per cell: for static cells the top row of their unbroken static column; for open cells the row of
+    /// the roof above them. Kept between solves; a region solve updates the columns it touches.
+    ctop: Vec<u32>, vtop: Vec<u32>,
     /// failure threshold on utilisation (1.0 at runtime; gen uses a safety factor)
     pub thr: f32,
 }
 pub const CRACK_TICKS: u8 = 40;
+/// Merge cell boxes (x0, y0, x1, y1) that lie within `gap` cells of each other into clusters.
+pub fn merge_boxes(mut boxes: Vec<(usize, usize, usize, usize)>, gap: usize) -> Vec<(usize, usize, usize, usize)> {
+    let near = |a: &(usize, usize, usize, usize), b: &(usize, usize, usize, usize)| a.0 <= b.2 + gap && b.0 <= a.2 + gap && a.1 <= b.3 + gap && b.1 <= a.3 + gap;
+    let mut merged = true;
+    while merged { merged = false;
+        'o: for i in 0..boxes.len() { for j in i + 1..boxes.len() { if near(&boxes[i], &boxes[j]) { let b = boxes.swap_remove(j); let a = &mut boxes[i];
+            *a = (a.0.min(b.0), a.1.min(b.1), a.2.max(b.2), a.3.max(b.3)); merged = true; break 'o; } } } }
+    boxes
+}
 pub const LOOSE_TICKS: u8 = 8;
 
 impl Stress {
-    pub fn new(n: usize) -> Self { Stress { util: vec![0; n], pending: vec![0; n], cracking: vec![], overburden: vec![0.; n], last_fail: 0, reach: vec![], thr: 1.0 } }
+    pub fn new(n: usize) -> Self { Stress { util: vec![0; n], pending: vec![0; n], cracking: vec![], overburden: vec![0.; n], last_fail: 0, reach: vec![], ctop: vec![0; n], vtop: vec![0; n], thr: 1.0 } }
 
     /// Full solve. Returns indices with u > 1.
     /// Height of the load-bearing column above any cell (16 m), the pressure-arch height.
     pub fn _arch() -> usize { ARCH }
     pub fn solve(&mut self, g: &Grid) -> Vec<u32> { self.solve_rect(g, None) }
+    /// Re-solve around the chunks holding `cells` (each one's 64-cell chunk; nearby chunks cluster into one
+    /// region). Exact when nothing else changed since the last solve. Falls back to a full solve when the
+    /// clusters would cover most of the window anyway.
+    pub fn solve_cells(&mut self, g: &Grid, cells: &[usize]) -> Vec<u32> {
+        use crate::grid::CHUNK;
+        let mut seen = std::collections::HashSet::new(); let mut boxes = vec![];
+        for &i in cells { let (cx, cy) = ((i % g.w) / CHUNK, (i / g.w) / CHUNK); if seen.insert((cx, cy)) { boxes.push((cx * CHUNK, cy * CHUNK, cx * CHUNK + CHUNK - 1, cy * CHUNK + CHUNK - 1)); } }
+        let boxes = merge_boxes(boxes, 16 * CPM);
+        let area: usize = boxes.iter().map(|b| (b.2 - b.0 + 1 + 2 * SIDE + 8 * CPM).min(g.w) * (b.3 - b.1 + 1 + 28 * CPM).min(g.h)).sum();
+        if area * 10 > g.w * g.h * 6 { return self.solve(g); }
+        let mut f = vec![]; for b in boxes { f.extend(self.solve_rect(g, Some(b))); } f
+    }
     /// Re-solve only around `dirty` (cells x0, y0, x1, y1 inclusive): the work region is that box plus
-    /// 32 m to each side, the 16 m arch height above and 8 m below; results are written back only for
+    /// SIDE (8 m) to each side, the 16 m arch height above and 8 m below; results are written back only for
     /// the box plus 4 m (cells further out keep their last state). The region's edge cells that had
     /// a load path last time anchor it, so the 2M-cell window isn't re-solved for every bite.
     /// `None` (or no previous solve) is a full solve. Returns failing cells (u > thr) in the written area.
@@ -56,7 +84,7 @@ impl Stress {
         let (rx0, ry0, rx1, ry1, cx0, cy0, cx1, cy1) = match dirty {
             None => (0, 0, w - 1, h - 1, 0, 0, w - 1, h - 1),
             Some((a, b, c, d)) => {
-                let (side, up, down, keep) = (32 * CPM, ARCH, 8 * CPM, 4 * CPM);
+                let (side, up, down, keep) = (SIDE, ARCH, 8 * CPM, 4 * CPM);
                 let (cx0, cy0, cx1, cy1) = (a.saturating_sub(keep), b.saturating_sub(keep), (c + keep).min(w - 1), (d + keep).min(h - 1));
                 (cx0.saturating_sub(side), cy0.saturating_sub(up), (cx1 + side).min(w - 1), (cy1 + down).min(h - 1), cx0, cy0, cx1, cy1)
             }
@@ -80,16 +108,20 @@ impl Stress {
         // ctop: top row of the unbroken static column a static cell belongs to (does it reach the roof?);
         // vtop: for an open cell, the row of the first non-open cell above it (the roof over that void).
         // The region's top row looks up through the grid for its true values.
-        // (computed across the full width of the region's rows: runs and voids may reach past its sides)
-        let mut ctop = vec![0u32; rh * w]; let mut vtop = vec![0u32; rh * w];
-        let lf = |x: usize, y: usize| (y - ry0) * w + x;
-        for y in ry0..=ry1 { for x in 0..w { let i = y * w + x; let l = lf(x, y);
-            if st(i) { ctop[l] = if y > ry0 { if st(i - w) { ctop[l - w] } else { y as u32 } } else { let mut t = y; while t > 0 && st((t - 1) * w + x) { t -= 1; } t as u32 }; }
-            else if open(i) { vtop[l] = if y == 0 { 0 } else if y > ry0 { if open(i - w) { vtop[l - w] } else { (y - 1) as u32 } } else { let mut t = y; while t > 0 && open((t - 1) * w + x) { t -= 1; } t.saturating_sub(1) as u32 }; }
-        } }
+        // Stored between solves. A full solve fills them; a region solve redoes its own columns from the
+        // region top down, past the region's bottom until nothing changes (a column's top can move below it).
+        let full = dirty.is_none();
+        { let (ct, vt) = (&mut self.ctop, &mut self.vtop);
+          for x in rx0..=rx1 { for y in ry0..h { let i = y * w + x;
+            let (c, v) = if st(i) { (if y > 0 && st(i - w) { ct[i - w] } else { y as u32 }, 0) }
+                else if open(i) { (0, if y == 0 { 0 } else if open(i - w) { vt[i - w] } else { (y - 1) as u32 }) } else { (0, 0) };
+            if !full && y > ry1 && ct[i] == c && vt[i] == v { break; }
+            ct[i] = c; vt[i] = v;
+          } } }
+        let (ctop, vtop) = (&self.ctop, &self.vtop);
         let inr = |x: usize, y: usize| x >= rx0 && x <= rx1 && y >= ry0 && y <= ry1;
-        let ctop_at = |x: usize, y: usize| ctop[lf(x, y)];
-        let vtop_at = |x: usize, y: usize| vtop[lf(x, y)];
+        let ctop_at = |x: usize, y: usize| ctop[y * w + x];
+        let vtop_at = |x: usize, y: usize| vtop[y * w + x];
         let mut util = vec![0f32; rn];
         // 2. connectivity (BFS from bedrock)
         let mut reach = vec![false; rn]; let mut q: Vec<u32> = Vec::with_capacity(rn / 4);
