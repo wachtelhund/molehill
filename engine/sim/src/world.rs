@@ -68,10 +68,14 @@ pub struct Player { pub px: f32, pub py: f32, pub ppx: f32, pub ppy: f32, pub sy
     pub deny: Option<Mat>,
     /// the last refusal said aloud and its tick: the same words wait `DENY_REPEAT` ticks before repeating
     pub deny_said: Option<(Mat, u64)>,
+    /// the last "can't place" line said and its tick: the same words wait `DENY_REPEAT` ticks (see `refuse_place`)
+    pub place_said: Option<(String, u64)>,
     /// wall-jump grace (s left) after leaving a cling, and the side that wall was on
     pub wall_t: f32, pub wall_side: i8,
     /// rolling over a ledge after a climb (s left; direction = `wall_side`): carried onto the top, no gravity
-    pub mantle: f32 }
+    pub mantle: f32,
+    /// "hungry and nothing to eat" was said: once until the next meal
+    pub hungry_said: bool }
 /// Ticks before the same "too hard" words are said again (the clink still sounds on each press).
 pub const DENY_REPEAT: u64 = 300;
 pub const REACH_CELLS: f32 = 4.5 * CPM as f32; // 4.5 m
@@ -186,7 +190,7 @@ pub struct World {
     pub caught: std::collections::HashMap<(u32, u8), u64>,
     /// Survival, Creative, or Plain (the bare rules: tests and scenarios); `rules` is what the mode switches on
     /// (see `survival.rs`). `lamp_oil` = seconds of oil left in the headlamp.
-    pub mode: crate::survival::Mode, pub rules: crate::survival::Rules, pub lamp_oil: f32, pub lamp_dry: bool,
+    pub mode: crate::survival::Mode, pub rules: crate::survival::Rules, pub lamp_oil: f32, pub lamp_dry: bool, /** the low-oil warning has been given for this measure */ pub lamp_low: bool,
     /// ruins of the Ancients touching the window (refreshed with the chests); the ones already visited (ids);
     /// relics found (bit k = `ruins::RELICS[k]`): each turns up once
     pub ruins: Vec<crate::ruins::Ruin>, pub ruins_seen: std::collections::HashSet<u32>, pub relics: u8,
@@ -217,7 +221,7 @@ impl World {
         World {
             st: Stress::new(w * h), light: Light::new(w, h), tick: 0, inv: [0; NITEM], dig_acc: [0; NMAT], place_acc: [0; 12], desig: vec![0; w * h],
             moles: vec![], drops: vec![], stockpile: (0, 0, 0, 0), buildings: vec![], torches: vec![], chests: vec![], furniture: vec![], paint_acc: 0,
-            quest: 0, log: vec![], discovered: [false; NMAT], chests_opened: 0, pillars: 0, max_depth: 0., craft_queue: vec![], gear: Gear::default(), known: [false; NITEM], mode: Default::default(), rules: Default::default(), lamp_oil: 0., lamp_dry: false, ruins: vec![], ruins_seen: Default::default(), relics: 0, crumbled: 0,
+            quest: 0, log: vec![], discovered: [false; NMAT], chests_opened: 0, pillars: 0, max_depth: 0., craft_queue: vec![], gear: Gear::default(), known: [false; NITEM], mode: Default::default(), rules: Default::default(), lamp_oil: 0., lamp_dry: false, lamp_low: false, ruins: vec![], ruins_seen: Default::default(), relics: 0, crumbled: 0,
             light_rect: (0, 0, w - 1, h - 1), events: vec![], marks: vec![], react_pending: false, logic: Logic::new(w, h), disasters: Disasters::new(seed), shake: 0., air: Air::new(w, h), farms: vec![], harvested: 0, input: Input::default(), pl: Player::default(), gen: gn, oy, bands: Default::default(), opened: Default::default(), clues: vec![], found_clues: Default::default(), journal: vec![], grottos: vec![], caught: Default::default(), keep_blast_field: false, blast_field: vec![], debris: vec![], waves: vec![], tr: Default::default(), blasts_run: 0, info, g,
             walls: crate::walls::Walls::new(w, h), sites: vec![], sites_seen: Default::default(),
         }
@@ -446,10 +450,22 @@ impl World {
             else if self.g.mat[i] == 0 || self.g.m(i).kind() != Kind::Solid { self.desig[i] = code; }
         } }
     }
-    pub fn place_torch(&mut self, x: usize, y: usize) -> bool {
-        if self.inv[Item::Torch as usize] == 0 || self.g.is_solidish(self.g.idx(x, y)) { return false; }
-        if self.rules.fuel && !self.take_oil() { self.say("A torch needs fungus oil to burn".into()); return false; }
-        self.inv[Item::Torch as usize] -= 1; self.torches.push((x, y)); self.events.push(Event::Place); self.marks.push((1, x as f32 + 0.5, y as f32 + 0.5, 0.6 * SF)); true
+    pub fn place_torch(&mut self, x: usize, y: usize) -> bool { self.try_place_torch(x, y).is_ok() }
+    /// Set a torch down at (x, y), or say why not (none left, no room, no fungus oil to light it in Survival).
+    pub fn try_place_torch(&mut self, x: usize, y: usize) -> Result<(), &'static str> {
+        if self.inv[Item::Torch as usize] == 0 { return Err("none left"); }
+        if x >= self.g.w || y >= self.g.h || self.g.is_solidish(self.g.idx(x, y)) { return Err("something is in the way"); }
+        if self.rules.fuel && !self.take_oil() { return Err("it needs fungus oil to burn"); }
+        self.inv[Item::Torch as usize] -= 1; self.torches.push((x, y)); self.events.push(Event::Place); self.marks.push((1, x as f32 + 0.5, y as f32 + 0.5, 0.6 * SF)); Ok(())
+    }
+    /// A place or build was refused: say why in one short line ("Can't place brick: needs something to rest
+    /// on."). The same words aren't said again for `DENY_REPEAT` ticks, so clicking at the same spot, or
+    /// holding a brush over it, never stacks messages; a different reason speaks at once.
+    pub fn refuse_place(&mut self, what: &str, why: &str) {
+        let what = if what.chars().nth(1).is_some_and(char::is_uppercase) { what.to_string() } else { what.to_lowercase() }; // TNT stays TNT
+        let s = format!("Can't place {what}: {why}.");
+        if self.pl.place_said.as_ref().is_some_and(|(t, k)| *t == s && self.tick < k + DENY_REPEAT) { return; }
+        self.pl.place_said = Some((s.clone(), self.tick)); self.say(s);
     }
     pub fn place_building(&mut self, kind: Station, x: usize, y: usize) -> Result<(), &'static str> {
         if self.buildings.iter().any(|b| b.kind == kind) { return Err("already have one"); }
@@ -695,7 +711,17 @@ impl World {
             self.moles[k].path.clear();
         }
         // a hungry mole snacks from its pack
-        if self.moles[k].hunger < 40. { for (it, v) in [(Item::Grub, 45.), (Item::Mushroom, 35.), (Item::Root, 30.), (Item::Fungus, 25.)] { if self.inv[it as usize] > 0 { self.inv[it as usize] -= 1; self.moles[k].hunger = (self.moles[k].hunger + v).min(100.); self.events.push(Event::Eat); break; } } }
+        // (the player's mole says what it ate and what's left, or once that there is nothing to eat)
+        if self.moles[k].hunger < 40. && !self.rules.no_hunger {
+            let food = [(Item::Grub, 45.), (Item::Mushroom, 35.), (Item::Root, 30.), (Item::Fungus, 25.)].into_iter().find(|&(it, _)| self.inv[it as usize] > 0);
+            if let Some((it, v)) = food {
+                self.inv[it as usize] -= 1; self.moles[k].hunger = (self.moles[k].hunger + v).min(100.); self.events.push(Event::Eat);
+                if k == 0 { self.pl.hungry_said = false; let left = self.inv[it as usize]; self.say(format!("Ate a {} ({left} left).", it.name().to_lowercase())); }
+            } else if k == 0 && !self.pl.hungry_said {
+                self.pl.hungry_said = true; self.events.push(Event::Warning);
+                self.say("Hungry, and nothing to eat. Dig soil for grubs or root tangles for roots.".into());
+            }
+        }
         if self.rules.harmless { self.moles[k].hp = self.moles[k].hp.max(1.); }
         if self.moles[k].hp <= 0. { if k == 0 && self.rules.drop_pack { self.drop_pack(); } self.moles[k].alive = false; self.pl.dead_t = 0; self.pl.deaths += 1; let nm = self.moles[k].name; self.events.push(Event::Death); self.say(format!("{} has died. Back to the burrow...", nm)); }
     }
@@ -1074,7 +1100,7 @@ impl World {
     pub fn place_block_at(&mut self, x: usize, y: usize, it: Item) -> Result<(), &'static str> {
         let Some(d) = block_code(it) else { return Err("not a block") };
         if x < 1 || y < 1 || x + 1 >= self.g.w || y + 1 >= self.g.h { return Err("out of bounds"); }
-        let i = self.g.idx(x, y); if self.g.mat[i] != 0 && !self.g.m(i).has(OPEN) { return Err("cell is not open"); }
+        let i = self.g.idx(x, y); if self.g.mat[i] != 0 && !self.g.m(i).has(OPEN) { return Err("something is in the way"); }
         if self.moles.iter().any(|m| m.alive && m.x == x && y <= m.y && y + MOLE_H > m.y) { return Err("you are standing there"); }
         if !self.g.n4(x, y).any(|j| self.g.is_solidish(j)) { return Err("needs something to rest on"); }
         if self.place_acc[d as usize] == 0 && self.inv[it as usize] == 0 { return Err("none left"); }
@@ -1264,7 +1290,7 @@ impl World {
         let (k, rt) = (S as i32, r / SF); let (tx, ty) = (x as i32 / k, y as i32 / k);
         let todo: Vec<(i32, i32)> = disc(rt).into_iter().flat_map(|(dx, dy)| (0..k * k).map(move |j| ((tx + dx) * k + j % k, (ty + dy) * k + j / k)))
             .filter(|&(nx, ny)| self.open_for_block(nx, ny)).collect();
-        if todo.is_empty() { return Err(if self.in_reach(x, y) { "cell is not open" } else { "out of reach" }); }
+        if todo.is_empty() { return Err(if self.in_reach(x, y) { "something is in the way" } else { "out of reach" }); }
         let n = self.fill_cells(todo, it, d)?; self.marks.push((1, x as f32 + 0.5, y as f32 + 0.5, r)); Ok(n)
     }
     /// Grid snap: fill the squares of `n` cells (aligned to the n-cell grid) along a straight line from the
@@ -1279,7 +1305,7 @@ impl World {
         for gy in ay.min(ey)..=ay.max(ey) { for gx in ax.min(ex)..=ax.max(ex) {
             for j in 0..n * n { let (cx, cy) = (gx * n + j % n, gy * n + j / n); if self.open_for_block(cx as i32, cy as i32) { todo.push((cx as i32, cy as i32)); } }
         } }
-        if todo.is_empty() { return Err(if self.in_reach(b.0, b.1) { "cell is not open" } else { "out of reach" }); }
+        if todo.is_empty() { return Err(if self.in_reach(b.0, b.1) { "something is in the way" } else { "out of reach" }); }
         let k = self.fill_cells(todo, it, d)?; self.marks.push((1, b.0 as f32 + 0.5, b.1 as f32 + 0.5, n as f32 * 0.5)); Ok(k)
     }
     /// The squares `place_line` would fill, as (x0, y0, x1, y1) inclusive cells: for drawing the outline.

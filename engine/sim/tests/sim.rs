@@ -905,6 +905,24 @@ mod progression {
             assert!(RECIPES.iter().any(|r| r.inputs.iter().any(|&(it, _)| it == m)), "{m:?} has no use");
         }
     }
+    /// The Survival kit carries a short explore: five minutes with the headlamp lit, eating from the pack,
+    /// and the log says each meal without ever running out. The kit's budget is checked too: about 12 minutes
+    /// of food before hunger bites and 9 of headlamp oil, so a first trip down can come back for more.
+    #[test] fn survival_kit_sustains_a_short_explore() {
+        use molehill_sim::survival::{Mode, KIT, OIL_SECS};
+        let food = |it: Item| match it { Item::Grub => 45., Item::Mushroom => 35., Item::Root => 30., Item::Fungus => 25., _ => 0. };
+        let fed: f32 = KIT.iter().map(|&(it, n)| food(it) * n as f32).sum();
+        let oil = KIT.iter().find(|k| k.0 == Item::FungusOil).map_or(0, |k| k.1) as f32;
+        let (food_s, oil_s) = ((80. - 40. + fed) / 0.33, OIL_SECS * (1. + oil));
+        assert!(food_s > 600. && oil_s > 480., "kit lasts {food_s:.0} s of food, {oil_s:.0} s of oil");
+        let mut w = World::new(256 * molehill_sim::mat::S, 128 * molehill_sim::mat::S, 3); w.set_mode(Mode::Survival); w.gear.lamp = true;
+        for _ in 0..5 * 60 * 60 { w.step(); }
+        let said = |k: &str| w.log.iter().filter(|(_, l)| l.contains(k)).count();
+        assert!(w.moles[0].alive && w.moles[0].hp > 90. && w.moles[0].hunger > 40., "hp {} hunger {}", w.moles[0].hp, w.moles[0].hunger);
+        assert!(w.lamp_lit(), "the headlamp is still lit");
+        assert!(said("Ate a grub") >= 1, "the meal is said: {:?}", w.log);
+        assert_eq!((said("nothing to eat"), said("out of oil")), (0, 0), "{:?}", w.log);
+    }
     #[test] fn survival_starts_bare_and_learns() {
         use molehill_sim::survival::Mode;
         let mut w = World::new(256 * molehill_sim::mat::S, 128 * molehill_sim::mat::S, 3); w.set_mode(Mode::Survival); w.step();

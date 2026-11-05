@@ -1,0 +1,48 @@
+// A place the world won't take says why in one short line, the way a refused dig does: a brick in mid-air
+// ("Can't place brick: needs something to rest on."), a brick into the rock floor (something is in the way),
+// a table or cart the pack has none of, a torch into rock or, in Survival, with no fungus oil left to light
+// it. The same words aren't said again for 5 s however often you click; a different reason speaks at once.
+map
+BBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+B............................B
+B............................B
+B............................B
+B............................B
+B............................B
+B............................B
+B............................B
+B............................B
+B.....@......................B
+##############################
+BBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+end
+mode survival
+give Brick 20
+brush 1 0.5
+place 10 4 -6 Brick
+place 12 4 -6 Brick
+place 14 5 -6 Brick
+expect 15 log:needs_something_to_rest_on == 1
+expect 15 log:can't_place_brick == 1
+place 20 4 2 Brick
+expect 21 log:something_is_in_the_way == 1
+expect 21 log:can't_place == 2
+furnish 30 Table 4 0
+expect 31 log:can't_place_table == 1
+place 40 4 -6 Cart
+expect 41 log:cart:_none == 1
+expect 41 log:none_left == 2
+placetorch 50 3 1
+expect 51 log:can't_place_torch == 1
+expect 51 log:something_is_in_the_way == 2
+placetorch 60 2 0
+placetorch 62 3 0
+placetorch 64 4 0
+placetorch 66 5 0
+expect 67 log:fungus_oil == 1
+placetorch 68 5 0
+expect 69 log:fungus_oil == 1
+place 420 4 -6 Brick
+expect 421 log:needs_something_to_rest_on == 2
+place 422 4 -6 Brick
+expect 423 log:needs_something_to_rest_on == 2

@@ -292,7 +292,7 @@ fn run_file(path: &str, json: bool) -> bool {
                     if let Some((cx, cwy)) = ru.chest { r.w.chests.push(molehill_sim::world::Chest { x: cx, y: (cwy - oy) as usize, opened: false, ancient: Some(ru.id) }); }
                     r.w.ruins.push(ru); }
                 Act::Set(t, v, x) if *t == tick => { let m = &mut r.w.moles[0]; match v.as_str() { "hp" => m.hp = *x, "hunger" => m.hunger = *x, "breath" => m.breath = *x, "oil" => r.w.lamp_oil = *x, o => panic!("{path}: can't set {o}") } }
-                Act::PlaceTorch(t, dx, dy) if *t == tick => { let (x, y) = r.at(*dx, *dy); if !r.w.place_torch(x, y) { println!("  NOTE {path} tick {tick}: torch at {dx},{dy} refused"); } }
+                Act::PlaceTorch(t, dx, dy) if *t == tick => { let (x, y) = r.at(*dx, *dy); if let Err(e) = r.w.try_place_torch(x, y) { println!("  NOTE {path} tick {tick}: torch at {dx},{dy} refused: {e}"); r.w.refuse_place("torch", e); } }
                 Act::Throw(t, it, dx, dy, pw) if *t == tick => { let item = item_by_name(it).unwrap_or_else(|| panic!("{path}: unknown item {it}"));
                     if let Err(e) = r.w.throw_item(item, (*dx, *dy), *pw) { println!("  NOTE {path} tick {tick}: throw {it}: {e}"); } }
                 Act::Loose(t, it, dx, dy, vx, vy) if *t == tick => { let item = item_by_name(it).unwrap_or_else(|| panic!("{path}: unknown item {it}"));
@@ -309,7 +309,7 @@ fn run_file(path: &str, json: bool) -> bool {
                     let (x, _) = r.at(*dx, *dy); let y = (r.ay as i32 + dy * K as i32 + K as i32 - 1) as usize; let wy = r.w.oy + y as i64;
                     r.w.clues.push(Clue { kind, x, y, wy, found: false, look: 0 }); }
                 Act::Furnish(t, it, dx, dy) if *t == tick => { let item = molehill_sim::craft::ITEMS.iter().copied().find(|i| format!("{i:?}").eq_ignore_ascii_case(it)).unwrap_or_else(|| panic!("{path}: unknown item {it}"));
-                    let (x, y) = r.at(*dx, *dy); if let Err(e) = r.w.place_furniture(item, x, y) { println!("  NOTE {path} tick {tick}: furnish {it} at {dx},{dy}: {e}"); } }
+                    let (x, y) = r.at(*dx, *dy); if let Err(e) = r.w.place_furniture(item, x, y) { println!("  NOTE {path} tick {tick}: furnish {it} at {dx},{dy}: {e}"); r.w.refuse_place(item.name(), e); } }
                 Act::Paint(t, it, dx, dy) if *t == tick => { let item = molehill_sim::craft::ITEMS.iter().copied().find(|i| format!("{i:?}").eq_ignore_ascii_case(it)).unwrap_or_else(|| panic!("{path}: unknown item {it}"));
                     let (x, y) = r.at(*dx, *dy); if let Err(e) = r.w.paint(x, y, item, inp.brush) { println!("  NOTE {path} tick {tick}: paint {it} at {dx},{dy}: {e}"); } }
                 Act::Load(t, n, it) if *t == tick => { let item = item_by_name(it).unwrap_or_else(|| panic!("{path}: unknown item {it}"));
@@ -317,9 +317,9 @@ fn run_file(path: &str, json: bool) -> bool {
                 Act::Place(t, dx, dy, it) if *t == tick => {
                     let item = molehill_sim::craft::ITEMS.iter().copied().find(|i| format!("{i:?}").eq_ignore_ascii_case(it)).unwrap_or_else(|| panic!("{path}: unknown item {it}"));
                     let (x, y) = r.at(*dx, *dy);
-                    if item.is_wall() { if let Err(e) = r.w.place_walls(x, y, item, inp.brush) { println!("  NOTE {path} tick {tick}: place {it} at {dx},{dy} failed: {e}"); } }
-                    else { match r.w.place_transport(item, x, y) { Ok(true) => {} Err(e) => println!("  NOTE {path} tick {tick}: place {it} at {dx},{dy} failed: {e}"),
-                        Ok(false) => if let Err(e) = r.w.place_brush(x, y, item, inp.brush) { println!("  NOTE {path} tick {tick}: place {it} at {dx},{dy} failed: {e}"); } } }
+                    if item.is_wall() { if let Err(e) = r.w.place_walls(x, y, item, inp.brush) { println!("  NOTE {path} tick {tick}: place {it} at {dx},{dy} failed: {e}"); r.w.refuse_place(item.name(), e); } }
+                    else { match r.w.place_transport(item, x, y) { Ok(true) => {} Err(e) => { println!("  NOTE {path} tick {tick}: place {it} at {dx},{dy} failed: {e}"); r.w.refuse_place(item.name(), e); }
+                        Ok(false) => if let Err(e) = r.w.place_brush(x, y, item, inp.brush) { println!("  NOTE {path} tick {tick}: place {it} at {dx},{dy} failed: {e}"); r.w.refuse_place(item.name(), e); } } }
                 }
                 Act::Scrape(t, dx, dy) if *t == tick => { let (x, y) = r.at(*dx, *dy); if let Err(e) = r.w.scrape_walls(x, y, inp.brush) { println!("  NOTE {path} tick {tick}: scrape at {dx},{dy}: {e}"); } }
                 Act::SetWall(t, dx, dy, kind) if *t == tick => {
@@ -366,7 +366,7 @@ fn run_file(path: &str, json: bool) -> bool {
                 Act::Line(t, x1, y1, x2, y2, it) if *t == tick => { let item = item_by_name(it).unwrap_or_else(|| panic!("{path}: unknown item {it}"));
                     let (a, b) = (r.at(*x1, *y1), r.at(*x2, *y2)); let n = r.sizes.snap_cells();
                     let rline = if item.is_wall() { r.w.place_wall_line(a, b, n, item) } else { r.w.place_line(a, b, n, item) };
-                    if let Err(e) = rline { println!("  NOTE {path} tick {tick}: line failed: {e}"); } }
+                    if let Err(e) = rline { println!("  NOTE {path} tick {tick}: line failed: {e}"); r.w.refuse_place(item.name(), e); } }
                 Act::SaveLoad(t) if *t == tick => { let b = molehill_sim::save::save(&r.w); let mut w = molehill_sim::save::load(&b).unwrap_or_else(|e| panic!("{path}: reload failed: {e}")); w.disasters.enabled = false; r.w = w; }
                 Act::Put(t, dx, dy, it) if *t == tick => {
                     let item = molehill_sim::craft::ITEMS.iter().copied().find(|i| format!("{i:?}").eq_ignore_ascii_case(it)).unwrap_or_else(|| panic!("{path}: unknown item {it}"));

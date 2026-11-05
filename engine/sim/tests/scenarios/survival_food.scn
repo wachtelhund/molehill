@@ -1,5 +1,5 @@
 // Food drains and the pack's food restores it: a hungry Delver eats a grub, then the roots. Digging a
-// root tangle turns up edible roots.
+// root tangle turns up edible roots. Each meal is said in the log with what's left; an empty pack is said once.
 map
 BBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
 #............................#
@@ -26,11 +26,19 @@ expect 600 hunger < 77
 set 610 hunger 39
 expect 615 inv:Grub == 2
 expect 615 hunger > 80
+expect 615 log:ate_a_grub_(2_left) == 1
 set 620 hunger 39
 set 625 hunger 39
 expect 632 inv:Grub == 0
 set 640 hunger 39
 expect 645 inv:Root == 1
+expect 645 log:ate_a_root_(1_left) == 1
+set 650 hunger 39
+expect 655 inv:Root == 0
+// nothing left: said once, not every tick
+set 660 hunger 39
+expect 670 log:nothing_to_eat == 1
+expect 690 log:nothing_to_eat == 1
 // starving hurts
 set 700 hunger 0
 expect 760 hp < 100
