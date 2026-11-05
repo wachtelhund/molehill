@@ -910,3 +910,20 @@ mod progression {
     assert_eq!(a.g.mat, b.g.mat); assert_eq!((ra.cells, ra.shattered, ra.cracked), (rb.cells, rb.shattered, rb.cracked));
     assert!(ra.cells < molehill_sim::blast::BLAST_CELLS, "bounded");
 }
+#[test] fn lid_clues_rise_with_height_and_stay_lore_safe() {
+    use molehill_sim::lore::{clue_rate, ClueKind, FRAGMENTS, clues_in_band, next_fragment};
+    // more common higher up, never zero-crossing, monotone
+    let mut last = f32::MAX; for d in (-200..=200).step_by(10) { let r = clue_rate(d as f32); assert!(r <= last && r > 0.); last = r; }
+    assert!(clue_rate(-90.) > 4. * clue_rate(0.) && clue_rate(90.) < 0.25 * clue_rate(0.));
+    // enough fragments of every kind, each a short lore-safe paragraph; nothing confirms the Lid
+    for k in [ClueKind::Carving, ClueKind::Note, ClueKind::Draft, ClueKind::Relic] { assert!(FRAGMENTS.iter().filter(|f| f.kind == k).count() >= 5, "{k:?}"); }
+    let banned = ["sky", "sun", "surface", "magic", "spell", "radio", "electric", "signal", "wifi", "antenna", "laser", "is real", "proof", "proves", "we saw the lid", "reached the lid"];
+    for f in FRAGMENTS { let t = format!("{} {}", f.title, f.text).to_lowercase(); for b in banned { assert!(!t.contains(b), "{}: '{b}'", f.title); } assert!(f.text.len() <= 160, "{}", f.title); }
+    // every placed clue sits in open rock (not inside a wall), and drafts and odd finds only above the start
+    let (w, _, _) = arena(); let mut n = 0;
+    for band in -8..8i64 { for (kind, x, wy, _) in clues_in_band(&w.gen, w.gen.seed, band, w.g.w) { n += 1;
+        assert!(w.gen.open(x, wy), "clue in rock at {x},{wy}"); if band >= 0 { assert!(!matches!(kind, ClueKind::Draft | ClueKind::Relic)); } } }
+    assert!(n > 10);
+    // the journal reads each fragment once, in order per kind
+    let mut j = vec![]; while let Some(f) = next_fragment(ClueKind::Note, &j) { j.push(f); } assert_eq!(j.len(), FRAGMENTS.iter().filter(|f| f.kind == ClueKind::Note).count());
+}

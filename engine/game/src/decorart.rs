@@ -82,3 +82,29 @@ pub fn icon(it: Item) -> Image {
         if let Some(c) = &c { let cc = c.get(sx, sy); if cc[3] != 0 { let k = cc[0] as f32 / 255.; p.set(ox + x, oy + y, sh(u, k)); } } } }
     p.finish(LINE).image()
 }
+
+/// Lid clues: index 0-1 carvings, 2 a note, 3-8 odd finds (leaf, feather, blue glass, seed, pebble, bone).
+/// Drawn at the mole's pixel scale; a carving is a slab set into the wall, the rest lie on the floor.
+pub fn clue(k: usize) -> Image {
+    let rock = [138, 132, 124]; let cut = [70, 64, 60];
+    let p = match k {
+        0 | 1 => { let mut p = Px::new(12, 12); p.rect(0, 0, 11, 11, rock); p.rect(0, 0, 11, 0, sh(rock, 1.2)); p.rect(0, 11, 11, 11, sh(rock, 0.8));
+            if k == 0 { for a in 0..16 { let t = a as f32 / 16. * std::f32::consts::TAU; p.set((6. + t.cos() * 2.5).round() as i32, (4. + t.sin() * 2.5).round() as i32, cut); } // the round hole
+                for x in [4, 6, 8] { p.rect(x, 8, x, 10, cut); } } // and what falls from it
+            else { for (k2, y) in [(0, 9), (1, 6), (2, 3)] { let x = 3 + k2 * 2; p.rect(x, y, x + 1, y + 1, cut); } p.set(9, 1, cut); p.set(9, 2, cut); p.set(8, 2, cut); p.set(10, 2, cut); } // moles climbing, an arrow up
+            p }
+        2 => { let mut p = Px::new(9, 6); p.rect(0, 1, 8, 5, [196, 170, 128]); p.rect(1, 0, 7, 0, [196, 170, 128]); for y in [2, 4] { p.rect(1, y, 6, y, [110, 86, 60]); } p.set(7, 2, [110, 86, 60]); p.oval(7.5, 4.5, 1.4, 1.2, [120, 116, 110]); p }
+        3 => { let mut p = Px::new(9, 6); p.oval(4.5, 3., 4., 2.4, [118, 140, 70]); p.rect(1, 3, 8, 3, [84, 100, 50]); p.set(3, 2, [84, 100, 50]); p.set(6, 4, [84, 100, 50]); p.set(0, 3, [100, 80, 50]); p } // leaf
+        4 => { let mut p = Px::new(11, 5); p.oval(5.5, 2., 4.8, 1.6, [222, 218, 206]); p.rect(0, 2, 10, 2, [170, 160, 150]); p.set(1, 1, [240, 236, 228]); p } // feather
+        5 => { let mut p = Px::new(6, 6); for y in 0..6 { for x in 0..6 { if x + y >= 2 && x + y <= 8 && (x as i32 - y as i32).abs() <= 3 { p.set(x, y, if x + y < 5 { [150, 200, 240] } else { [90, 140, 210] }); } } } p.set(2, 1, [235, 245, 255]); p } // blue glass
+        6 => { let mut p = Px::new(5, 5); p.oval(2.5, 2.5, 2.2, 2., [120, 82, 50]); p.set(1, 1, [170, 128, 86]); p } // seed
+        7 => { let mut p = Px::new(7, 5); p.oval(3.5, 2.5, 3.2, 2.2, [150, 150, 158]); p.set(2, 1, [210, 210, 218]); p } // pebble
+        _ => { let mut p = Px::new(9, 4); p.rect(2, 1, 6, 2, [232, 228, 214]); p.oval(1., 1.5, 1.2, 1.5, [232, 228, 214]); p.oval(7.5, 1.5, 1.2, 1.5, [232, 228, 214]); p } // bone
+    };
+    p.finish(LINE).image()
+}
+/// The sprite index for a clue (see `clue`).
+pub fn clue_index(kind: molehill_sim::lore::ClueKind, look: u8) -> Option<usize> {
+    use molehill_sim::lore::ClueKind as K;
+    match kind { K::Carving => Some((look % 2) as usize), K::Note => Some(2), K::Relic => Some(3 + (look % 6) as usize), K::Draft => None }
+}

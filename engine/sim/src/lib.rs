@@ -15,3 +15,4 @@ pub mod tips;
 pub mod items;
 pub mod blast;
 pub mod survival;
+pub mod lore;
