@@ -6,9 +6,10 @@ use molehill_sim::world::Event;
 mod imp {
     use super::Event;
     use web_sys::*;
-    pub struct Audio { ctx: Option<AudioContext>, white: Option<AudioBuffer>, brown: Option<AudioBuffer>, last: [f64; 18], master: Option<GainNode>, rumble: Option<GainNode> }
+    pub struct Audio { ctx: Option<AudioContext>, white: Option<AudioBuffer>, brown: Option<AudioBuffer>, last: [f64; 18], master: Option<GainNode>, rumble: Option<GainNode>, vol: f32 }
     impl Audio {
-        pub fn new() -> Self { Audio { ctx: None, white: None, brown: None, last: [0.; 18], master: None, rumble: None } }
+        pub fn new() -> Self { Audio { ctx: None, white: None, brown: None, last: [0.; 18], master: None, rumble: None, vol: 0.8 } }
+        pub fn set_volume(&mut self, v: f32) { self.vol = v; if let Some(m) = &self.master { m.gain().set_value(0.55 * v); } }
         /// Browsers only allow audio after a user gesture: call on first input.
         pub fn unlock(&mut self) {
             if self.ctx.is_some() { if let Some(c) = &self.ctx { let _ = c.resume(); } return; }
@@ -21,7 +22,7 @@ mod imp {
                 b.copy_to_channel(&d, 0).ok()?; Some(b)
             };
             self.white = mk(2., false); self.brown = mk(4., true);
-            let m = ctx.create_gain().ok(); if let Some(m) = &m { m.gain().set_value(0.55); let _ = m.connect_with_audio_node(&ctx.destination()); }
+            let m = ctx.create_gain().ok(); if let Some(m) = &m { m.gain().set_value(0.55 * self.vol); let _ = m.connect_with_audio_node(&ctx.destination()); }
             self.master = m; self.ctx = Some(ctx);
             // ambient rumble loop
             if let (Some(ctx), Some(b), Some(m)) = (&self.ctx, &self.brown, &self.master) {
@@ -78,6 +79,6 @@ mod imp {
 mod imp {
     use super::Event;
     pub struct Audio;
-    impl Audio { pub fn new() -> Self { Audio } pub fn unlock(&mut self) {} pub fn play(&mut self, _e: Event, _g: f32) {} pub fn ambient(&mut self, _d: f32) {} }
+    impl Audio { pub fn new() -> Self { Audio } pub fn unlock(&mut self) {} pub fn play(&mut self, _e: Event, _g: f32) {} pub fn ambient(&mut self, _d: f32) {} pub fn set_volume(&mut self, _v: f32) {} }
 }
 pub use imp::Audio;

@@ -1,0 +1,20 @@
+// Mining the same rock with each tool tier: higher tiers clear it in fewer ticks.
+// Each block mines a different rock column 2 cells right of @ (row of feet).
+map
+##############################
+#............................#
+#............................#
+#............................#
+#............................#
+#............................#
+#............................#
+#.@.rrrr.....................#
+##############################
+end
+tool 1 0
+mine 1-40 2 0
+expect 40 is:2,0,Rock == 0
+tool 41 3
+mine 41-50 3 0
+expect 50 is:3,0,Rock == 0
+dump 50

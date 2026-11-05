@@ -252,8 +252,8 @@ fn player_can_dig_out_of_the_burrow() {
         let y = w.moles[0].y; let x0 = w.moles[0].x;
         // walk right, mining whatever blocks the way at head and chest height
         w.input.right = true; let mut best = x0;
-        for _ in 0..60 * 40 { let (x, yy) = (w.moles[0].x, w.moles[0].y);
-            let t = (0..3).map(|j| (x + 1, yy - j)).find(|&(a, b)| w.g.is_solidish(w.g.idx(a, b))); w.input.mine = t; w.step(); best = best.max(w.moles[0].x); }
+        for _ in 0..60 * 40 { let (x, yy) = ((w.pl.px + 1.2) as usize, w.moles[0].y); // the column the body's leading edge pushes into
+            let t = (0..3).map(|j| (x, yy - j)).find(|&(a, b)| w.g.is_solidish(w.g.idx(a, b))); w.input.mine = t; w.step(); best = best.max(w.moles[0].x); }
         assert!(best > x0 + 30, "seed {s}: tunnelled out ({x0} -> {best}, y {y})");
     }
 }
@@ -276,4 +276,51 @@ fn player_can_dig_out_of_the_burrow() {
     w.input.tool = 2; assert!(w.mine_time(lime).is_some(), "drill cuts granite");
     w.input.tool = 3; let tb = w.mine_time(lime).unwrap(); w.input.tool = 2; let td = w.mine_time(lime).unwrap(); assert!(tb < td, "bore faster than drill");
     w.input.tool = 3; assert!(w.bite_cells(tx, ty).len() > n_bite, "bore bite is bigger");
+}
+/// A clean arena around the spawn: open box, granite floor and walls.
+fn arena() -> (World, usize, usize) {
+    let mut w = World::new(512, 256, 11); w.disasters.enabled = false;
+    let (x0, y0) = (w.moles[0].x, w.moles[0].y);
+    for y in y0 - 30..=y0 + 3 { for x in x0 - 40..=x0 + 40 { let i = w.g.idx(x, y); w.g.set(i, if y > y0 || x < x0 - 30 || x > x0 + 30 { Mat::Granite } else { Mat::Empty }); w.g.flags[i] = 0; } }
+    w.drops.clear(); w.torches.clear(); w.farms.clear();
+    for _ in 0..10 { w.step(); }
+    (w, x0, y0)
+}
+fn press(w: &mut World, n: usize, f: impl Fn(&mut Input)) -> (f32, f32) { let (mut top, mut _b) = (f32::MAX, 0f32); for _ in 0..n { f(&mut w.input); w.step(); top = top.min(w.pl.py); _b = _b.max(w.pl.py); } (top, _b) }
+#[test] fn jump_height_is_snappy_and_variable() {
+    let (mut w, _, _) = arena(); assert!(w.pl.grounded);
+    let y0 = w.pl.py;
+    let (top, _) = press(&mut w, 40, |i| i.jump = true); let full = y0 - top;
+    press(&mut w, 60, |i| i.jump = false); assert!(w.pl.grounded, "lands again");
+    assert!((4.5..9.).contains(&full), "full jump {full} cells");
+    let (top2, _) = press(&mut w, 3, |i| i.jump = true); let (top3, _) = press(&mut w, 40, |i| i.jump = false); let hop = y0 - top2.min(top3);
+    assert!(hop < full * 0.6, "short hop {hop} vs full {full}");
+    // ground speed: max in ~3 frames, stops almost instantly
+    press(&mut w, 60, |_| {}); press(&mut w, 3, |i| { i.jump = false; i.right = true; }); assert!(w.pl.vx > 0.8 * TUNE.run, "accel: vx {}", w.pl.vx);
+    press(&mut w, 3, |i| i.right = false); assert!(w.pl.vx.abs() < 0.5, "decel: vx {}", w.pl.vx);
+}
+#[test] fn coyote_time_and_wall_climb() {
+    let (mut w, x0, y0) = arena();
+    // a ledge: raise a platform under the mole and run off its right edge
+    for x in x0 - 30..=x0 + 2 { for y in y0 - 14..=y0 { let i = w.g.idx(x, y); w.g.set(i, Mat::Granite); } }
+    w.moles[0].y = y0 - 15; w.pl.sync = None; press(&mut w, 30, |_| {}); assert!(w.pl.grounded, "on the ledge");
+    let ylev = w.pl.py;
+    let mut t = 0; while w.pl.grounded && t < 120 { w.input.right = true; w.step(); t += 1; }
+    press(&mut w, 3, |i| i.right = true); // 3 frames after leaving the edge
+    let (top, _) = press(&mut w, 20, |i| { i.right = false; i.jump = true; }); assert!(top < ylev - 2., "coyote jump worked: top {top} ledge {ylev}");
+    press(&mut w, 120, |i| i.jump = false); assert!(w.pl.grounded);
+    // too late: 15 frames after the edge, no jump
+    let (mut w, x0, y0) = arena();
+    for x in x0 - 30..=x0 + 2 { for y in y0 - 14..=y0 { let i = w.g.idx(x, y); w.g.set(i, Mat::Granite); } }
+    w.moles[0].y = y0 - 15; w.pl.sync = None; press(&mut w, 30, |_| {});
+    let mut t = 0; while w.pl.grounded && t < 120 { w.input.right = true; w.step(); t += 1; }
+    let ya = w.pl.py; press(&mut w, 15, |i| i.right = false); let (top, _) = press(&mut w, 20, |i| i.jump = true); assert!(top >= ya - 0.1, "no late jump: {top} vs {ya}");
+    // wall climb: run right into the arena wall, jump, cling, climb up, then wall-jump away
+    let (mut w, _, _) = arena(); press(&mut w, 1, |i| i.jump = false);
+    press(&mut w, 120, |i| i.right = true);
+    press(&mut w, 10, |i| { i.right = true; i.jump = true; }); press(&mut w, 4, |i| { i.right = true; i.jump = false; });
+    assert_eq!(w.pl.cling, 1, "clinging to the right wall");
+    let yc = w.pl.py; press(&mut w, 40, |i| { i.right = true; i.up = true; }); assert!(w.pl.py < yc - 3., "climbed: {} -> {}", yc, w.pl.py);
+    let xw = w.pl.px; press(&mut w, 2, |i| { i.up = false; i.jump = true; }); press(&mut w, 10, |i| i.jump = true);
+    assert!(w.pl.px < xw - 1.5 && w.pl.cling == 0, "wall-jumped away: {} -> {}", xw, w.pl.px);
 }

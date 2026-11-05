@@ -22,7 +22,9 @@ python3 -m http.server -d site 8080
 
 To rebuild the web version, run `cd engine && ./build-web.sh` (needs wasm-bindgen-cli 0.2.130 and the wasm32-unknown-unknown target), then `rm -rf site && cp -r dist site`.
 
-Tests: `cd engine && cargo test --release -p molehill-sim`. Collapse check: `cargo run --release -p molehill-sim --example settle`.
+The game opens on a main menu: Continue (if there is a save), New Holt (with an optional seed), Settings (volume, default zoom, and fullscreen on native), Controls, and Quit (native).
+
+Tests: `cd engine && cargo test --release -p molehill-sim`. Headless scenarios: `cargo run --release -p molehill-sim --example scenario -- sim/tests/scenarios/*.scn` (see [TESTING.md](TESTING.md)). For agents, see [AGENTS.md](AGENTS.md). Collapse check: `cargo run --release -p molehill-sim --example settle`.
 
 ## Layout
 
@@ -40,16 +42,18 @@ You play one mole. The controls work like Terraria or Core Keeper.
 
 | input | action |
 |---|---|
-| `A` / `D` | Walk (smooth acceleration; small steps are climbed automatically) |
-| `W` / `Space` | Jump |
-| `S` | Dig down |
+| `A` / `D` | Run: instant start and stop. Steps of 1-2 cells are climbed automatically, and you shove through loose sand |
+| `Space` (or `W` off a wall) | Jump. Hold for a full jump, tap for a hop. Coyote time and a jump buffer are about 0.1 s each |
+| Into a wall in the air | Cling to it. `W` / `S` climb up or down; let go and you slide slowly. `Space` wall-jumps away. At the top you mantle the ledge |
+| Water / lava | `W` / `Space` swim up (water); lava burns |
+| `S` | Dig down (on the ground) |
 | Left mouse | Use the item in hand. A dig tool carves a round, mole-sized bite under the cursor (the ring shows its size). Other items place a pillar, brick, beam, torch, copperline, device, spore, TNT or station |
 | Right mouse | Interact: flip a lever, set a thrum channel. `Ctrl`+right mouse picks up copperline or a device |
 | `1`-`0` / wheel | Select a hotbar slot |
 | `I` | Inventory grid. Click a slot to pick its item up, then click another slot to drop or swap it (the hotbar is the bottom row) |
 | `+` / `-`, `Ctrl`+wheel | Zoom |
 | `H` | Controls overlay |
-| `Esc` | Pause, or close a panel |
+| `Esc` | Pause menu (Resume, Restart same seed, New Holt, Save, Load, Settings, Controls, Main Menu), or close a panel |
 | `K` / `L` | Save / load |
 | `F3` | Developer info |
 

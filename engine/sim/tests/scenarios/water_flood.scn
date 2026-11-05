@@ -1,0 +1,19 @@
+// A water pocket held by a dirt plug; mining the plug floods the room below.
+map
+##############################
+#wwwwwww.....................#
+#wwwwwww.....................#
+#ddddddd.....................#
+#............................#
+#............................#
+#............................#
+#..@.........................#
+##############################
+end
+expect 0 count:Water == 14
+mine 1-60 -1 -4
+mine 61-120 0 -4
+mine 121-180 1 -4
+expect 300 is:-1,0,Water == 1
+expect 300 count:Water >= 10
+ascii 300

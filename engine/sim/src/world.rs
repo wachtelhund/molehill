@@ -26,15 +26,24 @@ pub struct Mole {
 }
 /// What the player is pressing this tick (the game fills it in; the sim never reads the keyboard).
 #[derive(Clone, Default, Debug)]
-pub struct Input { pub left: bool, pub right: bool, pub jump: bool, pub mine: Option<(usize, usize)>, /// dig tool in hand: 0 claws (pack tools), 1 pickaxe, 2 drill, 3 bore
+pub struct Input { pub left: bool, pub right: bool, pub jump: bool, pub up: bool, pub down: bool, pub mine: Option<(usize, usize)>, /// dig tool in hand: 0 claws (pack tools), 1 pickaxe, 2 drill, 3 bore
     pub tool: u8 }
 /// The player mole's platformer state (cells; velocities in cells/s).
 #[derive(Clone, Default, Debug)]
-pub struct Player { pub vx: f32, pub vy: f32, pub ax: f32, pub ay: f32, pub grounded: bool, pub fall_from: usize, pub mine: Option<(usize, u32, u32)>, pub spawn: (usize, i64), pub dead_t: u32, pub deaths: u32 }
+pub struct Player { pub px: f32, pub py: f32, pub ppx: f32, pub ppy: f32, pub sync: Option<(usize, usize)>, pub coyote: f32, pub buffer: f32, pub lock: f32, pub cling: i8, pub jump_was: bool, pub vx: f32, pub vy: f32, pub ax: f32, pub ay: f32, pub grounded: bool, pub fall_from: usize, pub mine: Option<(usize, u32, u32)>, pub spawn: (usize, i64), pub dead_t: u32, pub deaths: u32 }
 pub const REACH_CELLS: f32 = 18.; // 4.5 m
 /// Mining brush radius (cells) per dig tool: claws, pickaxe, drill, bore. A pickaxe bite is about a mole tall.
 pub const BITES: [f32; 4] = [1.8, 2.5, 3.2, 4.2];
-pub const WALK: f32 = 14.; pub const GRAV: f32 = 75.; pub const JUMP_V: f32 = 27.;
+/// Player body (cells): an AABB centred on px, feet at py.
+pub const BODY_HW: f32 = 0.9; pub const BODY_H: f32 = 2.9;
+/// Movement tuning (cells, seconds). One place to tweak the feel.
+#[derive(Clone, Copy, Debug)]
+pub struct Tune { pub run: f32, pub ground_accel: f32, pub ground_decel: f32, pub air_accel: f32, pub gravity: f32, pub fall_mul: f32, pub cut_mul: f32, pub jump_v: f32, pub terminal: f32,
+    pub coyote: f32, pub buffer: f32, pub climb: f32, pub slide: f32, pub wall_jump_x: f32, pub wall_jump_y: f32, pub wall_lock: f32, pub step: f32, pub mantle: f32,
+    pub swim_mul: f32, pub swim_grav: f32, pub buoyancy: f32, pub swim_up: f32, pub swim_max: f32, pub lava_dps: f32, pub safe_fall: usize }
+pub const TUNE: Tune = Tune { run: 15., ground_accel: 900., ground_decel: 1400., air_accel: 260., gravity: 150., fall_mul: 1.7, cut_mul: 3.0, jump_v: 42., terminal: 60.,
+    coyote: 0.1, buffer: 0.1, climb: 9., slide: 3., wall_jump_x: 17., wall_jump_y: 36., wall_lock: 0.13, step: 2., mantle: 3.,
+    swim_mul: 0.55, swim_grav: 0.35, buoyancy: 40., swim_up: 70., swim_max: 11., lava_dps: 60., safe_fall: 20 };
 #[derive(Clone)]
 pub struct Drop { pub x: usize, pub y: usize, pub item: Item, pub n: u32, pub claimed: bool }
 /// A mushroom plot: the open cell where the mushroom stands, on soil. `growth` 0..1, `why` = what's
@@ -440,6 +449,29 @@ impl World {
             let (nx, ny) = (x as i32 + dx, y as i32 + dy); if self.g.in_bounds(nx, ny) { v.push(self.g.idx(nx as usize, ny as usize)); } } }
         v
     }
+    /// Does the body AABB (centre px, feet py) overlap any solid cell?
+    pub fn box_hits(&self, px: f32, py: f32) -> bool {
+        let (x0, x1) = ((px - BODY_HW).floor() as i32, (px + BODY_HW - 1e-3).floor() as i32);
+        let (y0, y1) = ((py - BODY_H).floor() as i32, (py - 1e-3).floor() as i32);
+        for y in y0..=y1 { for x in x0..=x1 { if !self.g.in_bounds(x, y) || !self.passable(x as usize, y as usize) { return true; } } }
+        false
+    }
+    fn body_fluid_at(&self, px: f32, py: f32) -> (bool, bool) {
+        let (x, ym) = (px as usize, (py - BODY_H * 0.5) as usize); if x >= self.g.w || ym >= self.g.h { return (false, false); }
+        let m = self.g.get(x, ym); (m == Mat::Water, m == Mat::Lava || self.g.get(x, (py - 0.5) as usize) == Mat::Lava)
+    }
+    fn body_fluid(&self) -> (bool, bool) { self.body_fluid_at(self.pl.px, self.pl.py) }
+    /// Walking into loose sand/gravel shoves the leading cells up over the mole's head. True if it made room.
+    fn push_powder(&mut self, nx: f32, py: f32, dir: i32) -> bool {
+        let col = if dir > 0 { (nx + BODY_HW - 1e-3).floor() as i32 } else { (nx - BODY_HW).floor() as i32 };
+        let (y0, y1) = ((py - BODY_H).floor() as i32, (py - 1e-3).floor() as i32);
+        let mut cells = vec![];
+        for y in y0..=y1 { if !self.g.in_bounds(col, y) { return false; } let i = self.g.idx(col as usize, y as usize); let m = self.g.m(i);
+            if self.passable(col as usize, y as usize) { continue; } if m.kind() != Kind::Powder { return false; } cells.push(i); }
+        for i in cells { let (cx, mut cy) = (i % self.g.w, i / self.g.w); let m = self.g.m(i);
+            while cy > 0 && !self.passable(cx, cy) { cy -= 1; } if cy == 0 { return false; } let j = self.g.idx(cx, cy); self.g.set(j, m); self.g.set(i, Mat::Empty); }
+        true
+    }
     fn step_player(&mut self) {
         if self.moles.is_empty() { return; }
         let dt = 1. / 60.;
@@ -454,39 +486,80 @@ impl World {
             self.say("You crawl back into the burrow.".into()); return;
         }
         let inp = self.input.clone();
-        let (mut x, mut y) = (self.moles[0].x, self.moles[0].y);
-        let wet = self.g.get(x, y - 1) == Mat::Water;
-        // walking
+        let t = TUNE;
+        // keep the float body in sync when something else moved the mole (respawn, window shift, load)
+        { let m = &self.moles[0]; if self.pl.sync != Some((m.x, m.y)) { self.pl.px = m.x as f32 + 0.5; self.pl.py = m.y as f32 + 1.0; self.pl.vx = 0.; self.pl.vy = 0.; self.pl.ppx = self.pl.px; self.pl.ppy = self.pl.py; } }
+        self.pl.ppx = self.pl.px; self.pl.ppy = self.pl.py;
+        let (wet, lava) = self.body_fluid();
+        if lava { self.moles[0].hp -= t.lava_dps * dt; }
         let dir = inp.right as i32 - inp.left as i32;
-        if dir != 0 {
-            self.moles[0].facing = dir as i8;
-        }
-        // horizontal velocity eases toward the target speed (accel on the ground, less in the air)
-        let target = dir as f32 * WALK * if wet { 0.6 } else { 1. };
-        let acc = if self.pl.grounded { 90. } else { 45. } * dt;
-        self.pl.vx += (target - self.pl.vx).clamp(-acc, acc);
-        if self.pl.vx.abs() > 0.05 {
-            let sd = self.pl.vx.signum() as i32; self.pl.ax += self.pl.vx.abs() * dt; let dir = sd;
-            while self.pl.ax >= 1. {
-                self.pl.ax -= 1.; let nx = (x as i32 + dir) as usize;
-                if self.fits(nx, y) { x = nx; }
-                else if self.pl.grounded && self.fits(x, y - 1) && self.fits(nx, y - 1) { x = nx; y -= 1; } // climb a 1-cell step
-                else { self.pl.ax = 0.; self.pl.vx = 0.; break; }
+        let jump_edge = inp.jump && !self.pl.jump_was; self.pl.jump_was = inp.jump;
+        if jump_edge { self.pl.buffer = t.buffer; } else { self.pl.buffer = (self.pl.buffer - dt).max(0.); }
+        let ground = self.box_hits(self.pl.px, self.pl.py + 0.05);
+        let wall_l = self.box_hits(self.pl.px - 0.08, self.pl.py - 0.02); let wall_r = self.box_hits(self.pl.px + 0.08, self.pl.py - 0.02);
+        if ground { self.pl.coyote = t.coyote; } else { self.pl.coyote = (self.pl.coyote - dt).max(0.); }
+        self.pl.lock = (self.pl.lock - dt).max(0.);
+        // wall cling: airborne, touching a wall and pressing into it (or already clinging and still touching)
+        let side = if wall_r && (dir > 0 || self.pl.cling == 1) { 1 } else if wall_l && (dir < 0 || self.pl.cling == -1) { -1 } else { 0 };
+        self.pl.cling = if !ground && !wet && side != 0 && (self.pl.vy >= 0. || self.pl.cling != 0) && !(dir == -side) { side as i8 } else { 0 };
+        if dir != 0 { self.moles[0].facing = dir as i8; }
+        let swim = if wet { t.swim_mul } else { 1. };
+        // horizontal: near-instant on the ground, slightly softer in the air, locked briefly after a wall jump
+        let target = if self.pl.lock > 0. { self.pl.vx } else { dir as f32 * t.run * swim };
+        let a = if ground { if dir == 0 || (target * self.pl.vx) < 0. { t.ground_decel } else { t.ground_accel } } else { t.air_accel } * dt;
+        self.pl.vx += (target - self.pl.vx).clamp(-a, a);
+        // vertical
+        if self.pl.cling != 0 {
+            self.moles[0].facing = self.pl.cling;
+            self.pl.vy = if inp.up { -t.climb } else if inp.down { t.climb * 1.3 } else { t.slide };
+            self.pl.vx = self.pl.cling as f32 * 2.; // keep pressed against the wall
+            if self.pl.buffer > 0. { // wall jump away
+                self.pl.vx = -(self.pl.cling as f32) * t.wall_jump_x; self.pl.vy = -t.wall_jump_y; self.pl.lock = t.wall_lock; self.pl.buffer = 0.; self.pl.cling = 0; self.pl.coyote = 0.; self.events.push(Event::Place);
             }
-            self.moles[0].anim += 1;
-        } else { self.pl.ax = 0.; self.pl.vx = 0.; }
-        // gravity / jumping
-        self.pl.grounded = y + 1 < self.g.h && self.g.is_solidish(self.g.idx(x, y + 1));
-        if inp.jump && (self.pl.grounded || wet) { self.pl.vy = if wet { -JUMP_V * 0.45 } else { -JUMP_V }; self.pl.grounded = false; }
-        if !self.pl.grounded || self.pl.vy < 0. { self.pl.vy = (self.pl.vy + GRAV * dt * if wet { 0.35 } else { 1. }).min(if wet { 8. } else { 45. }); } else { self.pl.vy = 0.; }
-        self.pl.ay += self.pl.vy * dt;
-        while self.pl.ay >= 1. { self.pl.ay -= 1.; if self.fits(x, y + 1) { y += 1; } else { self.pl.ay = 0.; self.pl.vy = 0.; break; } }
-        while self.pl.ay <= -1. { self.pl.ay += 1.; if self.fits(x, y - 1) { y -= 1; } else { self.pl.ay = 0.; self.pl.vy = 0.; break; } }
-        let ground = y + 1 < self.g.h && self.g.is_solidish(self.g.idx(x, y + 1));
-        if ground && !self.pl.grounded { let f = y.saturating_sub(self.pl.fall_from); if f > 16 && !wet { self.moles[0].hp -= (f - 16) as f32 * 3.; self.events.push(Event::Hurt); } }
-        if ground || wet || self.pl.vy < 0. { self.pl.fall_from = y; }
-        self.pl.grounded = ground;
-        self.moles[0].x = x; self.moles[0].y = y;
+        } else if wet {
+            self.pl.vy += (t.gravity * t.swim_grav - t.buoyancy) * dt;
+            if inp.jump || inp.up { self.pl.vy -= t.swim_up * dt; }
+            self.pl.vy = self.pl.vy.clamp(-t.swim_max, t.swim_max);
+            if self.pl.buffer > 0. && !self.box_hits(self.pl.px, self.pl.py - 1.5) && !self.body_fluid_at(self.pl.px, self.pl.py - 1.6).0 { self.pl.vy = -t.jump_v * 0.8; self.pl.buffer = 0.; } // hop out at the surface
+        } else {
+            if self.pl.buffer > 0. && self.pl.coyote > 0. { self.pl.vy = -t.jump_v; self.pl.buffer = 0.; self.pl.coyote = 0.; }
+            let g = if self.pl.vy > 0. { t.gravity * t.fall_mul } else if !inp.jump { t.gravity * t.cut_mul } else { t.gravity };
+            self.pl.vy = (self.pl.vy + g * dt).min(t.terminal);
+        }
+        // swept, axis-separated movement in small substeps
+        let (dx, dy) = (self.pl.vx * dt, self.pl.vy * dt);
+        let n = ((dx.abs().max(dy.abs()) / 0.25).ceil() as i32).max(1);
+        let mut airfall = !ground;
+        for _ in 0..n {
+            let sx = dx / n as f32; let nx = self.pl.px + sx;
+            if sx != 0. {
+                if !self.box_hits(nx, self.pl.py) { self.pl.px = nx; }
+                else {
+                    // step up 1-2 cells (on the ground) or mantle a ledge (clinging) without losing speed
+                    let lift = if ground || self.pl.coyote > 0. { t.step } else if self.pl.cling != 0 { t.mantle } else { 0. };
+                    let mut k = 1.; let mut ok = false;
+                    while k <= lift { let ny = (self.pl.py - k).ceil(); if !self.box_hits(nx, ny) && !self.box_hits(self.pl.px, ny) { self.pl.py = ny; self.pl.px = nx; ok = true; break; } k += 1.; }
+                    if !ok && !self.push_powder(nx, self.pl.py, sx.signum() as i32) { self.pl.vx = 0.; }
+                    else if !ok { self.pl.vx *= 0.85; }
+                }
+            }
+            let sy = dy / n as f32; let ny = self.pl.py + sy;
+            if sy != 0. {
+                if !self.box_hits(self.pl.px, ny) { self.pl.py = ny; }
+                else { if sy > 0. { self.pl.py = ny.floor(); while self.box_hits(self.pl.px, self.pl.py) && self.pl.py > 1. { self.pl.py -= 0.01; } airfall = false; } else { self.pl.py = (self.pl.py - BODY_H).floor() + BODY_H + 0.0; while self.box_hits(self.pl.px, self.pl.py) { self.pl.py += 0.01; if self.pl.py > self.g.h as f32 - 2. { break; } } } self.pl.vy = 0.; }
+            }
+        }
+        // buried by falling rock/sand: wriggle up if there's room, else stay put (breath runs out)
+        if self.box_hits(self.pl.px, self.pl.py) { for k in 1..=3 { if !self.box_hits(self.pl.px, self.pl.py - k as f32) { self.pl.py -= k as f32; break; } } }
+        self.pl.px = self.pl.px.clamp(2., self.g.w as f32 - 2.); self.pl.py = self.pl.py.clamp(BODY_H + 1., self.g.h as f32 - 2.);
+        let (x, y) = (self.pl.px as usize, (self.pl.py - 0.001) as usize);
+        let landed = self.box_hits(self.pl.px, self.pl.py + 0.05);
+        if landed && !self.pl.grounded && !wet { let f = y.saturating_sub(self.pl.fall_from); if f > t.safe_fall { self.moles[0].hp -= (f - t.safe_fall) as f32 * 3.; self.events.push(Event::Hurt); } }
+        if landed || wet || self.pl.cling != 0 || self.pl.vy < 0. { self.pl.fall_from = y; }
+        let _ = airfall;
+        self.pl.grounded = landed;
+        if self.pl.vx.abs() > 0.5 && landed || self.pl.cling != 0 && self.pl.vy.abs() > 1. { self.moles[0].anim += 1; }
+        self.moles[0].x = x; self.moles[0].y = y; self.pl.sync = Some((x, y));
         // mining: hold on a spot; each bite clears a mole-sized disc (radius BITES[tool]) around it. Progress
         // carries over while the cursor drags within 2 cells, so sweeping carves a tunnel smoothly.
         match inp.mine {

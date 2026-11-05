@@ -1,0 +1,20 @@
+// A blast in a sand-capped rock block: rock near the centre is gone, the sand cap falls into the crater.
+map
+##############################
+#............................#
+#............................#
+#............................#
+#..........sssssssssss.......#
+#..........rrrrrrrrrrr.......#
+#..........rrrrrrrrrrr.......#
+#..........rrrrrrrrrrr.......#
+#.@........rrrrrrrrrrr.......#
+##############################
+end
+expect 0 count:Rock == 44
+expect 0 count:Sand == 11
+explode 5 15 -2 3
+expect 6 is:15,-2,Rock == 0
+expect 6 count:Rock < 40
+expect 200 is:15,-4,Sand == 0
+ascii 200

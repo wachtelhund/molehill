@@ -5,6 +5,7 @@
 mod art;
 mod audio;
 mod ui;
+mod menu;
 use molehill_sim::logic::{Dev, DEVS, B as LB};
 use molehill_sim::disasters::{Phase, Kind2};
 use bevy::prelude::*;
@@ -21,7 +22,7 @@ const CH: usize = 64; // texture chunk size in cells
 const FAR: usize = 4; // chunk rows drawn beyond each end of the simulated window (the camera roams there; nothing simulates)
 
 #[derive(Resource)] pub struct Game { pub w: World, chunks: Vec<Handle<Image>>, buf: Vec<u8>, pub uploads: usize, acc: f32, pub paused: bool, speed: u32, pub frame: u64, last_light: u64, msg: String, pub help: bool, ev: Vec<sw::Event>, shake_off: Vec2, autosave: f32, last_oy: i64, far: Vec<Handle<Image>>, far_done: Vec<bool>, pub inv_open: bool, aim: Option<(usize, usize, bool)>,
-    pub slots: Vec<Option<Thing>>, pub held: Option<Thing>, pub hot: usize, pub sel_t: f32, pub toasts: Vec<(String, f32)>, log_seen: u64, pub show_dev: bool, disp: Vec2 }
+    pub slots: Vec<Option<Thing>>, pub held: Option<Thing>, pub hot: usize, pub sel_t: f32, pub toasts: Vec<(String, f32)>, log_seen: u64, pub show_dev: bool, disp: Vec2, pub seed: u32 }
 /// What an inventory slot holds. Counts come from the shared pack (`World::inv`).
 #[derive(Clone, Copy, PartialEq, Debug)] pub enum Thing { Pick(u8), Item(Item), Dev(usize), Station(usize) }
 pub const NSLOT: usize = 70;
@@ -40,7 +41,7 @@ fn default_slots() -> Vec<Option<Thing>> {
 #[derive(Component)] struct Pooled(u8, usize);
 #[derive(Resource)] pub struct Sprites { pub tools: [Handle<Image>; 3], pub dev: Handle<Image>, pub ring: Handle<Image>, pub mole: [Handle<Image>; 2], pub icons: Vec<Handle<Image>>, pub chest: [Handle<Image>; 2], pub station: Vec<[Handle<Image>; 2]>, pub torch: Handle<Image>, pub shroom: [Handle<Image>; 3], pub px: Handle<Image> }
 
-fn seed_now() -> u32 {
+pub fn seed_now() -> u32 {
     // ?seed=N (web) / --seed=N (native) pins the first world
     #[cfg(target_arch = "wasm32")] { if let Some(v) = web_sys::window().and_then(|w| w.location().search().ok()).and_then(|q| q.split(['?', '&']).find_map(|kv| kv.strip_prefix("seed=").and_then(|v| v.parse::<u32>().ok()))) { return v; } }
     #[cfg(not(target_arch = "wasm32"))] { if let Some(v) = std::env::args().find_map(|a| a.strip_prefix("--seed=").and_then(|v| v.parse::<u32>().ok())) { return v; } }
@@ -52,11 +53,11 @@ fn fresh_requested() -> bool {
     #[cfg(not(target_arch = "wasm32"))] { std::env::args().any(|a| a == "--fresh") }
 }
 /// Save slots: localStorage (base64) on the web, files next to the binary natively.
-fn storage_get(slot: &str) -> Option<Vec<u8>> {
+pub fn storage_get(slot: &str) -> Option<Vec<u8>> {
     #[cfg(target_arch = "wasm32")] { let st = web_sys::window()?.local_storage().ok()??; let s = st.get_item(slot).ok()??; molehill_sim::save::from_b64(&s).ok() }
     #[cfg(not(target_arch = "wasm32"))] { std::fs::read(format!("{slot}.save")).ok() }
 }
-fn storage_put(slot: &str, b: &[u8]) -> Result<(), String> {
+pub fn storage_put(slot: &str, b: &[u8]) -> Result<(), String> {
     #[cfg(target_arch = "wasm32")] { let st = web_sys::window().and_then(|w| w.local_storage().ok().flatten()).ok_or("no localStorage")?; st.set_item(slot, &molehill_sim::save::to_b64(b)).map_err(|_| "storage full".to_string()) }
     #[cfg(not(target_arch = "wasm32"))] { std::fs::write(format!("{slot}.save"), b).map_err(|e| e.to_string()) }
 }
@@ -69,7 +70,7 @@ fn main() {
         .insert_resource(ClearColor(Color::srgb(0.04, 0.035, 0.05)))
         .add_systems(Startup, setup)
         .insert_non_send(audio::Audio::new())
-        .add_systems(Update, (input, simulate, render_world, sync_sprites, ui::update, sound).chain())
+        .add_systems(Update, (menu::update, input, simulate, render_world, sync_sprites, ui::update, sound).chain())
         .run();
 }
 
@@ -125,8 +126,9 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, mut fonts: R
     commands.insert_resource(make_bg(&w));
     let (sx, sy) = (w.moles[0].x as f32, w.moles[0].y as f32 - 1.5);
     let p = cell_to_world(sx, sy);
-    commands.spawn((Camera2d, Transform::from_xyz(p.x, p.y, 100.).with_scale(Vec3::splat(0.32))));
+    commands.spawn((Camera2d, Transform::from_xyz(p.x, p.y, 100.).with_scale(Vec3::splat(crate::menu::Menu::load().zoom))));
     let font: Handle<Font> = fonts.add(Font::from_bytes(include_bytes!("../assets/PixelifySans.ttf").to_vec()));
+    menu::setup(&mut commands, &font); let mset = menu::Menu::load(); commands.insert_resource(mset);
     ui::setup(&mut commands, &font); commands.insert_resource(ui::UiFont(font));
     let sp = Sprites { tools: [images.add(art::tool_icon(1)), images.add(art::tool_icon(2)), images.add(art::tool_icon(3))], dev: images.add(art::icon([200, 150, 90], 1)), ring: images.add(art::ring()),
         mole: [images.add(art::mole(0)), images.add(art::mole(1))],
@@ -138,9 +140,23 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, mut fonts: R
         px: images.add(art::image(1, 1, vec![255; 4], true)),
     };
     commands.insert_resource(sp);
-    let disp = Vec2::new(sx, sy + 1.5); commands.insert_resource(Game { w, chunks, buf: vec![1; W * H * 4], uploads: 0, acc: 0., paused: false, speed: 1, frame: 0, last_light: 0, msg: String::new(), help: false, ev: vec![], shake_off: Vec2::ZERO, autosave: 0., last_oy: oy0, far, far_done, inv_open: false, aim: None, slots: default_slots(), held: None, hot: 0, sel_t: 0., toasts: vec![], log_seen: 0, show_dev: false, disp });
+    let disp = Vec2::new(sx, sy + 1.5); commands.insert_resource(Game { w, chunks, buf: vec![1; W * H * 4], uploads: 0, acc: 0., paused: true, speed: 1, frame: 0, last_light: 0, msg: String::new(), help: false, ev: vec![], shake_off: Vec2::ZERO, autosave: 0., last_oy: oy0, far, far_done, inv_open: false, aim: None, slots: default_slots(), held: None, hot: 0, sel_t: 0., toasts: vec![], log_seen: 0, show_dev: false, disp, seed });
 }
 
+pub fn save_now(g: &mut Game) { let b = molehill_sim::save::save(&g.w); g.msg = match storage_put("molehill-manual", &b) { Ok(()) => "Game saved".into(), Err(e) => format!("Save failed: {e}") }; }
+pub fn save_auto(g: &Game) { let b = molehill_sim::save::save(&g.w); let _ = storage_put("molehill-auto", &b); }
+fn reset_view(g: &mut Game, commands: &mut Commands) {
+    g.last_oy = g.w.oy; g.far_done.iter_mut().for_each(|v| *v = false); commands.insert_resource(make_bg(&g.w)); g.buf.iter_mut().for_each(|v| *v = 1);
+    g.w.pl.sync = None; g.inv_open = false; g.help = false; g.acc = 0.;
+}
+/// Start a fresh holt (world) from a seed.
+pub fn begin(g: &mut Game, commands: &mut Commands, seed: u32) { g.w = make_world(seed); g.seed = seed; reset_view(g, commands); g.msg = format!("Holt {seed}"); }
+/// Load the manual save (or the autosave). Returns false if there is none or it failed.
+pub fn load_saved(g: &mut Game, commands: &mut Commands) -> bool {
+    match storage_get("molehill-manual").or_else(|| storage_get("molehill-auto")).map(|b| molehill_sim::save::load(&b)) {
+        Some(Ok(w)) => { g.w = w; for v in g.w.inv.iter_mut() { *v = (*v).max(999); } reset_view(g, commands); g.msg = "Game loaded".into(); true }
+        Some(Err(e)) => { g.msg = format!("Load failed: {e}"); false } None => { g.msg = "No save yet".into(); false } }
+}
 fn make_bg(w: &World) -> Bg {
     let mk = |k, f| (art::layer(k, w.oy, &w.info.biome, W, H, PAD, 1, w.info.seed).0, f);
     Bg { layers: vec![mk(art::Layer::Strata, 0.8), mk(art::Layer::Caves, 0.6), mk(art::Layer::Veins, 0.35)] }
@@ -150,6 +166,7 @@ fn input(mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<Button
          win: Query<&Window, With<PrimaryWindow>>, mut cam: Query<&mut Transform, With<Camera2d>>, time: Res<Time>,
          mut commands: Commands) {
     let Ok(win) = win.single() else { return }; let Ok(mut ct) = cam.single_mut() else { return };
+    if g.paused { g.w.input = Default::default(); return; } // a menu is open
     let dt = time.delta_secs(); let sc = ct.scale.x; let now = time.elapsed_secs();
     let ctrl = keys.pressed(KeyCode::ControlLeft) || keys.pressed(KeyCode::ControlRight);
     // toasts: short game messages and new world log lines (deduplicated, at most 3 live)
@@ -162,7 +179,10 @@ fn input(mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<Button
     let dead = !g.w.moles.first().map_or(false, |m| m.alive);
     g.w.input.left = keys.pressed(KeyCode::KeyA) || keys.pressed(KeyCode::ArrowLeft);
     g.w.input.right = keys.pressed(KeyCode::KeyD) || keys.pressed(KeyCode::ArrowRight);
-    g.w.input.jump = keys.pressed(KeyCode::KeyW) || keys.pressed(KeyCode::Space) || keys.pressed(KeyCode::ArrowUp);
+    let upk = keys.pressed(KeyCode::KeyW) || keys.pressed(KeyCode::ArrowUp);
+    g.w.input.up = upk; g.w.input.down = keys.pressed(KeyCode::KeyS) || keys.pressed(KeyCode::ArrowDown);
+    // Space jumps (and wall-jumps); W also jumps when not on a wall, and climbs when clinging
+    g.w.input.jump = keys.pressed(KeyCode::Space) || upk && g.w.pl.cling == 0;
     g.w.input.mine = None;
     let sel0 = g.hot;
     // zoom: + / - or Ctrl+wheel; plain wheel cycles the hotbar
@@ -172,34 +192,25 @@ fn input(mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<Button
     }
     if keys.just_pressed(KeyCode::Equal) { ct.scale = Vec3::splat((sc * 0.8).max(0.12)); }
     if keys.just_pressed(KeyCode::Minus) { ct.scale = Vec3::splat((sc * 1.25).min(1.5)); }
-    // camera follows the mole's smoothed position
-    let tgt = Vec2::new(g.w.moles[0].x as f32 + 0.5, g.w.moles[0].y as f32);
-    { let k = 1. - (-22. * dt).exp(); let d = tgt - g.disp; g.disp += if d.length() > 12. { d } else { d * k }; }
-    { let p = cell_to_world(g.disp.x, g.disp.y - 1.5); let k = 1. - (-6. * dt).exp();
-      ct.translation.x += (p.x - ct.translation.x) * k; ct.translation.y += (p.y - ct.translation.y) * k; }
+    // render interpolation between the last two fixed sim steps; tight camera with a little lookahead
+    { let a = g.acc.clamp(0., 1.); let pl = &g.w.pl; g.disp = Vec2::new(pl.ppx + (pl.px - pl.ppx) * a, pl.ppy + (pl.py - pl.ppy) * a - 1.0);
+      let look = Vec2::new(g.w.pl.vx * 0.12, g.w.pl.vy.max(0.) * 0.05);
+      let p = cell_to_world(g.disp.x + look.x, g.disp.y - 1.5 + look.y); let k = 1. - (-30. * dt).exp();
+      let d = Vec2::new(p.x - ct.translation.x, p.y - ct.translation.y);
+      if d.length() > 200. { ct.translation.x = p.x; ct.translation.y = p.y; } else { ct.translation.x += d.x * k; ct.translation.y += d.y * k; } }
     let half = Vec2::new(W as f32 * CPX / 2., H as f32 * CPX / 2.);
     ct.translation.x = ct.translation.x.clamp(-half.x, half.x); { let fy = half.y + (FAR * CH) as f32 * CPX; ct.translation.y = ct.translation.y.clamp(-fy, fy); }
     let digits = [KeyCode::Digit1, KeyCode::Digit2, KeyCode::Digit3, KeyCode::Digit4, KeyCode::Digit5, KeyCode::Digit6, KeyCode::Digit7, KeyCode::Digit8, KeyCode::Digit9, KeyCode::Digit0];
     for (k, d) in digits.iter().enumerate() { if keys.just_pressed(*d) { g.hot = k; } }
-    if keys.just_pressed(KeyCode::Escape) { if g.inv_open || g.help { g.inv_open = false; g.help = false; } else { g.paused = !g.paused; } }
+    if keys.just_pressed(KeyCode::Escape) { g.inv_open = false; g.help = false; }
     if keys.just_pressed(KeyCode::KeyF) { g.speed = if g.speed >= 4 { 1 } else { g.speed * 2 }; }
     if keys.just_pressed(KeyCode::KeyI) || keys.just_pressed(KeyCode::KeyE) && g.inv_open { g.inv_open = !g.inv_open; }
     if !g.inv_open { if let Some(t) = g.held.take() { if let Some(k) = g.slots.iter().position(|s| s.is_none()) { g.slots[k] = Some(t); } } }
     if keys.just_pressed(KeyCode::KeyH) { g.help = !g.help; }
     if keys.just_pressed(KeyCode::F3) { g.show_dev = !g.show_dev; }
-    if keys.just_pressed(KeyCode::KeyK) { let b = molehill_sim::save::save(&g.w); g.msg = match storage_put("molehill-manual", &b) { Ok(()) => "Game saved".into(), Err(e) => format!("Save failed: {e}") }; }
-    if keys.just_pressed(KeyCode::KeyL) {
-        match storage_get("molehill-manual").or_else(|| storage_get("molehill-auto")).map(|b| molehill_sim::save::load(&b)) {
-            Some(Ok(w)) => { g.w = w; for v in g.w.inv.iter_mut() { *v = (*v).max(999); } g.last_oy = g.w.oy; commands.insert_resource(make_bg(&g.w)); g.buf.iter_mut().for_each(|v| *v = 1); g.msg = "Game loaded".into(); g.far_done.iter_mut().for_each(|v| *v = false); g.disp = Vec2::new(g.w.moles[0].x as f32, g.w.moles[0].y as f32); }
-            Some(Err(e)) => g.msg = format!("Load failed: {e}"), None => g.msg = "No save yet (K to save)".into() }
-    }
+    if keys.just_pressed(KeyCode::KeyK) { save_now(&mut g); }
+    if keys.just_pressed(KeyCode::KeyL) { load_saved(&mut g, &mut commands); }
     if keys.just_pressed(KeyCode::KeyB) && g.show_dev { let kind = [Kind2::Flood, Kind2::Lava, Kind2::Quake][(g.frame % 3) as usize]; let mut d = std::mem::replace(&mut g.w.disasters, molehill_sim::disasters::Disasters::new(0)); let _ = d.schedule(&mut g.w, kind); g.w.disasters = d; }
-    if keys.just_pressed(KeyCode::KeyN) {
-        let seed = seed_now() % 100000; g.w = make_world(seed); g.last_oy = g.w.oy; g.far_done.iter_mut().for_each(|v| *v = false);
-        commands.insert_resource(make_bg(&g.w)); g.buf.iter_mut().for_each(|v| *v = 1);
-        let p = cell_to_world(g.w.moles[0].x as f32, g.w.moles[0].y as f32 - 1.5); ct.translation.x = p.x; ct.translation.y = p.y; g.disp = Vec2::new(g.w.moles[0].x as f32, g.w.moles[0].y as f32);
-        g.msg = "A new deep".into();
-    }
     // UI clicks: slots swallow the mouse. Hotbar click selects; in the pack, click picks up / drops / swaps.
     let cur = win.cursor_position();
     let over = cur.and_then(|c| ui::slot_at(c, win.width(), win.height(), g.inv_open));
@@ -215,7 +226,7 @@ fn input(mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<Button
     if dead { g.aim = None; return; }
     // S: dig straight down (with the pick in hand, else the pickaxe)
     let (mx, my) = (g.w.moles[0].x, g.w.moles[0].y);
-    if keys.pressed(KeyCode::KeyS) || keys.pressed(KeyCode::ArrowDown) { g.w.input.mine = Some((mx, my + 2)); }
+    if (keys.pressed(KeyCode::KeyS) || keys.pressed(KeyCode::ArrowDown)) && g.w.pl.grounded { g.w.input.mine = Some((mx, my + 2)); }
     let on_panel = over.is_some() || g.inv_open && cur.map_or(false, |c| { let a = ui::slot_pos(10, win.width(), win.height()); c.y > a.y - 10. && (c.x - win.width() / 2.).abs() < 5. * (ui::S + ui::GAP) + 10. });
     let Some(cur) = cur else { g.aim = None; return };
     if on_panel { g.aim = None; return; }

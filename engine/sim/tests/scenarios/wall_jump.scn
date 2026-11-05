@@ -1,0 +1,25 @@
+// Cling to the right wall then press jump: pushed away left and up.
+map
+##############
+#............#
+#............#
+#............#
+#............#
+#............#
+#............#
+#............#
+#............#
+#............#
+#............#
+#............#
+#.@..........#
+##############
+end
+hold 1-60 right
+hold 61-70 right jump
+hold 71-74 right
+expect 74 cling == 1
+hold 76-85 jump
+expect 85 cling == 0
+expect 85 vx < -5
+dump 85

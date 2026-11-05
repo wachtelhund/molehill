@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build the wasm32 web bundle into ../dist (deployed to Vercel as a static site).
+# Build the wasm32 web bundle into ../dist.
 set -euo pipefail
 cd "$(dirname "$0")"
 cargo build -p molehill --profile wasm-release --target wasm32-unknown-unknown

@@ -57,7 +57,7 @@ pub fn setup(commands: &mut Commands, f: &Handle<Font>) {
     commands.spawn((ImageNode::default(), Node { position_type: PositionType::Absolute, width: Val::Px(30.), height: Val::Px(30.), ..default() }, GlobalZIndex(10), Visibility::Hidden, Held));
     commands.spawn((Text::new(""), tf(f, 14.), TextColor(INK), TextShadow::default(), Node { position_type: PositionType::Absolute, padding: UiRect::axes(Val::Px(6.), Val::Px(3.)), border_radius: BorderRadius::all(Val::Px(4.)), ..default() }, BackgroundColor(PANEL), GlobalZIndex(11), Visibility::Hidden, Lbl::Tip));
     // help
-    let help = "Move        A / D        Jump        W / Space\nDig down    S            Zoom        + / -  or  Ctrl+wheel\nUse item    Left mouse   Interact    Right mouse (levers, thrum channels)\nHotbar      1-0 / wheel  Pack        I  (click to pick up and drop items)\nPick up     Ctrl+Right mouse (copperline, devices)\nPause Esc   Save K   Load L   New world N   Dev info F3   Close H";
+    let help = "Move        A / D        Jump        Space / W\nWalls       hold into a wall: W/S climb, Space wall-jump\nDig down    S (on ground)            Zoom        + / -  or  Ctrl+wheel\nUse item    Left mouse   Interact    Right mouse (levers, thrum channels)\nHotbar      1-0 / wheel  Pack        I  (click to pick up and drop items)\nPick up     Ctrl+Right mouse (copperline, devices)\nPause Esc   Save K   Load L   New world N   Dev info F3   Close H";
     commands.spawn((Node { position_type: PositionType::Absolute, left: Val::Percent(50.), top: Val::Percent(50.), margin: UiRect { left: Val::Px(-300.), top: Val::Px(-110.), ..default() }, width: Val::Px(600.), padding: UiRect::all(Val::Px(18.)), border_radius: BorderRadius::all(Val::Px(8.)), flex_direction: FlexDirection::Column, row_gap: Val::Px(10.), ..default() }, BackgroundColor(Color::srgba(0.05, 0.04, 0.05, 0.78)), Visibility::Hidden, GlobalZIndex(5), HelpPanel)).with_children(|p| {
         p.spawn((Text::new("Controls"), tf(f, 20.), TextColor(INK)));
         p.spawn((Text::new(help), tf(f, 15.), TextColor(INK.with_alpha(0.85))));
@@ -101,7 +101,7 @@ pub fn update(g: Res<Game>, sp: Res<Sprites>, time: Res<Time>, win: Query<&Windo
                 set(&mut t, live.iter().map(|(m, _)| m.as_str()).collect::<Vec<_>>().join("\n"));
                 let age = live.last().map_or(9., |(_, t0)| now - t0); c.0 = INK.with_alpha((4. - age).clamp(0., 1.)); }
             Lbl::Sel => { set(&mut t, if g.inv_open { String::new() } else { g.slots[g.hot].map(|th| thing_name(&g, th)).unwrap_or_default() }); c.0 = INK.with_alpha(((2.2 - (now - g.sel_t)) * 1.5).clamp(0., 0.85)); }
-            Lbl::Center => set(&mut t, if !me.alive { "You were lost to the deep.\nCrawling back to the burrow...".to_string() } else if g.paused { "Paused".into() } else { String::new() }),
+            Lbl::Center => set(&mut t, if !me.alive { "You were lost to the deep.\nCrawling back to the burrow...".to_string() } else { String::new() }),
             Lbl::Dev => { *v = if g.show_dev { Visibility::Visible } else { Visibility::Hidden };
                 if g.show_dev && g.frame % 10 == 0 {
                     set(&mut t, format!("fps {:.0}  seed {}  tick {}  oy {}\npos {},{}  depth {:+.1} m (deepest {:+.1})\nhp {:.0} food {:.0} breath {:.0}  air {:.2}  deaths {}\nmining {:?}  power {}  uploads {}\ndisaster {:?}\n{}",
