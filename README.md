@@ -36,34 +36,27 @@ Tests: `cd engine && cargo test --release -p molehill-sim`. Collapse check: `car
 
 ## Controls
 
+You play one mole, Mossy. The controls work like Terraria or Core Keeper.
+
 | input | action |
 |---|---|
-| LMB | Designate or place with the current tool |
-| RMB | Clear a designation; with the wire or device tool, remove the wire or device |
-| Wheel or `+`/`-` | Zoom |
-| WASD or arrow keys | Pan (hold Shift to pan faster) |
-| `[` / `]` | Change the brush size |
-| `1` | Dig |
-| `2` | Wood pillar |
-| `3` | Brick |
-| `4` | Iron beam |
-| `5` | Torch |
-| `6` | TNT |
-| `7` | Station (`Tab` cycles workbench, kiln, furnace, anvil) |
-| `8` | Move the stockpile |
-| `9` | Cancel |
-| `0` | Copperline (drag to lay it) |
-| `P` | Plant a spore (snaps to the floor; needs dirt, clay or roots underneath) |
-| `G` | Device tool; press again to cycle devices (lever, plate, sensor, door, floodgate, pump, lamp, both-/either-/turn-/odd-/catch-knots, ticker, TNT, thrummer, listener, relay thrummer, vent, heatstone, water wheel) |
-| `R` | Use the device under the cursor (flip a lever, set a thrum channel, set a ticker) |
-| `Q` / `E` | Choose a recipe |
-| `Enter` / `C` | Queue the recipe |
+| `A` / `D` | Walk (one-cell steps are climbed automatically) |
+| `W` / `Space` | Jump |
+| `S` | Dig the cell below you |
+| Hold LMB | Mine the cell under the cursor (reach about 4.5 m). Mining time depends on hardness and tool tier |
+| RMB | Place the selected hotbar item (pillar, brick, beam, torch, copperline, device, spore, TNT, station) |
+| Ctrl+RMB | Remove wire or a device |
+| `1`-`9`, `0` / wheel | Hotbar: claws/pick, wood pillar, brick, iron beam, torch, copperline, device, spore, TNT, station |
+| `G` | Cycle the device type in slot 7 |
+| `Tab` | Cycle the station type in slot 0 (workbench, kiln, furnace, anvil) |
+| `I` | Pack and crafting. Use `Q`/`E` to choose a recipe and `Enter` to craft (needs the right station nearby) |
+| `E` / `R` | Use the device under the cursor |
+| `+`/`-` or Ctrl+wheel | Zoom |
+| `Esc` | Pause |
 | `K` / `L` | Save / load |
-| `B` | Trigger a disaster now |
-| `Space` | Pause |
-| `F` | Change speed (×1, ×2, ×4) |
-| `N` | New world with a new seed |
-| `H` | Show or hide help |
+| `F` | Speed · `B` disaster · `N` new world · `H` help |
+
+Hunger, breath and HP all apply. Food is eaten automatically when you are hungry. Falls of more than 16 cells hurt, and water drowns you. When you die, you respawn in the burrow.
 
 ## Systems
 

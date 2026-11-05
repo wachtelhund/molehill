@@ -60,7 +60,31 @@ fn main() {
         .run();
 }
 
-fn make_world(seed: u32) -> World { World::new(W, H, seed) }
+fn make_world(seed: u32) -> World { let mut w = World::new(W, H, seed); stage_scene(&mut w); w }
+/// --scene=water|tnt (native, for recording): stage a set piece next to the burrow. Play is unchanged.
+fn stage_scene(w: &mut World) {
+    #[cfg(not(target_arch = "wasm32"))] {
+        let Some(sc) = std::env::args().find_map(|a| a.strip_prefix("--scene=").map(|s| s.to_string())) else { return };
+        let (mx, my) = (w.moles[0].x, w.moles[0].y); let set = |w: &mut World, x: usize, y: usize, m: Mat| { let i = w.g.idx(x, y); w.g.set(i, m); };
+        w.disasters.enabled = false;
+        match sc.as_str() {
+            "water" => { // an open tunnel east out of the burrow ending in clay, with a water pocket behind it
+                for x in mx + 4..mx + 30 { for y in my - 2..=my { set(w, x, y, Mat::Empty); } set(w, x, my + 1, Mat::Clay); set(w, x, my - 3, Mat::Limestone); }
+                for x in mx + 30..mx + 34 { for y in my - 5..=my + 1 { set(w, x, y, Mat::Clay); } }
+                for x in mx + 34..mx + 50 { for y in my - 12..=my + 1 { set(w, x, y, Mat::Water); } set(w, x, my + 2, Mat::Clay); }
+                molehill_sim::light::reveal_box(&mut w.g, mx, my - 20, mx + 60, my + 10);
+            }
+            "tnt" => { // a long tunnel under a sand bed
+                for x in mx + 4..mx + 60 { for y in my - 2..=my { set(w, x, y, Mat::Empty); } set(w, x, my + 1, Mat::Limestone); for y in my - 6..my - 2 { set(w, x, y, Mat::Dirt); } for y in my - 16..my - 6 { set(w, x, y, Mat::Sand); } }
+                w.inv[Item::Tnt as usize] = 3; w.inv[Item::Torch as usize] = 12;
+                molehill_sim::light::reveal_box(&mut w.g, mx, my - 24, mx + 70, my + 10);
+                for k in 0..4 { w.torches.push((mx + 22 + k * 10, my - 2)); }
+            }
+            _ => {}
+        }
+        let f = w.st.solve(&w.g); w.st.crack(&f);
+    }
+}
 
 fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
     let seed = seed_now() % 100000;
