@@ -74,7 +74,7 @@ TNT goes down **inert**. Nothing explodes where you click. It can be set off in 
 
 **Fuse cords** burn for 24 ticks each, then light the next cord or set off the next charge, so a trail of cords is a slow, visible timer.
 
-**The blast** has a radius of 2.25 m (9 tiles) and power 6. Cells in the inner 60 % are destroyed (one in nine turns to fire), and solids in the outer ring crumble loose. It breaks dirt, clay, sand, limestone, soft rock, coal, the ores and brick, but **not granite, basalt, quartz or iron beams**. Moles within 1.5 radii take up to 80 damage. Other TNT within r + 6 cells chains, fuse cords within r + 4 cells catch, and other devices within 0.8 r are destroyed.
+**The blast** has a radius of 2.25 m (9 tiles) and power 6. Cells in the inner 60 % are destroyed (one in nine turns to fire), and solids in the outer ring crumble loose. It breaks dirt, clay, sand, limestone, soft rock, coal, the ores and brick, but **not granite, basalt, quartz or iron beams**. Moles within 1.5 radii take up to 80 damage. Other TNT within r + 0.75 m chains, fuse cords within r + 0.5 m catch, and other devices within 0.8 r are destroyed.
 
 ## Thrumming
 
