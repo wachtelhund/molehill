@@ -187,7 +187,7 @@ L(i) = max(L(i), L(n) · t(i) · d)     t = 0.90 open, 0.80 liquid, ≈ 0.3 into
 | glowmite in a jar (held) | cold green-gold | 4 m |
 | the mole's own glow (lamp out) | faint | 2 m |
 
-The **headlamp** sits on the mole's hard hat and points at the cursor, or ahead and a little down when nothing is aimed at. While it's lit, it also reveals fog of war along its beam. Toggle it with `G` or in Settings (saved).
+The **headlamp** sits on the mole's hard hat and points at the cursor, or ahead and a little down when nothing is aimed at. While it's lit, it also reveals fog of war along its beam. Toggle it with `G` or in Settings (saved). In Survival it burns fungus oil (see [Progression](Progression.md#survival-mode-today)).
 
 Light is computed only over the camera view plus a margin, every second frame: about 3.4 ms natively for the view including its glowing surfaces, plus about 0.3 ms for the headlamp and 20 torches. Short lights (6 m or less) cast one ray per rim cell, long ones 1.5. The game draws only a small bloom sprite at a torch's or lamp's flame; the pool of light and its shadows are the sim's (`cargo run --release -p molehill-sim --example stepbench`).
 
