@@ -5,6 +5,8 @@
 mod art;
 mod audio;
 mod music;
+mod devart;
+mod wiring;
 mod ui;
 mod menu;
 use molehill_sim::logic::{Dev, DEVS, B as LB};
@@ -85,11 +87,11 @@ fn default_slots() -> Vec<Option<Thing>> {
 /// (`BgLayer`) behind the world and slide smoothly with the camera; open cells in the world texture are a
 /// translucent light/air overlay on top of them. Replacing the resource re-uploads the layer images.
 #[derive(Resource)] struct Bg { layers: Vec<(Vec<u8>, f32)> }
-#[derive(Component)] struct BgLayer(usize);
+#[derive(Component)] pub struct BgLayer(usize);
 const BG_BASE: [f32; 3] = [44., 34., 30.];
 #[inline] fn lin(c: f32) -> f32 { (c / 255.).max(0.).powf(2.2) }
 #[inline] fn srgb(l: f32) -> f32 { l.max(0.).powf(1. / 2.2) * 255. }
-#[derive(Component)] struct WorldSprite;
+#[derive(Component)] pub struct WorldSprite;
 #[derive(Component)] struct Pooled(u8, usize);
 #[derive(Resource)] pub struct Sprites { pub tools: [Handle<Image>; 3], pub dev: Handle<Image>, pub ring: Handle<Image>, pub mole: Vec<Handle<Image>>, pub mole_out: Vec<Handle<Image>>, pub held: Vec<Handle<Image>>, pub icons: Vec<Handle<Image>>, pub chest: [Handle<Image>; 2], pub station: Vec<[Handle<Image>; 2]>, pub torch: Handle<Image>, pub torch_f: Vec<Handle<Image>>, pub glow: Handle<Image>, pub shroom: [Handle<Image>; 3], pub px: Handle<Image> }
 
@@ -146,7 +148,7 @@ fn main() {
         .insert_resource(ClearColor(Color::srgb(0.04, 0.035, 0.05)))
         .add_systems(Startup, setup)
         .insert_non_send(audio::Audio::new())
-        .add_systems(Update, (dev_shot, menu::update, input, gear, simulate, render_world, dev_dump, sync_sprites, ui::update, sound).chain())
+        .add_systems(Update, (dev_shot, menu::update, input, gear, simulate, render_world, dev_dump, sync_sprites, wiring::update, ui::update, sound).chain())
         .run();
 }
 
@@ -187,7 +189,7 @@ fn write_bmp(path: &str, im: &Image) {
 }
 /// Dev (native): with `--shot`, `--dump-art=DIR` also writes the composited world around the mole
 /// (`view.bmp`, 4× per cell; sprites are GPU-only so they're not in it) and every sprite (`sprite-*.bmp`, 8×).
-fn dev_dump(n: Local<u32>, g: Res<Game>, sp: Res<Sprites>, images: Res<Assets<Image>>, mut done: Local<bool>, bg: Res<Bg>, cam: Query<&Transform, With<Camera2d>>) {
+fn dev_dump(n: Local<u32>, g: Res<Game>, sp: Res<Sprites>, images: Res<Assets<Image>>, mut done: Local<bool>, bg: Res<Bg>, cam: Query<&Transform, With<Camera2d>>, wires: Query<(&Transform, &Sprite), With<wiring::WireSpr>>) {
     #[cfg(not(target_arch = "wasm32"))] {
         let _ = &n; if *done { return; }
         let arg = |k: &str| std::env::args().find_map(|a| a.strip_prefix(k).map(|v| v.to_string()));
@@ -206,6 +208,19 @@ fn dev_dump(n: Local<u32>, g: Res<Game>, sp: Res<Sprites>, images: Res<Assets<Im
         // mark the mole's body cells so the crop can be read without sprites
         for dy in 0..3 * S { let (x, y) = (mx - x0, my - dy - y0); let o = (y * cw + x) * 4; v[o..o + 4].copy_from_slice(&[255, 0, 255, 255]); }
         bmp(&format!("{dir}/view.bmp"), cw, chh, &v, false, 4 / S.min(4));
+        // the same at one pixel per world unit with the wiring layer's sprites blitted on (unrotated ones)
+        { let k = (1. / CPX).recip() as usize; let (ww, wh) = (cw * k, chh * k); let mut u = vec![0u8; ww * wh * 4];
+            for y in 0..wh { for x in 0..ww { let s = ((y / k) * cw + x / k) * 4; u[(y * ww + x) * 4..(y * ww + x) * 4 + 4].copy_from_slice(&v[s..s + 4]); } }
+            let mut list: Vec<(&Transform, &Sprite)> = wires.iter().collect(); list.sort_by(|a, b| a.0.translation.z.partial_cmp(&b.0.translation.z).unwrap());
+            for (t, spr) in list { if t.rotation != Quat::IDENTITY { continue; } let Some(im) = images.get(&spr.image) else { continue }; let Some(d) = im.data.as_ref() else { continue };
+                let (iw, ih) = (im.width() as usize, im.height() as usize); let size = spr.custom_size.unwrap_or(Vec2::new(iw as f32, ih as f32));
+                let c = spr.color.to_srgba(); let cell = |wx: f32, wy: f32| (((wx + W as f32 * CPX / 2.) / CPX - x0 as f32) * k as f32, ((H as f32 * CPX / 2. - wy) / CPX - y0 as f32) * k as f32);
+                let (left, top) = cell(t.translation.x - size.x / 2., t.translation.y + size.y / 2.);
+                for py in 0..size.y as usize { for px in 0..size.x as usize { let (ox, oy) = (left as i64 + px as i64, top as i64 + py as i64); if ox < 0 || oy < 0 || ox >= ww as i64 || oy >= wh as i64 { continue; }
+                    let (sx, sy) = (px * iw / size.x as usize, py * ih / size.y as usize); let q = (sy * iw + sx) * 4; let a = d[q + 3] as f32 / 255. * c.alpha; if a <= 0. { continue; }
+                    let o = (oy as usize * ww + ox as usize) * 4; let tint = [c.red, c.green, c.blue];
+                    for j in 0..3 { u[o + j] = (u[o + j] as f32 * (1. - a) + d[q + j] as f32 * tint[j] * a).min(255.) as u8; } } } }
+            bmp(&format!("{dir}/view_wire.bmp"), ww, wh, &u, false, 1); }
         let mut list: Vec<(String, Handle<Image>)> = vec![("torch".into(), sp.torch_f[0].clone()), ("torch1".into(), sp.torch_f[1].clone()), ("glow".into(), sp.glow.clone()), ("ring".into(), sp.ring.clone()), ("dev".into(), sp.dev.clone())];
         for (k, h) in sp.mole.iter().enumerate() { list.push((format!("mole{k}"), h.clone())); }
         for (k, h) in sp.mole_out.iter().enumerate() { list.push((format!("moleout{k}"), h.clone())); }
@@ -238,6 +253,31 @@ fn stage_scene(w: &mut World) {
                 w.inv[Item::Tnt as usize] = 3; w.inv[Item::Torch as usize] = 12;
                 molehill_sim::light::reveal_box(&mut w.g, mx, my - 24 * S, mx + 70 * S, my + 10 * S);
                 for k in 0..4 { w.torches.push((mx + 22 * S + k * 10 * S, my - 2 * S)); }
+            }
+            "wiring" => { // a tall open hall east of the burrow with a little circuit: levers -> both-knot -> lamp,
+                // a ticker, a thrummer and a listener, and one of most devices, on copperline
+                use molehill_sim::logic::{Dev, B as LB};
+                let (x0, x1, y0, y1) = (mx + 4 * S, mx + 60 * S, my - 18 * S, my);
+                for x in x0..x1 { for y in y0..=y1 { set(w, x, y, Mat::Empty); } set(w, x, my + S, Mat::Limestone); }
+                molehill_sim::light::reveal_box(&mut w.g, mx, y0 - 10 * S, x1 + 10 * S, my + 10 * S);
+                let bw = w.logic.bw; let (bx0, by0) = (x0 / LB + 1, my / LB);
+                let mut dev = |w: &mut World, bx: usize, by: usize, d: Dev| { let b = by * bw + bx; w.logic.place(&mut w.g, d, b); };
+                let wire = |w: &mut World, bx: usize, by: usize| { let b = by * bw + bx; w.logic.place_wire(b); };
+                // lever A on the floor west of the knot, lever B above it feeding the knot's north input
+                dev(w, bx0, by0, Dev::Lever); wire(w, bx0 + 1, by0); dev(w, bx0 + 2, by0, Dev::And);
+                dev(w, bx0 + 2, by0 - 2, Dev::Lever); wire(w, bx0 + 2, by0 - 1);
+                for k in 3..6 { wire(w, bx0 + k, by0); } dev(w, bx0 + 6, by0, Dev::Lamp); wire(w, bx0 + 6, by0 - 1); wire(w, bx0 + 6, by0 - 2); wire(w, bx0 + 5, by0 - 2);
+                // flip both levers: the knot fires, the lamp lights
+                for bx in [bx0, bx0 + 2] { let by = if bx == bx0 { by0 } else { by0 - 2 }; w.logic.dev_s[by * bw + bx] = 1; }
+                // a ticker blinking a second lamp
+                dev(w, bx0 + 8, by0, Dev::Timer); wire(w, bx0 + 9, by0); dev(w, bx0 + 10, by0, Dev::Lamp);
+                // thrummer on a lever, listener further on driving a door
+                dev(w, bx0 + 12, by0, Dev::Lever); w.logic.dev_s[by0 * bw + bx0 + 12] = 1; wire(w, bx0 + 13, by0); dev(w, bx0 + 14, by0, Dev::Tx);
+                dev(w, bx0 + 20, by0, Dev::Rx); wire(w, bx0 + 21, by0); dev(w, bx0 + 22, by0 - 1, Dev::Door);
+                // a row of the rest, up on a ledge line
+                let rest = [Dev::Plate, Dev::Sensor, Dev::Pump, Dev::Tnt, Dev::Fuse, Dev::Or, Dev::Not, Dev::Xor, Dev::Latch, Dev::Rep, Dev::Vent, Dev::Heat, Dev::Wheel, Dev::Floodgate];
+                for (k, d) in rest.into_iter().enumerate() { dev(w, bx0 + k, by0 - 5, d); }
+                for k in 0..6 { wire(w, bx0 + k, by0 - 7); } wire(w, bx0 + 5, by0 - 8); wire(w, bx0 + 3, by0 - 6);
             }
             _ => {}
         }
@@ -280,7 +320,9 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, mut fonts: R
     commands.spawn((Camera2d, Transform::from_xyz(p.x, p.y, 100.).with_scale(Vec3::splat(crate::menu::Menu::load().zoom))));
     let font: Handle<Font> = fonts.add(Font::from_bytes(include_bytes!("../assets/PixelifySans.ttf").to_vec()));
     menu::setup(&mut commands, &font); let mset = menu::Menu::load(); commands.insert_resource(mset);
-    ui::setup(&mut commands, &font); commands.insert_resource(ui::UiFont(font));
+    ui::setup(&mut commands, &font);
+    { let ring = images.add(art::ring()); let px = images.add(art::image(1, 1, vec![255; 4], true)); wiring::setup(&mut commands, &mut images, &font, ring, px); }
+    commands.insert_resource(ui::UiFont(font));
     let sp = Sprites { tools: [images.add(art::tool_icon(1)), images.add(art::tool_icon(2)), images.add(art::tool_icon(3))], dev: images.add(art::icon([200, 150, 90], 1)), ring: images.add(art::ring()),
         mole: art::mole_sheet(true).into_iter().map(|i| images.add(i)).collect(),
         mole_out: art::mole_sheet(false).into_iter().map(|i| images.add(i)).collect(),
@@ -580,28 +622,7 @@ fn render_world(mut gm: ResMut<Game>, bg: Res<Bg>, mut images: ResMut<Assets<Ima
             }
         }
         let mut px = px;
-        if seen { // wiring / device overlay on the 1 m block layer
-            let lg = &wd.logic; let bw = lg.bw; let bk = (y / LB) * bw + x / LB; let (lx, ly) = (x % LB, y % LB);
-            let con = |c: usize| c < lg.wire.len() && (lg.wire[c] != 0 || lg.dev[c] != 0);
-            if lg.dev[bk] != 0 {
-                let d = Dev::from_u8(lg.dev[bk]); let on = lg.dev_s[bk] != 0 || lg.powered[bk] != 0 || lg.burn[bk] > 0;
-                let base: [u8; 3] = match d { Dev::Lever => [200, 170, 90], Dev::Plate => [150, 150, 150], Dev::Sensor => [80, 150, 230], Dev::Door | Dev::Floodgate => [150, 110, 70], Dev::Pump => [90, 130, 200], Dev::Lamp => [255, 240, 170], Dev::Tnt => [220, 50, 40], Dev::Fuse => [180, 140, 100], Dev::Tx | Dev::Rx | Dev::Rep => [160, 120, 255], Dev::Vent => [170, 200, 190], Dev::Heat => [230, 90, 40], Dev::Wheel => [90, 160, 210], _ => [110, 220, 160] };
-                let edge = lx == 0 || ly == 0 || lx == LB - 1 || ly == LB - 1;
-                if !(matches!(d, Dev::Door | Dev::Floodgate) && !edge) {
-                    let k = if edge { 0.55 } else if on { 1.15 } else { 0.7 };
-                    let blink = lg.burn[bk] > 0 && (lg.burn[bk] / 6) % 2 == 0; // a lit fuse flickers
-                    let base = if blink { [255, 230, 120] } else { base };
-                    px = [(base[0] as f32 * k).min(255.) as u8, (base[1] as f32 * k).min(255.) as u8, (base[2] as f32 * k).min(255.) as u8, 255];
-                    if d.is_thrum() && !edge && lx / S == 1 && ly / S == 1 { let ch = lg.dev_p[bk] as u8; px = [40 + ch * 25, 220 - ch * 20, 120, 255]; }
-                }
-            } else if lg.wire[bk] != 0 {
-                // the line is the middle half of the block, running out to the edge toward each connected neighbour
-                let mid = |v: usize| v >= LB / 4 && v < LB - LB / 4; let e = LB - 1;
-                let draw = (mid(lx) && mid(ly)) || (mid(ly) && ((lx > LB / 2 && x / LB + 1 < bw && con(bk + 1)) || (lx < LB / 2 && x / LB > 0 && con(bk - 1))))
-                    || (mid(lx) && ((ly > LB / 2 && con(bk + bw)) || (ly < LB / 2 && bk >= bw && con(bk - bw)))); let _ = e;
-                if draw { px = if lg.net_lit(bk) { [255, 205, 95, 255] } else { [150, 82, 45, 255] }; }
-            }
-        }
+        // copperline and devices are sprites (wiring.rs), drawn over the world
         if buf[o..o + 4] != px { buf[o..o + 4].copy_from_slice(&px); changed[(y / CH) * (W / CH) + x / CH] = true; }
     } }
     let mut n = 0;

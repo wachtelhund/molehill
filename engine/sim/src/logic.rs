@@ -155,7 +155,8 @@ impl Logic {
     }
     fn nb(&self, b: usize) -> [usize; 5] { let (bw, n) = (self.bw, self.wire.len()); let x = b % bw;
         [b, if b >= bw { b - bw } else { usize::MAX }, if b + bw < n { b + bw } else { usize::MAX }, if x > 0 { b - 1 } else { usize::MAX }, if x < bw - 1 { b + 1 } else { usize::MAX }] }
-    fn wire_on(&self, b: usize) -> bool { b < self.wire.len() && self.wire[b] != 0 && self.net_on[self.net_id[b] as usize] != 0 }
+    /// Copperline laid since the last net rebuild has no net yet (`net_id` -1): it reads as idle until the next tick.
+    fn wire_on(&self, b: usize) -> bool { b < self.wire.len() && self.wire[b] != 0 && self.net_id[b] >= 0 && self.net_on.get(self.net_id[b] as usize).is_some_and(|&v| v != 0) }
     fn is_powered(&self, b: usize) -> bool { self.nb(b).iter().any(|&c| self.wire_on(c)) }
     pub fn net_lit(&self, b: usize) -> bool { self.wire_on(b) }
 
