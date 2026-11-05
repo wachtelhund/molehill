@@ -69,6 +69,7 @@ The grid is a Noita-style cellular automaton on **64 × 64-cell chunks** (8 m):
 ## Liquids and lava
 
 * A liquid falls first, then tries the lower diagonals.
+* **Active region:** the automaton only runs within 64 m sideways and 48 m vertically of the mole (wider than the view at the widest zoom). Chunks outside keep their wake flag and carry on exactly where they stopped once the region reaches them.
 * **Free fall** is up to S cells (one tile) a tick for grains and liquids, so things fall as fast in metres at any resolution.
 * **Sideways flow is purposeful.** A surface cell looks up to 48 cells (6 m) along its row for a lower spot and moves toward it (water up to 6 tiles a tick, lava 2). It also spreads when liquid presses on it from above, so a heap levels out. Otherwise it stays put, so a pool with a part-filled top row doesn't slosh forever.
 * **Lava is viscous:** it only moves on about 30 % of ticks. Flowing lava sets wood, roots, fungus, coal and doors on fire. Lava that has come to rest sleeps with its chunk, so it doesn't set fire to wood beside it.

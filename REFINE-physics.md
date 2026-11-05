@@ -104,11 +104,18 @@ bit-identical to before (checked before flipping it).
   and the edge the window left are re-solved, and fresh-row stabilisation starts from that state.
   Into fresh rows went from about 1.0 to 0.77 s; back into stored rows from about 110 to 77 ms. It matches
   a full solve (`slide_keeps_stress_state`). Most of a fresh slide is still stabilisation rounds.
+* **Phase 2, active region:** the falling sand runs only within 64 m sideways and 48 m vertically of the mole
+  (`World::ACTIVE_HX/HY`; `Grid::active`). Chunks outside keep their wake flag and resume exactly where
+  they left off, so a fresh holt settles only around the mole and the stress work stays local with it.
+  (`ca_runs_only_near_the_mole`)
+* **Phase 2, fresh-slide stabilisation:** a cell that keeps failing gets an ever-wider fill (radius grows
+  every 3 rounds, up to 1 m), where a 1-cell fill barely helps at 8 cells/m. Rounds per fresh slide
+  went from 42 to 18; a fresh slide from about 460 to 280 ms; `World::new` from about 1.5 to 1.1 s.
+* **Web (M4, Chrome) after Phase 2:** 58 fps, p95 16.8 ms, already during a fresh holt's first 16 s
+  (was 54-55 fps, p95 33 ms). 60 fps in steady state.
 * Tests now take about a minute (the multi-seed stability runs cover 4× the cells).
 
 ## Open issues
-* A fresh holt still settles everywhere for its first ~15 s (more chunks dirty than one pass's
-  budget): that's Phase 2's active-region work.
 * No liquid pressure: water held in a column doesn't push through a U-bend under a wall (a full
   column beside a tunnel just stands there). It spreads sideways only when pressed from directly
   above. A first try at it (rise when liquid joined below stands 2+ higher) sloshed forever,

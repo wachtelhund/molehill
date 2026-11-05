@@ -11,6 +11,8 @@ use crate::air::{self, Air};
 use std::collections::VecDeque;
 /// Of every 10 cells of ground that crumble, how many leave an extra cell of rubble (bulking).
 pub const BULK_IN_10: u32 = 3;
+/// Half-size of the active region around the mole where the falling sand runs (64 m × 48 m each way).
+pub const ACTIVE_HX: usize = 64 * CPM; pub const ACTIVE_HY: usize = 48 * CPM;
 /// Rows the window slides by when the colony nears its edge (32 m).
 pub const SLIDE: usize = 32 * CPM;
 /// Cells of a placed block one pack item makes (a legacy tile is S×S cells, and an item made 4 of them).
@@ -346,6 +348,10 @@ impl World {
 
     pub fn step(&mut self) {
         self.tick += 1; self.events.clear(); self.marks.clear();
+        // active region: the falling sand runs only around the mole (the view at the widest zoom, with room
+        // to spare); the rest of the window waits, frozen mid-flow, and catches up when the mole comes near
+        self.g.active = self.moles.first().map(|m| { let c = crate::grid::CHUNK; let (hx, hy) = (ACTIVE_HX / c + 1, ACTIVE_HY / c + 1);
+            let (mx, my) = (m.x / c, m.y / c); (mx.saturating_sub(hx), my.saturating_sub(hy), (mx + hx).min(self.g.cx - 1), (my + hy).min(self.g.cy - 1)) });
         self.g.step_ca();
         // structural changes are flagged per 8 m chunk (by `Grid::set` and by CA moves/reactions), so the
         // re-solve covers only the regions around them; reactions are batched every 24 ticks

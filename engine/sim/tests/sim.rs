@@ -672,3 +672,19 @@ fn material_table_is_consistent() {
         assert_eq!(have.len(), want.len(), "slide {rows}: failing cells");
     }
 }
+
+/// The falling sand runs only in the active region around the mole: sand far away waits mid-air, and
+/// falls once the region reaches it.
+#[test] fn ca_runs_only_near_the_mole() {
+    let mut w = World::new(1024 * S, 512 * S, 11); w.disasters.enabled = false;
+    let (mx, my) = (w.moles[0].x, w.moles[0].y);
+    let near = (mx + 8 * molehill_sim::mat::CPM, my - 8 * molehill_sim::mat::CPM);
+    let far = (if mx > w.g.w / 2 { 8 * S } else { w.g.w - 8 * S }, my - 8 * molehill_sim::mat::CPM);
+    let far = (far.0.max(4 * S + 2).min(w.g.w - 4 * S - 2), far.1);
+    for &(x, y) in &[near, far] { for yy in y - 6..=y { for xx in x - 2..=x + 2 { let i = w.g.idx(xx, yy); w.g.set(i, Mat::Empty); } } let i = w.g.idx(x, y - 6); w.g.set(i, Mat::Sand); }
+    for _ in 0..30 { w.step(); }
+    assert_ne!(w.g.get(near.0, near.1 - 6), Mat::Sand, "sand near the mole falls");
+    assert_eq!(w.g.get(far.0, far.1 - 6), Mat::Sand, "sand far outside the active region waits");
+    w.g.active = None; w.g.step_ca(); w.g.step_ca(); // (region covering it again)
+    assert_ne!(w.g.get(far.0, far.1 - 6), Mat::Sand, "and falls once the region covers it");
+}

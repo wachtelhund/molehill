@@ -191,9 +191,10 @@ pub fn stabilize_keep(g: &mut Grid, st: &mut Stress, y0: usize, y1: usize, keep:
         for &i in &fail {
             let i = i as usize; let m = Mat::from_u8(g.mat[i]); changed.push(i); // (keep protects the burrow's air, not its roof)
             if !st.reach[i] { g.mat[i] = 0; continue; } // floating island: no load path
-            if it >= 4 { // still failing: widen the pillar / thicken the roof by filling neighbouring voids
-                let (x, y) = (i % w, i / w);
-                for (dx, dy) in [(-1i32, 0i32), (1, 0), (0, 1), (-1, 1), (1, 1), (0, 2), (0, -1), (-1, -1), (1, -1)] { let (nx, ny) = (x as i32 + dx, y as i32 + dy); if nx > 1 && ny >= 0 && (nx as usize) < w - 2 && (ny as usize) < h { let j = ny as usize * w + nx as usize; if kept(nx as usize, ny as usize) { continue; } if g.mat[j] == 0 || g.mat[j] == Mat::Water as u8 || g.mat[j] == Mat::Lava as u8 { g.mat[j] = Mat::Granite as u8; changed.push(j); } } }
+            if it >= 4 { // still failing: widen the pillar / thicken the roof by filling neighbouring voids,
+                // further out the longer it keeps failing (a one-cell fill barely helps at 8 cells/m)
+                let (x, y) = (i % w, i / w); let r = (1 + (it as i32 - 4) / 3).min(4 * S as i32);
+                for (dx, dy) in (-r..=r).flat_map(|dx| (-r..=r + 1).map(move |dy| (dx, dy))) { let (nx, ny) = (x as i32 + dx, y as i32 + dy); if nx > 1 && ny >= 0 && (nx as usize) < w - 2 && (ny as usize) < h { let j = ny as usize * w + nx as usize; if kept(nx as usize, ny as usize) { continue; } if g.mat[j] == 0 || g.mat[j] == Mat::Water as u8 || g.mat[j] == Mat::Lava as u8 { g.mat[j] = Mat::Granite as u8; changed.push(j); } } }
             }
             g.mat[i] = if it < 3 && m.p().tensile < Mat::Limestone.p().tensile { Mat::Limestone as u8 } else { Mat::Granite as u8 };
         }

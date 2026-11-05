@@ -197,7 +197,9 @@ Zoom limits and brush ranges also have unit tests in `sim/tests/sim.rs` (`zoom_i
 
 `cargo run --release -p molehill-sim --example genbench [seed]` times world generation: fill, one full stress solve, stabilisation, and `World::new` in total.
 
-**Web frame time:** serve `dist/` (`python3 -m http.server`) and measure `requestAnimationFrame` intervals in Chrome after starting a holt. At 8 cells/m on an M4: 57-58 fps steady state (p95 16.8 ms, same as the 4 cells/m build), 54-55 fps during the first ~15 s while a fresh world settles.
+**Web frame time:** serve `dist/` (`python3 -m http.server`) and measure `requestAnimationFrame` intervals in Chrome after starting a holt. At 8 cells/m on an M4 with the active region: 58 fps (p95 16.8 ms) from a fresh holt's first seconds, 60 fps steady state.
+
+Performance-related tests in `sim.rs`: `local_stress_resolve_matches_full_solve` (a region re-solve equals a full one), `slide_keeps_stress_state` (a slide's carried stress state matches a full solve, both ways), `ca_runs_only_near_the_mole` (the CA runs in the active region, and far chunks resume when it reaches them).
 
 ## 3. Visual check (optional)
 

@@ -23,6 +23,9 @@ pub struct Grid {
     /// per-chunk flags for the stress re-solve: bit 0 a structural change, bit 1 a reaction (fire,
     /// quenching). Set from the main thread and from CA threads alike.
     pub sdirty: Vec<AtomicU8>,
+    /// chunks the CA runs this tick (cx0, cy0, cx1, cy1 inclusive), None = all. Chunks outside keep their
+    /// wake flag and resume where they left off once the region covers them again.
+    pub active: Option<(usize, usize, usize, usize)>,
 }
 
 #[inline] pub fn hash3(x: u32, y: u32, t: u32) -> u32 {
@@ -41,7 +44,7 @@ impl Grid {
         let n = w * h; let (cx, cy) = (w / CHUNK, h / CHUNK);
         Grid { w, h, cx, cy, mat: vec![0; n], flags: vec![0; n], shade: (0..n).map(|i| (hash3(i as u32, 7, 1) & 255) as u8).collect(),
             life: vec![0; n], moved: vec![0; n], awake: (0..cx * cy).map(|_| AtomicU8::new(1)).collect(), awake_next: (0..cx * cy).map(|_| AtomicU8::new(1)).collect(),
-            tick: 0, struct_dirty: None, reactions: AtomicU8::new(0), undermined: AtomicU8::new(0), sdirty: (0..cx * cy).map(|_| AtomicU8::new(0)).collect() }
+            tick: 0, struct_dirty: None, reactions: AtomicU8::new(0), undermined: AtomicU8::new(0), sdirty: (0..cx * cy).map(|_| AtomicU8::new(0)).collect(), active: None }
     }
     /// Flag the chunk holding cell i for a stress re-solve (`bit` 1 structural, 2 reaction); thread-safe.
     #[inline] pub fn note_struct(&self, i: usize, bit: u8) { let (x, y) = (i % self.w, i / self.w); self.sdirty[(y / CHUNK) * self.cx + x / CHUNK].fetch_or(bit, Relaxed); }
@@ -101,7 +104,8 @@ impl Grid {
     /// One CA tick.
     pub fn step_ca(&mut self) {
         self.tick += 1;
-        for c in 0..self.awake.len() { self.awake[c].store(self.awake_next[c].swap(0, Relaxed), Relaxed); }
+        let act = |c: usize| self.active.map_or(true, |(a, b, x1, y1)| { let (x, y) = (c % self.cx, c / self.cx); x >= a && x <= x1 && y >= b && y <= y1 });
+        for c in 0..self.awake.len() { if act(c) { self.awake[c].store(self.awake_next[c].swap(0, Relaxed), Relaxed); } else { self.awake[c].store(0, Relaxed); } }
         let stamp = ((self.tick % 255) + 1) as u8;
         // stamps repeat every 255 ticks: clear old ones so a cell that last moved exactly
         // 255·k ticks ago isn't mistaken for one that already moved this tick
