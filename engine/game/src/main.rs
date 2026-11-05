@@ -13,12 +13,16 @@ use bevy::input::mouse::AccumulatedMouseScroll;
 use bevy::window::PrimaryWindow;
 use molehill_sim::craft::{self, Item, Station, ITEMS, NITEM, QUESTS, RECIPES, STATIONS};
 use molehill_sim::grid::{hash3, F_SEEN};
-use molehill_sim::mat::{Kind, Mat, PROPS};
+use molehill_sim::mat::{Kind, Mat, PROPS, S, SF};
 use molehill_sim::world::{self as sw, World};
 
-const W: usize = 1024; const H: usize = 512; const CPX: f32 = 4.0; // world units per cell
-const PAD: usize = 512;
-const CH: usize = 64; // texture chunk size in cells
+// The window is 256 × 128 m at any resolution; a cell is CPX world units (4 per legacy 0.25 m tile), so
+// sprites, zoom and the UI keep their size in metres.
+const W: usize = 1024 * S; const H: usize = 512 * S; const CPX: f32 = 4.0 / SF; // world units per cell
+const PAD: usize = 512 * S;
+const CH: usize = 64 * S; // texture chunk size in cells (16 m)
+/// The parallax layers are drawn at legacy-tile resolution (one pixel per 0.25 m): they're blurred far rock.
+const BG_RES: usize = S;
 const FAR: usize = 4; // chunk rows drawn beyond each end of the simulated window (the camera roams there; nothing simulates)
 
 #[derive(Resource)] pub struct Game { pub w: World, chunks: Vec<Handle<Image>>, buf: Vec<u8>, pub uploads: usize, acc: f32, pub paused: bool, speed: u32, pub frame: u64, last_light: u64, msg: String, pub help: bool, ev: Vec<sw::Event>, shake_off: Vec2, autosave: f32, last_oy: i64, far: Vec<Handle<Image>>, far_done: Vec<bool>, pub inv_open: bool, pub aim: Option<(usize, usize, bool)>,
@@ -144,19 +148,19 @@ fn dev_dump(n: Local<u32>, g: Res<Game>, sp: Res<Sprites>, images: Res<Assets<Im
         let arg = |k: &str| std::env::args().find_map(|a| a.strip_prefix(k).map(|v| v.to_string()));
         let Some(dir) = arg("--dump-art=") else { return }; let at: u64 = arg("--shot-at=").and_then(|v| v.parse().ok()).unwrap_or(150);
         if g.frame < at { return; } *done = true; let _ = std::fs::create_dir_all(&dir);
-        let (mx, my) = (g.w.moles[0].x, g.w.moles[0].y); let (cw, chh) = (160usize, 90usize);
+        let (mx, my) = (g.w.moles[0].x, g.w.moles[0].y); let (cw, chh) = (160 * S, 90 * S);
         let (x0, y0) = (mx.saturating_sub(cw / 2).min(W - cw), my.saturating_sub(chh / 2).min(H - chh));
         let mut v = vec![0u8; cw * chh * 4]; for y in 0..chh { let s = ((y0 + y) * W + x0) * 4; v[y * cw * 4..(y + 1) * cw * 4].copy_from_slice(&g.buf[s..s + cw * 4]); }
         // composite the translucent open cells over the parallax layers like the GPU does (linear blend)
         let camx = cam.single().map(|t| t.translation.x / CPX).unwrap_or(0.); let bw = W + 2 * PAD;
         for y in 0..chh { for x in 0..cw { let o = (y * cw + x) * 4; let a = v[o + 3] as f32 / 255.; if a >= 1. { continue; }
             let mut c = BG_BASE;
-            for (ly, f) in &bg.layers { let u = ((x0 + x) as f32 - camx * f + PAD as f32).floor().clamp(0., bw as f32 - 1.) as usize; let q = ((y0 + y) * bw + u) * 4; let la = ly[q + 3] as f32 / 255.;
+            for (ly, f) in &bg.layers { let u = (((x0 + x) as f32 - camx * f + PAD as f32) / BG_RES as f32).floor().clamp(0., (bw / BG_RES) as f32 - 1.) as usize; let q = (((y0 + y) / BG_RES) * (bw / BG_RES) + u) * 4; let la = ly[q + 3] as f32 / 255.;
                 for j in 0..3 { c[j] = c[j] + (ly[q + j] as f32 - c[j]) * la; } }
             for j in 0..3 { v[o + j] = srgb(lin(c[j]) * (1. - a) + lin(v[o + j] as f32) * a).min(255.) as u8; } v[o + 3] = 255; } }
         // mark the mole's body cells so the crop can be read without sprites
-        for dy in 0..3 { let (x, y) = (mx - x0, my - dy - y0); let o = (y * cw + x) * 4; v[o..o + 4].copy_from_slice(&[255, 0, 255, 255]); }
-        bmp(&format!("{dir}/view.bmp"), cw, chh, &v, false, 4);
+        for dy in 0..3 * S { let (x, y) = (mx - x0, my - dy - y0); let o = (y * cw + x) * 4; v[o..o + 4].copy_from_slice(&[255, 0, 255, 255]); }
+        bmp(&format!("{dir}/view.bmp"), cw, chh, &v, false, 4 / S.min(4));
         let mut list: Vec<(String, Handle<Image>)> = vec![("torch".into(), sp.torch_f[0].clone()), ("torch1".into(), sp.torch_f[1].clone()), ("glow".into(), sp.glow.clone()), ("ring".into(), sp.ring.clone()), ("dev".into(), sp.dev.clone())];
         for (k, h) in sp.mole.iter().enumerate() { list.push((format!("mole{k}"), h.clone())); }
         for (k, h) in sp.tools.iter().enumerate() { list.push((format!("tool{k}"), h.clone())); }
@@ -177,16 +181,16 @@ fn stage_scene(w: &mut World) {
         w.disasters.enabled = false;
         match sc.as_str() {
             "water" => { // an open tunnel east out of the burrow ending in clay, with a water pocket behind it
-                for x in mx + 4..mx + 30 { for y in my - 2..=my { set(w, x, y, Mat::Empty); } set(w, x, my + 1, Mat::Clay); set(w, x, my - 3, Mat::Limestone); }
-                for x in mx + 30..mx + 34 { for y in my - 5..=my + 1 { set(w, x, y, Mat::Clay); } }
-                for x in mx + 34..mx + 50 { for y in my - 12..=my + 1 { set(w, x, y, Mat::Water); } set(w, x, my + 2, Mat::Clay); }
-                molehill_sim::light::reveal_box(&mut w.g, mx, my - 20, mx + 60, my + 10);
+                for x in mx + 4 * S..mx + 30 * S { for y in my - 2 * S..=my { set(w, x, y, Mat::Empty); } set(w, x, my + 1 * S, Mat::Clay); set(w, x, my - 3 * S, Mat::Limestone); }
+                for x in mx + 30 * S..mx + 34 * S { for y in my - 5 * S..=my + 1 * S { set(w, x, y, Mat::Clay); } }
+                for x in mx + 34 * S..mx + 50 * S { for y in my - 12 * S..=my + 1 * S { set(w, x, y, Mat::Water); } set(w, x, my + 2 * S, Mat::Clay); }
+                molehill_sim::light::reveal_box(&mut w.g, mx, my - 20 * S, mx + 60 * S, my + 10 * S);
             }
             "tnt" => { // a long tunnel under a sand bed
-                for x in mx + 4..mx + 60 { for y in my - 2..=my { set(w, x, y, Mat::Empty); } set(w, x, my + 1, Mat::Limestone); for y in my - 6..my - 2 { set(w, x, y, Mat::Dirt); } for y in my - 16..my - 6 { set(w, x, y, Mat::Sand); } }
+                for x in mx + 4 * S..mx + 60 * S { for y in my - 2 * S..=my { set(w, x, y, Mat::Empty); } set(w, x, my + 1 * S, Mat::Limestone); for y in my - 6 * S..my - 2 * S { set(w, x, y, Mat::Dirt); } for y in my - 16 * S..my - 6 * S { set(w, x, y, Mat::Sand); } }
                 w.inv[Item::Tnt as usize] = 3; w.inv[Item::Torch as usize] = 12;
-                molehill_sim::light::reveal_box(&mut w.g, mx, my - 24, mx + 70, my + 10);
-                for k in 0..4 { w.torches.push((mx + 22 + k * 10, my - 2)); }
+                molehill_sim::light::reveal_box(&mut w.g, mx, my - 24 * S, mx + 70 * S, my + 10 * S);
+                for k in 0..4 { w.torches.push((mx + 22 * S + k * 10 * S, my - 2 * S)); }
             }
             _ => {}
         }
@@ -221,9 +225,10 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, mut fonts: R
     // parallax: a flat base colour, then the three layers (far to near), all behind the world chunks
     let bw = (W + 2 * PAD) as u32;
     commands.spawn((Sprite { image: images.add(art::image(1, 1, vec![255; 4], true)), custom_size: Some(Vec2::new((W + 4 * PAD) as f32 * CPX, (H + 2 * FAR * CH) as f32 * CPX)), color: Color::srgb_u8(BG_BASE[0] as u8, BG_BASE[1] as u8, BG_BASE[2] as u8), ..default() }, Transform::from_xyz(0., 0., -4.)));
-    for k in 0..3 { let img = images.add(art::image(bw, H as u32, vec![0; bw as usize * H * 4], true));
+    let (lw, lh) = (bw / BG_RES as u32, (H / BG_RES) as u32);
+    for k in 0..3 { let img = images.add(art::image(lw, lh, vec![0; (lw * lh) as usize * 4], true));
         commands.spawn((Sprite { image: img, custom_size: Some(Vec2::new(bw as f32 * CPX, H as f32 * CPX)), ..default() }, Transform::from_xyz(0., 0., -3. + k as f32 * 0.1), BgLayer(k))); }
-    let (sx, sy) = (w.moles[0].x as f32, w.moles[0].y as f32 - 1.5);
+    let (sx, sy) = (w.moles[0].x as f32, w.moles[0].y as f32 - 1.5 * SF);
     let p = cell_to_world(sx, sy);
     commands.spawn((Camera2d, Transform::from_xyz(p.x, p.y, 100.).with_scale(Vec3::splat(crate::menu::Menu::load().zoom))));
     let font: Handle<Font> = fonts.add(Font::from_bytes(include_bytes!("../assets/PixelifySans.ttf").to_vec()));
@@ -239,7 +244,7 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, mut fonts: R
         px: images.add(art::image(1, 1, vec![255; 4], true)),
     };
     commands.insert_resource(sp);
-    let disp = Vec2::new(sx, sy + 1.5); commands.insert_resource(Game { w, chunks, buf: vec![1; W * H * 4], uploads: 0, acc: 0., paused: true, speed: 1, frame: 0, last_light: 0, msg: String::new(), help: false, ev: vec![], shake_off: Vec2::ZERO, autosave: 0., last_oy: oy0, far, far_done, inv_open: false, aim: None, slots: default_slots(), held: None, hot: 0, sel_t: 0., toasts: vec![], log_seen: 0, show_dev: false, disp, seed, brush: [0.; 7], demo_right: false, mouse_latch: false, jump_tap: false, jump_key: false, pops: vec![], look: Vec2::ZERO });
+    let disp = Vec2::new(sx, sy + 1.5 * SF); commands.insert_resource(Game { w, chunks, buf: vec![1; W * H * 4], uploads: 0, acc: 0., paused: true, speed: 1, frame: 0, last_light: 0, msg: String::new(), help: false, ev: vec![], shake_off: Vec2::ZERO, autosave: 0., last_oy: oy0, far, far_done, inv_open: false, aim: None, slots: default_slots(), held: None, hot: 0, sel_t: 0., toasts: vec![], log_seen: 0, show_dev: false, disp, seed, brush: [0.; 7], demo_right: false, mouse_latch: false, jump_tap: false, jump_key: false, pops: vec![], look: Vec2::ZERO });
 }
 
 pub fn save_now(g: &mut Game) { let b = molehill_sim::save::save(&g.w); g.msg = match storage_put("molehill-manual", &b) { Ok(()) => "Game saved".into(), Err(e) => format!("Save failed: {e}") }; }
@@ -257,7 +262,7 @@ pub fn load_saved(g: &mut Game, commands: &mut Commands) -> bool {
         Some(Err(e)) => { g.msg = format!("Load failed: {e}"); false } None => { g.msg = "No save yet".into(); false } }
 }
 fn make_bg(w: &World) -> Bg {
-    let mk = |k, f| (art::layer(k, w.oy, &w.info.biome, W, H, PAD, 1, w.info.seed).0, f);
+    let mk = |k, f| (art::layer(k, w.oy, &w.info.biome, W, H, PAD, BG_RES, w.info.seed).0, f);
     Bg { layers: vec![mk(art::Layer::Strata, 0.8), mk(art::Layer::Caves, 0.6), mk(art::Layer::Veins, 0.35)] }
 }
 fn dev_cost(d: Dev) -> Option<Item> { d.cost() }
@@ -301,8 +306,8 @@ fn input(mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<Button
     if keys.just_pressed(KeyCode::Minus) || keys.just_pressed(KeyCode::NumpadSubtract) { menu.zoom_by(-1., &mut ct); }
     let _ = sc;
     if let (Some(b), true) = (held_brush, resize != 0.) {
-        let k = brush_slot(b); let r = brush_r(&g, b); let (lo, hi, _) = sw::brush_range(b).unwrap_or((0.5, 0.5, 0.5));
-        g.brush[k] = (r + resize * 0.5).clamp(lo, hi); g.sel_t = now;
+        let k = brush_slot(b); let r = brush_r(&g, b); let (lo, hi, _) = sw::brush_range(b).unwrap_or((0.5 * SF, 0.5 * SF, 0.5 * SF));
+        g.brush[k] = (r + resize * 0.5 * SF).clamp(lo, hi); g.sel_t = now;
     }
     let digits = [KeyCode::Digit1, KeyCode::Digit2, KeyCode::Digit3, KeyCode::Digit4, KeyCode::Digit5, KeyCode::Digit6, KeyCode::Digit7, KeyCode::Digit8, KeyCode::Digit9, KeyCode::Digit0];
     for (k, d) in digits.iter().enumerate() { if keys.just_pressed(*d) { g.hot = k; } }
@@ -332,7 +337,7 @@ fn input(mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<Button
     if dead { g.aim = None; return; }
     // S: dig straight down (with the pick in hand, else the pickaxe)
     let (mx, my) = (g.w.moles[0].x, g.w.moles[0].y);
-    if (keys.pressed(KeyCode::KeyS) || keys.pressed(KeyCode::ArrowDown)) && g.w.pl.grounded { g.w.input.mine = Some((mx, my + 2)); }
+    if (keys.pressed(KeyCode::KeyS) || keys.pressed(KeyCode::ArrowDown)) && g.w.pl.grounded { g.w.input.mine = Some((mx, my + 2 * S)); }
     let on_panel = over.is_some() || g.inv_open && cur.map_or(false, |c| { let a = ui::slot_pos(10, win.width(), win.height()); c.y > a.y - 10. && (c.x - win.width() / 2.).abs() < 5. * (ui::S + ui::GAP) + 10. });
     let Some(cur) = cur else { g.aim = None; return };
     if on_panel { g.aim = None; return; }
@@ -370,11 +375,11 @@ fn input(mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<Button
 /// Render interpolation between the last two fixed sim steps, and a tight camera with a little lookahead.
 /// Runs after this frame's steps, so the mole is drawn where this frame's input put it (no frame of lag).
 fn follow(g: &mut Game, ct: &mut Transform, dt: f32) {
-    { let a = g.acc.clamp(0., 1.); let pl = &g.w.pl; g.disp = Vec2::new(pl.ppx + (pl.px - pl.ppx) * a, pl.ppy + (pl.py - pl.ppy) * a - 1.0);
+    { let a = g.acc.clamp(0., 1.); let pl = &g.w.pl; g.disp = Vec2::new(pl.ppx + (pl.px - pl.ppx) * a, pl.ppy + (pl.py - pl.ppy) * a - SF);
       // the lookahead eases (a turn doesn't whip the view); the follow itself stays tight
-      let want = Vec2::new(g.w.pl.vx * 0.14, if g.w.pl.vy > 20. { (g.w.pl.vy - 20.) * 0.08 } else { 0. });
+      let want = Vec2::new(g.w.pl.vx * 0.14, if g.w.pl.vy > 20. * SF { (g.w.pl.vy - 20. * SF) * 0.08 } else { 0. });
       let kl = 1. - (-7. * dt).exp(); let look = g.look + (want - g.look) * kl; g.look = look;
-      let p = cell_to_world(g.disp.x + look.x, g.disp.y - 1.5 + look.y); let k = 1. - (-30. * dt).exp();
+      let p = cell_to_world(g.disp.x + look.x, g.disp.y - 1.5 * SF + look.y); let k = 1. - (-30. * dt).exp();
       let d = Vec2::new(p.x - ct.translation.x, p.y - ct.translation.y);
       if d.length() > 200. { ct.translation.x = p.x; ct.translation.y = p.y; } else { ct.translation.x += d.x * k; ct.translation.y += d.y * k; } }
     let half = Vec2::new(W as f32 * CPX / 2., H as f32 * CPX / 2.);
@@ -410,7 +415,7 @@ fn simulate(mut commands: Commands, mut g: ResMut<Game>, time: Res<Time>, mut ca
     let ct = &*ct;
     if g.frame - g.last_light >= 2 {
         g.last_light = g.frame;
-        let r = view_rect(ct, win, 24);
+        let r = view_rect(ct, win, 24 * S as i32);
         g.w.compute_light(r);
     }
 }
@@ -437,7 +442,7 @@ fn render_world(mut gm: ResMut<Game>, bg: Res<Bg>, mut images: ResMut<Assets<Ima
     let g = &*gm;
     let lr = g.w.light_rect;
     let wd = &g.w; let gr = &wd.g;
-    let (pmx, pmy) = wd.moles.first().filter(|m| m.alive).map(|m| (m.x as f32, m.y as f32 - 1.5)).unwrap_or((-999., -999.));
+    let (pmx, pmy) = wd.moles.first().filter(|m| m.alive).map(|m| (m.x as f32, m.y as f32 - 1.5 * SF)).unwrap_or((-999., -999.));
     // premultiplied linear "over": out = bg·(1-a) + cp
     let over = |(cp, a): ([f32; 3], f32), h: [f32; 3], ha: f32| -> ([f32; 3], f32) { ([cp[0] * (1. - ha) + lin(h[0]) * ha, cp[1] * (1. - ha) + lin(h[1]) * ha, cp[2] * (1. - ha) + lin(h[2]) * ha], 1. - (1. - a) * (1. - ha)) };
     for y in y0..=y1 { for x in x0..=x1 {
@@ -446,14 +451,14 @@ fn render_world(mut gm: ResMut<Game>, bg: Res<Bg>, mut images: ResMut<Assets<Ima
         let seen = gr.flags[i] & F_SEEN != 0;
         let px: [u8; 4];
         if !seen {
-            let n = (hash3(x as u32 / 2, y as u32 / 2, 5) & 7) as u8;
+            let n = (hash3(x as u32 / (2 * S) as u32, y as u32 / (2 * S) as u32, 5) & 7) as u8;
             px = [14 + n, 12 + n, 17 + n, 255];
         } else {
             let lit = x >= lr.0 && x <= lr.2 && y >= lr.1 && y <= lr.3;
             let l = if lit { wd.light.at(i) } else { [0.05; 3] };
             let l = [l[0].max(0.22), l[1].max(0.21), l[2].max(0.24)]; // remembered rock stays faintly visible
             // the mole's own warm glow (its whiskers' sense of the rock nearby)
-            let dd = ((x as f32 - pmx).powi(2) + (y as f32 - pmy).powi(2)).sqrt(); let gl = (1. - dd / 22.).max(0.) * 0.75;
+            let dd = ((x as f32 - pmx).powi(2) + (y as f32 - pmy).powi(2)).sqrt(); let gl = (1. - dd / (22. * SF)).max(0.) * 0.75;
             let l = [l[0].max(gl), l[1].max(gl * 0.92), l[2].max(gl * 0.8)];
             match p.kind {
                 Kind::Empty | Kind::Gas => {
@@ -472,7 +477,7 @@ fn render_world(mut gm: ResMut<Game>, bg: Res<Bg>, mut images: ResMut<Assets<Ima
                 }
                 _ => {
                     let v = (hash3(x as u32, y as u32, m as u32) & 255) as f32 / 255.;
-                    let v2 = (hash3(x as u32 / 3, y as u32 / 2, m as u32 + 77) & 255) as f32 / 255.;
+                    let v2 = (hash3(x as u32 / (3 * S) as u32, y as u32 / (2 * S) as u32, m as u32 + 77) & 255) as f32 / 255.;
                     let mut k = 0.86 + v * 0.14 + (v2 - 0.5) * 0.12;
                     if m == Mat::Grass { k *= 0.9 + 0.2 * v; }
                     // soft shading: lit top faces, shadowed undersides
@@ -480,11 +485,13 @@ fn render_world(mut gm: ResMut<Game>, bg: Res<Bg>, mut images: ResMut<Assets<Ima
                     if p.kind == Kind::Solid && !gr.loose(i) { k *= art::mat_tex(m, x as u32, wy, wd.tick); }
                     // rims: a bright lip on faces open to the top, a soft second row under it, shadowed undersides
                     // and slightly darker side walls, so every tunnel edge reads as a shaped edge
+                    // (each band is one legacy tile, S cells, thick)
                     let open = |j: usize| !gr.is_solidish(j);
-                    if y > 0 && open(i - W) { k *= 1.2; }
-                    else if y > 1 && open(i - 2 * W) { k *= 1.07; }
-                    else if y + 1 < H && open(i + W) { k *= 0.74; }
-                    else if (x > 0 && open(i - 1)) || (x + 1 < W && open(i + 1)) { k *= 0.9; }
+                    let up = |d: usize| y >= d && open(i - d * W);
+                    if (1..=S).any(up) { k *= 1.2; }
+                    else if (S + 1..=2 * S).any(up) { k *= 1.07; }
+                    else if (1..=S).any(|d| y + d < H && open(i + d * W)) { k *= 0.74; }
+                    else if (1..=S).any(|d| (x >= d && open(i - d)) || (x + d < W && open(i + d))) { k *= 0.9; }
                     if p.kind == Kind::Powder || gr.loose(i) { k *= 0.93 + 0.1 * v; }
                     if wd.st.pending[i] > 0 && (hash3(x as u32, y as u32, 9) % 3 == 0) { k *= 0.45; }
                     let emit = p.emit; let em = (emit[0] as u16 + emit[1] as u16 + emit[2] as u16) > 0;
@@ -492,7 +499,7 @@ fn render_world(mut gm: ResMut<Game>, bg: Res<Bg>, mut images: ResMut<Assets<Ima
                     let mut c = [lm(p.color[0] as f32 * k, l[0]), lm(p.color[1] as f32 * k, l[1]), lm(p.color[2] as f32 * k, l[2])];
                     let mut alpha = 255.;
                     if m == Mat::Water { c = [lm(40. + 30. * v2, l[0]), lm(90. + 20. * v2, l[1]), lm(170., l[2])]; alpha = 255.; }
-                    if m == Mat::Lava { let f = 0.85 + 0.3 * ((x as f32 * 0.3 + y as f32 * 0.2 + wd.tick as f32 * 0.05).sin() * 0.5 + 0.5); c = [255. * f, 110. * f, 30. * f]; }
+                    if m == Mat::Lava { let f = 0.85 + 0.3 * ((x as f32 * 0.3 / SF + y as f32 * 0.2 / SF + wd.tick as f32 * 0.05).sin() * 0.5 + 0.5); c = [255. * f, 110. * f, 30. * f]; }
                     if m == Mat::Glass { c = [c[0] * 0.6 + 20., c[1] * 0.6 + 26., c[2] * 0.6 + 30.]; }
                     px = [c[0].min(255.) as u8, c[1].min(255.) as u8, c[2].min(255.) as u8, alpha as u8];
                 }
@@ -511,12 +518,13 @@ fn render_world(mut gm: ResMut<Game>, bg: Res<Bg>, mut images: ResMut<Assets<Ima
                     let blink = lg.burn[bk] > 0 && (lg.burn[bk] / 6) % 2 == 0; // a lit fuse flickers
                     let base = if blink { [255, 230, 120] } else { base };
                     px = [(base[0] as f32 * k).min(255.) as u8, (base[1] as f32 * k).min(255.) as u8, (base[2] as f32 * k).min(255.) as u8, 255];
-                    if d.is_thrum() && !edge && lx == 1 && ly == 1 { let ch = lg.dev_p[bk] as u8; px = [40 + ch * 25, 220 - ch * 20, 120, 255]; }
+                    if d.is_thrum() && !edge && lx / S == 1 && ly / S == 1 { let ch = lg.dev_p[bk] as u8; px = [40 + ch * 25, 220 - ch * 20, 120, 255]; }
                 }
             } else if lg.wire[bk] != 0 {
-                let mid = |v: usize| v == 1 || v == 2;
-                let draw = (mid(lx) && mid(ly)) || (mid(ly) && ((lx == 3 && x / LB + 1 < bw && con(bk + 1)) || (lx == 0 && x / LB > 0 && con(bk - 1))))
-                    || (mid(lx) && ((ly == 3 && con(bk + bw)) || (ly == 0 && bk >= bw && con(bk - bw))));
+                // the line is the middle half of the block, running out to the edge toward each connected neighbour
+                let mid = |v: usize| v >= LB / 4 && v < LB - LB / 4; let e = LB - 1;
+                let draw = (mid(lx) && mid(ly)) || (mid(ly) && ((lx > LB / 2 && x / LB + 1 < bw && con(bk + 1)) || (lx < LB / 2 && x / LB > 0 && con(bk - 1))))
+                    || (mid(lx) && ((ly > LB / 2 && con(bk + bw)) || (ly < LB / 2 && bk >= bw && con(bk - bw)))); let _ = e;
                 if draw { px = if lg.net_lit(bk) { [255, 205, 95, 255] } else { [150, 82, 45, 255] }; }
             }
         }
@@ -546,7 +554,7 @@ fn render_far(gm: &mut Game, ct: &Transform, win: &Window, images: &mut Assets<I
         let (b, cx) = (k / (W / CH), k % (W / CH));
         let y0 = if b < FAR { (b as i32 - FAR as i32) * CH as i32 } else { (H + (b - FAR) * CH) as i32 };
         let x0 = (cx * CH) as i32;
-        if x0 + CH as i32 <= vx0 - 8 || x0 > vx1 + 8 || y0 + CH as i32 <= vy0 - 8 || y0 > vy1 + 8 { continue; }
+        let m8 = 8 * S as i32; if x0 + CH as i32 <= vx0 - m8 || x0 > vx1 + m8 || y0 + CH as i32 <= vy0 - m8 || y0 > vy1 + m8 { continue; }
         if budget == 0 { break; } budget -= 1;
         let w = &gm.w; let mut data = vec![0u8; CH * CH * 4];
         for r in 0..CH { let wy = w.oy + (y0 + r as i32) as i64; let row = w.cache.get(&wy);
@@ -556,7 +564,7 @@ fn render_far(gm: &mut Game, ct: &Transform, win: &Window, images: &mut Assets<I
                 let px: [f32; 3] = if seen {
                     match p.kind { Kind::Empty | Kind::Gas => [30., 24., 22.], _ => { let k = 0.5 + 0.08 * v; [p.color[0] as f32 * k, p.color[1] as f32 * k, p.color[2] as f32 * k] } }
                 } else {
-                    let n = (hash3(x as u32 / 2, wy as u32 / 2, 5) & 7) as f32;
+                    let n = (hash3(x as u32 / (2 * S) as u32, wy as u32 / (2 * S) as u32, 5) & 7) as f32;
                     match p.kind { Kind::Empty | Kind::Gas => [8. + n, 7. + n, 11. + n], _ if mm == Mat::Lava => [70. + n, 30., 16.], _ if mm == Mat::Water => [16., 24. + n, 44.],
                         _ => { let k = 0.16 + 0.03 * v; [p.color[0] as f32 * k + 12. + n, p.color[1] as f32 * k + 10. + n, p.color[2] as f32 * k + 15. + n] } }
                 };
@@ -580,29 +588,29 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
     let pl = &w.pl;
     // squash on landing (harder landings squash more), stretch on take-off; springs back in ~0.12 s
     if !g.paused {
-        if pl.grounded && !fx.grounded && fx.vy > 12. { fx.squash = -(fx.vy / 60.).clamp(0.12, 0.3); let at = cell_to_world(g.disp.x, g.disp.y + 2.); for k in 0..6 { let s = if k % 2 == 0 { 1. } else { -1. }; fx.parts.push(Part { p: at + Vec2::new(s * 3., 0.), v: Vec2::new(s * (14. + k as f32 * 6.), 6. + k as f32 * 2.), life: 0., max: 0.3, c: [150., 130., 120.], size: 1.6, g: 260. }); } }
-        if !pl.grounded && pl.cling == 0 && pl.vy < -10. && fx.vy > -5. { fx.squash = 0.18; } // any sudden kick upward: a jump off the ground or a wall
+        if pl.grounded && !fx.grounded && fx.vy > 12. * SF { fx.squash = -(fx.vy / (60. * SF)).clamp(0.12, 0.3); let at = cell_to_world(g.disp.x, g.disp.y + 2. * SF); for k in 0..6 { let s = if k % 2 == 0 { 1. } else { -1. }; fx.parts.push(Part { p: at + Vec2::new(s * 3., 0.), v: Vec2::new(s * (14. + k as f32 * 6.), 6. + k as f32 * 2.), life: 0., max: 0.3, c: [150., 130., 120.], size: 1.6, g: 260. }); } }
+        if !pl.grounded && pl.cling == 0 && pl.vy < -10. * SF && fx.vy > -5. * SF { fx.squash = 0.18; } // any sudden kick upward: a jump off the ground or a wall
         fx.grounded = pl.grounded; fx.vy = pl.vy; fx.squash *= (-dt * 18.).exp();
     }
     for (k, m) in w.moles.iter().enumerate() { if !m.alive { continue; }
         let c = if k == 0 && w.pl.flash > 0. { if (w.pl.flash * 30.) as u32 % 2 == 0 { Color::srgb(6., 6., 6.) } else { Color::srgb(1.6, 0.35, 0.3) } } // hit flash: white / red strobe
-            else if m.hp < 40. { Color::srgb(1., 0.6, 0.6) } else { let l = lightf(m.x, m.y - 1).to_srgba(); let v = l.red.max(0.55); Color::srgb(v, v, v) };
+            else if m.hp < 40. { Color::srgb(1., 0.6, 0.6) } else { let l = lightf(m.x, m.y - S).to_srgba(); let v = l.red.max(0.55); Color::srgb(v, v, v) };
         // pose: dig > climb > air > run > idle. Run and climb phases follow distance moved, so feet don't skate.
         let (pose, ph) = if pl.mine.is_some() { (art::Pose::Dig, (now * 14.) as u32) }
-            else if pl.cling != 0 { (art::Pose::Climb, (pl.py / 1.2).abs() as u32) }
-            else if !pl.grounded { (if pl.vy < 2. { art::Pose::Jump } else { art::Pose::Fall }, 0) }
-            else if pl.vx.abs() > 0.5 { (art::Pose::Run, (pl.px / 1.1).abs() as u32) }
+            else if pl.cling != 0 { (art::Pose::Climb, (pl.py / (1.2 * SF)).abs() as u32) }
+            else if !pl.grounded { (if pl.vy < 2. * SF { art::Pose::Jump } else { art::Pose::Fall }, 0) }
+            else if pl.vx.abs() > 0.5 * SF { (art::Pose::Run, (pl.px / (1.1 * SF)).abs() as u32) }
             else { (art::Pose::Idle, (now * 1.6) as u32) };
         let img = sp.mole[art::mole_frame(pose, ph)].clone();
         let sq = fx.squash; let scale = Vec2::new(1. - sq * 0.8, 1. + sq);
         if pose == art::Pose::Climb {
             // nose up, belly to the wall: 20×26, hugging the wall face on the cling side
-            let size = Vec2::new(20., 26.) * scale; let cx = g.disp.x - pl.cling as f32 * 1.4;
-            want.push((0, k, cell_to_world(cx, g.disp.y + 1. - 2.25), 5., img, size, pl.cling < 0, c));
+            let size = Vec2::new(20., 26.) * scale; let cx = g.disp.x - pl.cling as f32 * 1.4 * SF;
+            want.push((0, k, cell_to_world(cx, g.disp.y + SF - 2.25 * SF), 5., img, size, pl.cling < 0, c));
         } else {
             // 26×20 with the feet on the floor line; squash keeps the feet planted
             let size = Vec2::new(26., 20.) * scale; let up = (size.y - 20.) / 2. / CPX;
-            want.push((0, k, cell_to_world(g.disp.x, g.disp.y + 1. - 1.5 - up), 5., img, size, m.facing < 0, c));
+            want.push((0, k, cell_to_world(g.disp.x, g.disp.y + SF - 1.5 * SF - up), 5., img, size, m.facing < 0, c));
         } }
     // dig chips: while a bite is in progress, flecks of the target's material spray toward the mole
     if let (Some((x, y)), false) = (g.aim.filter(|_| pl.mine.is_some()).map(|(x, y, _)| (x, y)), g.paused) {
@@ -620,45 +628,45 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
     if !g.paused {
         // run dust: little puffs of the floor's colour kicked back from the feet while running
         let floor = w.g.m((pl.py as usize + 1).min(H - 1) * W + (pl.px as usize).min(W - 1));
-        if pl.grounded && pl.vx.abs() > 6. && floor != Mat::Empty { fx.dust_t += dt; } else { fx.dust_t = 0.; }
+        if pl.grounded && pl.vx.abs() > 6. * SF && floor != Mat::Empty { fx.dust_t += dt; } else { fx.dust_t = 0.; }
         while fx.dust_t > 0.11 { fx.dust_t -= 0.11; let c = PROPS[floor as usize].color; let h = hash3(g.frame as u32, 7, 11); let r = ((h & 255) as f32 / 255.) - 0.5;
-            fx.parts.push(Part { p: cell_to_world(g.disp.x, g.disp.y + 1.) + Vec2::new(-pl.vx.signum() * 4., 1.), v: Vec2::new(-pl.vx.signum() * (10. + r * 8.), 12. + r * 6.), life: 0., max: 0.28, c: [c[0] as f32 * 0.8 + 30., c[1] as f32 * 0.8 + 30., c[2] as f32 * 0.8 + 30.], size: 1.4, g: 90. }); }
+            fx.parts.push(Part { p: cell_to_world(g.disp.x, g.disp.y + SF) + Vec2::new(-pl.vx.signum() * 4., 1.), v: Vec2::new(-pl.vx.signum() * (10. + r * 8.), 12. + r * 6.), life: 0., max: 0.28, c: [c[0] as f32 * 0.8 + 30., c[1] as f32 * 0.8 + 30., c[2] as f32 * 0.8 + 30.], size: 1.4, g: 90. }); }
         // splash: entering water (or lava) throws a crown of droplets
-        let body = w.g.m((pl.py as usize).min(H - 1) * W + (pl.px as usize).min(W - 1)); let wet = matches!(body, Mat::Water | Mat::Lava);
-        if wet && !fx.wet && pl.vy.abs() > 4. { let c = if body == Mat::Lava { [255., 140., 40.] } else { [120., 170., 230.] };
+        let body = w.g.m(((pl.py - SF) as usize).min(H - 1) * W + (pl.px as usize).min(W - 1)); let wet = matches!(body, Mat::Water | Mat::Lava);
+        if wet && !fx.wet && pl.vy.abs() > 4. * SF { let c = if body == Mat::Lava { [255., 140., 40.] } else { [120., 170., 230.] };
             for k in 0..12u32 { let s = if k % 2 == 0 { 1. } else { -1. }; let h = hash3(g.frame as u32, k, 13); let r = ((h & 255) as f32 / 255.) - 0.5;
-                fx.parts.push(Part { p: cell_to_world(g.disp.x, g.disp.y - 0.5) + Vec2::new(s * (2. + k as f32 * 0.6), 0.), v: Vec2::new(s * (12. + k as f32 * 4. + r * 10.), 50. + r * 30. + (pl.vy.abs() * 1.5).min(40.)), life: 0., max: 0.5, c, size: 1.5, g: 300. }); } }
+                fx.parts.push(Part { p: cell_to_world(g.disp.x, g.disp.y - 0.5 * SF) + Vec2::new(s * (2. + k as f32 * 0.6), 0.), v: Vec2::new(s * (12. + k as f32 * 4. + r * 10.), 50. + r * 30. + (pl.vy.abs() / SF * 1.5).min(40.)), life: 0., max: 0.5, c, size: 1.5, g: 300. }); } }
         fx.wet = wet;
         // embers: torches shed the odd spark that drifts up and winks out
         fx.ember_t += dt * w.torches.len().min(12) as f32;
         while fx.ember_t > 0.5 { fx.ember_t -= 0.5; let h = hash3(g.frame as u32, fx.parts.len() as u32, 17); if w.torches.is_empty() { break; }
             let (x, y) = w.torches[h as usize % w.torches.len()]; let r = (((h >> 8) & 255) as f32 / 255.) - 0.5;
-            fx.parts.push(Part { p: cell_to_world(x as f32 + 0.5, y as f32 - 0.3), v: Vec2::new(r * 14., 10. + r.abs() * 10.), life: 0., max: 0.9, c: [255., 180., 90.], size: 0.9, g: -14. }); }
+            fx.parts.push(Part { p: cell_to_world(x as f32 + 0.5, y as f32 - 0.3 * SF), v: Vec2::new(r * 14., 10. + r.abs() * 10.), life: 0., max: 0.9, c: [255., 180., 90.], size: 0.9, g: -14. }); }
     }
     for p in fx.parts.iter_mut() { p.life += dt; p.v.y -= p.g * dt; p.p += p.v * dt; }
     fx.parts.retain(|p| p.life < p.max); while fx.parts.len() > 120 { fx.parts.remove(0); }
     for (k, p) in fx.parts.iter().enumerate() { let a = 1. - p.life / p.max; want.push((8, k, p.p, 5.5, sp.px.clone(), Vec2::splat(p.size), false, Color::srgba(p.c[0] / 255., p.c[1] / 255., p.c[2] / 255., a))); }
-    for (k, d) in w.drops.iter().enumerate() { if w.g.flags[d.y * W + d.x] & F_SEEN == 0 { continue; } want.push((1, k, cell_to_world(d.x as f32 + 0.5, d.y as f32 + 0.2), 4., sp.icons[d.item as usize].clone(), Vec2::splat(8.), false, lightf(d.x, d.y))); }
-    for (k, c) in w.chests.iter().enumerate() { if w.g.flags[c.y * W + c.x] & F_SEEN == 0 || w.g.is_solidish(c.y * W + c.x) && !c.opened { continue; } want.push((2, k, cell_to_world(c.x as f32 + 0.5, c.y as f32 - 0.6), 3., sp.chest[c.opened as usize].clone(), Vec2::new(16., 13.), false, lightf(c.x, c.y))); }
-    for (k, b) in w.buildings.iter().enumerate() { want.push((3, k, cell_to_world(b.x as f32 + Station::W as f32 / 2., b.y as f32 + 1. - Station::H as f32 / 2.), 2., sp.station[b.kind as usize][b.built as usize].clone(), Vec2::new(Station::W as f32 * CPX, Station::H as f32 * CPX), false, lightf(b.x + 5, b.y - 2))); }
+    for (k, d) in w.drops.iter().enumerate() { if w.g.flags[d.y * W + d.x] & F_SEEN == 0 { continue; } want.push((1, k, cell_to_world(d.x as f32 + 0.5, d.y as f32 + 0.2 * SF), 4., sp.icons[d.item as usize].clone(), Vec2::splat(8.), false, lightf(d.x, d.y))); }
+    for (k, c) in w.chests.iter().enumerate() { if w.g.flags[c.y * W + c.x] & F_SEEN == 0 || w.g.is_solidish(c.y * W + c.x) && !c.opened { continue; } want.push((2, k, cell_to_world(c.x as f32 + 0.5 * SF, c.y as f32 + 1. - 1.1 * SF), 3., sp.chest[c.opened as usize].clone(), Vec2::new(16., 13.), false, lightf(c.x, c.y))); }
+    for (k, b) in w.buildings.iter().enumerate() { want.push((3, k, cell_to_world(b.x as f32 + Station::W as f32 / 2., b.y as f32 + 1. - Station::H as f32 / 2.), 2., sp.station[b.kind as usize][b.built as usize].clone(), Vec2::new(Station::W as f32 * CPX, Station::H as f32 * CPX), false, lightf(b.x + 5 * S, b.y - 2 * S))); }
     // torches: flickering flame frames and a warm halo that breathes; lit lamps get a steady pale halo
     for (k, &(x, y)) in w.torches.iter().enumerate() {
         let h = hash3(x as u32, y as u32, 77) as f32 / u32::MAX as f32; let t = now * 9. + h * 40.;
         let fl = 0.85 + 0.1 * (t * 1.3).sin() + 0.05 * (t * 3.7).sin();
         let f = ((now * 10. + h * 7.) as usize + k) % 3;
-        want.push((4, k, cell_to_world(x as f32 + 0.5, y as f32 + 0.25), 4.5, sp.torch_f[f].clone(), Vec2::new(8., 12.), false, Color::WHITE));
-        want.push((9, k, cell_to_world(x as f32 + 0.5, y as f32 - 0.3), 4.4, sp.glow.clone(), Vec2::splat(64. * fl), false, Color::srgba(1., 0.62, 0.28, 0.20 * fl)));
+        want.push((4, k, cell_to_world(x as f32 + 0.5, y as f32 + 1. - 0.75 * SF), 4.5, sp.torch_f[f].clone(), Vec2::new(8., 12.), false, Color::WHITE));
+        want.push((9, k, cell_to_world(x as f32 + 0.5, y as f32 + 1. - 1.3 * SF), 4.4, sp.glow.clone(), Vec2::splat(64. * fl), false, Color::srgba(1., 0.62, 0.28, 0.20 * fl)));
     }
     for (k, &b) in w.logic.dev_list.iter().enumerate() {
         if w.logic.dev[b] != Dev::Lamp as u8 || w.logic.dev_s[b] == 0 { continue; } let (x, y) = w.logic.centre(b);
         want.push((10, k, cell_to_world(x as f32 + 0.5, y as f32 + 0.5), 4.4, sp.glow.clone(), Vec2::splat(72.), false, Color::srgba(1., 0.95, 0.75, 0.16)));
     }
-    for (k, f) in w.farms.iter().enumerate() { let st = if f.growth < 0.3 { 0 } else if f.growth < 0.85 { 1 } else { 2 }; want.push((5, k, cell_to_world(f.x as f32 + 0.5, f.y as f32 - 0.9), 3.5, sp.shroom[st].clone(), Vec2::splat(10.), false, lightf(f.x, f.y))); }
+    for (k, f) in w.farms.iter().enumerate() { let st = if f.growth < 0.3 { 0 } else if f.growth < 0.85 { 1 } else { 2 }; want.push((5, k, cell_to_world(f.x as f32 + 0.5 * SF, f.y as f32 + 1. - 1.9 * SF), 3.5, sp.shroom[st].clone(), Vec2::splat(10.), false, lightf(f.x, f.y))); }
     // aim: a faint outline on the cell under the cursor; mining: the targeted cell brightens and cracks as it gives way
     // aim: with a dig tool, a soft ring shows the brush; otherwise a faint cell outline. Mining: the ring tightens as the bite gives way.
     let brush = brush_of(g.slots[g.hot]);
     if let Some((x, y, reach)) = g.aim {
-        if let Some(b) = brush { let r = brush_r(&g, b); let d = 2. * r.max(0.5) * CPX + CPX * 0.5;
+        if let Some(b) = brush { let r = brush_r(&g, b); let d = 2. * r.max(0.5 * SF) * CPX + CPX * 0.5 * SF;
             let f = if matches!(b, sw::Brush::Dig(_)) { w.pl.mine.map_or(0., |(_, a, b)| a as f32 / b.max(1) as f32) } else { 0. };
             // dig: warm white ring that tightens as the bite gives way; place: ring in the block's colour
             let c = if !reach { Color::srgba(1., 0.45, 0.35, 0.35) } else if let sw::Brush::Place(it) = b { let k = it.color(); Color::srgba(k[0] as f32 / 255. * 1.2, k[1] as f32 / 255. * 1.2, k[2] as f32 / 255. * 1.2, 0.8) } else { Color::srgba(1., 0.97, 0.9, 0.6 + 0.4 * f) };
@@ -667,7 +675,7 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
     }
     // placement pop: the placed block (or brush) flashes white and settles (bites burst into chips, above)
     for (k, &(kind, x, y, r, t0)) in g.pops.iter().enumerate() { if kind != 1 { continue; } let a = ((now - t0) / 0.2).clamp(0., 1.);
-        want.push((11, k, cell_to_world(x, y), 6.5, sp.px.clone(), Vec2::splat(CPX * (2. * r + 0.7 - 0.7 * a)), false, Color::srgba(1., 1., 0.95, 0.8 * (1. - a)))); }
+        want.push((11, k, cell_to_world(x, y), 6.5, sp.px.clone(), Vec2::splat(CPX * (2. * r + (0.7 - 0.7 * a) * SF)), false, Color::srgba(1., 1., 0.95, 0.8 * (1. - a)))); }
     let mut used = std::collections::HashSet::new();
     for (e, p, mut t, mut s, mut vis) in &mut q {
         if let Some(wn) = want.iter().find(|wn| wn.0 == p.0 && wn.1 == p.1) {

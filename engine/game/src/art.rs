@@ -25,6 +25,8 @@ pub fn layer(kind: Layer, oy: i64, biome: &[Biome], w: usize, h: usize, pad: usi
     for ty in 0..th { for tx in 0..tw {
         let cx = (tx as i64 * res as i64 - pad as i64).clamp(0, w as i64 - 1) as usize;
         let cxf = tx as f32 * res as f32 - pad as f32; let cyf = (ty as i64 * res as i64 + oy) as f32;
+        // noise runs in legacy 0.25 m tiles so the rock patterns keep their size in metres at any CPM
+        let (cxf, cyf) = (cxf / molehill_sim::mat::SF, cyf / molehill_sim::mat::SF);
         let depth = cyf * 0.25; let tint = biome_tint(biome[cx]);
         let (mut c, mut a): ([f32; 3], f32) = ([0.; 3], 0.);
         match kind {
@@ -252,7 +254,9 @@ pub fn mat_tex(m: molehill_sim::mat::Mat, x: u32, y: u32, t: u64) -> f32 {
     use molehill_sim::grid::hash3;
     use molehill_sim::mat::Mat as M;
     let h = |a: u32, b: u32, s: u32| (hash3(a, b, s) & 255) as f32 / 255.;
-    let v = h(x, y, 31);
+    let v = h(x, y, 31); // per-cell speckle: finer cells, finer grain
+    // patterns with a size (bands, bricks, rivets, columns) are laid out in legacy 0.25 m tiles
+    let k = molehill_sim::mat::S as u32; let (x, y) = (x / k, y / k);
     match m {
         M::Granite => if v > 0.9 { 1.22 } else if v < 0.1 { 0.8 } else { 1. },
         M::Rock => { let band = h(0, y / 3 + x / 23, 41); 0.92 + band * 0.14 + if v > 0.93 { 0.12 } else { 0. } }
