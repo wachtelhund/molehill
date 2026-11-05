@@ -1,0 +1,42 @@
+// The mole rides a pressure tube: right mouse on a pressurised hopper with an empty paw seals it in a capsule.
+// It is blown along the pipe (out of sight, unhurt inside the rock it runs through) and climbs out of the far
+// hopper up on the ledge.
+map
+##############################
+#............................#
+#............................#
+#............................#
+#............................#
+#..............%.............#
+#..............%.............#
+#..............%##############
+#...........###%##############
+#...........###%##############
+#...........###%##############
+#...........###%##############
+#...........###%##############
+#...........###%##############
+#...........###%##############
+#...........###%##############
+#...........###%##############
+#...@.......###%##############
+#######%%%%%%%%%##############
+##############################
+end
+give TubeHopper 2
+give CopperWire 4
+place 2 5 0 TubeHopper           // on the pipe in the floor
+place 2 14 -12 TubeHopper         // up on the ledge, beside the pipe's riser
+wire 3 1 -2 5 -2
+device 3 1 -2 Lever
+use 5 1 -2
+hold 10-30 right                  // walk over to the hopper
+wield 31 none
+use 40 5 -1                       // right mouse on it
+expect 41 intube == 1
+expect 60 intube == 1             // on its way
+expect 120 intube == 0            // out at the other end
+expect 120 px > 14
+expect 120 py < 8                 // up on the ledge (the floor is at 17)
+expect 160 grounded == 1
+expect 160 hp > 99                // unhurt

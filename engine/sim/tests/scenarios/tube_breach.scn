@@ -1,0 +1,40 @@
+// A pressure tube must hold: cut the riser while a capsule is on its way and the capsule stops at the cut and
+// spills its load there, instead of reaching the far hopper. The line beyond the breach is dead.
+map
+##############################
+#............................#
+#............................#
+#............................#
+#............................#
+#..............%.............#
+#..............%.............#
+#..............%##############
+#...........###%##############
+#...........###%##############
+#...........###%##############
+#...........###%##############
+#...........###%##############
+#...........###%##############
+#...........###%##############
+#...........###%##############
+#...........###%##############
+#...@.......###%##############
+#######%%%%%%%%%##############
+##############################
+end
+give TubeHopper 2
+give CopperWire 4
+place 2 5 0 TubeHopper           // on the pipe in the floor
+place 2 14 -12 TubeHopper         // up on the ledge, beside the pipe's riser
+wire 3 1 -2 5 -2
+device 3 1 -2 Lever
+use 5 1 -2
+give Stone 3
+drop 10 Stone 5 -1
+expect 11 capsules == 1
+pour 13 11 -6 Empty               // the riser is cut 1.5 m up (an open pocket there)
+expect 60 capsules == 0           // stopped at the breach...
+expect 60 items:Stone == 1        // ...and spilled
+expect 120 ix:Stone < 13          // at the cut, not on the far ledge
+expect 120 ix:Stone > 9
+expect 120 iy:Stone > -8          // (tiles from the mole: the cut is 6 up)

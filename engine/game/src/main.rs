@@ -792,7 +792,7 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
         if !pl.grounded && pl.cling == 0 && pl.vy < -10. * SF && fx.vy > -5. * SF { fx.squash = 0.18; } // any sudden kick upward: a jump off the ground or a wall
         fx.grounded = pl.grounded; fx.vy = pl.vy; fx.squash *= (-dt * 18.).exp();
     }
-    for (k, m) in w.moles.iter().enumerate() { if !m.alive { continue; }
+    for (k, m) in w.moles.iter().enumerate() { if !m.alive || k == 0 && w.tr.in_tube.is_some() { continue; }
         let c = if k == 0 && w.pl.flash > 0. { if (w.pl.flash * 30.) as u32 % 2 == 0 { Color::srgb(6., 6., 6.) } else { Color::srgb(1.6, 0.35, 0.3) } } // hit flash: white / red strobe
             else if m.hp < 40. { Color::srgb(1., 0.6, 0.6) } else { let l = lightf(m.x, m.y - S).to_srgba(); let v = l.red.max(0.55); Color::srgb(v, v, v) };
         // pose: dig > climb > air > run > idle. Run and climb phases follow distance moved, so feet don't skate.
@@ -950,6 +950,22 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
         want.push((41, k, cell_to_world(xc, y - 3. * SF), 4.3, sp.px.clone(), Vec2::new(cw * CPX, 1.5), false, cage(0.5, 0.5, 0.55)));
         let cwy = head + SF + (l.bottom as f32 - 1. - y).max(0.); let cwx = x1 - 1.;
         want.push((42, k, cell_to_world(cwx, cwy + SF), 3.7, sp.px.clone(), Vec2::new(1.5 * SF * CPX, 2. * SF * CPX), false, lit(0.4, 0.38, 0.36)));
+    }
+    // pressure tubes: each hopper a brass mouth on its pipe (brighter while its blower runs), and every
+    // capsule a brass pill sliding along the pipe between its last two positions
+    for (k, h) in w.tr.hoppers.iter().enumerate() {
+        if w.g.flags[h.y.min(H - 1) * W + h.x.min(W - 1)] & F_SEEN == 0 { continue; }
+        let (cx, cy) = h.centre(); let lt = lightf(cx as usize, cy as usize).to_srgba(); let hot = if w.logic.net_lit(w.logic.block_of(cx as usize, cy as usize)) { 1.25 } else { 1. };
+        let lit = |r: f32, gg: f32, b: f32| Color::srgb(r * lt.red * hot, gg * lt.green * hot, b * lt.blue * hot);
+        let n = molehill_sim::tubes::HOPPER as f32;
+        want.push((43, k, cell_to_world(cx, cy + n * 0.25), 3.9, sp.px.clone(), Vec2::new(n * CPX, n * 0.5 * CPX), false, lit(0.62, 0.45, 0.22)));
+        want.push((44, k, cell_to_world(cx, cy - n * 0.15), 3.9, sp.px.clone(), Vec2::new(n * 0.8 * CPX, n * 0.3 * CPX), false, lit(0.7, 0.52, 0.26)));
+        want.push((45, k, cell_to_world(cx, cy - n * 0.32), 3.95, sp.px.clone(), Vec2::new(n * 0.6 * CPX, 1.5), false, lit(0.15, 0.13, 0.12)));
+    }
+    for (k, c) in w.tr.capsules.iter().enumerate() {
+        let at = c.pat + (c.at - c.pat) * a; let i0 = c.path[(at as usize).min(c.path.len() - 1)] as usize; let i1 = c.path[(at as usize + 1).min(c.path.len() - 1)] as usize; let f = at.fract();
+        let (x, y) = ((i0 % W) as f32 * (1. - f) + (i1 % W) as f32 * f + 0.5, (i0 / W) as f32 * (1. - f) + (i1 / W) as f32 * f + 0.5);
+        want.push((46, k, cell_to_world(x, y), 4.6, sp.px.clone(), Vec2::splat(1.6 * SF * CPX), false, if c.rider { Color::srgb(1.0, 0.8, 0.45) } else { Color::srgb(0.85, 0.62, 0.3) }));
     }
     for (k, c) in w.chests.iter().enumerate() { if w.g.flags[c.y * W + c.x] & F_SEEN == 0 || w.g.is_solidish(c.y * W + c.x) && !c.opened { continue; } want.push((2, k, cell_to_world(c.x as f32 + 0.5 * SF, c.y as f32 + 1. - 1.1 * SF), 3., sp.chest[c.opened as usize].clone(), Vec2::new(16., 13.), false, lightf(c.x, c.y))); }
     for (k, b) in w.buildings.iter().enumerate() { want.push((3, k, cell_to_world(b.x as f32 + Station::W as f32 / 2., b.y as f32 + 1. - Station::H as f32 / 2.), 2., sp.station[b.kind.art() as usize][b.built as usize].clone(), Vec2::new(Station::W as f32 * CPX, Station::H as f32 * CPX), false, lightf(b.x + 5 * S, b.y - 2 * S))); }

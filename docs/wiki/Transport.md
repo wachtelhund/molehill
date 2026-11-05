@@ -1,6 +1,6 @@
 # Transport
 
-The deeper the holt goes, the further its Delvers haul, so getting about is a ladder of machines you build. They run on weight, slope, friction and current, like everything else (see [Lore](Lore.md): no magic, nothing modern). The code is `engine/sim/src/transport.rs` (carts) and `lifts.rs` (ladders and lifts).
+The deeper the holt goes, the further its Delvers haul, so getting about is a ladder of machines you build. They run on weight, slope, friction and current, like everything else (see [Lore](Lore.md): no magic, nothing modern). The code is `engine/sim/src/transport.rs` (carts), `lifts.rs` (ladders and lifts) and `tubes.rs` (pressure tubes).
 
 | tier | machine | state |
 |---|---|---|
@@ -8,7 +8,7 @@ The deeper the holt goes, the further its Delvers haul, so getting about is a la
 | 4 | **Powered rails** (copperline along the track) | **built** |
 | 1 | **Rope ladders** | **built** |
 | 3–4 | **Lifts** (counterweight, or wound by current) | **built** |
-| 5 | Pressure tubes | to come |
+| 3+ | **Pressure tubes** (the top of the ladder for now) | **built** |
 
 The Ancients' tube stations and waygates in the ruins stay broken: they are endgame finds, not working lines (see [World and Generation](World-and-Generation.md#ruins-of-the-ancients)).
 
@@ -76,6 +76,18 @@ A **lift** is a cage on a rope over a head frame, balanced by a counterweight. L
 * **The shaft must be clear.** Anything in the way (a cave-in, a block) stops the cage there. If the ceiling the head hangs from goes, the head comes down: the lift and its ballast fall as loose items. `E` on the head takes the lift down, ballast and all.
 * Ladders, lifts and their ballast are saved.
 
+## Pressure tubes
+
+A sealed pipe network that blows capsules along it with air.
+* **Pipe.** Pressure tube is a built block: iron-banded glass pipe (`Mat::Tube`, flag `TUBE`). Lay it with the block brush (`X` snaps straight runs). Tube cells that touch edge to edge are one line, and like any built block it needs support.
+* **Hoppers.** A tube hopper is a 1 m mouth with a blower in it. Left mouse sets it on the floor or pipe under the cursor, and it must touch a tube within a tile of its mouth. Its blower runs while copperline in its block carries current.
+* **Sending.** Loose items dropped or thrown into the mouth of a hopper whose blower runs are sealed in a capsule and blown along the pipe to that hopper's destination: the nearest other hopper on the line, and right mouse cycles through the others. They come out of the destination's mouth. A hopper without current only receives, so what arrives stays there.
+* **Riding.** Right mouse with an empty paw on a hopper whose blower runs seals the mole in a capsule. It's carried along the pipe out of sight, unhurt by the rock the pipe runs through, and climbs out of the far hopper (`tube_rides_mole`).
+* **Speed.** Capsules run at 12 m/s, up a riser as easily as along the flat (`tube_sends_items`).
+* **Pressure.** A line holds pressure from any blowing hopper still joined to it. With none, capsules wait where they are. If the pipe ahead of a capsule is cut or caves in (a cell that's no longer standing tube), the capsule stops at the breach and spills there: its items fall out at the nearest open cell, and a riding mole crawls out (`tube_breach`).
+* Hoppers are saved. A capsule in the pipe at a save comes out where it is: its items as loose items at the nearest open cell.
+* The Ancients' tube stations in the ruins are not part of this. They stay broken.
+
 ## Making them
 
 | station | makes | from | tier |
@@ -84,5 +96,7 @@ A **lift** is a cage on a rope over a head frame, balanced by a counterweight. L
 | Forge | 8 rail | 1 copper ingot + 1 wood | 2 |
 | Forge | mine cart | 2 copper ingots + 4 wood | 2 |
 | Workshop | lift | 2 iron ingots + 4 wood + 1 copper ingot | 3 |
+| Forge | 8 pressure tube | 1 iron ingot + 2 glass | 3+ |
+| Workshop | tube hopper | 2 iron ingots + 2 copper ingots + 1 glass | 3+ |
 
-Rails and carts need no iron, so they come before the drill. The lift needs iron and the workshop, so it comes after the drill (test `transport_is_reachable_in_survival`). Creative has 999 of each (`creative_has_transport_freely`).
+Rails and carts need no iron, so they come before the drill. The lift and the tubes need iron and the workshop, so they come after the drill (test `transport_is_reachable_in_survival`). Creative has 999 of each (`creative_has_transport_freely`).

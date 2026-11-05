@@ -24,7 +24,7 @@ Molehill is a falling-sand platformer and colony sim about moles digging through
 | [Player and Controls](Player-and-Controls.md) | Keys, the movement model, `TUNE`, vitals and death |
 | [Tools and Items](Tools-and-Items.md) | Dig tools, the round brush, blocks, the pack, stations, recipes and quests |
 | [Devices and Copperline](Devices-and-Copperline.md) | Nets, sources, knots, sinks, TNT and fuses, heatstones, wheels, thrummers |
-| [Transport](Transport.md) | Rails, mine carts, powered rails, rope ladders and lifts (built); pressure tubes to come |
+| [Transport](Transport.md) | Rails, mine carts, powered rails, rope ladders, lifts and pressure tubes |
 | [Testing](Testing.md) | The headless test suite and the `.scn` scenario harness |
 | [Progression](Progression.md) | *Mostly design* (Survival and Creative modes are in): depth as progression, the survival loop, tiers, crafting, furnishing, transportation, grottos, modes, the Ancients |
 | [Architecture](Architecture.md) | Crates, the sim/engine split, the frame loop, native and web builds |

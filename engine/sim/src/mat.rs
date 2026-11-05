@@ -14,10 +14,10 @@ pub enum Mat {
     RootTree, TreeRoot, Moss, Mycelium,
     // decorative blocks (furnishing): built with the block brush, structural by their own numbers
     Planks, Polished, Tiles, Carved,
-    // transport (transport.rs): track for mine carts
-    Rail,
+    // transport (transport.rs): track for mine carts, pipe for pressure tubes
+    Rail, Tube,
 }
-pub const NMAT: usize = 37;
+pub const NMAT: usize = 38;
 
 /// Everything the simulation knows about a material, in one row. Rules read these fields instead of
 /// naming materials, so a new material (or a retuned one) is a single table edit.
@@ -69,6 +69,8 @@ pub const NOTABLE: u16 = 16;
 pub const OPEN: u16 = 32;
 /// Track: a mine cart's wheels run along its top (see transport.rs).
 pub const TRACK: u16 = 64;
+/// Pressure tube: capsules are blown along it (see tubes.rs).
+pub const TUBE: u16 = 128;
 const BASE: Props = Props { name: "", desc: "", kind: Kind::Solid, density: 0., tensile: 0., compressive: 0., dig: 0, tier: 0, blast: 0,
     emit: [0, 0, 0], opacity: 0, color: [0, 0, 0], crumbles_to: Mat::Empty, repose: 0., heat: 0, ignite: 0, cools_to: Mat::Empty, life: 0,
     spread: 0, flow_in_10: 10, bounce: 0.35, friction: 0.5, flags: 0 };
@@ -114,6 +116,7 @@ pub static PROPS: [Props; NMAT] = [
     Props { name: "Tiles", desc: "Fired clay tiles. Bright, but brittle under a roof.", kind: Solid, density: 2000., tensile: 300., compressive: 9000., dig: 5, blast: 4, opacity: 160, color: [190, 108, 74], crumbles_to: X::Gravel, flags: BUILT, ..BASE },
     Props { name: "Carved pillar", desc: "Fluted stone column. Very strong in compression.", kind: Solid, density: 2600., tensile: 800., compressive: 22000., dig: 9, tier: 1, blast: 7, opacity: 170, color: [164, 158, 148], crumbles_to: X::Gravel, flags: BUILT, ..BASE },
     Props { name: "Rail", desc: "Copper straps on wooden sleepers. Mine carts run along it.", kind: Solid, density: 1800., tensile: 3000., compressive: 9000., dig: 4, blast: 4, opacity: 150, color: [150, 120, 84], crumbles_to: X::Rail, repose: 0.3, flags: BUILT | TRACK, bounce: 0.3, friction: 0.35, ..BASE },
+    Props { name: "Pressure tube", desc: "Iron-banded glass pipe. Capsules blow along it while it holds pressure.", kind: Solid, density: 2600., tensile: 1500., compressive: 6000., dig: 5, blast: 4, opacity: 60, color: [150, 190, 186], crumbles_to: X::Tube, repose: 0.3, flags: BUILT | TUBE, bounce: 0.4, friction: 0.3, ..BASE },
 ];
 impl Mat {
     #[inline] pub fn from_u8(v: u8) -> Mat { if (v as usize) < NMAT { unsafe { std::mem::transmute(v) } } else { Mat::Empty } }

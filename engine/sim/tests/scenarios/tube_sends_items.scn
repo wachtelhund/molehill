@@ -1,0 +1,49 @@
+// A pressure tube line: a hopper on the floor feeds a pipe that runs 2 m along the floor, up a 3 m riser and onto
+// a ledge, to a second hopper. With no current at either blower the line has no pressure and a stone
+// dropped in the mouth just sits there. Throw the lever (copperline into the first hopper's blower) and
+// the stone is sealed in a capsule and blown along: up the riser as easily as along the floor, out of
+// the far hopper's mouth onto the ledge, under a second. (The far hopper has no current: it only
+// receives, so the stone stays there.)
+map
+##############################
+#............................#
+#............................#
+#............................#
+#............................#
+#..............%.............#
+#..............%.............#
+#..............%##############
+#...........###%##############
+#...........###%##############
+#...........###%##############
+#...........###%##############
+#...........###%##############
+#...........###%##############
+#...........###%##############
+#...........###%##############
+#...........###%##############
+#...@.......###%##############
+#######%%%%%%%%%##############
+##############################
+end
+give TubeHopper 2
+give CopperWire 4
+place 2 5 0 TubeHopper           // on the pipe in the floor
+place 2 14 -12 TubeHopper         // up on the ledge, beside the pipe's riser
+expect 3 hoppers == 2
+wire 3 1 -2 5 -2                  // copperline from the lever into the floor hopper's blower
+device 3 1 -2 Lever
+drop 10 Stone 5 -1                // into the mouth: no pressure yet
+expect 40 pressure == 0
+expect 40 capsules == 0
+expect 40 items:Stone == 1        // it sits in the mouth
+use 50 1 -2                       // lever on: the blower runs
+expect 52 pressure == 1
+expect 53 items:Stone == 0        // taken in...
+expect 53 capsules == 1           // ...and in the pipe
+expect 100 capsules == 0          // there in well under a second (12 m/s)
+expect 100 items:Stone == 1       // out of the far hopper
+expect 140 iy:Stone < -9          // on the ledge, up where the far hopper sits (tiles from the mole)
+expect 140 ix:Stone > 11
+saveload 141                      // hoppers are saved
+expect 142 hoppers == 2

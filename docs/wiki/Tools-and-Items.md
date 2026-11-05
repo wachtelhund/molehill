@@ -70,6 +70,8 @@ One table (`Item::uses` in `craft.rs`) says whether an item is **set down**, **t
 | Rail | left mouse (brush; `X` snaps a straight run) | no | no (dig it) |
 | Mine cart | left mouse, on the track (right mouse: get in) | no | its cargo, then the empty cart |
 | Rope ladder | left mouse in a drop: it hangs from the rock above or a ledge's lip | no | yes |
+| Pressure tube | left mouse (brush; `X` snaps a straight run) | no | no (dig it) |
+| Tube hopper | left mouse on a tube (drop items in to send; right mouse: ride, or pick where it sends) | no | yes |
 | Lift | left mouse in a shaft: the head hangs under its ceiling (right mouse on head or cage: stone ballast on or off) | no | yes, with its ballast |
 | Lamp, vent; levers, knots, thrummers and other devices | left mouse, or right mouse on an empty spot | no | yes |
 | Spore | left mouse (plant on soil) | yes | no |
@@ -164,6 +166,7 @@ Chains are short: nothing is more than two steps from the ground (ore → ingot 
 | | 4 bronze | 3 copper + 1 tin ingot |
 | | 8 copperline | 1 copper ingot |
 | | 4 iron beams | 1 iron ingot |
+| | 8 pressure tube | 1 iron ingot + 2 glass |
 | | 8 rail | 1 copper ingot + 1 wood |
 | | mine cart | 2 copper ingots + 4 wood |
 | | lamp | 1 glass + 2 fungus |
@@ -172,6 +175,7 @@ Chains are short: nothing is more than two steps from the ground (ore → ingot 
 | | knot | 1 copper ingot + 1 quartz |
 | | thrummer | 2 crystal + 2 copper ingots + 1 glass |
 | | lift | 2 iron ingots + 4 wood + 1 copper ingot |
+| | tube hopper | 2 iron ingots + 2 copper ingots + 1 glass |
 
 The chain is the design: wood and stone give a bench and a pickaxe; heat (fire at first, lava deeper) lights a forge for copper and iron; copperline and a lever power a workshop for the drill; and iron, copper and crystal from the deep make the bore.
 

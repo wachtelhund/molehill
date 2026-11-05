@@ -29,10 +29,10 @@ use std::sync::atomic::Ordering::Relaxed;
 pub const D_DIG: u8 = 1; pub const D_WOOD: u8 = 2; pub const D_BRICK: u8 = 3; pub const D_IRON: u8 = 4;
 /// Decorative blocks: planks, polished stone, tiles, carved pillar.
 pub const D_PLANK: u8 = 5; pub const D_POLISH: u8 = 6; pub const D_TILE: u8 = 7; pub const D_CARVED: u8 = 8;
-/// Transport blocks: rail.
-pub const D_RAIL: u8 = 9;
+/// Transport blocks: rail, pressure tube.
+pub const D_RAIL: u8 = 9; pub const D_TUBE: u8 = 10;
 /// The build code for a block item (structural or decorative).
-pub fn block_code(it: Item) -> Option<u8> { Some(match it { Item::WoodPillar => D_WOOD, Item::Brick => D_BRICK, Item::IronBeam => D_IRON, Item::Planks => D_PLANK, Item::PolishedStone => D_POLISH, Item::Tiles => D_TILE, Item::CarvedPillar => D_CARVED, Item::Rail => D_RAIL, _ => return None }) }
+pub fn block_code(it: Item) -> Option<u8> { Some(match it { Item::WoodPillar => D_WOOD, Item::Brick => D_BRICK, Item::IronBeam => D_IRON, Item::Planks => D_PLANK, Item::PolishedStone => D_POLISH, Item::Tiles => D_TILE, Item::CarvedPillar => D_CARVED, Item::Rail => D_RAIL, Item::Tube => D_TUBE, _ => return None }) }
 pub const MOLE_H: usize = 3 * S;
 const REACH: i32 = 3 * S as i32;
 
@@ -641,7 +641,8 @@ impl World {
         if hm == Mat::Water { m.breath = (m.breath - 0.25).max(0.); if m.breath <= 0. { m.hp -= 0.6; } }
         else if co2 > 0.45 { m.breath = (m.breath - (co2 - 0.45) * 1.2).max(0.); if m.breath <= 0. { m.hp -= 0.4; } }
         else { m.breath = (m.breath + 2.).min(100.); }
-        let buried = (0..MOLE_H).any(|j| self.g.is_solidish(self.g.idx(x, y - j)));
+        // (a mole sealed in a pressure-tube capsule is inside the pipe, not buried)
+        let buried = !(k == 0 && self.tr.in_tube.is_some()) && (0..MOLE_H).any(|j| self.g.is_solidish(self.g.idx(x, y - j)));
         if buried {
             self.moles[k].hp -= 1.5; self.events.push(Event::Hurt);
             // try to wriggle up or sideways
@@ -1329,5 +1330,5 @@ impl World {
         }
     }
 }
-pub fn build_item(d: u8) -> Item { match d { D_BRICK => Item::Brick, D_IRON => Item::IronBeam, D_PLANK => Item::Planks, D_POLISH => Item::PolishedStone, D_TILE => Item::Tiles, D_CARVED => Item::CarvedPillar, D_RAIL => Item::Rail, _ => Item::WoodPillar } }
-pub fn build_mat(d: u8) -> Mat { match d { D_BRICK => Mat::StoneBrick, D_IRON => Mat::IronBeam, D_PLANK => Mat::Planks, D_POLISH => Mat::Polished, D_TILE => Mat::Tiles, D_CARVED => Mat::Carved, D_RAIL => Mat::Rail, _ => Mat::WoodBeam } }
+pub fn build_item(d: u8) -> Item { match d { D_BRICK => Item::Brick, D_IRON => Item::IronBeam, D_PLANK => Item::Planks, D_POLISH => Item::PolishedStone, D_TILE => Item::Tiles, D_CARVED => Item::CarvedPillar, D_RAIL => Item::Rail, D_TUBE => Item::Tube, _ => Item::WoodPillar } }
+pub fn build_mat(d: u8) -> Mat { match d { D_BRICK => Mat::StoneBrick, D_IRON => Mat::IronBeam, D_PLANK => Mat::Planks, D_POLISH => Mat::Polished, D_TILE => Mat::Tiles, D_CARVED => Mat::Carved, D_RAIL => Mat::Rail, D_TUBE => Mat::Tube, _ => Mat::WoodBeam } }
