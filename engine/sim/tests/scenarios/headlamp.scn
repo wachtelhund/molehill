@@ -12,7 +12,7 @@ lamp 1 on
 aim 1 20 -2
 expect 3 light:12,-2 > 0.6            // 3 m ahead, in the beam
 expect 3 light:-12,-2 < 0.05          // 3 m behind: dark
-expect 3 light:0,-1 > 0.3             // the lamp's own glow round the mole
+expect 3 light:2,-2 > 0.3             // the lamp's own glow round its hat
 aim 4 -20 -2
 expect 6 light:-12,-2 > 0.6           // turned round: the beam follows the aim
 expect 6 light:12,-2 < 0.05

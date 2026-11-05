@@ -442,8 +442,12 @@ impl World {
     /// ahead and a little down when nothing is aimed at.
     pub fn headlamp(&self) -> ((f32, f32), (f32, f32)) {
         let f = self.moles.first().map_or(1, |m| m.facing) as f32;
-        let head = if self.pl.cling != 0 { (self.pl.px - self.pl.cling as f32 * 0.3 * SF, self.pl.py - 2.6 * SF) } else { (self.pl.px + f * 0.6 * SF, self.pl.py - 2.2 * SF) };
-        let dir = match self.gear.aim { Some((ax, ay)) if (ax - head.0).abs() + (ay - head.1).abs() > 1.5 * SF => (ax - head.0, ay - head.1), _ => (f, 0.25) };
+        // the lamp's lens on the sprite (art::mole_sheet): 2.75 tiles ahead of the body centre and 2.5 up
+        // from the feet; climbing, the sprite is turned nose-up against the wall
+        let c = self.pl.cling as f32;
+        let head = if c != 0. { (self.pl.px - c * 2.5 * SF, self.pl.py - 5.0 * SF) } else { (self.pl.px + f * 2.75 * SF, self.pl.py - 2.5 * SF) };
+        let rest = if c != 0. { (-c * 0.3, -1.) } else { (f, 0.25) };
+        let dir = match self.gear.aim { Some((ax, ay)) if (ax - head.0).abs() + (ay - head.1).abs() > 1.5 * SF => (ax - head.0, ay - head.1), _ => rest };
         (head, dir)
     }
     /// Every light source that isn't a glowing material.
@@ -459,7 +463,7 @@ impl World {
                 if self.gear.lamp { v.push(Source::beam(head.0, head.1, HEADLAMP.0, HEADLAMP.1, dir.0, dir.1, HEADLAMP_HALF)); v.push(Source::point(head.0, head.1, LAMP_GLOW.0, LAMP_GLOW.1)); }
                 else { v.push(Source::point(self.pl.px, self.pl.py - 1.5 * SF, MOLE_GLOW.0, MOLE_GLOW.1)); }
                 // a torch in the paw lights like a (slightly smaller) torch
-                if self.gear.held == Some(Item::Torch) { let f = m.facing as f32; v.push(Source::point(self.pl.px + f * 1.1 * SF, self.pl.py - 1.6 * SF, HELD_TORCH.0, HELD_TORCH.1)); }
+                if self.gear.held == Some(Item::Torch) { let f = m.facing as f32; v.push(Source::point(self.pl.px + f * 1.6 * SF, self.pl.py - 1.4 * SF, HELD_TORCH.0, HELD_TORCH.1)); }
             } else { let (x, y) = c(m.x, m.y - S); v.push(Source::point(x, y, MOLE_GLOW.0, MOLE_GLOW.1)); }
         }
         v

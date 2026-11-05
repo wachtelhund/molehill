@@ -76,7 +76,7 @@ const BG_BASE: [f32; 3] = [44., 34., 30.];
 #[inline] fn srgb(l: f32) -> f32 { l.max(0.).powf(1. / 2.2) * 255. }
 #[derive(Component)] struct WorldSprite;
 #[derive(Component)] struct Pooled(u8, usize);
-#[derive(Resource)] pub struct Sprites { pub tools: [Handle<Image>; 3], pub dev: Handle<Image>, pub ring: Handle<Image>, pub mole: Vec<Handle<Image>>, pub icons: Vec<Handle<Image>>, pub chest: [Handle<Image>; 2], pub station: Vec<[Handle<Image>; 2]>, pub torch: Handle<Image>, pub torch_f: Vec<Handle<Image>>, pub glow: Handle<Image>, pub shroom: [Handle<Image>; 3], pub px: Handle<Image> }
+#[derive(Resource)] pub struct Sprites { pub tools: [Handle<Image>; 3], pub dev: Handle<Image>, pub ring: Handle<Image>, pub mole: Vec<Handle<Image>>, pub mole_out: Vec<Handle<Image>>, pub held: Vec<Handle<Image>>, pub icons: Vec<Handle<Image>>, pub chest: [Handle<Image>; 2], pub station: Vec<[Handle<Image>; 2]>, pub torch: Handle<Image>, pub torch_f: Vec<Handle<Image>>, pub glow: Handle<Image>, pub shroom: [Handle<Image>; 3], pub px: Handle<Image> }
 
 pub fn seed_now() -> u32 {
     // ?seed=N (web) / --seed=N (native) pins the first world
@@ -170,6 +170,8 @@ fn dev_dump(n: Local<u32>, g: Res<Game>, sp: Res<Sprites>, images: Res<Assets<Im
         bmp(&format!("{dir}/view.bmp"), cw, chh, &v, false, 4 / S.min(4));
         let mut list: Vec<(String, Handle<Image>)> = vec![("torch".into(), sp.torch_f[0].clone()), ("torch1".into(), sp.torch_f[1].clone()), ("glow".into(), sp.glow.clone()), ("ring".into(), sp.ring.clone()), ("dev".into(), sp.dev.clone())];
         for (k, h) in sp.mole.iter().enumerate() { list.push((format!("mole{k}"), h.clone())); }
+        for (k, h) in sp.mole_out.iter().enumerate() { list.push((format!("moleout{k}"), h.clone())); }
+        for (k, h) in sp.held.iter().enumerate() { list.push((format!("held{k}"), h.clone())); }
         for (k, h) in sp.tools.iter().enumerate() { list.push((format!("tool{k}"), h.clone())); }
         for (k, h) in sp.icons.iter().enumerate() { list.push((format!("icon-{:?}", ITEMS[k]), h.clone())); }
         for (k, h) in sp.station.iter().enumerate() { list.push((format!("station{k}"), h[1].clone())); }
@@ -242,7 +244,10 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, mut fonts: R
     menu::setup(&mut commands, &font); let mset = menu::Menu::load(); commands.insert_resource(mset);
     ui::setup(&mut commands, &font); commands.insert_resource(ui::UiFont(font));
     let sp = Sprites { tools: [images.add(art::tool_icon(1)), images.add(art::tool_icon(2)), images.add(art::tool_icon(3))], dev: images.add(art::icon([200, 150, 90], 1)), ring: images.add(art::ring()),
-        mole: art::mole_sheet().into_iter().map(|i| images.add(i)).collect(),
+        mole: art::mole_sheet(true).into_iter().map(|i| images.add(i)).collect(),
+        mole_out: art::mole_sheet(false).into_iter().map(|i| images.add(i)).collect(),
+        held: [art::Held::Pick, art::Held::Drill, art::Held::Bore, art::Held::Charge, art::Held::Block(Item::WoodPillar.color()), art::Held::Block(Item::Brick.color()), art::Held::Block(Item::IronBeam.color())]
+            .into_iter().map(|h| images.add(art::held_sprite(h))).collect(),
         icons: ITEMS.iter().map(|it| { let k = match it { Item::Crystal | Item::Quartz => 2, Item::Brick | Item::Glass | Item::CopperIngot | Item::TinIngot | Item::BronzeIngot | Item::IronIngot | Item::WoodPillar | Item::IronBeam => 1, Item::Torch | Item::Lamp => 3, Item::Tnt => 4, _ => 0 }; images.add(art::icon(it.color(), k)) }).collect(),
         chest: [images.add(art::chest(false)), images.add(art::chest(true))],
         station: (0..4u8).map(|k| [images.add(art::station(k, false)), images.add(art::station(k, true))]).collect(),
@@ -592,8 +597,10 @@ fn render_far(gm: &mut Game, ct: &Transform, win: &Window, images: &mut Assets<I
 #[derive(Default)] struct Fx { grounded: bool, vy: f32, squash: f32, parts: Vec<Part>, last_mine: Option<[f32; 3]>, chip_t: f32, dust_t: f32, wet: bool, ember_t: f32 }
 /// A pixel particle; `g` is its gravity (negative drifts up, like embers).
 struct Part { p: Vec2, v: Vec2, life: f32, max: f32, c: [f32; 3], size: f32, g: f32 }
+/// A held item takes the light where the mole stands, like the mole does.
+fn c_hold(w: &World, m: &molehill_sim::world::Mole) -> Color { let l = w.light.at((m.y.saturating_sub(S)).min(H - 1) * W + m.x.min(W - 1)); let v = (l[0] * 0.3 + l[1] * 0.5 + l[2] * 0.2).clamp(0.5, 1.); Color::srgb(v, v, v) }
 fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Res<Time>, mut fx: Local<Fx>, mut q: Query<(Entity, &Pooled, &mut Transform, &mut Sprite, &mut Visibility)>) {
-    // kind 0 moles, 1 drops, 2 chests, 3 stations, 4 torches, 5 mushroom plots, 7 aim, 8 particles, 9 torch halos, 10 lamp halos, 11 placement pops
+    // kind 0 moles, 1 drops, 2 chests, 3 stations, 4 torches, 5 mushroom plots, 7 aim, 8 particles, 9 torch halos, 10 lamp halos, 11 placement pops, 12 held item, 13 headlamp lens halo
     let dt = if g.paused { 0. } else { time.delta_secs().min(0.05) }; let now = time.elapsed_secs();
     let w = &g.w;
     let mut want: Vec<(u8, usize, Vec2, f32, Handle<Image>, Vec2, bool, Color)> = vec![];
@@ -614,7 +621,7 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
             else if !pl.grounded { (if pl.vy < 2. * SF { art::Pose::Jump } else { art::Pose::Fall }, 0) }
             else if pl.vx.abs() > 0.5 * SF { (art::Pose::Run, (pl.px / (1.1 * SF)).abs() as u32) }
             else { (art::Pose::Idle, (now * 1.6) as u32) };
-        let img = sp.mole[art::mole_frame(pose, ph)].clone();
+        let img = if w.gear.lamp { &sp.mole } else { &sp.mole_out }[art::mole_frame(pose, ph)].clone();
         let sq = fx.squash; let scale = Vec2::new(1. - sq * 0.8, 1. + sq);
         if pose == art::Pose::Climb {
             // nose up, belly to the wall: 20×26, hugging the wall face on the cling side
@@ -625,6 +632,38 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
             let size = Vec2::new(26., 20.) * scale; let up = (size.y - 20.) / 2. / CPX;
             want.push((0, k, cell_to_world(g.disp.x, g.disp.y + SF - 1.5 * SF - up), 5., img, size, m.facing < 0, c));
         } }
+    // the lit headlamp's lens gets a small warm halo (the beam itself is the sim's light)
+    if let (Some(m), true) = (w.moles.first().filter(|m| m.alive), w.gear.lamp) {
+        let lens = if pl.cling != 0 { cell_to_world(g.disp.x - pl.cling as f32 * 1.4 * SF, g.disp.y + SF - 2.25 * SF) + Vec2::new(-pl.cling as f32 * 4., 12.) }
+            else { cell_to_world(g.disp.x, g.disp.y + SF - 1.5 * SF) + Vec2::new(m.facing as f32 * 11., 4.) };
+        want.push((13, 0, lens, 5.2, sp.glow.clone(), Vec2::splat(14.), false, Color::srgba(1., 0.93, 0.62, 0.45)));
+    }
+    // the item in the paws: turned toward the aim (snapped to 15° so the pixels stay clean), swung while
+    // a pickaxe digs, shaken while a drill or bore runs, thrust out when a block or charge goes down.
+    // A torch is held upright with its flame. Nothing is held while climbing (the paws are on the wall).
+    let mut rot: std::collections::HashMap<(u8, usize), f32> = Default::default();
+    if let (Some(m), true) = (w.moles.first().filter(|m| m.alive), pl.cling == 0) {
+        use std::f32::consts::PI;
+        let f = m.facing as f32; let paw = cell_to_world(g.disp.x, g.disp.y + SF - 1.5 * SF) + Vec2::new(f * 6., -4.);
+        let mut ang = g.aim.map(|(x, y, _)| (cell_to_world(x as f32 + 0.5, y as f32 + 0.5) - paw).to_angle()).unwrap_or(if f > 0. { -0.3 } else { PI + 0.3 });
+        if ang.cos() * f < -0.1 { ang = PI - ang; } // keep it on the side the mole faces
+        let mining = pl.mine.is_some(); let jig = |k: u32| ((hash3(g.frame as u32, k, 21) & 255) as f32 / 255. - 0.5);
+        let thrust = g.pops.iter().filter(|p| p.0 == 1).map(|p| 1. - ((now - p.4) / 0.15).clamp(0., 1.)).fold(0f32, f32::max);
+        let item = |h: usize, wpx: f32, hpx: f32| (sp.held[h].clone(), Vec2::new(wpx, hpx));
+        let held = match g.slots[g.hot] { Some(Thing::Pick(n)) => Some((item((n as usize).clamp(1, 3) - 1, [12., 14., 16.][(n as usize).clamp(1, 3) - 1], [11., 7., 9.][(n as usize).clamp(1, 3) - 1]), n == 1)),
+            Some(Thing::Item(Item::Tnt)) => Some((item(3, 7., 8.), false)), Some(Thing::Item(Item::WoodPillar)) => Some((item(4, 6., 6.), false)),
+            Some(Thing::Item(Item::Brick)) => Some((item(5, 6., 6.), false)), Some(Thing::Item(Item::IronBeam)) => Some((item(6, 6., 6.), false)), _ => None };
+        if let Some(((img, size), pick)) = held {
+            let swing = if pick && mining { let p = (now * 5.).fract(); if p < 0.55 { 1.2 * p / 0.55 } else { 1.2 - 1.7 * (p - 0.55) / 0.45 } } else { 0. };
+            let mut a = ang + f * swing; let shake = if mining && !pick { 1. } else { 0. }; a += shake * jig(1) * 0.12;
+            let a = (a / (PI / 12.)).round() * (PI / 12.); let dir = Vec2::from_angle(a);
+            let pos = paw + dir * (size.x / 2. - 1. + 3. * thrust) + Vec2::new(jig(2), jig(3)) * 1.4 * shake;
+            rot.insert((12, 0), if f < 0. { a - PI } else { a }); want.push((12, 0, pos, 5.1, img, size, f < 0., c_hold(&w, m)));
+        } else if g.slots[g.hot] == Some(Thing::Item(Item::Torch)) {
+            let tilt = ((ang - PI / 2.).sin() * -0.35).clamp(-0.35, 0.35); let fr = ((now * 10.) as usize) % 3;
+            rot.insert((12, 0), tilt); want.push((12, 0, paw + Vec2::new(f * 1., 5.), 5.1, sp.torch_f[fr].clone(), Vec2::new(8., 12.), false, Color::WHITE));
+        } else if let Some(Thing::Item(it)) = g.slots[g.hot] { want.push((12, 0, paw + Vec2::new(f * 2., 1.), 5.1, sp.icons[it as usize].clone(), Vec2::splat(8.), false, c_hold(&w, m))); }
+    }
     // dig chips: while a bite is in progress, flecks of the target's material spray toward the mole
     if let (Some((x, y)), false) = (g.aim.filter(|_| pl.mine.is_some()).map(|(x, y, _)| (x, y)), g.paused) {
         let m = w.g.m(y * W + x); let col = if m == Mat::Empty { [120., 100., 80.] } else { let c = PROPS[m as usize].color; [c[0] as f32, c[1] as f32, c[2] as f32] };
@@ -692,10 +731,10 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
     let mut used = std::collections::HashSet::new();
     for (e, p, mut t, mut s, mut vis) in &mut q {
         if let Some(wn) = want.iter().find(|wn| wn.0 == p.0 && wn.1 == p.1) {
-            t.translation = wn.2.extend(wn.3); s.image = wn.4.clone(); s.custom_size = Some(wn.5); s.flip_x = wn.6; s.color = wn.7; *vis = Visibility::Visible; used.insert((p.0, p.1));
+            t.translation = wn.2.extend(wn.3); t.rotation = Quat::from_rotation_z(rot.get(&(p.0, p.1)).copied().unwrap_or(0.)); s.image = wn.4.clone(); s.custom_size = Some(wn.5); s.flip_x = wn.6; s.color = wn.7; *vis = Visibility::Visible; used.insert((p.0, p.1));
         } else { commands.entity(e).despawn(); }
     }
-    for wn in want { if !used.contains(&(wn.0, wn.1)) { commands.spawn((Sprite { image: wn.4, custom_size: Some(wn.5), flip_x: wn.6, color: wn.7, ..default() }, Transform::from_translation(wn.2.extend(wn.3)), Pooled(wn.0, wn.1))); } }
+    for wn in want { if !used.contains(&(wn.0, wn.1)) { let r = rot.get(&(wn.0, wn.1)).copied().unwrap_or(0.); commands.spawn((Sprite { image: wn.4, custom_size: Some(wn.5), flip_x: wn.6, color: wn.7, ..default() }, Transform::from_translation(wn.2.extend(wn.3)).with_rotation(Quat::from_rotation_z(r)), Pooled(wn.0, wn.1))); } }
 }
 
 /// What the mole has on: the headlamp (Q or Settings), the item in its paws, and where it looks.

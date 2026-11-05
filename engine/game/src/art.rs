@@ -184,10 +184,14 @@ impl Px {
 pub enum Pose { Idle, Run, Jump, Fall, Climb, Dig }
 /// Frame index into the mole sheet for a pose and a phase counter.
 pub fn mole_frame(p: Pose, ph: u32) -> usize { match p { Pose::Idle => (ph % 2) as usize, Pose::Run => 2 + (ph % 4) as usize, Pose::Jump => 6, Pose::Fall => 7, Pose::Climb => 8 + (ph % 2) as usize, Pose::Dig => 10 + (ph % 3) as usize } }
-/// The Delver, 26×20 pixels facing right (1 pixel = 1 world unit; 4 pixels = 1 cell). Climb frames are
-/// turned nose-up (20×26). Velvet plum fur, pale spade claws, pink star of a nose, a tiny eye.
-pub fn mole_sheet() -> Vec<Image> {
+/// The Delver, 26×20 pixels facing right (1 pixel = 1 world unit; 4 pixels = 1 tile). Climb frames are
+/// turned nose-up (20×26). Velvet plum fur, pale spade claws, pink star of a nose, a tiny eye, and a
+/// brass delving hat with a fungus-oil lamp on its brow. `lamp` = the lamp is lit (a bright lens) or out.
+/// The lamp's lens sits at pixel (24, 6) of an upright frame: `World::headlamp` puts the beam there.
+pub fn mole_sheet(lamp: bool) -> Vec<Image> {
     const FUR: [u8; 3] = [96, 80, 92]; const BELLY: [u8; 3] = [122, 104, 112]; const CLAW: [u8; 3] = [238, 204, 188]; const NAIL: [u8; 3] = [255, 240, 228];
+    const HAT: [u8; 3] = [190, 150, 70]; const BRIM: [u8; 3] = [132, 96, 44]; const LAMP_CASE: [u8; 3] = [88, 74, 60];
+    const LENS_LIT: [u8; 3] = [255, 244, 176]; const LENS_OUT: [u8; 3] = [70, 64, 52];
     const NOSE: [u8; 3] = [240, 128, 156]; const HIND: [u8; 3] = [178, 140, 136]; const EYE: [u8; 3] = [18, 12, 18]; const LINE: [u8; 3] = [30, 20, 30];
     // body bob (px down), front claw (dx, dy), hind foot (dx, dy), body stretch (rx+, ry+)
     let pose = |bob: f32, claw: (f32, f32), hind: (f32, f32), st: (f32, f32), claw2: Option<(f32, f32)>| -> Px {
@@ -200,6 +204,12 @@ pub fn mole_sheet() -> Vec<Image> {
         p.oval(22.5, by + 1., 2.6, 1.9, FUR); // snout
         p.rect(24, by as i32, 25, by as i32 + 1, NOSE); // nose
         p.set(20, by as i32 - 1, EYE); // eye
+        // delving hat: a brass dome over the crown with a darker brim, the lamp on its brow
+        let hy = (by - 3.).floor(); let hyi = hy as i32;
+        for y in 0..p.h { for x in 0..p.w { let (dx, dy) = ((x as f32 + 0.5 - 18.) / 5.2, (y as f32 + 0.5 - hy) / 3.9); if dx * dx + dy * dy <= 1. && (y as f32) < hy { p.set(x, y, HAT); } } }
+        p.rect(12, hyi, 23, hyi, BRIM);
+        p.rect(16, hyi - 3, 17, hyi - 3, shade(HAT, 1.35)); p.set(15, hyi - 2, shade(HAT, 1.2)); // shine
+        p.rect(21, hyi - 3, 23, hyi - 1, LAMP_CASE); let lens = if lamp { LENS_LIT } else { LENS_OUT }; p.rect(24, hyi - 3, 24, hyi - 1, lens); p.set(23, hyi - 2, lens);
         p.oval(7.5 + hind.0, 16.5 + hind.1, 2.2, 1.5, HIND); // hind foot (near)
         if let Some(c) = claw2 { p.oval(17. + c.0, 16. + c.1, 2.4, 1.8, CLAW); } // far claw
         p.oval(18.5 + claw.0, 16.5 + claw.1, 3.0, 2.0, CLAW); // big spade claw
@@ -277,4 +287,24 @@ pub fn mat_tex(m: molehill_sim::mat::Mat, x: u32, y: u32, t: u64) -> f32 {
         M::Fungus => if v > 0.85 { 1.3 } else { 1. },
         _ => 1.,
     }
+}
+
+/// What the mole holds, drawn at the mole's own pixel scale (1 pixel = 1 world unit), pointing right
+/// with the grip at the left edge's middle, so the game can turn it toward the aim around the paw.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)] pub enum Held { Pick, Drill, Bore, Charge, Block([u8; 3]) }
+pub fn held_sprite(h: Held) -> Image {
+    let wood = [150, 105, 60]; let line = [30, 20, 30];
+    let p = match h {
+        Held::Pick => { let mut p = Px::new(12, 11); p.rect(0, 5, 9, 5, wood); p.rect(0, 6, 9, 6, shade(wood, 0.78)); // haft
+            for y in 0..11 { let x = 9 + ((y as f32 - 5.).abs() * 0.35) as i32; p.set(x, y, [150, 150, 162]); p.set(x + 1, y, [116, 116, 128]); } // curved head
+            p.set(9, 0, [196, 196, 208]); p.set(9, 10, [196, 196, 208]); p }
+        Held::Drill => { let mut p = Px::new(14, 7); p.rect(0, 1, 4, 5, [184, 115, 70]); p.rect(1, 1, 3, 1, [220, 150, 100]);
+            for x in 5..14 { let hw = ((13 - x) as f32 * 0.32) as i32; p.rect(x, 3 - hw, x, 3 + hw, if x % 2 == 0 { [170, 176, 190] } else { [130, 136, 150] }); } p }
+        Held::Bore => { let mut p = Px::new(16, 9); p.rect(0, 1, 5, 7, [84, 86, 98]); p.rect(2, 3, 3, 5, [255, 120, 40]); p.set(2, 4, [255, 220, 140]);
+            for x in 6..16 { let hw = ((15 - x) as f32 * 0.42) as i32; p.rect(x, 4 - hw, x, 4 + hw, if x % 2 == 0 { [120, 124, 140] } else { [96, 100, 116] }); } p }
+        Held::Charge => { let mut p = Px::new(7, 8); for (k, x) in [0, 2, 4].into_iter().enumerate() { p.rect(x, 2, x + 1, 7, if k == 1 { [230, 70, 56] } else { [200, 50, 40] }); }
+            p.rect(0, 4, 5, 4, [90, 70, 50]); p.set(3, 1, [120, 100, 80]); p.set(4, 0, [255, 200, 90]); p }
+        Held::Block(c) => { let mut p = Px::new(6, 6); p.rect(0, 0, 5, 5, c); p.rect(0, 0, 5, 0, shade(c, 1.25)); p.rect(0, 5, 5, 5, shade(c, 0.75)); p }
+    };
+    p.finish(line).image()
 }
