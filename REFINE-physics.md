@@ -34,8 +34,16 @@ Polish only: no new features. Each item has a scenario in `engine/sim/tests/scen
   rested on a pool forever. Grains now sink by density (sand, gravel, scoria through water; sand
   floats on lava) and can slide diagonally into lighter liquid, so underwater piles spread.
   (`sand_sinks`, `sand_floats_lava`)
+* **World window thrashed.** `follow_colony` used fixed 100-row margins with 128-row slides; on
+  a 256-row window (tests, scenarios) a mole at y < 96 slid up and straight back down every
+  30 ticks, rebuilding stress/light each time. Margins now scale with the window height.
+  (`window_does_not_thrash_near_its_edge`)
+* **Overloaded ground crushed all at once.** Compression now applies confinement: only cells at a
+  run's free faces see unconfined strength, so overloaded bodies spall at faces.
 
 ## Open issues
+* Rubble doesn't bulk (loose volume = solid volume), so a collapse in weak dirt chimneys up
+  through the whole layer instead of choking itself off.
 * A resting pool can keep a 1-cell step if the lower spot is more than 48 cells away.
 * Lava never cools on its own; dry lava resting on a basalt crust stays lava.
 * Thin roofs are still judged only by their bottom fibre's tensile strength (a 1-cell clay skin

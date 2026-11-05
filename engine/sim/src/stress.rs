@@ -134,7 +134,12 @@ impl Stress {
                 load += 0.5 * (vl + vr);
                 let wid = (xb - xa + 1) as f32;
                 let sigma = load / wid;
-                for xx in xa..=xb { let j = y * w + xx; let u = sigma / PROPS[g.mat[j] as usize].compressive.max(1e-3); if u > util[j] { util[j] = u; } }
+                // Confinement (Mohr-Coulomb, σ3 ≈ K0·σv): a cell held in on both sides by the rest
+                // of the run can't crush; only cells at a free face (the run's ends) see the
+                // unconfined strength. So an overloaded body spalls at its faces instead of the
+                // whole mass turning to rubble at once.
+                for xx in [xa, xb] { let j = y * w + xx; let u = sigma / PROPS[g.mat[j] as usize].compressive.max(1e-3); if u > util[j] { util[j] = u; } }
+                if xb > xa + 1 { for xx in xa + 1..xb { let j = y * w + xx; let u = 0.5 * sigma / PROPS[g.mat[j] as usize].compressive.max(1e-3); if u > util[j] { util[j] = u.min(0.9); } } }
             }
         }
         self.reach = reach;

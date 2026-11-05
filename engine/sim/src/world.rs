@@ -155,7 +155,11 @@ impl World {
     fn follow_colony(&mut self) {
         let h = self.g.h; let ys: Vec<usize> = self.moles.iter().filter(|m| m.alive).map(|m| m.y).collect(); if ys.is_empty() { return; }
         let (lo, hi) = (*ys.iter().min().unwrap(), *ys.iter().max().unwrap());
-        if hi > h - 100 && lo > 160 { self.shift(128); } else if lo < 100 && hi < h - 160 { self.shift(-128); }
+        // margin m from either edge triggers a 128-row slide; m ≤ (h-128)/2 guarantees the slide
+        // lands the colony inside [m, h-m], so it can't immediately trigger the opposite slide
+        // (with m = 100 a 256-row window thrashed back and forth every 30 ticks)
+        let m = 100.min(h.saturating_sub(128) / 2);
+        if hi > h - m && lo >= m + 128 { self.shift(128); } else if lo < m && hi + 128 <= h - m { self.shift(-128); }
     }
 
     #[inline] fn passable(&self, x: usize, y: usize) -> bool { let m = self.g.get(x, y); matches!(m, Mat::Empty | Mat::Steam | Mat::Water) && !self.is_building_cell(x, y, false) }

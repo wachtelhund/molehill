@@ -15,5 +15,7 @@ fn main() {
         for i in 0..before.len() { if before[i] != w.g.mat[i] { changed[w.g.mat[i] as usize] += 1; } }
     }
     println!("seed {seed}: 1200 ticks in {:.0} ms; then avg awake chunks {:.1}/{} over 60 ticks ({:.2} ms/tick incl. diff)", settle.as_secs_f64() * 1e3, awake as f64 / 60., w.g.awake.len(), t.elapsed().as_secs_f64() * 1e3 / 60.);
+    let t = std::time::Instant::now(); for _ in 0..20 { let _ = w.st.solve(&w.g); }
+    println!("  stress solve {:.2} ms", t.elapsed().as_secs_f64() * 1e3 / 20.);
     for k in 0..NMAT { if changed[k] > 0 { println!("  {:?}: {} cell changes", Mat::from_u8(k as u8), changed[k]); } }
 }
