@@ -63,10 +63,14 @@ Polish only: no new features. Each item has a scenario in `engine/sim/tests/scen
   limit, so a mole wedged in sand under a granite slab came out 4 cells higher, in the room above.
   The snap now searches at most one cell and otherwise stays put; the "wriggle up" only passes
   through loose ground. (`buried_under_rock`, `buried_in_sand`)
+* **Lava never cooled.** Thin lava (fewer than 10 lava cells in its 5×5 neighbourhood) resting on
+  solid ground now freezes into basalt: a 1-in-24 chance per 30-tick sweep, so a splash sets in
+  ~10-20 s. Deep pools keep their heat; only their thin edges crust. It freezes only on solid
+  ground, because a crust on molten lava would just break up again. A spreading sheet crusts from
+  its thin front. (`lava_cools`; `lava_flows` now allows for the crust)
 
 ## Open issues
 * A resting pool can keep a 1-cell step if the lower spot is more than 48 cells away.
-* Lava never cools on its own; dry lava resting on a basalt crust stays lava.
 * Thin roofs are still judged only by their bottom fibre's tensile strength (a 1-cell clay skin
   under granite limits the whole roof).
 * `site/` not rebuilt: the `wasm32-unknown-unknown` target isn't installed here (`rustup target add wasm32-unknown-unknown`, then the AGENTS.md rebuild line).

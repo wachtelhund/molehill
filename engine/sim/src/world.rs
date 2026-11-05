@@ -11,6 +11,8 @@ use crate::air::{self, Air};
 use std::collections::VecDeque;
 /// Of every 10 cells of ground that crumble, how many leave an extra cell of rubble (bulking).
 pub const BULK_IN_10: u32 = 3;
+/// Lava cooling sweep period (ticks), and the chance per sweep (1 in N) that a thin bit of lava freezes.
+pub const LAVA_COOL_EVERY: u64 = 30; pub const LAVA_COOL_1_IN: u32 = 24;
 use std::sync::atomic::Ordering::Relaxed;
 
 pub const D_DIG: u8 = 1; pub const D_WOOD: u8 = 2; pub const D_BRICK: u8 = 3; pub const D_IRON: u8 = 4;
@@ -336,6 +338,7 @@ impl World {
         for s in std::mem::take(&mut self.logic.msgs) { self.say(s); }
         let booms = std::mem::take(&mut self.logic.booms);
         for b in booms { if self.logic.dev[b] == Dev::Tnt as u8 { self.logic.remove(&mut self.g, b); let (x, y) = self.logic.centre(b); self.explode(x, y, 9., 6); } }
+        if self.tick % LAVA_COOL_EVERY == 0 { self.cool_lava(); }
         // disasters
         let mut dz = std::mem::replace(&mut self.disasters, Disasters::new(0));
         dz.step(self); self.disasters = dz;
@@ -476,6 +479,21 @@ impl World {
         if self.place_acc[d as usize] == 0 { if self.inv[it as usize] == 0 { return; } self.inv[it as usize] -= 1; self.place_acc[d as usize] = 4; }
         self.place_acc[d as usize] -= 1;
         self.g.set(i, build_mat(d)); self.desig[i] = 0; self.pillars += 1; self.events.push(Event::Place);
+    }
+    /// Lava loses heat where there's little of it: a cell with fewer than 10 lava cells in its 5×5
+    /// neighbourhood (a splash, a thin sheet, a trickle down a wall) now and then freezes into solid
+    /// basalt where it rests on solid ground. Deep pools keep their heat (only their thin edges
+    /// crust), so lava lakes stay molten.
+    fn cool_lava(&mut self) {
+        let (w, h) = (self.g.w, self.g.h); let lava = Mat::Lava as u8;
+        let mut freeze = vec![];
+        for y in 0..h { for x in 0..w { let i = y * w + x; if self.g.mat[i] != lava { continue; }
+            if hash3(x as u32, y as u32, (self.tick / LAVA_COOL_EVERY) as u32 ^ 0x1A7A) % LAVA_COOL_1_IN != 0 { continue; }
+            let mut n = 0;
+            for yy in y.saturating_sub(2)..=(y + 2).min(h - 1) { for xx in x.saturating_sub(2)..=(x + 2).min(w - 1) { if self.g.mat[yy * w + xx] == lava { n += 1; } } }
+            // it sets from the bottom up, on solid ground: a crust on top of molten lava would just break up again
+            if n - 1 < 10 && y + 1 < h && self.g.is_static(i + w) { freeze.push(i); } } }
+        for i in freeze { self.g.set(i, Mat::Basalt); }
     }
     fn check_chests(&mut self) {
         for c in 0..self.chests.len() {

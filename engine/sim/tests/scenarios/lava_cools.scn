@@ -1,0 +1,20 @@
+// A splash of lava on the floor freezes into basalt within ~30 s; a deep pool keeps its heat
+// (only a few edge cells crust).
+map
+######################################
+#....................................#
+#....................................#
+#....................................#
+#.lll................................#
+#.lll................................#
+######################llllllllll#.@..#
+######################llllllllll######
+######################llllllllll######
+######################llllllllll######
+######################llllllllll######
+######################################
+end
+expect 2400 count:Lava > 40           // the pool (50 cells) is still molten
+expect 2400 is:-32,-1,Basalt == 1     // the splash spread into a sheet and set hard
+expect 2400 is:-8,2,Lava == 1         // the middle of the pool is molten
+expect 2400 count:Lava < 50
