@@ -53,7 +53,7 @@ aim 1 20 -2             // from tick T the mole looks at tile (dx,dy) from @ (th
 wield 1 Torch           // from tick T the mole holds that item (a torch lights); `wield T none`
 torch 1 6 0             // at tick T put a torch on tile (dx,dy)
 dig 41-60 3 -1          // same, but (dx,dy) is relative to the mole's current cell (feet row), so it follows the mole
-explode 70 5 -2 3       // TNT-strength blast at (dx,dy) with radius r at tick T
+explode 70 5 -2 0.25    // a blast of kg TNT-equivalent at (dx,dy) at tick T (a TNT charge is 0.25)
 place 5 4 0 WoodPillar  // at tick T place a block item (WoodPillar, Brick, IronBeam) at (dx,dy), as a left click; a refusal prints NOTE
 device 5 12 -1 Tnt      // place a device (logic::Dev name: Lever, Tnt, And, Tx, Rx, Lamp, Fuse, ...) in the 1 m block at (dx,dy)
 use 10 12 -1            // right mouse on the device there: flip a lever, light TNT or a fuse, step a channel
@@ -101,6 +101,7 @@ Map legend: `t` roots (a root tangle), `f` fungus, `.` empty, `#` granite, `B` b
 | `crumbled` | Tiles' worth of cells that have crumbled (world counter) |
 | `awake` | CA chunks overlapping the map that are still awake (0 = everything there has settled) |
 | `glowmites` | Glowmites drifting over the map rectangle |
+| `p:DX,DY` | The last blast's peak overpressure (kPa) on that tile |
 | `count:<Mat>` | Tiles' worth of that material inside the map rectangle (cells / K²), e.g. `count:Water` |
 | `is:DX,DY,<Mat>` | 1 if the cell at an offset from `@` is that material |
 | `inv:<Item>` | Inventory count |
@@ -174,7 +175,11 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `held_torch.scn` | A torch in the paws lights around the mole; put away, it goes out |
 | `hover_strain.scn` | The hover warns of an overloaded wood span (cracking) before it falls; floor and loose debris read idle |
 | `brush_clamp.scn` | Brush radius is clamped per item (iron beam max 2, pillar min 0.5, pickaxe max 3) |
-| `tnt_chain.scn` | A blast sets off a second charge 3.16 m away (charges chain up to 1.5 m past the 2.25 m radius) |
+| `tnt_chain.scn` | A blast sets off a second charge 3.16 m away (60 kPa on its block sets it off) |
+| `blast_tunnel_vs_cave.scn` | The same charge keeps ~370 kPa 5 m down a tunnel, ~80 kPa 5 m across a cave |
+| `blast_shadow.scn` | A mole behind a wall (the wave can only get round its top) is barely hurt |
+| `blast_granite_vs_dirt.scn` | Between a dirt wall and a granite wall: the dirt is blown out and cracked, the granite takes it |
+| `blast_pushes_water.scn` | A blast in a flooded trough heaves the water up and out in a plume; none is lost |
 | `grain_in_body.scn` | A sand grain lying inside the mole's body (low tunnel, no wriggle room) is shoved aside instead of wedging it |
 | `pillar_built_in_room.scn` | A wood pillar built cell by cell in a granite room stays rigid |
 | `pillars_rock_roof.scn` / `roof_needs_pillar.scn` | Two pillars at the third points save a 12 m rock roof that caves in (bending) without them |
@@ -223,6 +228,8 @@ Zoom limits and brush ranges also have unit tests in `sim/tests/sim.rs` (`zoom_i
 `cargo run --release -p molehill-sim --example genbench [seed]` times world generation: fill, one full stress solve, stabilisation, and `World::new` in total.
 
 **Web frame time:** serve `dist/` (`python3 -m http.server`) and measure `requestAnimationFrame` intervals in Chrome after starting a holt. At 8 cells/m on an M4 with the active region: 58 fps (p95 16.8 ms) from a fresh holt's first seconds, 60 fps steady state.
+
+Blast tests in `sim.rs`: `blast_overpressure_curve` (Kinney-Graham values, monotone, deterministic, bounded), `blast_is_heard_by_listeners`. `--example blastbench` times one charge.
 
 Worldgen tests in `sim.rs`: `ore_sits_in_its_depth_bands` (copper just below the holt, iron in the mid granite, basalt below 90 m), `grottos_follow_the_layers` (frequency by depth band over 6 seeds, none in the deep, deterministic), `generated_grottos_hold` (fresh holts' grottos stay open with their trees up), `slides_leave_nothing_failing`, `glowmites_drift_glow_and_get_caught`.
 

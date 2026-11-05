@@ -833,3 +833,28 @@ fn material_table_is_consistent() {
     // and every light source goes through the same rays: the torch is one of the sources
     assert!(w.light_sources().iter().any(|s| (s.x - (tx as f32 + 0.5)).abs() < 0.01 && (s.y - (ty as f32 + 0.5)).abs() < 0.01));
 }
+
+/// A blast's knock carries through the rock like a thrum: a listener in solid granite hears it (on any
+/// channel) for a moment.
+#[test] fn blast_is_heard_by_listeners() {
+    use molehill_sim::logic::Dev;
+    let (mut w, x0, y0) = arena(); let c = molehill_sim::mat::CPM;
+    // a listener sealed into the granite floor 6 m away; the charge goes off on the floor
+    let (lx, ly) = (x0 + 6 * c, y0 + 2 * c);
+    let b = w.logic.block_of(lx, ly); for y in (b / w.logic.bw) * c..(b / w.logic.bw + 1) * c { for x in (b % w.logic.bw) * c..(b % w.logic.bw + 1) * c { let i = w.g.idx(x, y); w.g.set(i, Mat::Empty); } }
+    w.logic.place(&mut w.g, Dev::Rx, b); w.step(); assert_eq!(w.logic.dev_s[b], 0);
+    assert!(w.logic.dev[b] == Dev::Rx as u8, "listener placed");
+    w.blast(x0 - 4 * c, y0, molehill_sim::blast::TNT_KG); w.step(); w.step(); assert_eq!(w.logic.dev_s[b], 1, "the listener heard the blast");
+    for _ in 0..40 { w.step(); } assert_eq!(w.logic.dev_s[b], 0, "for a moment");
+}
+/// The blast model's numbers: Kinney-Graham falls off with scaled distance, and is deterministic.
+#[test] fn blast_overpressure_curve() {
+    use molehill_sim::blast::overpressure;
+    assert!(overpressure(1.) > 500. && overpressure(1.) < 1500., "Z = 1: about 1 MPa ({})", overpressure(1.));
+    assert!(overpressure(5.) < 40. && overpressure(5.) > 15., "Z = 5: tens of kPa ({})", overpressure(5.));
+    let mut last = f32::MAX; for k in 1..100 { let p = overpressure(k as f32 * 0.2); assert!(p < last); last = p; }
+    let (mut a, x0, y0) = arena(); let (mut b, _, _) = arena(); let c = molehill_sim::mat::CPM;
+    let ra = a.blast(x0 + 3 * c, y0 - c, 0.25); let rb = b.blast(x0 + 3 * c, y0 - c, 0.25);
+    assert_eq!(a.g.mat, b.g.mat); assert_eq!((ra.cells, ra.shattered, ra.cracked), (rb.cells, rb.shattered, rb.cracked));
+    assert!(ra.cells < molehill_sim::blast::BLAST_CELLS, "bounded");
+}

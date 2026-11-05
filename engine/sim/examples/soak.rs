@@ -26,7 +26,7 @@ fn main() {
                 2 => { w.use_device(tx, ty); }
                 3 => { w.lay_wire(tx, ty); }
                 4 => { w.pick_up(tx, ty); }
-                5 if r.n(10) == 0 => { w.explode(tx, ty, 3. + r.n(6) as f32, 4 + r.n(4) as u8); }
+                5 if r.n(10) == 0 => { w.blast(tx, ty, 0.05 + r.n(10) as f32 * 0.05); }
                 6 => { w.place_torch(tx, ty); }
                 7 if r.n(20) == 0 => { let b = save::save(&w); w = save::load(&b).expect("reload"); }
                 8 => { let _ = w.plant(tx, ty); }
