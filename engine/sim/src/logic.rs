@@ -5,6 +5,9 @@
 //! * Gates read west (a) and north (b) inputs; outputs update one tick later (gate delay).
 //! * Sinks: door / floodgate (cells become Door), pump (lifts liquid up through ≤16 blocks of rock),
 //!   lamp (light source), TNT, Thrumming TX.
+//! * TNT is inert when placed. Lighting it (right mouse, fire, lava) starts a short fuse, and water puts it out.
+//!   Current on an adjacent copperline (lever, knot, listener) sets it off at once, as do a nearby blast and a
+//!   fuse cord burning into it.
 //! * Thrumming: link budget = P − distance(m) − Σ per-cell attenuation along the Bresenham ray (material
 //!   `atten`), links ≥ 0 form a graph; TX reaches RX on the same channel directly or via repeaters.
 //! * Lava (≥2 cells) or rubble (≥10 loose cells) in a block destroys its wire/device.
@@ -15,6 +18,8 @@ pub const B: usize = 4;
 /// Knock strength above the listener's threshold (dB).
 pub const THRUM_POWER: f32 = 60.;
 pub const FUSE_TICKS: i16 = 24;
+/// A lit TNT charge goes off after this many ticks (1.5 s): time to run, short enough to feel snappy.
+pub const TNT_FUSE: i16 = 90;
 
 #[repr(u8)]
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -25,6 +30,8 @@ impl Dev {
     pub fn name(self) -> &'static str { ["", "Lever", "Pressure plate", "Fluid sensor", "Door", "Floodgate", "Pump", "Lamp", "TNT", "Fuse", "Both-knot", "Either-knot", "Turn-knot", "Odd-knot", "Ticker", "Catch-knot", "Thrummer", "Listener", "Relay thrummer", "Vent", "Heatstone", "Water wheel"][self as usize] }
     pub fn is_gate(self) -> bool { (Dev::And as u8..=Dev::Latch as u8).contains(&(self as u8)) }
     pub fn is_thrum(self) -> bool { (Dev::Tx as u8..=Dev::Rep as u8).contains(&(self as u8)) }
+    /// The pack item a device is built from (None: free).
+    pub fn cost(self) -> Option<crate::craft::Item> { use crate::craft::Item; match self { Dev::Tnt => Some(Item::Tnt), Dev::Lamp => Some(Item::Lamp), Dev::Vent => Some(Item::Vent), Dev::Heat => Some(Item::IronIngot), Dev::Wheel => Some(Item::Wood), _ if self.is_thrum() => Some(Item::Thrummer), _ if self.is_gate() => Some(Item::Gate), _ => None } }
 }
 
 pub struct Logic {
@@ -65,11 +72,14 @@ impl Logic {
     fn mark(&mut self) { self.dirty = true; self.thrum_dirty = true; }
 
     // ---------- editing ----------
-    pub fn place_wire(&mut self, b: usize) { if !Dev::from_u8(self.dev[b]).is_gate() { self.wire[b] = 1; self.mark(); } }
+    /// Lay copperline on a block. False if there is already some, or a knot sits there (knots take no wire).
+    pub fn place_wire(&mut self, b: usize) -> bool { if self.wire[b] != 0 || Dev::from_u8(self.dev[b]).is_gate() { return false; } self.wire[b] = 1; self.mark(); true }
+    /// Clear a block's per-device state so a new device never inherits a burning fuse, a latch or a channel.
+    fn reset(&mut self, b: usize) { self.dev_s[b] = 0; self.dev_p[b] = 0; self.burn[b] = 0; self.powered[b] = 0; self.rx_on[b] = 0; self.tx_on[b] = 0; }
     /// Returns false if the block is occupied or not open enough.
     pub fn place(&mut self, g: &mut Grid, d: Dev, b: usize) -> bool {
         if self.dev[b] != 0 || self.count(g, b, |i| g.is_solidish(i)) > 8 { return false; }
-        self.dev[b] = d as u8; self.dev_s[b] = 0; self.dev_p[b] = if d == Dev::Timer { 40 } else if d.is_thrum() { 1 } else { 0 };
+        self.reset(b); self.dev[b] = d as u8; self.dev_p[b] = if d == Dev::Timer { 40 } else if d.is_thrum() { 1 } else { 0 };
         if d.is_gate() { self.wire[b] = 0; }
         if d == Dev::Door { self.set_door(g, b, false); }
         self.mark(); true
@@ -77,7 +87,7 @@ impl Logic {
     pub fn remove(&mut self, g: &mut Grid, b: usize) -> Option<Dev> {
         let d = Dev::from_u8(self.dev[b]);
         if matches!(d, Dev::Door | Dev::Floodgate) { self.set_door(g, b, true); }
-        if self.wire[b] != 0 || self.dev[b] != 0 { self.wire[b] = 0; self.dev[b] = 0; self.mark(); }
+        if self.wire[b] != 0 || self.dev[b] != 0 { self.wire[b] = 0; self.dev[b] = 0; self.reset(b); self.mark(); }
         if d == Dev::None { None } else { Some(d) }
     }
     pub fn interact(&mut self, b: usize) {
@@ -86,13 +96,17 @@ impl Logic {
             _ if d.is_thrum() => self.dev_p[b] = (self.dev_p[b] + 1) % 8, Dev::Fuse | Dev::Tnt => self.ignite(b), _ => {} }
         self.thrum_dirty = true;
     }
-    pub fn ignite(&mut self, b: usize) { match Dev::from_u8(self.dev[b]) { Dev::Fuse if self.burn[b] == 0 => self.burn[b] = FUSE_TICKS, Dev::Tnt => self.booms.push(b), _ => {} } }
+    /// Light a fuse cord or a TNT charge's fuse (no effect if it is already burning).
+    pub fn ignite(&mut self, b: usize) { match Dev::from_u8(self.dev[b]) { Dev::Fuse if self.burn[b] == 0 => self.burn[b] = FUSE_TICKS, Dev::Tnt if self.burn[b] == 0 => self.burn[b] = TNT_FUSE, _ => {} } }
+    /// Set a TNT charge off now (current, a blast nearby, a fuse cord burning into it).
+    pub fn detonate(&mut self, b: usize) { if self.dev[b] == Dev::Tnt as u8 && !self.booms.contains(&b) { self.booms.push(b); } }
+    pub fn lit(&self, b: usize) -> bool { self.burn[b] > 0 }
     pub fn on_explosion(&mut self, g: &mut Grid, cx: usize, cy: usize, r: f32) {
         for b in 0..self.wire.len() {
             if self.wire[b] == 0 && self.dev[b] == 0 { continue; }
             let (x, y) = self.centre(b); let d = ((x as f32 - cx as f32).powi(2) + (y as f32 - cy as f32).powi(2)).sqrt();
             let dv = Dev::from_u8(self.dev[b]);
-            if dv == Dev::Tnt && d <= r + 6. { if !self.booms.contains(&b) { self.booms.push(b); } continue; }
+            if dv == Dev::Tnt && d <= r + 6. { self.detonate(b); continue; }
             if dv == Dev::Fuse && d <= r + 4. { self.ignite(b); continue; }
             if d <= r * 0.8 { self.remove(g, b); }
         }
@@ -172,7 +186,7 @@ impl Logic {
                 Dev::Floodgate => if (self.dev_s[b] == 1) != p { self.dev_s[b] = p as u8; self.set_door(g, b, !p); },
                 Dev::Pump => if p { self.pump(g, b) },
                 Dev::Lamp => self.dev_s[b] = p as u8,
-                Dev::Tnt => if p && !self.booms.contains(&b) { self.booms.push(b) },
+                Dev::Tnt => if p { self.detonate(b) },
                 Dev::Tx => self.tx_on[b] = p as u8,
                 _ => {}
             }
@@ -184,9 +198,8 @@ impl Logic {
             let d = Dev::from_u8(self.dev[b]); if matches!(d, Dev::Door | Dev::Floodgate | Dev::Plate) { continue; }
             let lava = self.count(g, b, |i| g.mat[i] == Mat::Lava as u8);
             let buried = self.count(g, b, |i| g.m(i).kind() == Kind::Powder || (g.loose(i) && g.mat[i] != 0)) >= 10;
+            if matches!(d, Dev::Tnt | Dev::Fuse) { if lava > 0 { self.ignite(b); } continue; } // a buried charge stays put
             if lava >= 2 || buried {
-                if d == Dev::Tnt && lava > 0 { if !self.booms.contains(&b) { self.booms.push(b); } continue; }
-                if d == Dev::Fuse && lava > 0 { self.ignite(b); continue; }
                 self.wire[b] = 0; self.dev[b] = 0; self.mark();
                 self.msgs.push(format!("{} destroyed by {}", if d == Dev::None { "Wire" } else { d.name() }, if lava > 0 { "lava" } else { "cave-in" }));
             }
@@ -195,13 +208,15 @@ impl Logic {
     fn step_fuses(&mut self, g: &Grid, _tick: u64) {
         let mut ign = vec![];
         for &b in &self.dev_list.clone() {
-            if self.dev[b] != Dev::Fuse as u8 { continue; }
-            if self.burn[b] == 0 && self.count(g, b, |i| g.mat[i] == Mat::Lava as u8) > 0 { self.burn[b] = FUSE_TICKS; }
+            let tnt = self.dev[b] == Dev::Tnt as u8;
+            if self.dev[b] != Dev::Fuse as u8 && !tnt { continue; }
+            if self.burn[b] == 0 && self.count(g, b, |i| g.mat[i] == Mat::Lava as u8 || g.mat[i] == Mat::Fire as u8) > 0 { self.ignite(b); }
             if self.burn[b] <= 0 { continue; }
-            if self.count(g, b, |i| g.mat[i] == Mat::Water as u8) >= 4 { self.burn[b] = 0; continue; }
+            if self.count(g, b, |i| g.mat[i] == Mat::Water as u8) >= 4 { self.burn[b] = 0; self.msgs.push(format!("{} doused", if tnt { "TNT fuse" } else { "Fuse" })); continue; }
             self.burn[b] -= 1;
+            if tnt { if self.burn[b] == 0 { self.detonate(b); } continue; }
             if self.burn[b] == 0 { self.dev[b] = 0; self.dirty = true;
-                for n in self.nb(b) { if n >= self.dev.len() || n == b { continue; } if self.dev[n] == Dev::Fuse as u8 && self.burn[n] == 0 { ign.push(n); } if self.dev[n] == Dev::Tnt as u8 && !self.booms.contains(&n) { self.booms.push(n); } } }
+                for n in self.nb(b) { if n >= self.dev.len() || n == b { continue; } if self.dev[n] == Dev::Fuse as u8 && self.burn[n] == 0 { ign.push(n); } if self.dev[n] == Dev::Tnt as u8 { if !self.booms.contains(&n) { self.booms.push(n); } } } }
         }
         for n in ign { self.burn[n] = FUSE_TICKS; }
     }

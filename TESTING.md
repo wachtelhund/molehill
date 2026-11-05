@@ -48,6 +48,11 @@ tool 41 3               // from tick 41 dig with tool tier 0 claws, 1 pickaxe, 2
 mine 41-60 3 0          // hold mine on cell (dx,dy) relative to '@' during ticks A-B
 explode 70 5 -2 3       // TNT-strength blast at (dx,dy) with radius r at tick T
 place 5 4 0 WoodPillar  // at tick T place a block item (WoodPillar, Brick, IronBeam) at (dx,dy), as a left click; a refusal prints NOTE
+device 5 12 -1 Tnt      // place a device (logic::Dev name: Lever, Tnt, And, Tx, Rx, Lamp, Fuse, ...) in the 1 m block at (dx,dy)
+use 10 12 -1            // right mouse on the device there: flip a lever, light TNT or a fuse, step a channel
+pickup 40 12 -1         // Ctrl+right mouse: take the device and copperline there back into the pack
+wire 4 1 -1 13 -1       // lay copperline from (dx,dy) to (dx2,dy2), one per 1 m block (a single block if only one point)
+saveload 60             // save the world to bytes and load it back (checks persistence mid-scenario)
 dump 50                 // print the JSON state after tick T
 ascii 80                // print the map region after tick T
 expect 60 rise >= 4.5   // assertion after tick T: <var> <op> <number>, ops: < <= > >= == !=
@@ -70,6 +75,11 @@ Map legend: `.` empty, `#` granite, `B` bedrock, `r` rock, `d` dirt, `c` clay, `
 | `count:<Mat>` | Cells of that material inside the map rectangle, e.g. `count:Water` |
 | `is:DX,DY,<Mat>` | 1 if the cell at an offset from `@` is that material |
 | `inv:<Item>` | Inventory count |
+| `dev:DX,DY,<Dev>` | 1 if the 1 m block at that offset holds that device |
+| `lit:DX,DY` / `on:DX,DY` / `wire:DX,DY` | The block's fuse is burning / its device is powered / it has copperline |
+| `ev:<Event>` | How many of that event (Explode, Click, Place, ...) happened so far |
+
+Devices sit on a 1 m (4×4-cell) block grid. The spawn cell is block-aligned, so blocks start at offsets that are multiples of 4.
 
 The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of the scenario tick), player state, non-zero inventory, material counts in the map rectangle, and events as `"tick:Event"`.
 
@@ -88,6 +98,10 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `pillar_holds.scn` | A wood pillar built cell by cell in a granite room stays rigid |
 | `pillar_holds_roof.scn` / `roof_needs_pillar.scn` | Pillars every ~1 m save a 6 m dirt roof that caves in without them |
 | `beam_spans_gap.scn` | A wood beam bridging a 3.5 m gap high in a cave stays put |
+| `tnt_inert.scn` | Placed TNT is inert; right mouse lights a 1.5 s fuse, then it blows |
+| `tnt_lever.scn` / `tnt_thrum.scn` | Remote detonation: a lever on copperline, or a thrummer knocking through 2 m of granite to a listener |
+| `tnt_defuse.scn` / `tnt_douse.scn` | A lit charge picked up is defused (and comes back unlit); water puts a fuse out |
+| `saveload_devices.scn` | A thrown lever, a lit lamp and a burning TNT fuse survive save/load |
 | `beam_overload.scn` | A wood beam under a sand heap breaks into wood splinters; the same iron span holds |
 
 ### Writing a new scenario (for agents)

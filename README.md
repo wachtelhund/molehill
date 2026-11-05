@@ -47,8 +47,8 @@ You play one mole. The controls work like Terraria or Core Keeper.
 | Into a wall in the air | Cling to it. `W` / `S` climb up or down; let go and you slide slowly. `Space` wall-jumps away. At the top you mantle the ledge |
 | Water / lava | `W` / `Space` swim up (water); lava burns |
 | `S` | Dig down (on the ground) |
-| Left mouse | Use the item in hand. A dig tool carves a round, mole-sized bite under the cursor (the ring shows its size). Other items place a pillar, brick, beam, torch, copperline, device, spore, TNT or station |
-| Right mouse | Interact: flip a lever, set a thrum channel. `Ctrl`+right mouse picks up copperline or a device |
+| Left mouse | Use the item in hand. A dig tool carves a round, mole-sized bite under the cursor (the ring shows its size). Other items place a pillar, brick, beam, torch, copperline, device, spore, TNT or station. TNT goes down inert |
+| Right mouse | Interact: flip a lever, set a thrum channel, light a TNT charge (1.5 s fuse) or a fuse cord. `Ctrl`+right mouse picks up copperline or a device (a lit charge is defused) |
 | `1`-`0` / wheel | Select a hotbar slot |
 | `I` | Inventory grid. Click a slot to pick its item up, then click another slot to drop or swap it (the hotbar is the bottom row) |
 | `+` / `-`, `Ctrl`+wheel | Zoom |
@@ -82,7 +82,7 @@ For testing, all three tools and generous stacks of every item start in the pack
 * **Crafting, quests and chests:** stations, a recipe queue and a quest chain.
 * **Wiring and logic:**
   * Copperline on a 1 m block layer forms nets. Knots (both = AND, either = OR, turn = NOT, odd = XOR, catch = latch) switch one tick after their inputs change.
-  * Devices include levers, plates, sensors, doors, floodgates, pumps, lamps, TNT and tickers. Power comes from **heatstones** (live while lava touches neighbouring blocks) and **water wheels** (turn while water flows through their block).
+  * Devices include levers, plates, sensors, doors, floodgates, pumps, lamps, TNT and tickers. TNT is inert until lit (right mouse, fire or lava: a 1.5 s fuse that water puts out) or set off at once by current on its copperline (lever, knot or a listener: remote detonation by thrumming), by a blast nearby, or by a fuse cord burning into it. Power comes from **heatstones** (live while lava touches neighbouring blocks) and **water wheels** (turn while water flows through their block).
   * **Thrumming** sends a knock through the rock from a thrummer to listeners on the same channel; relay thrummers pass it on. It is modelled as an elastic wave, with every number derived from the material table:
     * stiffness E ≈ 300 × compressive strength (rock-mass modulus ratio); water uses the bulk modulus 2.2 GPa and air 142 kPa;
     * wave speed c = √(E/ρ) and impedance Z = ρc;

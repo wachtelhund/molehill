@@ -161,7 +161,7 @@ fn make_bg(w: &World) -> Bg {
     let mk = |k, f| (art::layer(k, w.oy, &w.info.biome, W, H, PAD, 1, w.info.seed).0, f);
     Bg { layers: vec![mk(art::Layer::Strata, 0.8), mk(art::Layer::Caves, 0.6), mk(art::Layer::Veins, 0.35)] }
 }
-fn dev_cost(d: Dev) -> Option<Item> { if d == Dev::Tnt { Some(Item::Tnt) } else if d.is_thrum() { Some(Item::Thrummer) } else if d.is_gate() { Some(Item::Gate) } else if d == Dev::Lamp { Some(Item::Lamp) } else if d == Dev::Vent { Some(Item::Vent) } else if d == Dev::Heat { Some(Item::IronIngot) } else if d == Dev::Wheel { Some(Item::Wood) } else { None } }
+fn dev_cost(d: Dev) -> Option<Item> { d.cost() }
 fn input(mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<ButtonInput<MouseButton>>, scroll: Res<AccumulatedMouseScroll>,
          win: Query<&Window, With<PrimaryWindow>>, mut cam: Query<&mut Transform, With<Camera2d>>, time: Res<Time>,
          mut commands: Commands) {
@@ -236,22 +236,22 @@ fn input(mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<Button
     let reach = g.w.in_reach(cx, cy); g.aim = Some((cx, cy, reach));
     let blk = g.w.logic.block_of(cx, cy);
     if !reach { return; }
-    // right mouse: interact (lever, thrum channel, ticker); Ctrl+right picks up copperline or a device
-    if mouse.pressed(MouseButton::Right) && ctrl { let gw = &mut g.w; if let Some(d) = gw.logic.remove(&mut gw.g, blk) { if let Some(it) = dev_cost(d) { gw.inv[it as usize] += 1; } } }
-    else if mouse.just_pressed(MouseButton::Right) && g.w.logic.dev[blk] != 0 { g.w.logic.interact(blk); g.w.events.push(sw::Event::Click); }
+    // right mouse: interact (lever, thrum channel, ticker, light a fuse or TNT); Ctrl+right picks up copperline or a device
+    if mouse.pressed(MouseButton::Right) && ctrl { g.w.pick_up(cx, cy); }
+    else if mouse.just_pressed(MouseButton::Right) { g.w.use_device(cx, cy); }
     // left mouse: use the item in hand
     let (lp, lj) = (mouse.pressed(MouseButton::Left), mouse.just_pressed(MouseButton::Left));
     match sel {
         Some(Thing::Pick(_)) if lp => g.w.input.mine = Some((cx, cy)),
         Some(Thing::Item(it @ (Item::WoodPillar | Item::Brick | Item::IronBeam))) if lp => { if let Err(e) = g.w.place_block(cx, cy, it) { if lj { g.msg = format!("Can't place: {e}"); } } }
-        Some(Thing::Item(Item::CopperWire)) if lp => { if g.w.logic.wire[blk] == 0 && g.w.inv[Item::CopperWire as usize] > 0 { g.w.inv[Item::CopperWire as usize] -= 1; g.w.logic.place_wire(blk); } }
+        Some(Thing::Item(Item::CopperWire)) if lp => { g.w.lay_wire(cx, cy); }
         Some(Thing::Item(Item::Torch)) if lj => { if !g.w.place_torch(cx, cy) { g.msg = "Needs open space".into(); } }
-        Some(Thing::Item(Item::Tnt)) if lj => { if g.w.inv[Item::Tnt as usize] > 0 { g.w.inv[Item::Tnt as usize] -= 1; g.w.explode(cx, cy, 9., 6); } }
+        // TNT goes down inert; right mouse lights it, or wire it to a lever / knot / listener
+        Some(Thing::Item(Item::Tnt)) if lj => { if g.w.logic.dev[blk] != 0 { g.w.use_device(cx, cy); } else if let Err(e) = g.w.place_device(Dev::Tnt, cx, cy) { g.msg = format!("Can't place: {e}"); } }
         Some(Thing::Item(Item::Spore)) if lj => { if let Err(e) = g.w.plant(cx, cy) { g.msg = format!("Can't plant: {e}"); } }
         Some(Thing::Dev(d)) if lj => {
-            let d = DEVS[d]; let cost = dev_cost(d);
-            if g.w.logic.dev[blk] != 0 { g.w.logic.interact(blk); g.w.events.push(sw::Event::Click); }
-            else if cost.map_or(true, |it| g.w.inv[it as usize] > 0) { let gw = &mut g.w; if gw.logic.place(&mut gw.g, d, blk) { if let Some(it) = cost { gw.inv[it as usize] -= 1; } gw.events.push(sw::Event::Place); } else { g.msg = "Needs open space".into(); } }
+            if g.w.logic.dev[blk] != 0 { g.w.use_device(cx, cy); }
+            else if let Err(e) = g.w.place_device(DEVS[d], cx, cy) { g.msg = format!("Can't place: {e}"); }
         }
         Some(Thing::Station(k)) if lj => { let s = STATIONS[k]; if let Err(e) = g.w.place_building(s, cx.saturating_sub(Station::W / 2), cy) { g.msg = format!("Can't build: {e}"); } }
         _ => {}
@@ -371,6 +371,8 @@ fn render_world(mut gm: ResMut<Game>, bg: Res<Bg>, mut images: ResMut<Assets<Ima
                 let edge = lx == 0 || ly == 0 || lx == LB - 1 || ly == LB - 1;
                 if !(matches!(d, Dev::Door | Dev::Floodgate) && !edge) {
                     let k = if edge { 0.55 } else if on { 1.15 } else { 0.7 };
+                    let blink = lg.burn[bk] > 0 && (lg.burn[bk] / 6) % 2 == 0; // a lit fuse flickers
+                    let base = if blink { [255, 230, 120] } else { base };
                     px = [(base[0] as f32 * k).min(255.) as u8, (base[1] as f32 * k).min(255.) as u8, (base[2] as f32 * k).min(255.) as u8, 255];
                     if d.is_thrum() && !edge && lx == 1 && ly == 1 { let ch = lg.dev_p[bk] as u8; px = [40 + ch * 25, 220 - ch * 20, 120, 255]; }
                 }

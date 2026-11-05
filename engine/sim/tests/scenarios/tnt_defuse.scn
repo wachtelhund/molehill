@@ -1,0 +1,23 @@
+// A lit charge can be picked back up (Ctrl+right mouse): it is defused and goes back in the pack.
+map
+##########################################
+#........................................#
+#........................................#
+#........................................#
+#........................................#
+#........................................#
+#.................@......................#
+##########################################
+end
+give Tnt 1
+device 5 12 -1 Tnt
+use 10 12 -1
+expect 11 lit:12,-1 == 1
+pickup 40 12 -1
+expect 41 inv:Tnt == 1
+expect 41 dev:12,-1,Tnt == 0
+expect 200 ev:Explode == 0
+// put it down again: a fresh charge, not still burning
+device 210 12 -1 Tnt
+expect 211 lit:12,-1 == 0
+expect 400 ev:Explode == 0

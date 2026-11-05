@@ -8,7 +8,7 @@ fn mat_by_name(s: &str) -> Option<Mat> { (0..NMAT as u8).map(Mat::from_u8).find(
 fn mat_char(c: char) -> Option<Mat> { Some(match c { '.' | '@' => Mat::Empty, '#' => Mat::Granite, 'B' => Mat::Bedrock, 'r' => Mat::Rock, 'd' => Mat::Dirt, 'c' => Mat::Clay, 's' => Mat::Sand, 'g' => Mat::Gravel, 'w' => Mat::Water, 'l' => Mat::Lava, 'o' => Mat::Coal, 'i' => Mat::IronOre, 'b' => Mat::WoodBeam, 'k' => Mat::StoneBrick, 'I' => Mat::IronBeam, _ => return None }) }
 fn ch_of(m: Mat) -> char { match m { Mat::Empty => '.', Mat::Granite => '#', Mat::Bedrock => 'B', Mat::Rock => 'r', Mat::Dirt => 'd', Mat::Clay => 'c', Mat::Sand => 's', Mat::Gravel => 'g', Mat::Water => 'w', Mat::Lava => 'l', Mat::Coal => 'o', Mat::IronOre => 'i', Mat::WoodBeam => 'b', Mat::StoneBrick => 'k', Mat::IronBeam => 'I', Mat::Steam => '~', _ => '?' } }
 
-enum Act { Hold(u64, u64, Vec<String>), Mine(u64, u64, i32, i32), Tool(u64, u8), Explode(u64, i32, i32, f32), Dump(u64), Ascii(u64), Place(u64, i32, i32, String), Expect(u64, String, String, f64, usize) }
+enum Act { Hold(u64, u64, Vec<String>), Mine(u64, u64, i32, i32), Tool(u64, u8), Explode(u64, i32, i32, f32), Dump(u64), Ascii(u64), Place(u64, i32, i32, String), Device(u64, i32, i32, String), Use(u64, i32, i32), Pickup(u64, i32, i32), Wire(u64, i32, i32, i32, i32), SaveLoad(u64), Expect(u64, String, String, f64, usize) }
 
 struct Run { w: World, ox: usize, oy: usize, mw: usize, mh: usize, ax: usize, ay: usize, sx: f32, sy: f32, top: f32, events: Vec<String> }
 impl Run {
@@ -24,8 +24,14 @@ impl Run {
                 let a: Vec<&str> = v[3..].split(',').collect(); let (dx, dy): (i32, i32) = (a.get(0)?.parse().ok()?, a.get(1)?.parse().ok()?);
                 (self.w.g.get((self.ax as i32 + dx) as usize, (self.ay as i32 + dy) as usize) == mat_by_name(a.get(2)?)?) as u8 as f64 }
             _ if v.starts_with("inv:") => { let i = molehill_sim::craft::ITEMS.iter().position(|it| format!("{it:?}").eq_ignore_ascii_case(&v[4..]))?; self.w.inv[i] as f64 }
+            _ if v.starts_with("dev:") || v.starts_with("lit:") || v.starts_with("wire:") || v.starts_with("on:") => { // dev:DX,DY,Name  lit:DX,DY  wire:DX,DY  on:DX,DY (powered)
+                let (k, rest) = v.split_once(':')?; let a: Vec<&str> = rest.split(',').collect(); let (x, y) = self.at(a.get(0)?.parse().ok()?, a.get(1)?.parse().ok()?);
+                let b = self.w.logic.block_of(x, y); let l = &self.w.logic;
+                match k { "dev" => (format!("{:?}", molehill_sim::logic::Dev::from_u8(l.dev[b])).eq_ignore_ascii_case(a.get(2)?)) as u8 as f64, "lit" => l.lit(b) as u8 as f64, "wire" => l.wire[b] as f64, _ => l.powered[b] as f64 } }
+            _ if v.starts_with("ev:") => self.events.iter().filter(|e| e.split(':').nth(1) == Some(&v[3..])).count() as f64,
             _ => return None })
     }
+    fn at(&self, dx: i32, dy: i32) -> (usize, usize) { ((self.ax as i32 + dx) as usize, (self.ay as i32 + dy) as usize) }
     fn json(&self) -> String {
         let p = &self.w.pl; let m = &self.w.moles[0];
         let mut counts = vec![0u32; NMAT]; for y in self.oy..self.oy + self.mh { for x in self.ox..self.ox + self.mw { counts[self.w.g.get(x, y) as usize] += 1; } }
@@ -58,13 +64,18 @@ fn run_file(path: &str, json: bool) -> bool {
             "tool" => acts.push(Act::Tool(t[1].parse().unwrap(), t[2].parse().unwrap())),
             "explode" => acts.push(Act::Explode(t[1].parse().unwrap(), t[2].parse().unwrap(), t[3].parse().unwrap(), t[4].parse().unwrap())),
             "place" => acts.push(Act::Place(t[1].parse().unwrap(), t[2].parse().unwrap(), t[3].parse().unwrap(), t[4].into())),
+            "device" => acts.push(Act::Device(t[1].parse().unwrap(), t[2].parse().unwrap(), t[3].parse().unwrap(), t[4].into())),
+            "use" => acts.push(Act::Use(t[1].parse().unwrap(), t[2].parse().unwrap(), t[3].parse().unwrap())),
+            "pickup" => acts.push(Act::Pickup(t[1].parse().unwrap(), t[2].parse().unwrap(), t[3].parse().unwrap())),
+            "wire" => { let a: Vec<i32> = t[2..].iter().map(|v| v.parse().unwrap()).collect(); let (x1, y1) = if a.len() >= 4 { (a[2], a[3]) } else { (a[0], a[1]) }; acts.push(Act::Wire(t[1].parse().unwrap(), a[0], a[1], x1, y1)); }
+            "saveload" => acts.push(Act::SaveLoad(t[1].parse().unwrap())),
             "dump" => acts.push(Act::Dump(t[1].parse().unwrap())),
             "ascii" => acts.push(Act::Ascii(t[1].parse().unwrap())),
             "expect" => acts.push(Act::Expect(t[1].parse().unwrap(), t[2].into(), t[3].into(), t[4].parse().unwrap(), ln + 1)),
             o => panic!("{path}:{}: unknown directive {o}", ln + 1),
         }
     }
-    for a in &acts { ticks = ticks.max(match a { Act::Hold(_, b, _) | Act::Mine(_, b, _, _) => *b, Act::Tool(t, _) | Act::Explode(t, ..) | Act::Place(t, ..) | Act::Dump(t) | Act::Ascii(t) | Act::Expect(t, ..) => *t }); }
+    for a in &acts { ticks = ticks.max(match a { Act::Hold(_, b, _) | Act::Mine(_, b, _, _) => *b, Act::Tool(t, _) | Act::Explode(t, ..) | Act::Place(t, ..) | Act::Device(t, ..) | Act::Use(t, ..) | Act::Pickup(t, ..) | Act::Wire(t, ..) | Act::SaveLoad(t) | Act::Dump(t) | Act::Ascii(t) | Act::Expect(t, ..) => *t }); }
     let mut w = World::new(512, 256, seed); w.disasters.enabled = false; w.drops.clear(); w.torches.clear(); w.farms.clear();
     let (sx0, sy0) = (w.moles[0].x, w.moles[0].y);
     let mh = map.len(); let mw = map.iter().map(|l| l.chars().count()).max().unwrap_or(0);
@@ -90,9 +101,18 @@ fn run_file(path: &str, json: bool) -> bool {
                 Act::Place(t, dx, dy, it) if *t == tick => { let (x, y) = ((r.ax as i32 + dx) as usize, (r.ay as i32 + dy) as usize);
                     let item = molehill_sim::craft::ITEMS.iter().copied().find(|i| format!("{i:?}").eq_ignore_ascii_case(it)).unwrap_or_else(|| panic!("unknown item {it}"));
                     if let Err(e) = r.w.place_block(x, y, item) { println!("  NOTE {path} tick {tick}: place {it} at {dx},{dy}: {e}"); } }
+                Act::Device(t, dx, dy, n) if *t == tick => { let (x, y) = r.at(*dx, *dy);
+                    let d = molehill_sim::logic::DEVS.iter().copied().find(|d| format!("{d:?}").eq_ignore_ascii_case(n)).unwrap_or_else(|| panic!("unknown device {n}"));
+                    if let Err(e) = r.w.place_device(d, x, y) { println!("  NOTE {path} tick {tick}: device {n} at {dx},{dy}: {e}"); } }
+                Act::Use(t, dx, dy) if *t == tick => { let (x, y) = r.at(*dx, *dy); if !r.w.use_device(x, y) { println!("  NOTE {path} tick {tick}: nothing to use at {dx},{dy}"); } }
+                Act::Pickup(t, dx, dy) if *t == tick => { let (x, y) = r.at(*dx, *dy); r.w.pick_up(x, y); }
+                Act::Wire(t, x0, y0, x1, y1) if *t == tick => { // a straight run of copperline, one per 1 m block
+                    let n = ((x1 - x0).abs().max((y1 - y0).abs()) / 4).max(0);
+                    for k in 0..=n { let f = |a: i32, b: i32| if n == 0 { a } else { a + (b - a) * k / n }; let (x, y) = r.at(f(*x0, *x1), f(*y0, *y1)); r.w.lay_wire(x, y); } }
+                Act::SaveLoad(t) if *t == tick => { let b = molehill_sim::save::save(&r.w); let mut w = molehill_sim::save::load(&b).unwrap_or_else(|e| panic!("{path}: reload failed: {e}")); w.disasters.enabled = false; r.w = w; }
                 _ => {} } }
-            r.w.input = inp; r.w.step();
-            for e in std::mem::take(&mut r.w.events) { r.events.push(format!("{}:{e:?}", tick)); }
+            r.w.input = inp; let pre = std::mem::take(&mut r.w.events); r.w.step(); // keep events from actions (clicks, places) like the game does
+            for e in pre.into_iter().chain(std::mem::take(&mut r.w.events)) { r.events.push(format!("{}:{e:?}", tick)); }
             r.top = r.top.min(r.w.pl.py);
         } else { r.w.step(); r.w.events.clear(); r.sx = r.w.pl.px; r.sy = r.w.pl.py; r.top = r.sy; }
         for a in &acts { match a {

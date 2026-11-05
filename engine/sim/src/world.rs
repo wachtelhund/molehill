@@ -270,7 +270,7 @@ impl World {
         self.logic.step(&mut self.g, &mp, self.tick);
         for s in std::mem::take(&mut self.logic.msgs) { self.say(s); }
         let booms = std::mem::take(&mut self.logic.booms);
-        for b in booms { if self.logic.dev[b] == Dev::Tnt as u8 { self.logic.dev[b] = 0; let (x, y) = self.logic.centre(b); self.explode(x, y, 9., 6); } }
+        for b in booms { if self.logic.dev[b] == Dev::Tnt as u8 { self.logic.remove(&mut self.g, b); let (x, y) = self.logic.centre(b); self.explode(x, y, 9., 6); } }
         // disasters
         let mut dz = std::mem::replace(&mut self.disasters, Disasters::new(0));
         dz.step(self); self.disasters = dz;
@@ -488,7 +488,7 @@ impl World {
         let inp = self.input.clone();
         let t = TUNE;
         // keep the float body in sync when something else moved the mole (respawn, window shift, load)
-        { let m = &self.moles[0]; if self.pl.sync != Some((m.x, m.y)) { self.pl.px = m.x as f32 + 0.5; self.pl.py = m.y as f32 + 1.0; self.pl.vx = 0.; self.pl.vy = 0.; self.pl.ppx = self.pl.px; self.pl.ppy = self.pl.py; } }
+        { let m = &self.moles[0]; if self.pl.sync != Some((m.x, m.y)) { self.pl.px = m.x as f32 + 0.5; self.pl.py = m.y as f32 + 1.0; self.pl.vx = 0.; self.pl.vy = 0.; self.pl.ppx = self.pl.px; self.pl.ppy = self.pl.py; self.pl.fall_from = m.y; self.pl.grounded = true; } }
         self.pl.ppx = self.pl.px; self.pl.ppy = self.pl.py;
         let (wet, lava) = self.body_fluid();
         if lava { self.moles[0].hp -= t.lava_dps * dt; }
@@ -593,6 +593,45 @@ impl World {
         if !self.g.n4(x, y).any(|j| self.g.is_solidish(j)) { return Err("needs something to rest on"); }
         if self.place_acc[d as usize] == 0 && self.inv[it as usize] == 0 { return Err("none left"); }
         self.place_cell(i, d); Ok(())
+    }
+    /// Place a device (lever, knot, TNT, ...) in the 1 m block under (x, y), paying its pack item.
+    /// TNT goes down inert: light it (`use_device`), or put current on a copperline beside it.
+    pub fn place_device(&mut self, d: Dev, x: usize, y: usize) -> Result<(), &'static str> {
+        if d == Dev::None { return Err("not a device"); }
+        if x >= self.g.w || y >= self.g.h { return Err("out of bounds"); }
+        if !self.in_reach(x, y) { return Err("out of reach"); }
+        let b = self.logic.block_of(x, y);
+        if self.logic.dev[b] != 0 { return Err("something is already there"); }
+        let cost = d.cost(); if let Some(it) = cost { if self.inv[it as usize] == 0 { return Err("none left"); } }
+        let had_wire = self.logic.wire[b] != 0;
+        if !self.logic.place(&mut self.g, d, b) { return Err("needs open space"); }
+        if had_wire && self.logic.wire[b] == 0 { self.inv[Item::CopperWire as usize] += 1; } // a knot replaced the copperline
+        if let Some(it) = cost { self.inv[it as usize] -= 1; }
+        self.events.push(Event::Place); Ok(())
+    }
+    /// Right mouse on a device: flip a lever, step a thrum channel or ticker, light a fuse or TNT.
+    pub fn use_device(&mut self, x: usize, y: usize) -> bool {
+        if x >= self.g.w || y >= self.g.h || !self.in_reach(x, y) { return false; }
+        let b = self.logic.block_of(x, y); if self.logic.dev[b] == 0 { return false; }
+        self.logic.interact(b); self.events.push(Event::Click); true
+    }
+    /// Lay one copperline on the block under (x, y). False if it can't (already wired, a knot, none left).
+    pub fn lay_wire(&mut self, x: usize, y: usize) -> bool {
+        if x >= self.g.w || y >= self.g.h || !self.in_reach(x, y) || self.inv[Item::CopperWire as usize] == 0 { return false; }
+        let b = self.logic.block_of(x, y);
+        if !self.logic.place_wire(b) { return false; }
+        self.inv[Item::CopperWire as usize] -= 1; true
+    }
+    /// Pick up the device and copperline on the block under (x, y), back into the pack (a lit charge is
+    /// defused). Returns the device, if there was one.
+    pub fn pick_up(&mut self, x: usize, y: usize) -> Option<Dev> {
+        if x >= self.g.w || y >= self.g.h || !self.in_reach(x, y) { return None; }
+        let b = self.logic.block_of(x, y); let wire = self.logic.wire[b] != 0;
+        let d = self.logic.remove(&mut self.g, b);
+        if wire { self.inv[Item::CopperWire as usize] += 1; }
+        if let Some(it) = d.and_then(|d| d.cost()) { self.inv[it as usize] += 1; }
+        if wire || d.is_some() { self.events.push(Event::Click); }
+        d
     }
     /// Craft one recipe at once; needs the right station built within 16 cells of the mole.
     pub fn craft_now(&mut self, r: usize) -> Result<(), String> {

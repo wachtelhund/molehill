@@ -324,3 +324,39 @@ fn press(w: &mut World, n: usize, f: impl Fn(&mut Input)) -> (f32, f32) { let (m
     let xw = w.pl.px; press(&mut w, 2, |i| { i.up = false; i.jump = true; }); press(&mut w, 10, |i| i.jump = true);
     assert!(w.pl.px < xw - 1.5 && w.pl.cling == 0, "wall-jumped away: {} -> {}", xw, w.pl.px);
 }
+
+/// Loading a save where the mole stands far below the burrow must not count as a fall (it used to kill).
+#[test] fn load_deep_does_not_fall_damage() {
+    let (mut w, x0, y0) = arena();
+    // a pocket 60 cells below the arena floor, and move the mole there as if it had dug down
+    let y1 = y0 + 60; for y in y1 - 4..=y1 { for x in x0 - 3..=x0 + 3 { let i = w.g.idx(x, y); w.g.set(i, Mat::Empty); } }
+    for x in x0 - 4..=x0 + 4 { let i = w.g.idx(x, y1 + 1); w.g.set(i, Mat::Granite); }
+    w.moles[0].y = y1; w.pl.sync = None; for _ in 0..5 { w.step(); }
+    assert_eq!(w.moles[0].hp, 100.);
+    let b = molehill_sim::save::save(&w); let mut w2 = molehill_sim::save::load(&b).expect("load");
+    for _ in 0..30 { w2.step(); }
+    assert!(w2.moles[0].hp > 99., "hp after load {}", w2.moles[0].hp);
+}
+/// Copperline and knots: dragging wire over a knot costs nothing, picking up refunds the wire and the device,
+/// and a knot placed on copperline gives that copperline back.
+#[test] fn wire_and_device_pack_accounting() {
+    use molehill_sim::logic::Dev;
+    let (mut w, x0, y0) = arena(); let (x, y) = (x0 + 8, y0 - 2);
+    let cu = |w: &World| w.inv[Item::CopperWire as usize]; let kn = |w: &World| w.inv[Item::Gate as usize];
+    let (c0, k0) = (cu(&w), kn(&w));
+    assert!(w.place_device(Dev::And, x, y).is_ok()); assert_eq!(kn(&w), k0 - 1);
+    for _ in 0..10 { assert!(!w.lay_wire(x, y)); } assert_eq!(cu(&w), c0, "no copperline lost on a knot");
+    assert!(w.lay_wire(x + 4, y)); assert_eq!(cu(&w), c0 - 1); assert!(!w.lay_wire(x + 4, y), "already wired");
+    assert!(w.place_device(Dev::Or, x + 4, y).is_ok()); assert_eq!(cu(&w), c0, "knot on copperline refunds it");
+    w.inv[Item::Lamp as usize] = 1; assert!(w.lay_wire(x + 8, y)); assert!(w.place_device(Dev::Lamp, x + 8, y).is_ok());
+    let c1 = cu(&w); assert_eq!(w.pick_up(x + 8, y), Some(Dev::Lamp)); assert_eq!(cu(&w), c1 + 1, "wire under a device refunded");
+    assert_eq!(w.pick_up(x, y), Some(Dev::And)); assert_eq!(w.pick_up(x + 4, y), Some(Dev::Or)); assert_eq!(kn(&w), k0);
+    assert!(w.place_device(Dev::Lever, x + 60, y).is_err(), "out of reach");
+}
+/// A fuse cord picked up while burning, then put down again, is a fresh unlit cord.
+#[test] fn replaced_fuse_is_not_burning() {
+    use molehill_sim::logic::Dev;
+    let (mut w, x0, y0) = arena(); let (x, y) = (x0 + 8, y0 - 2); let b = w.logic.block_of(x, y);
+    assert!(w.place_device(Dev::Fuse, x, y).is_ok()); assert!(w.use_device(x, y)); w.step(); assert!(w.logic.lit(b));
+    w.pick_up(x, y); assert!(w.place_device(Dev::Fuse, x, y).is_ok()); w.step(); assert!(!w.logic.lit(b));
+}

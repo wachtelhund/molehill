@@ -1,0 +1,26 @@
+// Placing TNT is safe: the charge sits inert. Right mouse lights a 1.5 s fuse (time to run), then it blows.
+map
+##########################################
+#........................................#
+#........................................#
+#........................................#
+#........................................#
+#........................................#
+#.................@......................#
+##########################################
+end
+give Tnt 3
+device 5 12 -1 Tnt
+expect 6 inv:Tnt == 2
+expect 6 dev:12,-1,Tnt == 1
+expect 6 lit:12,-1 == 0
+expect 100 ev:Explode == 0
+expect 100 dev:12,-1,Tnt == 1
+use 101 12 -1
+expect 101 lit:12,-1 == 1
+expect 101 ev:Click == 1
+hold 102-150 left
+expect 185 ev:Explode == 0
+expect 195 ev:Explode == 1
+expect 195 dev:12,-1,Tnt == 0
+expect 200 deaths == 0
