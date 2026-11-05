@@ -17,8 +17,9 @@ use molehill_sim::world::{self as sw, World};
 const W: usize = 1024; const H: usize = 512; const CPX: f32 = 4.0; // world units per cell
 const PAD: usize = 512;
 const CH: usize = 64; // texture chunk size in cells
+const FAR: usize = 4; // chunk rows drawn beyond each end of the simulated window (the camera roams there; nothing simulates)
 
-#[derive(Resource)] struct Game { w: World, chunks: Vec<Handle<Image>>, buf: Vec<u8>, uploads: usize, acc: f32, paused: bool, speed: u32, tool: Tool, brush: usize, recipe: usize, station: usize, frame: u64, last_light: u64, msg: String, help: bool, dev: usize, ev: Vec<sw::Event>, shake_off: Vec2, autosave: f32, last_oy: i64 }
+#[derive(Resource)] struct Game { w: World, chunks: Vec<Handle<Image>>, buf: Vec<u8>, uploads: usize, acc: f32, paused: bool, speed: u32, tool: Tool, brush: usize, recipe: usize, station: usize, frame: u64, last_light: u64, msg: String, help: bool, dev: usize, ev: Vec<sw::Event>, shake_off: Vec2, autosave: f32, last_oy: i64, far: Vec<Handle<Image>>, far_done: Vec<bool> }
 #[derive(Clone, Copy, PartialEq, Debug)] enum Tool { Wire, Device, Dig, Farm, Wood, Brick, Iron, Torch, Tnt, Station, Cancel, Stockpile }
 #[derive(Resource)] struct Bg { layers: Vec<(Vec<u8>, f32)> }
 #[derive(Component)] struct WorldSprite;
@@ -27,6 +28,9 @@ const CH: usize = 64; // texture chunk size in cells
 #[derive(Resource)] struct Sprites { mole: [Handle<Image>; 2], icons: Vec<Handle<Image>>, chest: [Handle<Image>; 2], station: Vec<[Handle<Image>; 2]>, torch: Handle<Image>, shroom: [Handle<Image>; 3] }
 
 fn seed_now() -> u32 {
+    // ?seed=N (web) / --seed=N (native) pins the first world
+    #[cfg(target_arch = "wasm32")] { if let Some(v) = web_sys::window().and_then(|w| w.location().search().ok()).and_then(|q| q.split(['?', '&']).find_map(|kv| kv.strip_prefix("seed=").and_then(|v| v.parse::<u32>().ok()))) { return v; } }
+    #[cfg(not(target_arch = "wasm32"))] { if let Some(v) = std::env::args().find_map(|a| a.strip_prefix("--seed=").and_then(|v| v.parse::<u32>().ok())) { return v; } }
     #[cfg(target_arch = "wasm32")] { (js_sys::Date::now() as u64 % 1_000_000_007) as u32 }
     #[cfg(not(target_arch = "wasm32"))] { (std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() % 1_000_000_007) as u32 }
 }
@@ -71,6 +75,16 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
         commands.spawn((Sprite { image: img.clone(), custom_size: Some(Vec2::splat(CH as f32 * CPX)), ..default() }, Transform::from_xyz(p.x, p.y, 0.), WorldSprite));
         chunks.push(img);
     } }
+    // far bands: FAR chunk rows above (band rows 0..FAR) and below (FAR..2·FAR) the window
+    let mut far = vec![];
+    for b in 0..2 * FAR { for cx in 0..W / CH {
+        let cy = if b < FAR { b as f32 - FAR as f32 } else { (H / CH + b - FAR) as f32 };
+        let img = images.add(art::image(CH as u32, CH as u32, vec![0; CH * CH * 4], true));
+        let p = cell_to_world((cx * CH) as f32 + CH as f32 / 2., cy * CH as f32 + CH as f32 / 2.);
+        commands.spawn((Sprite { image: img.clone(), custom_size: Some(Vec2::splat(CH as f32 * CPX)), ..default() }, Transform::from_xyz(p.x, p.y, 0.), WorldSprite));
+        far.push(img);
+    } }
+    let far_done = vec![false; far.len()];
     commands.insert_resource(make_bg(&w));
     let (sx, sy) = (w.moles[0].x as f32, w.moles[0].y as f32 - 10.);
     let p = cell_to_world(sx, sy);
@@ -88,7 +102,7 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
         shroom: [images.add(art::mushroom(0)), images.add(art::mushroom(1)), images.add(art::mushroom(2))],
     };
     commands.insert_resource(sp);
-    commands.insert_resource(Game { w, chunks, buf: vec![1; W * H * 4], uploads: 0, acc: 0., paused: false, speed: 1, tool: Tool::Dig, brush: 4, recipe: 0, station: 0, frame: 0, last_light: 0, msg: String::new(), help: true, dev: 0, ev: vec![], shake_off: Vec2::ZERO, autosave: 0., last_oy: oy0 });
+    commands.insert_resource(Game { w, chunks, buf: vec![1; W * H * 4], uploads: 0, acc: 0., paused: false, speed: 1, tool: Tool::Dig, brush: 4, recipe: 0, station: 0, frame: 0, last_light: 0, msg: String::new(), help: true, dev: 0, ev: vec![], shake_off: Vec2::ZERO, autosave: 0., last_oy: oy0, far, far_done });
 }
 
 fn make_bg(w: &World) -> Bg {
@@ -109,7 +123,7 @@ fn input(mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<Button
     if keys.just_pressed(KeyCode::Equal) { ct.scale = Vec3::splat((sc * 0.8).max(0.12)); }
     if keys.just_pressed(KeyCode::Minus) { ct.scale = Vec3::splat((sc * 1.25).min(2.5)); }
     let half = Vec2::new(W as f32 * CPX / 2., H as f32 * CPX / 2.);
-    ct.translation.x = ct.translation.x.clamp(-half.x, half.x); { let hh = (win.height() / 2. * sc).min(half.y - 1.); ct.translation.y = ct.translation.y.clamp(-half.y + hh, half.y - hh); }
+    ct.translation.x = ct.translation.x.clamp(-half.x, half.x); { let hh = (win.height() / 2. * sc).min(half.y - 1.); let fy = half.y + (FAR * CH) as f32 * CPX; ct.translation.y = ct.translation.y.clamp(-fy + hh, fy - hh); }
     // the Deepholt is endless: near the window's top or bottom edge, slide the window (simulate() re-centres the camera)
     { let (_, cyc) = world_to_cell(ct.translation.truncate()); let ys: Vec<usize> = g.w.moles.iter().filter(|m| m.alive).map(|m| m.y).collect();
       let (lo, hi) = (ys.iter().copied().min().unwrap_or(H / 2), ys.iter().copied().max().unwrap_or(H / 2));
@@ -129,12 +143,12 @@ fn input(mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<Button
     if keys.just_pressed(KeyCode::KeyK) { let b = molehill_sim::save::save(&g.w); g.msg = match storage_put("molehill-manual", &b) { Ok(()) => format!("Saved ({} KB)", b.len() / 1024), Err(e) => format!("Save failed: {e}") }; }
     if keys.just_pressed(KeyCode::KeyL) {
         match storage_get("molehill-manual").or_else(|| storage_get("molehill-auto")).map(|b| molehill_sim::save::load(&b)) {
-            Some(Ok(w)) => { g.w = w; g.last_oy = g.w.oy; commands.insert_resource(make_bg(&g.w)); g.buf.iter_mut().for_each(|v| *v = 1); g.msg = "Loaded".into(); }
+            Some(Ok(w)) => { g.w = w; g.last_oy = g.w.oy; commands.insert_resource(make_bg(&g.w)); g.buf.iter_mut().for_each(|v| *v = 1); g.msg = "Loaded".into(); g.far_done.iter_mut().for_each(|v| *v = false); }
             Some(Err(e)) => g.msg = format!("Load failed: {e}"), None => g.msg = "No save yet (K to save)".into() }
     }
     if keys.just_pressed(KeyCode::KeyB) { let kind = [Kind2::Flood, Kind2::Lava, Kind2::Quake][(g.frame % 3) as usize]; let mut d = std::mem::replace(&mut g.w.disasters, molehill_sim::disasters::Disasters::new(0)); let ok = d.schedule(&mut g.w, kind); g.w.disasters = d; if !ok { g.msg = "No site for that disaster".into(); } }
     if keys.just_pressed(KeyCode::KeyN) {
-        let seed = seed_now() % 100000; g.w = make_world(seed); g.last_oy = g.w.oy;
+        let seed = seed_now() % 100000; g.w = make_world(seed); g.last_oy = g.w.oy; g.far_done.iter_mut().for_each(|v| *v = false);
         commands.insert_resource(make_bg(&g.w)); g.buf.iter_mut().for_each(|v| *v = 1);
         let p = cell_to_world(g.w.moles[0].x as f32, g.w.moles[0].y as f32 - 10.); ct.translation.x = p.x; ct.translation.y = p.y;
         g.msg = format!("New world, seed {}", seed);
@@ -185,7 +199,7 @@ fn simulate(mut commands: Commands, mut g: ResMut<Game>, time: Res<Time>, mut ca
     let (Ok((mut ct, _)), Ok(win)) = (cam.single_mut(), win.single()) else { return };
     if g.w.oy != g.last_oy { // window slid: keep the camera on the same rock, redraw everything
         let d = (g.w.oy - g.last_oy) as f32; ct.translation.y += d * CPX; g.last_oy = g.w.oy;
-        commands.insert_resource(make_bg(&g.w)); g.buf.iter_mut().for_each(|v| *v = 1);
+        commands.insert_resource(make_bg(&g.w)); g.buf.iter_mut().for_each(|v| *v = 1); g.far_done.iter_mut().for_each(|v| *v = false);
     }
     // camera shake (quakes, explosions): remove last frame's offset, add a new one
     let off = g.shake_off; ct.translation.x -= off.x; ct.translation.y -= off.y;
@@ -310,6 +324,40 @@ fn render_world(mut gm: ResMut<Game>, bg: Res<Bg>, mut images: ResMut<Assets<Ima
         for r in 0..CH { let src = ((cy * CH + r) * W + cx * CH) * 4; data[r * CH * 4..(r + 1) * CH * 4].copy_from_slice(&buf[src..src + CH * 4]); }
     }
     gm.uploads = n; gm.buf = buf;
+    render_far(&mut gm, ct, win, &mut images);
+}
+
+/// Beyond the simulated window: rows the colony has seen are drawn from the row cache (dimmed, frozen);
+/// the rest is the Deepholt's rock as a mole senses it through the stone (dim silhouettes of caves).
+fn render_far(gm: &mut Game, ct: &Transform, win: &Window, images: &mut Assets<Image>) {
+    let sc = ct.scale.x; let (hw, hh) = (win.width() / 2. * sc, win.height() / 2. * sc);
+    let (vx0, vy0) = world_to_cell(Vec2::new(ct.translation.x - hw, ct.translation.y + hh));
+    let (vx1, vy1) = world_to_cell(Vec2::new(ct.translation.x + hw, ct.translation.y - hh));
+    let mut budget = 3;
+    for k in 0..gm.far.len() {
+        if gm.far_done[k] { continue; }
+        let (b, cx) = (k / (W / CH), k % (W / CH));
+        let y0 = if b < FAR { (b as i32 - FAR as i32) * CH as i32 } else { (H + (b - FAR) * CH) as i32 };
+        let x0 = (cx * CH) as i32;
+        if x0 + CH as i32 <= vx0 - 8 || x0 > vx1 + 8 || y0 + CH as i32 <= vy0 - 8 || y0 > vy1 + 8 { continue; }
+        if budget == 0 { break; } budget -= 1;
+        let w = &gm.w; let mut data = vec![0u8; CH * CH * 4];
+        for r in 0..CH { let wy = w.oy + (y0 + r as i32) as i64; let row = w.cache.get(&wy);
+            for c in 0..CH { let x = cx * CH + c;
+                let (m, seen) = match row { Some((m, f)) => (m[x], f[x] & F_SEEN != 0), None => (w.gen.cell(x, wy, W).0, false) };
+                let mm = Mat::from_u8(m); let p = &PROPS[m as usize]; let v = (hash3(x as u32, wy as u32, m as u32) & 255) as f32 / 255.;
+                let px: [f32; 3] = if seen {
+                    match p.kind { Kind::Empty | Kind::Gas => [30., 24., 22.], _ => { let k = 0.5 + 0.08 * v; [p.color[0] as f32 * k, p.color[1] as f32 * k, p.color[2] as f32 * k] } }
+                } else {
+                    let n = (hash3(x as u32 / 2, wy as u32 / 2, 5) & 7) as f32;
+                    match p.kind { Kind::Empty | Kind::Gas => [8. + n, 7. + n, 11. + n], _ if mm == Mat::Lava => [70. + n, 30., 16.], _ if mm == Mat::Water => [16., 24. + n, 44.],
+                        _ => { let k = 0.16 + 0.03 * v; [p.color[0] as f32 * k + 12. + n, p.color[1] as f32 * k + 10. + n, p.color[2] as f32 * k + 15. + n] } }
+                };
+                let o = (r * CH + c) * 4; data[o] = px[0] as u8; data[o + 1] = px[1] as u8; data[o + 2] = px[2] as u8; data[o + 3] = 255;
+            } }
+        if let Some(mut im) = images.get_mut(&gm.far[k]) { if let Some(d) = im.data.as_mut() { d.copy_from_slice(&data); } }
+        gm.far_done[k] = true;
+    }
 }
 
 fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, mut q: Query<(Entity, &Pooled, &mut Transform, &mut Sprite, &mut Visibility)>) {

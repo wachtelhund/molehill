@@ -192,3 +192,26 @@ fn fresh_worlds_are_stable_multi_seed() {
     })).collect();
     for h in hs { let (s, f) = h.join().unwrap(); assert!(f < 0.001, "seed {s} lost {:.3}%", f * 100.); }
 }
+
+/// Old (surface-era, version < 3), truncated or garbage saves are refused with a message, never a panic.
+#[test]
+fn old_and_broken_saves_fail_cleanly() {
+    let w = molehill_sim::world::World::new(256, 256, 3);
+    let good = molehill_sim::save::save(&w);
+    let mut old = good.clone(); old[8..12].copy_from_slice(&2u32.to_le_bytes());
+    let e = molehill_sim::save::load(&old).err().expect("old save refused"); assert!(e.contains("new holt"), "{e}");
+    for cut in [0, 5, 12, 40, good.len() / 3, good.len() - 1] { assert!(molehill_sim::save::load(&good[..cut]).is_err()); }
+    assert!(molehill_sim::save::load(b"definitely not a save file at all").is_err());
+    assert!(molehill_sim::save::load(&good).is_ok());
+}
+
+/// Nobody drowns or burns in the starting burrow: all moles alive after 30 s for many seeds.
+#[test]
+fn start_burrow_is_safe() {
+    let hs: Vec<_> = [4242u32, 1, 2, 3, 11, 777, 9630, 31337].into_iter().map(|s| std::thread::spawn(move || {
+        let mut w = molehill_sim::world::World::new(1024, 512, s); w.disasters.enabled = false;
+        for _ in 0..1800 { w.step(); }
+        (s, w.moles.iter().filter(|m| m.alive).count())
+    })).collect();
+    for h in hs { let (s, n) = h.join().unwrap(); assert_eq!(n, 4, "seed {s}: a mole died in the start burrow"); }
+}

@@ -131,17 +131,24 @@ pub fn generate(g: &mut Grid, seed: u32, oy: i64) -> (Gen, GenInfo) {
     let gen = Gen::new(seed, w);
     gen.fill_rows(g, oy, 0, h);
     let sx = w / 2; let cy1 = (-oy) as usize; // window row of the starting layer
-    let (cx0, cx1, cy0) = (sx - 15, sx + 15, cy1 - 10);
+    let (cx0, cx1, cy0) = (sx - 15, sx + 15, cy1 - 12);
     for y in cy0 - 6..cy1 + 6 { for x in cx0 - 8..=cx1 + 8 { let i = y * w + x; if g.mat[i] == Mat::Water as u8 || g.mat[i] == Mat::Lava as u8 { g.mat[i] = Mat::Clay as u8; } } }
     // a domed burrow: the roof steps down toward the walls so no roof run spans more than a few cells
-    let top = |x: usize| { let t = (x as f32 - sx as f32) / 15.; cy0 + (7. * t * t).round() as usize };
+    let top = |x: usize| { let t = (x as f32 - sx as f32) / 15.; cy0 + (12. * t * t).round() as usize };
     for x in cx0 - 3..=cx1 + 3 { let t = top(x.clamp(cx0, cx1)); for y in t.saturating_sub(5)..t { g.mat[y * w + x] = Mat::Granite as u8; } }
     for x in cx0..=cx1 { for y in top(x)..=cy1 { g.mat[y * w + x] = 0; } }
+    // side walls tie the dome down to the floor (otherwise an open cavern beside it leaves the roof floating)
+    for x in (cx0 - 3..cx0).chain(cx1 + 1..=cx1 + 3) { for y in top(x.clamp(cx0, cx1))..=cy1 { let i = y * w + x; if Mat::from_u8(g.mat[i]).kind() != crate::mat::Kind::Solid { g.mat[i] = Mat::Granite as u8; } } }
     for y in cy1 + 1..cy1 + 4 { for x in cx0 - 4..=cx1 + 4 { g.mat[y * w + x] = Mat::Clay as u8; } }
+    // ...and the walls stand on rock: if a cavern lies under the burrow, drop granite legs down to the next solid ground
+    let mut st = Stress::new(w * h); st.solve(g);
+    for x in (cx0 - 4..cx0).chain(cx1 + 1..=cx1 + 4) { let mut y = cy1 + 4; while y < h - 1 && !st.reach[y * w + x] { g.mat[y * w + x] = Mat::Granite as u8; g.flags[y * w + x] = 0; y += 1; } }
     let keep = (cx0, cy0, cx1, cy1);
-    let mut st = Stress::new(w * h);
+    for y in cy0 - 6..cy1 + 4 { for x in cx0 - 4..=cx1 + 4 { g.flags[y * w + x] = 0; } } // built cells are fresh rock, not rubble
     stabilize_keep(g, &mut st, 0, usize::MAX, Some(keep));
     g.wake_all(); for _ in 0..240 { g.step_ca(); }
+    // nothing the settling pass let flow in stays inside the burrow
+    for y in cy0 - 8..=cy1 { for x in cx0 - 3..=cx1 + 3 { let i = y * w + x; if matches!(Mat::from_u8(g.mat[i]), Mat::Water | Mat::Lava | Mat::Steam) { g.mat[i] = if x >= cx0 && x <= cx1 && y >= cy0 && y <= cy1 { 0 } else { Mat::Clay as u8 }; } } }
     stabilize_keep(g, &mut st, 0, usize::MAX, Some(keep));
     // the burrow floor stays soil (farms need it), even where the stability pass reinforced it
     for x in cx0..=cx1 { let i = (cy1 + 1) * w + x; if matches!(Mat::from_u8(g.mat[i]), Mat::Granite | Mat::Limestone) { g.mat[i] = Mat::Clay as u8; } }
@@ -167,7 +174,7 @@ pub fn stabilize_keep(g: &mut Grid, st: &mut Stress, y0: usize, y1: usize, keep:
             if !st.reach[i] { g.mat[i] = 0; continue; } // floating island: no load path
             if it >= 4 { // still failing: widen the pillar / thicken the roof by filling neighbouring voids
                 let (x, y) = (i % w, i / w);
-                for (dx, dy) in [(-1i32, 0i32), (1, 0), (0, 1), (-1, 1), (1, 1), (0, 2)] { let (nx, ny) = (x as i32 + dx, y as i32 + dy); if nx > 1 && ny > 0 && (nx as usize) < w - 2 && (ny as usize) < h { let j = ny as usize * w + nx as usize; if kept(nx as usize, ny as usize) { continue; } if g.mat[j] == 0 || g.mat[j] == Mat::Water as u8 || g.mat[j] == Mat::Lava as u8 { g.mat[j] = Mat::Granite as u8; } } }
+                for (dx, dy) in [(-1i32, 0i32), (1, 0), (0, 1), (-1, 1), (1, 1), (0, 2), (0, -1), (-1, -1), (1, -1)] { let (nx, ny) = (x as i32 + dx, y as i32 + dy); if nx > 1 && ny >= 0 && (nx as usize) < w - 2 && (ny as usize) < h { let j = ny as usize * w + nx as usize; if kept(nx as usize, ny as usize) { continue; } if g.mat[j] == 0 || g.mat[j] == Mat::Water as u8 || g.mat[j] == Mat::Lava as u8 { g.mat[j] = Mat::Granite as u8; } } }
             }
             g.mat[i] = if it < 3 && m.p().tensile < Mat::Limestone.p().tensile { Mat::Limestone as u8 } else { Mat::Granite as u8 };
         }
