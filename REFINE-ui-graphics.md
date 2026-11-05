@@ -67,3 +67,10 @@ Polish only: no new systems, lore names kept. Each entry lists what changed and 
 ## Open issues
 * `--shot` writes an empty frame on macOS when the game is launched from a background shell (the surface is
   never presented). It needs a visible window, or Linux with Xvfb.
+* Nothing here has been seen in a live window: this machine's shell can't capture or drive one. Sprites and the
+  composited world were checked through `--dump-art`; still unchecked by eye are the climb pose's placement against
+  a wall, squash/stretch, particles, the halos' strength, tooltip placement near screen edges, and the menu grid.
+* `site/` (the committed web build) was not rebuilt: `wasm-bindgen` and the wasm32 target aren't installed here.
+  Run `cd engine && ./build-web.sh && cd .. && rm -rf site && cp -r dist site` on a machine that has them.
+* Remembered rock is quite dark (light floor 0.22). That's deliberate (Delvers see poorly) but worth a look in play.
+* Stations, chests and mushrooms are snapped from vector art rather than drawn as pixel art from scratch.
