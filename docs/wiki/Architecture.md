@@ -86,6 +86,8 @@ The rule is simple: **gameplay goes in the sim.** If it changes what happens in 
 | sound | silent | procedural WebAudio, starts after the first input |
 | seeds and flags | `--fresh`, `--seed=`, `--shot=`, `--dump-art=`, `--scene=` | `?fresh`, `?seed=` |
 
+On the web, `console_error_panic_hook` is installed, so a panic prints its message and source line in the browser console instead of a bare `unreachable`.
+
 Bevy is built with hand-picked features (no scenes, picking, gizmos, animation, post-processing, gamepad or image formats) to keep the wasm small. The `wasm-release` profile adds `opt-level = "z"`, full LTO, `panic = "abort"` and stripping, and `wasm-opt -Os` runs when it is installed.
 
 Rebuild the committed web copy with:
@@ -96,7 +98,7 @@ cd engine && ./build-web.sh && cd .. && rm -rf site && cp -r dist site
 
 ## Saves
 
-A save starts with the bytes `MOLEHILL`, a format version (3), followed by length-prefixed sections. Cell layers are byte run-length encoded. Materials are stored **by name** with a name table, so the material enum can grow or be reordered. Loading regenerates the world from the seed and then overwrites all mutable state: cells, the window offset and cached rows, moles, the pack, devices and fuses, farms, air and quests. Every read is bounds-checked, so a bad save gives a readable error and never panics. Newer optional sections (such as burning fuses and the death count) trail at the end, so older v3 saves still load. The game autosaves every 30 s and loads the autosave at start. `K` and `L` use a separate manual slot. Autosaves (`*.save`) are gitignored.
+A save starts with the bytes `MOLEHILL`, a format version (3), followed by length-prefixed sections. Cell layers are byte run-length encoded. Materials are stored **by name** with a name table, so the material enum can grow or be reordered. Loading regenerates the world from the seed and then overwrites all mutable state: cells, the window offset and cached rows, moles, the pack, devices and fuses, farms, air and quests. Every read is bounds-checked, so a bad save gives a readable error and never panics (`corrupt_saves_never_panic` loads truncated and bit-flipped saves). A save from a build with a different world size is refused. Newer optional sections (such as burning fuses and the death count) trail at the end, so older v3 saves still load. The game autosaves every 30 s and loads the autosave at start. `K` and `L` use a separate manual slot. Autosaves (`*.save`) are gitignored.
 
 ## Working on the code
 
