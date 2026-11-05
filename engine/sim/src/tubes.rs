@@ -93,7 +93,7 @@ impl World {
         let t = self.tr.hoppers[k].tube;
         (0..self.tr.hoppers.len()).any(|j| self.hopper_blowing(j) && (j == k || self.tube_path(t, self.tr.hoppers[j].tube).is_some()))
     }
-    fn hopper_blowing(&self, k: usize) -> bool { let h = &self.tr.hoppers[k]; let (cx, cy) = h.centre(); self.logic.net_lit(self.logic.block_of(cx as usize, cy as usize)) }
+    pub(crate) fn hopper_blowing(&self, k: usize) -> bool { let h = &self.tr.hoppers[k]; let (cx, cy) = h.centre(); self.logic.net_lit(self.logic.block_of(cx as usize, cy as usize)) }
 
     /// Right mouse on a hopper: with nothing in the paw on a pressurised line, the mole is sealed in a capsule
     /// and sent; otherwise it cycles the hopper's destination to the next hopper on the line.

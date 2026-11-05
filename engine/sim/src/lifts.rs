@@ -164,7 +164,7 @@ impl World {
         }
     }
     /// The mole stands on this cage (feet on its floor, over it).
-    fn on_cage(&self, l: &Lift) -> bool { let (x0, y0, x1, _) = l.cage(); self.pl.px + BODY_HW > x0 && self.pl.px - BODY_HW < x1 && (self.pl.py - y0).abs() < 0.6 }
+    pub(crate) fn on_cage(&self, l: &Lift) -> bool { let (x0, y0, x1, _) = l.cage(); self.pl.px + BODY_HW > x0 && self.pl.px - BODY_HW < x1 && (self.pl.py - y0).abs() < 0.6 }
     fn drop_loose(&mut self, x: usize, y: usize, it: Item) { self.drops.push(crate::world::Drop::at(x as f32 + 0.5, y as f32 + 0.5, it, 1)); }
     fn inv_drop(&mut self, x: usize, y: usize, it: Item, ballast: u32) {
         self.drop_loose(x, y, it); if ballast > 0 { self.drops.push(crate::world::Drop::at(x as f32 + 0.5, y as f32 + 0.5, Item::Stone, ballast)); }
