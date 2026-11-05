@@ -12,7 +12,7 @@ You play one Delver: a body **1.8 cells wide and 2.9 tall** (about 45 × 73 cm) 
 |---|---|
 | `A` / `D` | Run. Instant start and stop. Steps of 1–2 cells are climbed at full speed, and you shove through loose sand |
 | `Space` (or `W` off a wall) | Jump. Hold for a full jump, tap for a short hop |
-| Into a wall in the air | Cling. `W` / `S` climb up or down; let go and you slide slowly. `Space` wall-jumps away (also pressing away plus `Space`, or `Space` within 0.1 s of letting go); at the top you mantle the ledge |
+| Into a wall in the air | Cling (side walls only: a ceiling just stops the jump). `W` / `S` climb up or down; let go and you slide slowly. `Space` wall-jumps away (also pressing away plus `Space`, or `Space` within 0.1 s of letting go); at the top you mantle the ledge |
 | `W` / `Space` in water | Swim up |
 | `S` | Dig down (on the ground) |
 | Left mouse | Use the item in hand: dig, place a block brush, torch, copperline, device, spore, TNT or station |
@@ -61,7 +61,7 @@ Every movement constant lives in one place, `TUNE` in `world.rs`. Units are cell
 | `lava_mul`, `lava_sink`, `lava_up`, `lava_dps` | 0.25, 3, 22, 75 | lava |
 | `safe_fall` | 20 | cells you can fall without harm |
 
-Change `TUNE`, then rerun the tests and scenarios. The feel scenarios (`run_jump`, `coyote`, `coyote_late`, `air_turn`, `wall_jump`, `wall_jump_away`, `wall_climb`, `mantle`, `step_up`, `shaft_jump`, `tunnel_mouth`) assert the numbers that matter: rise, `vx` after N ticks, and the coyote window.
+Change `TUNE`, then rerun the tests and scenarios. The feel scenarios (`run_jump`, `coyote`, `coyote_late`, `air_turn`, `wall_jump`, `wall_jump_away`, `no_ceiling_climb`, `wall_climb`, `mantle`, `step_up`, `shaft_jump`, `tunnel_mouth`) assert the numbers that matter: rise, `vx` after N ticks, and the coyote window.
 
 ## Water and lava
 

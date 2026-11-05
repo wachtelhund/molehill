@@ -105,6 +105,7 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `wall_climb.scn` | Cling to a wall, then climb more than 6 cells with W |
 | `wall_jump.scn` | Space while clinging launches you away from the wall |
 | `wall_jump_away.scn` | Pressing away plus Space, or Space within 0.1 s of letting go, still wall-jumps; later it doesn't |
+| `no_ceiling_climb.scn` | Jumping into a low ceiling while holding sideways and `W` never clings; the mole falls back down |
 | `dig_tiers.scn` | The pickaxe clears rock within 40 ticks; the bore within 10 |
 | `water_flood.scn` | Mining a dirt plug floods the room below |
 | `tnt_collapse.scn` | A blast removes rock, and the sand cap falls |

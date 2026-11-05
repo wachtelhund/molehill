@@ -64,6 +64,12 @@ Polish only: no new features or concepts. Each entry is one commit.
     on the sprite the same frame. Climbing doesn't trigger it. Game-only.
 11. **Ledge jumps checked.** Probed run-and-jump onto 3-, 4- and 5-cell ledges from 14 take-off points each:
     all land on top; a late take-off costs at most ~0.25 s (cling, then the mantle). No change.
+12. **No clinging to ceilings (bug from Hampus).** The wall probe was the body box moved 0.08 sideways *and
+    0.02 up*, so a head flush against a ceiling read as a wall on both sides: pressing sideways under a low
+    roof clung to it, and `W` "climbed" the ceiling. Walls are now found by `side_wall`: the column just past
+    the body's edge, over the rows the body spans, inset 0.1 at the head and feet. A ceiling only stops the
+    rise and the mole falls. Scenario: `no_ceiling_climb` (16 take-offs both ways plus straight up, cling
+    checked every tick).
 
 ## Open issues
 * `main`'s solver still sends overburden through open caves, so dirt seams under deep rock are crushed in

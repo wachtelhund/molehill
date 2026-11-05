@@ -583,6 +583,15 @@ impl World {
         c.into_iter().find(|&x| (x - px).abs() <= max && (x - px).abs() > 1e-4 && !self.box_hits(x, ny) && !self.box_hits(x, self.pl.py))
     }
     pub fn swallow_held(&mut self) { self.pl.jump_was = true; }
+    /// A vertical wall right beside the body on `side` (1 = right): solid in the column just past that edge,
+    /// over the rows the body spans (inset a little, so a ceiling or floor the body only touches doesn't count:
+    /// you can cling to and climb side walls, never ceilings).
+    fn side_wall(&self, side: i32) -> bool {
+        let (px, py) = (self.pl.px, self.pl.py);
+        let col = if side > 0 { (px + BODY_HW + 0.08 - 1e-3).floor() as i32 } else { (px - BODY_HW - 0.08).floor() as i32 };
+        let (y0, y1) = ((py - BODY_H + 0.1).floor() as i32, (py - 0.1).floor() as i32);
+        (y0..=y1).any(|y| !self.g.in_bounds(col, y) || !self.passable(col as usize, y as usize))
+    }
     /// Kick off the wall on `side` (1 = wall to the right): away and up, steering locked briefly.
     fn wall_jump(&mut self, side: i8) {
         let t = TUNE;
@@ -614,7 +623,7 @@ impl World {
         let jump_edge = inp.jump && !self.pl.jump_was; self.pl.jump_was = inp.jump;
         if jump_edge { self.pl.buffer = t.buffer; } else { self.pl.buffer = (self.pl.buffer - dt).max(0.); }
         let ground = self.box_hits(self.pl.px, self.pl.py + 0.05);
-        let wall_l = self.box_hits(self.pl.px - 0.08, self.pl.py - 0.02); let wall_r = self.box_hits(self.pl.px + 0.08, self.pl.py - 0.02);
+        let (wall_l, wall_r) = (self.side_wall(-1), self.side_wall(1));
         if ground { self.pl.coyote = t.coyote; } else { self.pl.coyote = (self.pl.coyote - dt).max(0.); }
         self.pl.lock = (self.pl.lock - dt).max(0.);
         // wall cling: airborne, touching a wall and pressing into it (or already clinging and still touching)
