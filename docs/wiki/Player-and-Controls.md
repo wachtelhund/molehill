@@ -78,9 +78,9 @@ Change `TUNE`, then rerun the tests and scenarios. The feel scenarios (`run_jump
 The mole has **health**, **food** and **breath**, shown as the three bars in the top-left corner.
 
 * **Falls:** each tile (0.25 m) beyond 20 tiles (5 m) costs 3 hp.
-* **Hunger** drains over time. Below 40 the mole eats from the pack on its own: a grub restores 45, a mushroom 35 and fungus 25. Starving hurts.
+* **Hunger** drains over time. Below 40 the mole eats from the pack on its own: a grub restores 45, a mushroom 35, a root 30 and fungus 25. Starving hurts.
 * **Breath** drains in stale air (CO2 above 0.45), underwater and when buried by falling rock or sand. A mole buried in loose ground wriggles up through it. Under rock it stays put: the collision snap searches at most one cell, so it can never pop out through a slab into the room above (`buried_under_rock`, `buried_in_sand`).
-* **Death:** after 2.5 s you respawn in the burrow with full health and breath (the window slides back to it if needed). The death count is kept in saves.
+* **Death:** after 2.5 s you respawn in the burrow with full health and breath (the window slides back to it if needed). The death count is kept in saves. In **Survival** the whole pack stays where you fell, as loose items to go back for; in **Creative** nothing hurts. See [Progression](Progression.md#survival-mode-today).
 
 ## Digging and reach
 

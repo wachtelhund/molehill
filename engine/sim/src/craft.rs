@@ -8,13 +8,15 @@ pub enum Item {
     Brick, Glass, Charcoal, CopperIngot, TinIngot, BronzeIngot, IronIngot,
     Torch, WoodPillar, IronBeam, CopperWire, Thrummer, Gate, Tnt, Lamp,
     StoneTools, BronzeTools, IronTools, Grub, Spore, Mushroom, Vent,
+    FungusOil, Root,
 }
-pub const NITEM: usize = 35;
+pub const NITEM: usize = 37;
 pub const ITEMS: [Item; NITEM] = [
     Item::Dirt, Item::Clay, Item::Sand, Item::Gravel, Item::Stone, Item::Coal, Item::CopperOre, Item::TinOre, Item::IronOre, Item::Quartz, Item::Crystal, Item::Wood, Item::Fungus,
     Item::Brick, Item::Glass, Item::Charcoal, Item::CopperIngot, Item::TinIngot, Item::BronzeIngot, Item::IronIngot,
     Item::Torch, Item::WoodPillar, Item::IronBeam, Item::CopperWire, Item::Thrummer, Item::Gate, Item::Tnt, Item::Lamp,
     Item::StoneTools, Item::BronzeTools, Item::IronTools, Item::Grub, Item::Spore, Item::Mushroom, Item::Vent,
+    Item::FungusOil, Item::Root,
 ];
 impl Item {
     /// The material a loose item is a lump of, if it is one: its density and burning come from the table.
@@ -34,20 +36,20 @@ impl Item {
         if let Some(m) = self.mat() { return m.p().density; }
         match self {
             Charcoal => 400., CopperIngot => 8900., TinIngot => 7300., BronzeIngot => 8800., CopperWire => 3000., Thrummer | Gate | Vent => 2500.,
-            Tnt => 1500., Lamp => 2000., StoneTools => 2500., BronzeTools => 5000., IronTools => 5500., Grub => 1050., Spore => 300., Mushroom => 600.,
+            Tnt => 1500., Lamp => 2000., StoneTools => 2500., BronzeTools => 5000., IronTools => 5500., Grub => 1050., Spore => 300., Mushroom => 600., FungusOil => 900., Root => 1100.,
             _ => 2000.,
         }
     }
     /// Does heat `h` burn it up (a loose item in lava or fire)? TNT doesn't burn: it lights.
     pub fn burns(self, h: u8) -> bool {
         use Item::*;
-        match self { Tnt => false, Charcoal | Grub | Spore | Mushroom => h >= 1, _ => self.mat().map_or(false, |m| m.lit_by(h)) }
+        match self { Tnt => false, Charcoal | Grub | Spore | Mushroom | FungusOil | Root => h >= 1, _ => self.mat().map_or(false, |m| m.lit_by(h)) }
     }
     pub fn name(self) -> &'static str {
         ["Dirt", "Clay", "Sand", "Gravel", "Stone", "Coal", "Copper ore", "Tin ore", "Iron ore", "Quartz", "Crystal", "Wood", "Fungus",
          "Brick", "Glass", "Charcoal", "Copper ingot", "Tin ingot", "Bronze ingot", "Iron ingot",
          "Torch", "Wood pillar", "Iron beam", "Copperline", "Thrummer", "Knot", "TNT", "Lamp",
-         "Stone tools", "Bronze tools", "Iron tools", "Grub", "Spore", "Mushroom", "Vent"][self as usize]
+         "Stone tools", "Bronze tools", "Iron tools", "Grub", "Spore", "Mushroom", "Vent", "Fungus oil", "Root"][self as usize]
     }
     /// One plain line for the hover tooltip: what it is and what it's for.
     pub fn desc(self) -> &'static str {
@@ -64,7 +66,8 @@ impl Item {
          "Mechanical knot: joins two lines into one answer (both, either, turn, odd, catch).", "Blasting charge. Shatters rock in a wide round.",
          "Lights when current flows through it.", "Pack tools of stone.", "Pack tools of bronze.", "Pack tools of iron.",
          "Fat burrowing larva. A good meal.", "Mushroom spore. Plant it on soil to grow food.", "A ripe mushroom. Fills the belly.",
-         "Draws stale air out of the tunnels around it."][self as usize]
+         "Draws stale air out of the tunnels around it.",
+         "Pressed from fungus. Fuels the headlamp and soaks a torch so it burns.", "A fat, starchy root from a root tangle. A fair meal."][self as usize]
     }
     pub fn color(self) -> [u8; 3] {
         use Item::*;
@@ -74,7 +77,7 @@ impl Item {
             Crystal => [120, 200, 255], Wood => [150, 105, 60], Fungus => [96, 200, 120], Brick => [170, 80, 60], Glass => [190, 230, 240],
             Charcoal => [70, 60, 60], CopperIngot => [230, 140, 80], TinIngot => [210, 215, 225], BronzeIngot => [205, 150, 70], IronIngot => [190, 190, 200],
             Torch => [255, 190, 90], WoodPillar => [180, 130, 80], IronBeam => [120, 130, 150], CopperWire => [240, 150, 90], Thrummer => [150, 120, 255],
-            Gate => [120, 220, 160], Tnt => [220, 60, 50], Lamp => [255, 240, 170], StoneTools => [160, 156, 150], BronzeTools => [205, 150, 70], IronTools => [200, 205, 220], Grub => [235, 215, 170], Spore => [200, 170, 230], Mushroom => [214, 120, 90], Vent => [150, 200, 210],
+            Gate => [120, 220, 160], Tnt => [220, 60, 50], Lamp => [255, 240, 170], StoneTools => [160, 156, 150], BronzeTools => [205, 150, 70], IronTools => [200, 205, 220], Grub => [235, 215, 170], Spore => [200, 170, 230], Mushroom => [214, 120, 90], Vent => [150, 200, 210], FungusOil => [200, 220, 120], Root => [190, 140, 90],
         }
     }
 }

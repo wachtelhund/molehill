@@ -12,7 +12,7 @@ use std::collections::VecDeque;
 /// v4: the world as bands (see `band.rs`): a manifest names every band (window and off-window) by start
 /// row and content hash; blobs travel inline (`save`) or as separate keys (`save_parts`). v3: one blob
 /// with a row cache of cells (still loads). Older (surface-world) saves are refused.
-pub const VERSION: u32 = 4;
+pub const VERSION: u32 = 5; // 5: the game mode and the headlamp's oil
 const MAGIC: &[u8; 8] = b"MOLEHILL";
 /// The engine tag also names the cell resolution: a save at another cells-per-metre won't load.
 const ENGINE: &str = if crate::mat::CPM == 4 { "bevy-v3" } else if crate::mat::CPM == 8 { "bevy-v3-cpm8" } else { "bevy-v3-cpm?" };
@@ -115,6 +115,7 @@ pub fn save_parts(w: &World) -> Parts<'_> {
     for c in &w.chests { if c.opened { opened.push((c.x, w.oy + c.y as i64)); } } opened.sort(); opened.dedup();
     o.u32(opened.len() as u32); for &(x, wy) in &opened { o.u32(x as u32); o.u64(wy as u64); }
     o.u32(w.harvested); o.u32(w.pl.deaths); o.u32(w.pl.spawn.0 as u32); o.u64(w.pl.spawn.1 as u64);
+    o.u8(w.mode as u8); o.f32(w.lamp_oil);
     o.u32(bands.len() as u32); for (wy0, h, b) in &bands { o.u64(*wy0 as u64); o.u64(*h); o.u32(b.len() as u32); }
     Parts { manifest: o.0, bands: bands.into_iter().map(|(wy0, h, b)| (band_key(wy0, h), b)).collect() }
 }
@@ -154,6 +155,7 @@ pub fn load_with(b: &[u8], fetch: &mut dyn FnMut(&str) -> Option<Vec<u8>>) -> R<
     let oy = r.u64()? as i64;
     let mut opened = std::collections::HashSet::new(); for _ in 0..r.len(1 << 20)? { let x = r.u32()? as usize; let wy = r.u64()? as i64; opened.insert((x, wy)); }
     let (harvested, deaths, spx, spy) = (r.u32()?, r.u32()?, r.u32()? as usize, r.u64()? as i64);
+    let (mode, lamp_oil) = if ver >= 5 { (crate::survival::Mode::from_u8(r.u8()?), r.f32()?) } else { (crate::survival::Mode::Plain, 0.) };
     let list: Vec<(i64, u64, usize)> = (0..r.len(1 << 20)?).map(|_| Ok((r.u64()? as i64, r.u64()?, r.len(1 << 28)?))).collect::<R<_>>()?;
     let inline = !r.done() && r.u8()? == 1;
     // the world: generated from the seed, then everything mutable comes from the bands
@@ -173,6 +175,7 @@ pub fn load_with(b: &[u8], fetch: &mut dyn FnMut(&str) -> Option<Vec<u8>>) -> R<
     }
     if window.iter().any(|&k| !k) { return Err("save is missing part of the world around the mole".into()); }
     w.tick = tick; w.g.tick = gtick; w.inv = inv;
+    w.mode = mode; w.rules = mode.rules(); w.lamp_oil = if lamp_oil.is_finite() { lamp_oil.clamp(0., 1e5) } else { 0. };
     let tmpl = w.moles[0].clone(); w.moles.clear();
     for m in moles { if m.x < 2 || m.y < 4 || m.x >= gw - 2 || m.y >= gh - 2 { continue; }
         let name: &'static str = Box::leak(m.name.into_boxed_str());
