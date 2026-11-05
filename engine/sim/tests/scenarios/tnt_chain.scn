@@ -1,0 +1,23 @@
+// A blast sets off a second charge up to 1.5 m beyond its 2.25 m radius. Here the second charge is
+// 3 m right and 1 m up (3.16 m away): at 8 cells/m a bare-cell margin only reached 3.0 m and it stayed put.
+map
+##########################################
+#........................................#
+#........................................#
+#........................................#
+#........................................#
+#........................................#
+#........................................#
+#........................................#
+#........................................#
+#...................@....................#
+##########################################
+end
+give Tnt 2
+device 3 -6 -1 Tnt
+device 4 6 -5 Tnt
+expect 10 dev:6,-5,Tnt == 1
+use 20 -6 -1
+expect 100 ev:Explode == 0      // the lit fuse runs 1.5 s
+expect 130 ev:Explode == 2      // first charge, and the second set off by its blast
+expect 130 dev:6,-5,Tnt == 0

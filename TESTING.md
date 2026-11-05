@@ -136,6 +136,7 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `brush_place.scn` | A radius-2 brick brush fills the open part of the disc and uses items 4 cells to one |
 | `hover_strain.scn` | The hover warns of an overloaded wood span (cracking) before it falls; floor and loose debris read idle |
 | `brush_clamp.scn` | Brush radius is clamped per item (iron beam max 2, pillar min 0.5, pickaxe max 3) |
+| `tnt_chain.scn` | A blast sets off a second charge 3.16 m away (charges chain up to 1.5 m past the 2.25 m radius) |
 | `grain_in_body.scn` | A sand grain lying inside the mole's body (low tunnel, no wriggle room) is shoved aside instead of wedging it |
 | `pillar_built_in_room.scn` | A wood pillar built cell by cell in a granite room stays rigid |
 | `pillars_rock_roof.scn` / `roof_needs_pillar.scn` | Two pillars at the third points save a 12 m rock roof that caves in (bending) without them |

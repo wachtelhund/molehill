@@ -12,7 +12,7 @@
 //!   `atten`), links ≥ 0 form a graph; TX reaches RX on the same channel directly or via repeaters.
 //! * Lava (≥2 cells) or rubble (≥10 loose cells) in a block destroys its wire/device.
 use crate::grid::Grid;
-use crate::mat::{Kind, Mat, CPM, S};
+use crate::mat::{Kind, Mat, CPM, S, SF};
 
 pub const B: usize = CPM; // one block = 1 m
 /// Cell counts below were set for a 4×4-cell block; A scales them to the block's area.
@@ -115,13 +115,14 @@ impl Logic {
     /// Set a TNT charge off now (current, a blast nearby, a fuse cord burning into it).
     pub fn detonate(&mut self, b: usize) { if self.dev[b] == Dev::Tnt as u8 && !self.booms.contains(&b) { self.booms.push(b); } }
     pub fn lit(&self, b: usize) -> bool { self.burn[b] > 0 }
+    /// A blast of radius r (cells) sets off charges within r + 1.5 m and fuse cords within r + 1 m.
     pub fn on_explosion(&mut self, g: &mut Grid, cx: usize, cy: usize, r: f32) {
         for b in 0..self.wire.len() {
             if self.wire[b] == 0 && self.dev[b] == 0 { continue; }
             let (x, y) = self.centre(b); let d = ((x as f32 - cx as f32).powi(2) + (y as f32 - cy as f32).powi(2)).sqrt();
             let dv = Dev::from_u8(self.dev[b]);
-            if dv == Dev::Tnt && d <= r + 6. { self.detonate(b); continue; }
-            if dv == Dev::Fuse && d <= r + 4. { self.ignite(b); continue; }
+            if dv == Dev::Tnt && d <= r + 6. * SF { self.detonate(b); continue; }
+            if dv == Dev::Fuse && d <= r + 4. * SF { self.ignite(b); continue; }
             if d <= r * 0.8 { self.remove(g, b); }
         }
     }
