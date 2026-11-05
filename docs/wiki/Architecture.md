@@ -31,7 +31,7 @@ Molehill is written in **Rust** with **Bevy 0.20**. The code is split so that th
   tests / scenario harness / examples drive the same World headless
 ```
 
-The rule is simple: **gameplay goes in the sim.** If it changes what happens in the world, it belongs in `molehill-sim`, where a scenario can check it. The game crate reads `World` and writes `World::input`, and nothing more. Text the player reads about the world (tooltips for items, devices and materials) also lives in the sim, so a test can check it against the lore.
+The rule is simple: **gameplay goes in the sim.** If it changes what happens in the world, it belongs in `molehill-sim`, where a scenario can check it. The game crate reads `World` and writes `World::input`, and nothing more. Text the player reads about the world (tooltips for items, devices and materials, and the world hover text in `tips.rs`) also lives in the sim, so a test can check it against the lore.
 
 ### `molehill-sim` modules
 
@@ -73,7 +73,7 @@ The rule is simple: **gameplay goes in the sim.** If it changes what happens in 
 
 **Fixed step with interpolation.** Each frame adds `delta × 60` to an accumulator and runs `World::step()` once per whole tick, at most 3 a frame, discarding the backlog after a hitch. The mole is drawn interpolated between its last two positions, so movement is smooth at any refresh rate while the sim stays at exactly 60 Hz. Menus set `Game.paused`, which stops stepping.
 
-**Rendering.** The window's cells are composited on the CPU into **128 chunk textures of 64 × 64 cells** (material colour × light, fog, cracks, designations, translucent overlays for darkness, stale air and steam), and **only chunks that changed are uploaded**. Light is recomputed every second frame over the view. The three parallax layers are GPU sprites behind the world, placed at `camera × factor`. Chunk rows beyond the simulated window are drawn as a static "far" view, so the camera can roam a little past it. The mole is 26 × 20 pixel art with idle, run, jump, fall, climb and dig poses, plus squash, stretch, dust and chips for feedback.
+**Rendering.** The window's cells are composited on the CPU into **128 chunk textures of 64 × 64 cells** (material colour × a per-material pixel pattern (`art::mat_tex`: strata, brick bond, wood grain, rivets, ore glints) × edge shading × light, fog, cracks, designations, translucent overlays for darkness, stale air and steam), and **only chunks that changed are uploaded**. Light is recomputed every second frame over the view. The three parallax layers are GPU sprites behind the world, placed at `camera × factor`. Chunk rows beyond the simulated window are drawn as a static "far" view, so the camera can roam a little past it. The mole is 26 × 20 pixel art with idle, run, jump, fall, climb and dig poses, plus squash, stretch, landing and run dust, dig chips, water/lava splashes and torch embers for feedback.
 
 ## Native and web
 

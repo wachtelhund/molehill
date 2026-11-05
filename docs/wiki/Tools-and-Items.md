@@ -45,7 +45,7 @@ Food (grubs, mushrooms, fungus) is eaten from the pack automatically when the mo
 
 ## The pack
 
-The pack (`I`) is a grid of 70 slots, and the bottom row is the hotbar (`1`–`0`). Click a slot to pick its item up, then click another to drop or swap. Counts come from one shared inventory. Hovering a slot shows its name, count and a one-line description. Resting the cursor on a seen cell for about 0.35 s names the material, device or copperline there and marks loose debris.
+The pack (`I`) is a grid of 70 slots, and the bottom row is the hotbar (`1`–`0`). Click a slot to pick its item up, then click another to drop or swap. Counts come from one shared inventory. Hovering a slot shows its name, count and a one-line description. Resting the cursor on a seen cell for about 0.35 s explains what's there (`sim/src/tips.rs`): the material (and whether it's loose debris), a device, copperline (carrying current or idle), a station (what it makes; craft by standing at it with the pack open), a chest (opened or not) or a mushroom plot (growth % and whether it's too bright or too dry). A standing block also says how hard it is working, read from the stress solver: bearing weight, straining, overloaded, or cracking, so you can see a span is about to fail before it does.
 
 > **Current build:** for testing, the game starts with all three tools and 999 of every item, and crafting is hidden. The sim's own starting pack (used by the tests) is small: 8 wood, 6 torches, 12 pillars, 12 grubs, 40 copperline, 6 knots, 3 thrummers, 6 spores and a vent.
 
