@@ -10,6 +10,9 @@ pub enum Item {
     StoneTools, BronzeTools, IronTools, Grub, Spore, Mushroom, Vent, Glowmite,
 }
 pub const NITEM: usize = 36;
+/// What an item can do in the world (see `Item::uses`).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct Uses { pub place: bool, pub throw: bool, pub pick_up: bool }
 pub const ITEMS: [Item; NITEM] = [
     Item::Dirt, Item::Clay, Item::Sand, Item::Gravel, Item::Stone, Item::Coal, Item::CopperOre, Item::TinOre, Item::IronOre, Item::Quartz, Item::Crystal, Item::Wood, Item::Fungus,
     Item::Brick, Item::Glass, Item::Charcoal, Item::CopperIngot, Item::TinIngot, Item::BronzeIngot, Item::IronIngot,
@@ -42,6 +45,31 @@ impl Item {
     pub fn burns(self, h: u8) -> bool {
         use Item::*;
         match self { Tnt => false, Charcoal | Grub | Spore | Mushroom => h >= 1, _ => self.mat().map_or(false, |m| m.lit_by(h)) }
+    }
+    /// What the item in hand can do, from one table: set it down in the world, throw it, or neither
+    /// (a crafting material). Blocks, copperline, devices, torches and tools are never thrown.
+    pub fn uses(self) -> Uses {
+        use Item::*;
+        let place = matches!(self, WoodPillar | Brick | IronBeam | CopperWire | Torch | Tnt | Lamp | Vent | Spore);
+        let throw = matches!(self, Dirt | Clay | Sand | Gravel | Stone | Coal | CopperOre | TinOre | IronOre | Quartz | Crystal | Wood | Fungus
+            | Charcoal | CopperIngot | TinIngot | BronzeIngot | IronIngot | Grub | Spore | Mushroom | Tnt);
+        Uses { place, throw, pick_up: matches!(self, CopperWire | Torch | Tnt | Lamp | Vent) }
+    }
+    /// One line naming the inputs for the item in hand (hover tooltip and the hint over the hotbar).
+    pub fn controls(self) -> &'static str {
+        use Item::*;
+        match self {
+            Tnt => "Left/right mouse: set down unlit · right mouse on it: light · Q: throw lit · E: pick up",
+            WoodPillar | Brick | IronBeam => "Left mouse: build (hold to keep building)",
+            CopperWire => "Left mouse: lay (drag) · E: take up (drag)",
+            Torch => "Left mouse: set down · E: pick up",
+            Lamp | Vent => "Left/right mouse: set down · E: pick up",
+            Spore => "Left mouse: plant on soil · Q: throw",
+            Thrummer | Gate => "Set down from its device slots · E: pick up",
+            Glowmite => "Held, it lights the way · right mouse on a glowmite in a grotto: catch one",
+            _ if self.uses().throw => "Q: throw (hold for further)",
+            _ => "",
+        }
     }
     pub fn name(self) -> &'static str {
         ["Dirt", "Clay", "Sand", "Gravel", "Stone", "Coal", "Copper ore", "Tin ore", "Iron ore", "Quartz", "Crystal", "Wood", "Fungus",

@@ -379,8 +379,8 @@ fn press(w: &mut World, n: usize, f: impl Fn(&mut Input)) -> (f32, f32) { let (m
     for _ in 0..30 { w2.step(); }
     assert!(w2.moles[0].hp > 99., "hp after load {}", w2.moles[0].hp);
 }
-/// Copperline and knots: dragging wire over a knot costs nothing, picking up refunds the wire and the device,
-/// and a knot placed on copperline gives that copperline back.
+/// Copperline and knots: dragging wire over a knot costs nothing, picking up (E) takes the device first and
+/// then the copperline under it, and a knot placed on copperline gives that copperline back.
 #[test] fn wire_and_device_pack_accounting() {
     use molehill_sim::logic::Dev;
     let (mut w, x0, y0) = arena(); let (x, y) = (x0 + 8 * S, y0 - 2 * S); let k = molehill_sim::logic::B;
@@ -391,16 +391,42 @@ fn press(w: &mut World, n: usize, f: impl Fn(&mut Input)) -> (f32, f32) { let (m
     assert!(w.lay_wire(x + k, y)); assert_eq!(cu(&w), c0 - 1); assert!(!w.lay_wire(x + k, y), "already wired");
     assert!(w.place_device(Dev::Or, x + k, y).is_ok()); assert_eq!(cu(&w), c0, "knot on copperline refunds it");
     w.inv[Item::Lamp as usize] = 1; assert!(w.lay_wire(x + 2 * k, y)); assert!(w.place_device(Dev::Lamp, x + 2 * k, y).is_ok());
-    let c1 = cu(&w); assert_eq!(w.pick_up(x + 2 * k, y), Some(Dev::Lamp)); assert_eq!(cu(&w), c1 + 1, "wire under a device refunded");
-    assert_eq!(w.pick_up(x, y), Some(Dev::And)); assert_eq!(w.pick_up(x + k, y), Some(Dev::Or)); assert_eq!(kn(&w), k0);
+    let c1 = cu(&w); assert_eq!(w.pick_up(x + 2 * k, y), Some(Picked::Dev(Dev::Lamp))); assert_eq!(w.inv[Item::Lamp as usize], 1);
+    assert_eq!(cu(&w), c1, "the device comes up first"); assert_eq!(w.pick_up(x + 2 * k, y), Some(Picked::Wire)); assert_eq!(cu(&w), c1 + 1, "then its copperline");
+    assert_eq!(w.pick_up(x + 2 * k, y), None, "nothing left there");
+    assert_eq!(w.pick_up(x, y), Some(Picked::Dev(Dev::And))); assert_eq!(w.pick_up(x + k, y), Some(Picked::Dev(Dev::Or))); assert_eq!(kn(&w), k0);
     assert!(w.place_device(Dev::Lever, x + 60 * S, y).is_err(), "out of reach");
 }
-/// A fuse cord picked up while burning, then put down again, is a fresh unlit cord.
+/// A burning fuse cord can't be picked up; one removed while burning and put down again is a fresh unlit cord.
 #[test] fn replaced_fuse_is_not_burning() {
     use molehill_sim::logic::Dev;
     let (mut w, x0, y0) = arena(); let (x, y) = (x0 + 8 * S, y0 - 2 * S); let b = w.logic.block_of(x, y);
     assert!(w.place_device(Dev::Fuse, x, y).is_ok()); assert!(w.use_device(x, y)); w.step(); assert!(w.logic.lit(b));
-    w.pick_up(x, y); assert!(w.place_device(Dev::Fuse, x, y).is_ok()); w.step(); assert!(!w.logic.lit(b));
+    assert_eq!(w.pick_up(x, y), None, "too late: it's burning"); assert!(w.logic.lit(b));
+    w.logic.remove(&mut w.g, b); assert!(w.place_device(Dev::Fuse, x, y).is_ok()); w.step(); assert!(!w.logic.lit(b));
+}
+/// Every item says, from one table, whether it is set down, thrown, or picked back up, and the hint names the inputs.
+#[test] fn item_uses_table_is_consistent() {
+    use molehill_sim::craft::ITEMS;
+    for &it in ITEMS.iter() {
+        let u = it.uses(); let c = it.controls();
+        if u.throw { assert!(c.contains("Q: throw"), "{it:?}: throwable, so the hint says Q"); } else { assert!(!c.contains("Q:"), "{it:?}: not throwable"); }
+        if u.pick_up { assert!(c.contains("E: "), "{it:?}: picked up with E"); }
+        if u.place { assert!(c.contains("mouse"), "{it:?}: placed with the mouse"); }
+    }
+    for it in [Item::WoodPillar, Item::Brick, Item::IronBeam, Item::CopperWire, Item::Torch, Item::Lamp, Item::Vent, Item::Gate, Item::Thrummer, Item::IronTools] {
+        assert!(!it.uses().throw, "{it:?} is never thrown");
+    }
+    assert!(Item::Tnt.uses().place && Item::Tnt.uses().throw, "TNT: set down unlit, or thrown lit");
+    let (mut w, _, _) = arena(); w.inv[Item::IronBeam as usize] = 3;
+    assert!(w.throw_item(Item::IronBeam, (1., -1.), 1.).is_err() && w.inv[Item::IronBeam as usize] == 3, "a beam isn't thrown");
+}
+/// Torches come back with E, without digging.
+#[test] fn torch_picks_up() {
+    let (mut w, x0, y0) = arena(); let (x, y) = (x0 + 8 * S, y0 - S); w.inv[Item::Torch as usize] = 1;
+    assert!(w.place_torch(x, y)); assert_eq!(w.inv[Item::Torch as usize], 0);
+    assert_eq!(w.pick_up(x, y - S), Some(Picked::Torch), "hovering the flame picks it up");
+    assert_eq!(w.inv[Item::Torch as usize], 1); assert!(w.torches.iter().all(|&t| t != (x, y)));
 }
 
 #[test] fn zoom_is_clamped_both_ways() {
@@ -764,4 +790,12 @@ fn material_table_is_consistent() {
     assert_eq!(w.inv[Item::Glowmite as usize], 1); assert_eq!(w.glowmites().len(), n0 - 1); assert_eq!(w.light_sources().len(), l0 - 1, "one light fewer");
     assert!(!w.catch_glowmite(x0 + 30 * c, y0), "nothing to catch out there");
     w.tick += GLOWMITE_BACK; assert_eq!(w.glowmites().len(), n0, "the swarm refills");
+}
+#[test] fn fresh_copperline_reads_idle_before_the_next_tick() {
+    // the game draws between sim ticks: copperline laid since the last net rebuild has no net yet and
+    // must read as idle, not index out of bounds
+    let (mut w, x0, y0) = arena();
+    let b = w.logic.block_of(x0 + 8, y0 - 2); assert!(w.logic.place_wire(b));
+    assert!(!w.logic.net_lit(b));
+    w.step(); assert!(!w.logic.net_lit(b));
 }

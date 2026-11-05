@@ -57,7 +57,7 @@ explode 70 5 -2 3       // TNT-strength blast at (dx,dy) with radius r at tick T
 place 5 4 0 WoodPillar  // at tick T place a block item (WoodPillar, Brick, IronBeam) at (dx,dy), as a left click; a refusal prints NOTE
 device 5 12 -1 Tnt      // place a device (logic::Dev name: Lever, Tnt, And, Tx, Rx, Lamp, Fuse, ...) in the 1 m block at (dx,dy)
 use 10 12 -1            // right mouse on the device there: flip a lever, light TNT or a fuse, step a channel
-pickup 40 12 -1         // Ctrl+right mouse: take the device and copperline there back into the pack
+pickup 40 12 -1         // E: take the device there (else a torch, else the copperline) back into the pack
 wire 4 1 -1 13 -1       // lay copperline from (dx,dy) to (dx2,dy2), one per 1 m block (a single block if only one point)
 saveload 60             // save the world to bytes and load it back (checks persistence mid-scenario)
 slide 60                // slide the window away until only its bottom band is left, and back (things go into bands and return)
@@ -168,7 +168,9 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `beam_bridge_ledges.scn` | A wood beam bridging a 3.5 m gap between ledges high in a cave stays put |
 | `tnt_inert.scn` | Placed TNT is inert; right mouse lights a 1.5 s fuse, then it blows |
 | `tnt_lever.scn` / `tnt_thrum.scn` | Remote detonation: a lever on copperline, or a thrummer knocking through 2 m of granite to a listener |
-| `tnt_defuse.scn` / `tnt_douse.scn` | A lit charge picked up is defused (and comes back unlit); water puts a fuse out |
+| `pickup_tnt.scn` / `tnt_douse.scn` | E picks an unlit charge back up, not a lit one; water puts a fuse out |
+| `pickup_wire.scn` / `pickup_device.scn` | E takes up copperline one segment at a time (a device on it first), and levers, lamps, knots and torches |
+| `tnt_place_vs_throw.scn` | TNT set down lies unlit as a device; thrown it goes off where it lands; beams and copperline aren't thrown |
 | `knots.scn` | Truth tables of the both/either/turn/odd/catch knots, swapped in place |
 | `door.scn` | A lever opens a door; it waits for the mole to clear the doorway before shutting; no door on yourself |
 | `plate.scn` | A pressure plate above the floor powers a lamp while the mole stands on it |

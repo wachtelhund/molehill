@@ -70,8 +70,8 @@ pub fn setup(commands: &mut Commands, f: &Handle<Font>) {
 /// Every control, as (action, keys). Shown as a two-column table on the Controls screen and the H overlay.
 pub const CONTROL_ROWS: &[(&str, &str)] = &[
     ("Move", "A / D  (Shift: sprint)"), ("Jump", "Space  (or W off a wall)"), ("Walls", "hold into a wall: W / S climb, Space wall-jump"),
-    ("Dig down", "S"), ("Use item", "Left mouse"), ("Interact", "Right mouse  (levers, thrum patterns)"), ("Pick up", "Ctrl + Right mouse  (copperline, devices)"),
-    ("Brush size", "[ / ]  or  Alt + wheel"), ("Hotbar", "1 - 0  or  wheel"), ("Pack", "I"), ("Headlamp", "G"), ("Zoom", "+ / -  or  Ctrl + wheel"),
+    ("Dig down", "S"), ("Use item", "Left mouse"), ("Interact", "Right mouse  (levers, light TNT; on an empty spot: set down a device or TNT)"), ("Throw", "hold Q, release  (TNT goes out lit)"), ("Pick up", "E  (devices, unlit TNT, torches; hold and sweep for copperline)"),
+    ("Brush size", "[ / ]  or  Alt + wheel"), ("Hotbar", "1 - 0  or  wheel"), ("Pack", "I"), ("Headlamp", "G"), ("Wiring view", "V"), ("Zoom", "+ / -  or  Ctrl + wheel"),
     ("Pause", "Esc"), ("Save / load", "K / L"), ("Controls", "H"), ("Dev info", "F3"),
 ];
 /// A two-column table of `CONTROL_ROWS`: actions dim and right-aligned, keys in ink.

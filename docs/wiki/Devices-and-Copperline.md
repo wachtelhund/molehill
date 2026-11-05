@@ -9,9 +9,9 @@ Delvers have no aerials and no chips. They have **copper drawn into wire**, **kn
 Copperline and devices don't live in cells. They live on a coarser grid of **1 m blocks (8 × 8 cells, `logic::B = CPM`)** laid over the world. Cell-count thresholds below are in tiles (2 × 2 cells each) and scale with the block's area. Each block holds at most one copperline and one device. The spawn cell is block-aligned.
 
 * **Laying copperline:** hold left mouse with copperline in hand; it is laid one block at a time as you drag.
-* **Placing a device:** left mouse puts it in the block under the cursor (it costs its pack item; levers, plates, sensors, doors, floodgates, pumps and fuses are free). Placing a knot on copperline gives the copperline back.
+* **Placing a device:** left mouse (or right mouse on an empty spot) puts it in the block under the cursor (it costs its pack item; levers, plates, sensors, doors, floodgates, pumps and fuses are free). Placing a knot on copperline gives the copperline back.
 * **Interacting:** right mouse flips a lever, steps a thrum pattern (8 patterns) or a ticker's beat (20, 40 or 80 ticks), and lights a fuse cord or TNT.
-* **Picking up:** `Ctrl` + right mouse takes a device and the copperline under it back into the pack. A device's state is reset when it is placed or removed, so a fuse cord picked up while burning comes back unlit.
+* **Picking up:** `E` takes the hovered device back into the pack (with its cost), then, on the next press or pass, the copperline under it, one segment at a time; hold `E` and sweep to take up a run. A lit charge or a burning fuse cord can't be picked up. A device's state is reset when it is placed or removed (scenarios `pickup_device`, `pickup_wire`, `pickup_tnt`).
 * **Damage:** lava in a block (2 or more cells) or burial under 10 or more loose cells destroys its copperline and device, with a message in the log. Doors, floodgates and plates are exempt; a buried charge stays put, and lava lights it.
 
 ## Nets
@@ -67,9 +67,9 @@ A **vent** isn't wired: it draws stale air out of the tunnels around it (see [Ph
 
 ## TNT and fuse cords
 
-TNT goes down **inert**. Nothing explodes where you click. It can be set off in several ways:
+TNT has two uses. **Set down** (left mouse, or right mouse on an empty spot) it goes down **inert**: nothing explodes where you click, and `E` picks it back up while it is unlit. **Thrown** (`Q`) it goes out lit (see [Tools and Items](Tools-and-Items.md#throwing)); scenario `tnt_place_vs_throw`. A charge set down can be set off in several ways:
 
-* **Lit:** right mouse, fire or lava starts a **1.5 s fuse** (90 ticks; the charge blinks). Water (4 or more cells in the block) puts the fuse out. `Ctrl` + right mouse on a lit charge defuses it back into the pack.
+* **Lit:** right mouse, fire or lava starts a **1.5 s fuse** (90 ticks; the charge blinks). Water (4 or more cells in the block) puts the fuse out. Once lit, it can't be picked up.
 * **At once:** current on a neighbouring copperline (from a lever, a knot or a listener, which gives remote detonation by thrumming), a blast nearby, or a fuse cord burning into it.
 
 **Fuse cords** burn for 24 ticks each, then light the next cord or set off the next charge, so a trail of cords is a slow, visible timer.
@@ -98,6 +98,19 @@ In practice:
 * **An open tunnel** between the ends costs about 30 dB at each rock face, so a knock usually can't cross a cave. Go around it, or put a relay on each side.
 
 `tnt_thrum.scn` checks the classic use: a lever drives a thrummer, the knock goes through 2 m of granite to a listener, and the listener's copperline sets off a charge.
+
+## How it looks
+
+Copperline is drawn per 1 m block as a 3-pixel copper wire with a bright top edge and a shaded underside. It bends to join the blocks around it, ends in a brass stud and gets a solder blob where it branches. Live copperline glows warm, and a glint runs outward along it. Devices have their own pixel art on wood or iron mounts, with on/off states: a lever thrown left or right, a plate that sinks when pressed, a lamp's glass lit, a pump and vent turning, a thrummer's mallet knocking, a listener's trumpet ringing, a water wheel turning, a fuse cord or TNT spark. Knots are brass plates with their mark (both: two rings, either: a fork, turn: a loop, odd: a cross, catch: a hook, ticker: a pendulum), copper stubs on the west and north inputs, and an output stub on the east that lights. Thrum devices show a small pip in their pattern's colour.
+
+## Wiring view
+
+`V` switches to a schematic of the logic layer, and `V` again switches back to the pixel art. The world dims, a thin pale-blue border and a small `WIRING` label frame the screen, and the cursor becomes a crosshair, so it's always clear which view you're in. Holding copperline, a knot, a thrummer, a lamp or TNT shows a small "V wiring view" hint.
+
+* **Copperline:** a thick line per block. Steel blue when idle; amber when carrying current, with a pulse running along the net.
+* **Devices:** a framed glyph coloured by role. Sources (lever, plate, sensor, listener, heatstone, water wheel) are green, knots violet, sinks (door, floodgate, pump, lamp, TNT, fuse, vent) orange, and thrummers take their pattern's colour. Bright when on, dim when off.
+* **Knots:** arrows on the west and north edges show the inputs (amber when live), an arrow on the east the output, and the knot's name (BOTH, EITHER, TURN, ODD, CATCH, TICKER) sits above.
+* **Thrumming:** each thrummer, relay and listener is labelled with its pattern (CH 1–8). A line joins every linked pair in the sender's colour. A faint ring around each thrummer shows its reach through the rock it's braced in. It counts spreading and absorption only, since boundaries cost more, so the link lines are the truth.
 
 ## Save and load
 
