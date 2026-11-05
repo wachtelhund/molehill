@@ -79,6 +79,20 @@ pub fn clues_in_band(gen: &Gen, seed: u32, band: i64, w: usize) -> Vec<(ClueKind
     v
 }
 
+/// Journal ids from here up are the Ancients' carvings found in ruins (`ruins::FRAGMENTS`), offset so
+/// they never collide with the clue fragments above. The journal and saves hold both kinds of id.
+pub const RUIN_BASE: u16 = 1000;
+/// A title per ruin carving (same order as `ruins::FRAGMENTS`), for the journal's title line.
+pub const RUIN_TITLES: [&str; 8] = ["Delvers in a line", "Knocked marks", "A scored plate", "A shaft with no top",
+    "Signs for water and cool", "Twelve stations", "A newer scratch", "The holt layers"];
+/// The journal id of a ruin's carving text, if it is one of `ruins::FRAGMENTS`.
+pub fn ruin_entry(text: &str) -> Option<u16> { crate::ruins::FRAGMENTS.iter().position(|f| *f == text).map(|k| RUIN_BASE + k as u16) }
+/// What the journal shows for an id: (label, title, text). Clue fragments and ruin carvings alike.
+pub fn entry(id: u16) -> (&'static str, &'static str, &'static str) {
+    if id >= RUIN_BASE { let k = (id - RUIN_BASE) as usize % crate::ruins::FRAGMENTS.len(); return ("Ancient carving", RUIN_TITLES[k % RUIN_TITLES.len()], crate::ruins::FRAGMENTS[k]); }
+    let f = &FRAGMENTS[id as usize % FRAGMENTS.len()]; (f.kind.name(), f.title, f.text)
+}
+
 /// The next fragment of this kind not yet in the journal, if any are left.
 pub fn next_fragment(kind: ClueKind, journal: &[u16]) -> Option<u16> {
     FRAGMENTS.iter().enumerate().find(|(k, f)| f.kind == kind && !journal.contains(&(*k as u16))).map(|(k, _)| k as u16)

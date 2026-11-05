@@ -207,6 +207,9 @@ pub fn load_with(b: &[u8], fetch: &mut dyn FnMut(&str) -> Option<Vec<u8>>) -> R<
     w.known = known.unwrap_or_else(|| std::array::from_fn(|k| w.inv[k] > 0));
     w.harvested = harvested; w.pl.deaths = deaths; if spx < gw { w.pl.spawn = (spx, spy); }
     w.journal = journal; w.found_clues = found_clues; w.relics = relics; w.ruins_seen = ruins_seen;
+    // ruins visited before their carvings went into the journal: add the carvings now (by ruin id order)
+    let mut seen: Vec<u32> = w.ruins_seen.iter().copied().collect(); seen.sort();
+    for id in seen { if let Some(j) = crate::lore::ruin_entry(crate::ruins::fragment_of(id)) { if !w.journal.contains(&j) { w.journal.push(j); } } }
     if let Some(t) = transport { w.decode_transport(&t)?; }
     w.refresh_chests();
     w.g.life.iter_mut().for_each(|v| *v = 0); w.g.wake_all(); w.st = crate::stress::Stress::new(gw * gh);
