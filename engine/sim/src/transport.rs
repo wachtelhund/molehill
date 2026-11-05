@@ -131,7 +131,7 @@ impl World {
             _ => Ok(false),
         }
     }
-    fn cart_at(&self, x: usize, y: usize) -> Option<usize> { let (xf, yf) = (x as f32 + 0.5, y as f32 + 0.5); self.tr.carts.iter().position(|c| c.contains(xf, yf)) }
+    pub(crate) fn cart_at(&self, x: usize, y: usize) -> Option<usize> { let (xf, yf) = (x as f32 + 0.5, y as f32 + 0.5); self.tr.carts.iter().position(|c| c.contains(xf, yf)) }
     /// Right mouse on a transport machine: get in or out of a cart. True if there was one.
     pub fn use_transport(&mut self, x: usize, y: usize) -> bool {
         if let Some(k) = self.cart_at(x, y) {
