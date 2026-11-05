@@ -1,0 +1,31 @@
+// Items float or sink by density: wood (600 kg/m³) floats in water, an iron ingot (7800) sinks to the
+// bottom, a grub (1050) sinks slowly.
+map
+BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+#..................#....................#..................#
+#..................#....................#..................#
+#..................#....................#..................#
+#..................#....................#..................#
+#..................#....................#..................#
+#..................#wwwwwwwwwwwwwwwwwwww#..................#
+#..................#wwwwwwwwwwwwwwwwwwww#..................#
+#..................#wwwwwwwwwwwwwwwwwwww#..................#
+#..................#wwwwwwwwwwwwwwwwwwww#..................#
+#..................#wwwwwwwwwwwwwwwwwwww#..................#
+#..................#wwwwwwwwwwwwwwwwwwww#..................#
+#..................#wwwwwwwwwwwwwwwwwwww#..................#
+#..................#wwwwwwwwwwwwwwwwwwww#..................#
+#...@..............#wwwwwwwwwwwwwwwwwwww#..................#
+############################################################
+end
+drop 1 Wood 26 -12
+drop 1 IronIngot 30 -12
+drop 1 Grub 34 -12
+// the iron reaches the pool floor (tile row 14, i.e. iy 0) well before the grub
+expect 70 iy:IronIngot > -0.5
+expect 70 iy:Grub < -2
+// the wood bobs at the surface (row 6, iy -8): it never sinks below it, and the others settle on the bottom
+expect 200 iy:Wood > -9.5
+expect 200 iy:Wood < -7
+expect 300 iy:Grub > -0.5
+expect 300 items:Wood == 1

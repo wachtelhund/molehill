@@ -97,7 +97,7 @@ pub fn decode(w: &mut World, y0: usize, blob: &[u8], remap: Option<&[u8]>) -> R<
     else if mat.iter().any(|&m| m as usize >= crate::mat::NMAT) { return Err("material id out of range".into()); }
     let (wire, dev, dev_s) = (r.rle(nb)?, r.rle(nb)?, r.rle(nb)?); let (dev_p, burn) = (r.rle16(nb)?, r.rle16(nb)?);
     let air = r.rle(abw * (BH / AB))?;
-    let mut drops = vec![]; for _ in 0..r.len(1 << 20)? { let (x, y, it, n) = (r.u32()? as usize, r.u32()? as usize, r.u8()?, r.u32()?); if x < gw && y < BH && (it as usize) < NITEM { drops.push(Drop { x, y: y0 + y, item: ITEMS[it as usize], n, claimed: false }); } }
+    let mut drops = vec![]; for _ in 0..r.len(1 << 20)? { let (x, y, it, n) = (r.u32()? as usize, r.u32()? as usize, r.u8()?, r.u32()?); if x < gw && y < BH && (it as usize) < NITEM { drops.push(Drop::at(x as f32 + 0.5, (y0 + y) as f32 + 0.5, ITEMS[it as usize], n)); } }
     let mut torches = vec![]; for _ in 0..r.len(1 << 20)? { let (x, y) = (r.u32()? as usize, r.u32()? as usize); if x < gw && y < BH { torches.push((x, y0 + y)); } }
     let mut blds = vec![]; for _ in 0..r.len(1 << 16)? { let (k, x, y, b) = (r.u8()?, r.u32()? as usize, r.u32()? as usize, r.u8()? != 0); if (k as usize) < STATIONS.len() && x + Station::W < gw && y < BH && y0 + y >= Station::H { blds.push(Building { kind: STATIONS[k as usize], x, y: y0 + y, built: b, claimed: false }); } }
     let mut farms = vec![]; for _ in 0..r.len(1 << 16)? { let (x, y, g) = (r.u32()? as usize, r.u32()? as usize, r.f32()?); if x < gw && y < BH && y0 + y + 1 < gh { farms.push(Farm { x, y: y0 + y, growth: g.clamp(0., 1.), why: 0 }); } }

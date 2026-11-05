@@ -51,7 +51,7 @@ fn load_v3(b: &[u8]) -> R<World> {
         w.moles.push(Mole { name, x, y, hp: hp.clamp(0., 100.), breath: breath.clamp(0., 100.), hunger: hunger.clamp(0., 100.), sleep: sleep.clamp(0., 100.), alive, facing: facing.signum().max(-1), path: VecDeque::new(), job: None, work: 0, work_cell: None, carry: None, ..tmpl.clone() });
     }
     w.moles.truncate(1); if w.moles.is_empty() { w.moles.push(tmpl.clone()); } // one mole: the player
-    w.drops.clear(); for _ in 0..r.len(1 << 20)? { let (x, y, it, nn) = (r.u32()? as usize, r.u32()? as usize, r.u8()?, r.u32()?); if x < gw && y < gh && (it as usize) < NITEM { w.drops.push(Drop { x, y, item: crate::craft::ITEMS[it as usize], n: nn, claimed: false }); } }
+    w.drops.clear(); for _ in 0..r.len(1 << 20)? { let (x, y, it, nn) = (r.u32()? as usize, r.u32()? as usize, r.u8()?, r.u32()?); if x < gw && y < gh && (it as usize) < NITEM { w.drops.push(Drop::at(x as f32 + 0.5, y as f32 + 0.5, crate::craft::ITEMS[it as usize], nn)); } }
     w.chests.clear(); for _ in 0..r.len(1 << 16)? { let (x, y, o) = (r.u32()? as usize, r.u32()? as usize, r.u8()? != 0); if x < gw && y < gh { w.chests.push(Chest { x, y, opened: o }); } }
     w.buildings.clear(); for _ in 0..r.len(1 << 16)? { let (k, x, y, b) = (r.u8()?, r.u32()? as usize, r.u32()? as usize, r.u8()? != 0); if (k as usize) < STATIONS.len() && x + Station::W < gw && y < gh { w.buildings.push(Building { kind: STATIONS[k as usize], x, y, built: b, claimed: false }); } }
     w.torches.clear(); for _ in 0..r.len(1 << 20)? { let (x, y) = (r.u32()? as usize, r.u32()? as usize); if x < gw && y < gh { w.torches.push((x, y)); } }

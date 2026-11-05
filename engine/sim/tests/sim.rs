@@ -562,7 +562,7 @@ mod bands {
         let b = w.logic.block_of(x, y); let gg = &mut w.g; assert!(w.logic.place(gg, Dev::Lever, b));
         let t = w.logic.block_of(x + 40, y); let gg = &mut w.g; assert!(w.logic.place(gg, Dev::Tnt, t)); w.logic.burn[t] = 50;
         let c = w.logic.block_of(x + 20, y); w.logic.wire[c] = 1;
-        w.torches.push((x + 60, y)); w.drops.push(Drop { x: x + 70, y: y + 1, item: Item::Coal, n: 3, claimed: false });
+        w.torches.push((x + 60, y)); w.drops.push(Drop::at((x + 70) as f32 + 0.5, (y + 1) as f32 + 0.5, Item::Coal, 3));
         w.buildings.push(Building { kind: Station::Kiln, x: x + 120, y: 50, built: true, claimed: false });
         w.farms.push(Farm { x: x + 200, y: 45, growth: 0.5, why: 0 });
         let a = w.air.block(x, y); w.air.co2[a] = 0.7;
