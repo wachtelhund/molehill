@@ -19,7 +19,7 @@ The sim is also **deterministic**. Randomness is a hash of position and tick, th
 | layer | command (from `engine/`) | what it covers |
 |---|---|---|
 | Unit and integration tests | `cargo test --release -p molehill-sim` | stress and collapse, fluids, dig tiers, movement (jump height, short hop, coyote, cling, climb, wall-jump), zoom and brush clamps, lore-safe tooltips and world hover text, save/load, pack accounting. About 10 s; use release, because debug is very slow |
-| Scenario harness | `cargo run --release -p molehill-sim --example scenario -- sim/tests/scenarios/*.scn` | about 85 small, readable set pieces of gameplay with assertions |
+| Scenario harness | `cargo run --release -p molehill-sim --example scenario -- sim/tests/scenarios/*.scn` | about 90 small, readable set pieces of gameplay with assertions |
 | Crash hunts | `cargo run -p molehill-sim --no-default-features --example soak -- SEEDS TICKS`; `--example loadsave -- FILE [TICKS]` | random play on game-sized worlds (moving, digging, blocks, devices, copperline, TNT, save/load) in debug for overflow checks; loading and playing an old save |
 | Benchmarks | `--example stepbench [seed] [ticks]`, `genbench [seed]`, `bandbench` | per-tick cost of `World::step` on the game window (mean, p95, p99, by tick class); where generation spends its time; the cost of a window slide, an autosave, a full save and a load |
 | Settling check | `cargo run --release -p molehill-sim --example wakediag [seed]` | a generated world runs 1200 ticks; reports how many falling-sand chunks are still awake (should be close to 0) |

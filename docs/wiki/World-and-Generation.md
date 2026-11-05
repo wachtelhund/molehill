@@ -138,7 +138,7 @@ Then the world runs **240 falling-sand ticks** so loose material and fluids sett
 
 Each one gives a **10 s warning** banner with its depth, lasts **6 s** with camera shake, and is followed by a calm of **90–180 s**. The first comes after about 2.5 minutes.
 
-> **Current build:** the game turns disasters off and fills the pack to 999 of everything while the game is being tuned (`make_world` in `game/src/main.rs`). The sim and the tests keep them.
+> **Current build:** the game turns disasters off while the game is being tuned (`make_world` in `game/src/main.rs`), and the pack comes from the mode picked at New Holt (Survival's kit or Creative's 999 of everything). The sim and the tests keep disasters.
 
 ## Fog, light and the background
 

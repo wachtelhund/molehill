@@ -1,0 +1,49 @@
+// Light costs fuel. The headlamp burns fungus oil (180 s a measure): when a measure runs out it takes the
+// next from the pack, then presses fungus into oil (2 fungus a measure), then goes dark. A torch needs a
+// measure of oil to be lit.
+map
+BBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+#............................#
+#............................#
+#............................#
+#............................#
+#............................#
+#............................#
+#............................#
+#............................#
+#............................#
+#............................#
+#............................#
+#............................#
+#............................#
+#...@........................#
+##############################
+end
+mode survival
+lamp 1 on
+expect 1 lamp == 1
+expect 1 oil > 179
+expect 61 oil < 179.1
+// run the lamp nearly dry: the next measure comes out of the pack
+set 100 oil 0.5
+expect 140 inv:FungusOil == 1
+expect 140 oil > 178
+// a torch soaks up a measure
+placetorch 150 3 -2
+expect 150 inv:Torch == 3
+expect 150 inv:FungusOil == 0
+// no oil left: fungus is pressed instead
+give Fungus 2
+set 200 oil 0.5
+expect 240 inv:Fungus == 0
+expect 240 oil > 178
+// nothing left to burn: the lamp goes out, and a torch won't light
+set 300 oil 0.5
+expect 340 lamp == 0
+expect 340 oil == 0
+placetorch 350 6 -2
+expect 350 inv:Torch == 3
+// switched off, the lamp burns nothing
+lamp 400 off
+set 400 oil 10
+expect 700 oil == 10

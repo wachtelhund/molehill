@@ -1,0 +1,42 @@
+// Food drains and the pack's food restores it: a hungry Delver eats a grub, then the roots. Digging a
+// root tangle turns up edible roots.
+map
+BBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+#............................#
+#............................#
+#............................#
+#............................#
+#............................#
+#............................#
+#............................#
+#...........tttttttttt.......#
+#...........tttttttttt.......#
+#...........tttttttttt.......#
+#...........tttttttttt.......#
+#...........tttttttttt.......#
+#...........tttttttttt.......#
+#...@.......tttttttttt.......#
+##############################
+end
+mode survival
+// hunger drains over time (about 0.33 a second)
+set 1 hunger 80
+expect 600 hunger < 77
+// below 40 the mole eats (every second tick): a grub first, then roots
+set 610 hunger 39
+expect 615 inv:Grub == 2
+expect 615 hunger > 80
+set 620 hunger 39
+set 625 hunger 39
+expect 632 inv:Grub == 0
+set 640 hunger 39
+expect 645 inv:Root == 1
+// starving hurts
+set 700 hunger 0
+expect 760 hp < 100
+// dig into the root tangle: roots come out with the wood
+tool 800 1
+mine 800-1000 10 -2
+mine 1000-1200 10 -5
+expect 1200 inv:Wood > 0
+expect 1200 inv:Root > 1

@@ -13,6 +13,8 @@ pub const S: f32 = 44.; pub const GAP: f32 = 4.;
 #[derive(Component)] pub struct InvBg;
 #[derive(Component)] pub struct Held;
 #[derive(Component)] pub struct Bar(pub u8);
+/// A vitals row (0 health, 1 food, 2 breath): the food row hides when the world's hunger is off.
+#[derive(Component)] pub struct BarRow(pub u8);
 #[derive(Component)] pub struct HelpPanel;
 #[derive(Component)] pub struct HudRoot;
 /// The dim second line of the hover tooltip.
@@ -38,7 +40,7 @@ pub fn setup(commands: &mut Commands, f: &Handle<Font>) {
     // vitals
     commands.spawn((Node { position_type: PositionType::Absolute, left: Val::Px(14.), top: Val::Px(14.), flex_direction: FlexDirection::Column, row_gap: Val::Px(5.), ..default() })).with_children(|p| {
         for (k, c) in [Color::srgb(0.86, 0.25, 0.25), Color::srgb(0.88, 0.62, 0.25), Color::srgb(0.35, 0.65, 0.95)].into_iter().enumerate() {
-            p.spawn(Node { flex_direction: FlexDirection::Row, align_items: AlignItems::Center, column_gap: Val::Px(6.), ..default() }).with_children(|r| {
+            p.spawn((Node { flex_direction: FlexDirection::Row, align_items: AlignItems::Center, column_gap: Val::Px(6.), ..default() }, BarRow(k as u8))).with_children(|r| {
                 r.spawn((Node { width: Val::Px(9.), height: Val::Px(9.), border_radius: BorderRadius::all(Val::Px(if k == 2 { 5. } else { 2. })), ..default() }, BackgroundColor(c)));
                 r.spawn((Node { width: Val::Px(120.), height: Val::Px(7.), border_radius: BorderRadius::all(Val::Px(2.)), ..default() }, BackgroundColor(Color::srgba(0., 0., 0., 0.45)))).with_children(|b| {
                     b.spawn((Node { width: Val::Percent(100.), height: Val::Percent(100.), border_radius: BorderRadius::all(Val::Px(2.)), ..default() }, BackgroundColor(c), Bar(k as u8)));
@@ -80,7 +82,7 @@ pub fn update(g: Res<Game>, sp: Res<Sprites>, time: Res<Time>, win: Query<&Windo
     mut q: ParamSet<(
         Query<(&Slot, &mut Node, &mut BackgroundColor, &mut BorderColor, &mut Visibility)>,
         Query<(&SlotIcon, &mut ImageNode, &mut Visibility)>,
-        Query<(&Bar, &mut Node)>,
+        Query<(Option<&Bar>, Option<&BarRow>, &mut Node), Or<(With<Bar>, With<BarRow>)>>,
         Query<(&mut Node, &mut Visibility), With<InvBg>>,
         Query<(&mut Node, &mut ImageNode, &mut Visibility), With<Held>>,
         Query<(&Lbl, &mut Text, &mut TextColor, &mut Node, &mut Visibility)>,
@@ -98,7 +100,9 @@ pub fn update(g: Res<Game>, sp: Res<Sprites>, time: Res<Time>, win: Query<&Windo
     }
     for (s, mut im, mut vis) in &mut q.p1() { match g.slots[s.0] { Some(t) => { let h = icon(&sp, t); if im.image != h { im.image = h; } *vis = Visibility::Inherited; } None => *vis = Visibility::Hidden } }
     let vals = [me.hp, me.hunger, me.breath];
-    for (b, mut n) in &mut q.p2() { n.width = Val::Percent(vals[b.0 as usize].clamp(0., 100.)); }
+    for (b, row, mut n) in &mut q.p2() {
+        if let Some(b) = b { n.width = Val::Percent(vals[b.0 as usize].clamp(0., 100.)); }
+        if let Some(r) = row { let d = if r.0 == 1 && w.rules.no_hunger { Display::None } else { Display::Flex }; if n.display != d { n.display = d; } } }
     { let mut p = q.p3(); if let Ok((mut n, mut v)) = p.single_mut() { let a = slot_pos(10, ww, wh); let b = slot_pos(9, ww, wh); n.left = Val::Px(a.x - 10.); n.top = Val::Px(a.y - 10.); n.width = Val::Px(b.x + S - a.x + 20.); n.height = Val::Px(b.y + S - a.y + 20.); *v = if g.inv_open { Visibility::Inherited } else { Visibility::Hidden }; } }
     let cur = win.cursor_position();
     { let mut p = q.p4(); if let Ok((mut n, mut im, mut v)) = p.single_mut() { match (g.held, cur) { (Some(t), Some(c)) => { im.image = icon(&sp, t); n.left = Val::Px(c.x - 8.); n.top = Val::Px(c.y - 8.); *v = Visibility::Inherited; } _ => *v = Visibility::Hidden } } }
