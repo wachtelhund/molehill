@@ -1,0 +1,40 @@
+// Four wood-pillar columns under the same clay roof (spans of 5-6 cells) keep it up; the pillars stay rigid.
+map
+################################
+#cccccccccccccccccccccccccccccc#
+#..............................#
+#..............................#
+#..............................#
+#..............................#
+#..............................#
+#.@............................#
+################################
+end
+give WoodPillar 40
+place 1 5 0 WoodPillar
+place 2 5 -1 WoodPillar
+place 3 5 -2 WoodPillar
+place 4 5 -3 WoodPillar
+place 5 5 -4 WoodPillar
+place 6 5 -5 WoodPillar
+place 7 11 0 WoodPillar
+place 8 11 -1 WoodPillar
+place 9 11 -2 WoodPillar
+place 10 11 -3 WoodPillar
+place 11 11 -4 WoodPillar
+place 12 11 -5 WoodPillar
+place 13 17 0 WoodPillar
+place 14 17 -1 WoodPillar
+place 15 17 -2 WoodPillar
+place 16 17 -3 WoodPillar
+place 17 17 -4 WoodPillar
+place 18 17 -5 WoodPillar
+place 19 23 0 WoodPillar
+place 20 23 -1 WoodPillar
+place 21 23 -2 WoodPillar
+place 22 23 -3 WoodPillar
+place 23 23 -4 WoodPillar
+place 24 23 -5 WoodPillar
+expect 600 crumbled == 0
+expect 600 count:WoodBeam == 24
+expect 600 count:Clay == 30

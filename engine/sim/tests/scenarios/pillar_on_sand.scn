@@ -1,0 +1,20 @@
+// A pillar standing on a sand floor (resting on rock) is still rigid: load passes down through the sand.
+map
+##############################
+#............................#
+#............................#
+#............................#
+#............................#
+#.@..........................#
+#ssssssssssssssssssssssssssss#
+##############################
+end
+give WoodPillar 20
+place 2 8 0 WoodPillar
+place 3 8 -1 WoodPillar
+place 4 8 -2 WoodPillar
+place 5 9 0 WoodPillar
+place 6 10 0 WoodPillar
+place 7 10 -1 WoodPillar
+expect 400 count:WoodBeam == 6
+expect 400 crumbled == 0

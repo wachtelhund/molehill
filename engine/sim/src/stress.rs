@@ -63,6 +63,11 @@ impl Stress {
         while head < q.len() {
             let i = q[head] as usize; head += 1; let (x, y) = (i % w, i / w);
             for j in g.n4(x, y) { if !reach[j] && st(j) { reach[j] = true; q.push(j as u32); } }
+            // load also passes straight down through a resting pile of sand / rubble: a pillar or
+            // wall built on a sand floor that lies on rock has a load path, even though sand can't
+            // hold a roof up by itself (no sideways or hanging links through powder)
+            if y > 0 { let mut a = i; while a >= w && !reach[a - w] && g.is_solidish(a - w) && !st(a - w) { a -= w; reach[a] = true; }
+                if a >= w && a != i && !reach[a - w] && st(a - w) { reach[a - w] = true; q.push((a - w) as u32); } }
         }
         for i in 0..n { if st(i) && !reach[i] { util[i] = 9.; } }
         // 3. bending of roof runs
@@ -80,8 +85,15 @@ impl Stress {
                 for xx in xa..=xb {
                     let mut k = 0; while k < cap && y >= k && st((y - k) * w + xx) { rho += PROPS[g.mat[(y - k) * w + xx] as usize].density; k += 1; }
                     hmin = hmin.min(k); tmin = tmin.min(PROPS[g.mat[y * w + xx] as usize].tensile);
-                    if k < cap && y + 1 >= k { qtop = qtop.max(p[(y + 1 - k) * w + xx]); } // rubble/water resting on the beam
+                    // superimposed load: only loose rubble / sand / water lying directly on the beam.
+                    // Static rock above (beyond the arch cap) carries itself; an open cave above is
+                    // carried by its own roof, so neither loads this beam.
+                    if k < cap && y >= k { let mut yy = y - k; let mut n = 0; let mut qq = 0f32;
+                        loop { let j = yy * w + xx; let m = g.m(j); if matches!(m.kind(), Kind::Empty | Kind::Gas) || st(j) || n >= ARCH { break; }
+                            qq += PROPS[m as usize].density * G * CELL_M / 1000.; n += 1; if yy == 0 { break; } yy -= 1; }
+                        qtop += qq; }
                 }
+                qtop /= (xb - xa + 1) as f32; // spread over the span (uniformly distributed load)
                 let cnt: usize = (xa..=xb).map(|xx| { let mut k = 0; while k < cap && y >= k && st((y - k) * w + xx) { k += 1; } k }).sum();
                 rho /= cnt.max(1) as f32;
                 let hd = (hmin.max(1) as f32 * CELL_M).min(span.max(CELL_M));
@@ -90,7 +102,16 @@ impl Stress {
                 let span_eff = if left || right { span } else { span.max(CELL_M) };
                 let sigma = 6. * k * wload * span_eff * span_eff / (hd * hd);
                 let u = sigma / tmin.max(1e-3);
-                for xx in xa..=xb { let j = y * w + xx; if u > util[j] { util[j] = u; } }
+                // the moment isn't uniform along the beam: M(x) ∝ x(L-x) when both ends rest
+                // (peak at midspan), ∝ (distance from the free tip)² for a cantilever (peak at the
+                // root). Overloaded roofs therefore break where M peaks and leave the rest standing,
+                // so a cave-in sags out of the middle into a stable arch instead of peeling whole rows.
+                let n = (xb - xa + 1) as f32;
+                for xx in xa..=xb {
+                    let t = (xx - xa) as f32 + 0.5;
+                    let f = if left && right { 4. * t * (n - t) / (n * n) } else if left { ((n - t + 0.5) / n).powi(2) } else if right { ((t + 0.5) / n).powi(2) } else { 1. };
+                    let j = y * w + xx; let uu = u * f.min(1.); if uu > util[j] { util[j] = uu; }
+                }
             }
         }
         // 4. compression of horizontal solid runs (pillars / walls)
@@ -101,8 +122,15 @@ impl Stress {
                 let xa = x; while x < w && st(y * w + x) { x += 1; } let xb = x - 1;
                 let mut load: f32 = (xa..=xb).map(|xx| p[y * w + xx]).sum();
                                 // left void run
-                let mut l = xa; let mut vl = 0f32; let mut nl = 0; while l > 0 && !st(y * w + l - 1) { l -= 1; vl += p[y * w + l]; nl += 1; if nl > 400 { break; } }
-                let mut r = xb; let mut vr = 0f32; let mut nr = 0; while r + 1 < w && !st(y * w + r + 1) { r += 1; vr += p[y * w + r]; nr += 1; if nr > 400 { break; } }
+                // Tributary load from the open space beside the run. Above an opening of width n the
+                // rock arches, so only the loosened zone (≈ n+1 cells of rock) bears down on the
+                // supports, not the whole overburden column: a lone prop in a sound hall isn't crushed.
+                let cell_w = PROPS[Mat::Granite as usize].density * G * CELL_M / 1000.;
+                let mut nl = 0; while xa > nl && !st(y * w + xa - nl - 1) && nl < 400 { nl += 1; }
+                let mut nr = 0; while xb + nr + 1 < w && !st(y * w + xb + nr + 1) && nr < 400 { nr += 1; }
+                let (cl, cr) = ((nl + 1) as f32 * cell_w, (nr + 1) as f32 * cell_w);
+                let vl: f32 = (1..=nl).map(|k| p[y * w + xa - k].min(cl)).sum();
+                let vr: f32 = (1..=nr).map(|k| p[y * w + xb + k].min(cr)).sum();
                 load += 0.5 * (vl + vr);
                 let wid = (xb - xa + 1) as f32;
                 let sigma = load / wid;

@@ -47,6 +47,7 @@ hold 31-40 right jump
 tool 41 3               // from tick 41 dig with tool tier 0 claws, 1 pickaxe, 2 drill, 3 bore
 mine 41-60 3 0          // hold mine on cell (dx,dy) relative to '@' during ticks A-B
 explode 70 5 -2 3       // TNT-strength blast at (dx,dy) with radius r at tick T
+place 2 8 0 WoodPillar  // place a block item (WoodPillar, IronBeam, Brick) at (dx,dy) at tick T, no reach check
 dump 50                 // print the JSON state after tick T
 ascii 80                // print the map region after tick T
 expect 60 rise >= 4.5   // assertion after tick T: <var> <op> <number>, ops: < <= > >= == !=
@@ -54,7 +55,7 @@ expect 60 rise >= 4.5   // assertion after tick T: <var> <op> <number>, ops: < <
 
 The map is stamped with its top-left so that `@` lands on the world spawn. A 20-cell granite frame is put around it, so the generated world can't leak in. Disasters are off. Rows shorter than the widest row are padded with `#`.
 
-Map legend: `.` empty, `#` granite, `B` bedrock, `r` rock, `d` dirt, `c` clay, `s` sand, `g` gravel, `w` water, `l` lava, `o` coal, `i` iron ore, `b` wood beam, `k` stone brick (`~` steam, `?` other, only in output).
+Map legend: `.` empty, `#` granite, `B` bedrock, `r` rock, `d` dirt, `c` clay, `s` sand, `g` gravel, `w` water, `l` lava, `o` coal, `i` iron ore, `b` wood beam, `I` iron beam, `k` stone brick (`~` steam, `?` other, only in output).
 
 **Assertion variables:**
 
@@ -76,7 +77,7 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 
 | file | checks |
 |---|---|
-| `run_jump.scn` | Top speed in under 8 ticks; full-jump height 4.5-9 cells; lands |
+| `run_jump.scn` | Top speed in under 8 ticks; full-jump height 4.5-9 cells; lands; the 11 m granite ceiling doesn't crumble |
 | `coyote.scn` / `coyote_late.scn` | A jump 4 ticks after leaving a ledge works; 12 ticks after, it doesn't |
 | `wall_climb.scn` | Cling to a wall, then climb more than 6 cells with W |
 | `wall_jump.scn` | Space while clinging launches you away from the wall |
@@ -84,6 +85,11 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `water_flood.scn` | Mining a dirt plug floods the room below |
 | `tnt_collapse.scn` | A blast removes rock, and the sand cap falls |
 | `cave_stability.scn` | A small granite cave shows no crumbling over 600 ticks |
+| `hall_sag_arrests.scn` | An over-wide granite hall sags out of midspan and the cave-in stops (< 60 cells) |
+| `pillar_holds.scn` / `pillar_on_sand.scn` | Placed wood pillars stay rigid, also when standing on a sand floor |
+| `pillar_wide_hall.scn` | A lone pillar in a wide, sound hall isn't crushed |
+| `roof_unpropped.scn` / `roof_propped.scn` | A wide clay roof caves in; four pillar columns hold it |
+| `beam_span.scn` / `beam_overload.scn` | An iron beam bridges an 8-cell gap; a sand-loaded wood beam breaks into splinters |
 
 ### Writing a new scenario (for agents)
 

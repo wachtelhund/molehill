@@ -585,8 +585,12 @@ impl World {
     }
     /// Place a block item (pillar, brick, beam) into an open cell within reach, touching something solid.
     pub fn place_block(&mut self, x: usize, y: usize, it: Item) -> Result<(), &'static str> {
-        let d = match it { Item::WoodPillar => D_WOOD, Item::Brick => D_BRICK, Item::IronBeam => D_IRON, _ => return Err("not a block") };
         if !self.in_reach(x, y) { return Err("out of reach"); }
+        self.place_block_at(x, y, it)
+    }
+    /// `place_block` without the reach check (scripted building, scenarios).
+    pub fn place_block_at(&mut self, x: usize, y: usize, it: Item) -> Result<(), &'static str> {
+        let d = match it { Item::WoodPillar => D_WOOD, Item::Brick => D_BRICK, Item::IronBeam => D_IRON, _ => return Err("not a block") };
         if x < 1 || y < 1 || x + 1 >= self.g.w || y + 1 >= self.g.h { return Err("out of bounds"); }
         let i = self.g.idx(x, y); if self.g.mat[i] != 0 && !matches!(self.g.m(i), Mat::Water | Mat::Steam) { return Err("cell is not open"); }
         if self.moles.iter().any(|m| m.alive && m.x == x && y <= m.y && y + MOLE_H > m.y) { return Err("you are standing there"); }
