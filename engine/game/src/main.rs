@@ -29,6 +29,9 @@ const FAR: usize = 4; // chunk rows drawn beyond each end of the simulated windo
     pub demo_right: bool,
     /// mouse buttons held since a menu closed: ignored until released (the click that closed the menu must not dig or place)
     pub mouse_latch: bool,
+    /// a jump pressed since the last sim step (kept for that step even if already released, so a quick tap
+    /// between two 60 Hz steps on a faster display isn't lost); `jump_key` = the jump keys' held state
+    jump_tap: bool, jump_key: bool,
     /// in-world feedback pops: (kind 0 bite / 1 placed block, x, y, radius in cells, start time s)
     pub pops: Vec<(u8, f32, f32, f32, f32)>,
     /// smoothed camera lookahead (cells)
@@ -236,7 +239,7 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, mut fonts: R
         px: images.add(art::image(1, 1, vec![255; 4], true)),
     };
     commands.insert_resource(sp);
-    let disp = Vec2::new(sx, sy + 1.5); commands.insert_resource(Game { w, chunks, buf: vec![1; W * H * 4], uploads: 0, acc: 0., paused: true, speed: 1, frame: 0, last_light: 0, msg: String::new(), help: false, ev: vec![], shake_off: Vec2::ZERO, autosave: 0., last_oy: oy0, far, far_done, inv_open: false, aim: None, slots: default_slots(), held: None, hot: 0, sel_t: 0., toasts: vec![], log_seen: 0, show_dev: false, disp, seed, brush: [0.; 7], demo_right: false, mouse_latch: false, pops: vec![], look: Vec2::ZERO });
+    let disp = Vec2::new(sx, sy + 1.5); commands.insert_resource(Game { w, chunks, buf: vec![1; W * H * 4], uploads: 0, acc: 0., paused: true, speed: 1, frame: 0, last_light: 0, msg: String::new(), help: false, ev: vec![], shake_off: Vec2::ZERO, autosave: 0., last_oy: oy0, far, far_done, inv_open: false, aim: None, slots: default_slots(), held: None, hot: 0, sel_t: 0., toasts: vec![], log_seen: 0, show_dev: false, disp, seed, brush: [0.; 7], demo_right: false, mouse_latch: false, jump_tap: false, jump_key: false, pops: vec![], look: Vec2::ZERO });
 }
 
 pub fn save_now(g: &mut Game) { let b = molehill_sim::save::save(&g.w); g.msg = match storage_put("molehill-manual", &b) { Ok(()) => "Game saved".into(), Err(e) => format!("Save failed: {e}") }; }
@@ -262,8 +265,8 @@ fn input(mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<Button
          win: Query<&Window, With<PrimaryWindow>>, mut cam: Query<&mut Transform, With<Camera2d>>, time: Res<Time>,
          mut commands: Commands, mut menu: ResMut<menu::Menu>) {
     let Ok(win) = win.single() else { return }; let Ok(mut ct) = cam.single_mut() else { return };
-    if g.paused { g.w.input = Default::default(); g.aim = None; return; } // a menu is open: no input, no aim ring
-    let dt = time.delta_secs(); let sc = ct.scale.x; let now = time.elapsed_secs();
+    if g.paused { g.w.input = Default::default(); g.aim = None; g.jump_tap = false; return; } // a menu is open: no input, no aim ring
+    let sc = ct.scale.x; let now = time.elapsed_secs();
     let ctrl = keys.pressed(KeyCode::ControlLeft) || keys.pressed(KeyCode::ControlRight);
     // toasts: short game messages and new world log lines (deduplicated, at most 3 live)
     let fresh: Vec<String> = g.w.log.iter().filter(|(t, _)| *t > g.log_seen).map(|(_, l)| l.clone()).collect();
@@ -278,7 +281,9 @@ fn input(mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<Button
     let upk = keys.pressed(KeyCode::KeyW) || keys.pressed(KeyCode::ArrowUp);
     g.w.input.up = upk; g.w.input.down = keys.pressed(KeyCode::KeyS) || keys.pressed(KeyCode::ArrowDown);
     // Space jumps (and wall-jumps); W also jumps when not on a wall, and climbs when clinging
-    g.w.input.jump = keys.pressed(KeyCode::Space) || upk && g.w.pl.cling == 0;
+    let jk = keys.pressed(KeyCode::Space) || upk && g.w.pl.cling == 0;
+    if keys.just_pressed(KeyCode::Space) || (keys.just_pressed(KeyCode::KeyW) || keys.just_pressed(KeyCode::ArrowUp)) && g.w.pl.cling == 0 { g.jump_tap = true; }
+    g.jump_key = jk; g.w.input.jump = jk || g.jump_tap;
     g.w.input.mine = None;
     let sel0 = g.hot;
     // wheel: hotbar; Ctrl+wheel: brush size with a brush item in hand, else zoom; Shift+wheel: zoom.
@@ -299,16 +304,6 @@ fn input(mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<Button
         let k = brush_slot(b); let r = brush_r(&g, b); let (lo, hi, _) = sw::brush_range(b).unwrap_or((0.5, 0.5, 0.5));
         g.brush[k] = (r + resize * 0.5).clamp(lo, hi); g.sel_t = now;
     }
-    // render interpolation between the last two fixed sim steps; tight camera with a little lookahead
-    { let a = g.acc.clamp(0., 1.); let pl = &g.w.pl; g.disp = Vec2::new(pl.ppx + (pl.px - pl.ppx) * a, pl.ppy + (pl.py - pl.ppy) * a - 1.0);
-      // the lookahead eases (a turn doesn't whip the view); the follow itself stays tight
-      let want = Vec2::new(g.w.pl.vx * 0.14, if g.w.pl.vy > 20. { (g.w.pl.vy - 20.) * 0.08 } else { 0. });
-      let kl = 1. - (-7. * dt).exp(); let look = g.look + (want - g.look) * kl; g.look = look;
-      let p = cell_to_world(g.disp.x + look.x, g.disp.y - 1.5 + look.y); let k = 1. - (-30. * dt).exp();
-      let d = Vec2::new(p.x - ct.translation.x, p.y - ct.translation.y);
-      if d.length() > 200. { ct.translation.x = p.x; ct.translation.y = p.y; } else { ct.translation.x += d.x * k; ct.translation.y += d.y * k; } }
-    let half = Vec2::new(W as f32 * CPX / 2., H as f32 * CPX / 2.);
-    ct.translation.x = ct.translation.x.clamp(-half.x, half.x); { let fy = half.y + (FAR * CH) as f32 * CPX; ct.translation.y = ct.translation.y.clamp(-fy, fy); }
     let digits = [KeyCode::Digit1, KeyCode::Digit2, KeyCode::Digit3, KeyCode::Digit4, KeyCode::Digit5, KeyCode::Digit6, KeyCode::Digit7, KeyCode::Digit8, KeyCode::Digit9, KeyCode::Digit0];
     for (k, d) in digits.iter().enumerate() { if keys.just_pressed(*d) { g.hot = k; } }
     if keys.just_pressed(KeyCode::Escape) { g.inv_open = false; g.help = false; }
@@ -372,6 +367,20 @@ fn input(mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<Button
     }
 }
 
+/// Render interpolation between the last two fixed sim steps, and a tight camera with a little lookahead.
+/// Runs after this frame's steps, so the mole is drawn where this frame's input put it (no frame of lag).
+fn follow(g: &mut Game, ct: &mut Transform, dt: f32) {
+    { let a = g.acc.clamp(0., 1.); let pl = &g.w.pl; g.disp = Vec2::new(pl.ppx + (pl.px - pl.ppx) * a, pl.ppy + (pl.py - pl.ppy) * a - 1.0);
+      // the lookahead eases (a turn doesn't whip the view); the follow itself stays tight
+      let want = Vec2::new(g.w.pl.vx * 0.14, if g.w.pl.vy > 20. { (g.w.pl.vy - 20.) * 0.08 } else { 0. });
+      let kl = 1. - (-7. * dt).exp(); let look = g.look + (want - g.look) * kl; g.look = look;
+      let p = cell_to_world(g.disp.x + look.x, g.disp.y - 1.5 + look.y); let k = 1. - (-30. * dt).exp();
+      let d = Vec2::new(p.x - ct.translation.x, p.y - ct.translation.y);
+      if d.length() > 200. { ct.translation.x = p.x; ct.translation.y = p.y; } else { ct.translation.x += d.x * k; ct.translation.y += d.y * k; } }
+    let half = Vec2::new(W as f32 * CPX / 2., H as f32 * CPX / 2.);
+    ct.translation.x = ct.translation.x.clamp(-half.x, half.x); { let fy = half.y + (FAR * CH) as f32 * CPX; ct.translation.y = ct.translation.y.clamp(-fy, fy); }
+}
+
 fn simulate(mut commands: Commands, mut g: ResMut<Game>, time: Res<Time>, mut cam: Query<(&mut Transform, &Projection), With<Camera2d>>, win: Query<&Window, With<PrimaryWindow>>) {
     g.frame += 1;
     if !g.paused {
@@ -380,7 +389,8 @@ fn simulate(mut commands: Commands, mut g: ResMut<Game>, time: Res<Time>, mut ca
         let mut n = 0; while g.acc >= 1. && n < 3 * g.speed {
             let pre = std::mem::take(&mut g.w.events); let pm = std::mem::take(&mut g.w.marks); g.w.step();
             let mut e = std::mem::take(&mut g.w.events); let m = std::mem::take(&mut g.w.marks); let gg = &mut *g; gg.ev.extend(pre); gg.ev.append(&mut e);
-            gg.pops.extend(pm.into_iter().chain(m).map(|(k, x, y, r)| (k, x, y, r, now))); g.acc -= 1.; n += 1; }
+            gg.pops.extend(pm.into_iter().chain(m).map(|(k, x, y, r)| (k, x, y, r, now))); g.acc -= 1.; n += 1;
+            if g.jump_tap { g.jump_tap = false; g.w.input.jump = g.jump_key; } } // the tap was seen: back to the key's state
         g.pops.retain(|p| now - p.4 < 0.25);
         g.autosave += time.delta_secs();
         if g.autosave > 30. { g.autosave = 0.; let b = molehill_sim::save::save(&g.w); let _ = storage_put("molehill-auto", &b); }
@@ -393,6 +403,7 @@ fn simulate(mut commands: Commands, mut g: ResMut<Game>, time: Res<Time>, mut ca
     }
     // camera shake (quakes, explosions): remove last frame's offset, add a new one
     let off = g.shake_off; ct.translation.x -= off.x; ct.translation.y -= off.y;
+    if !g.paused { follow(&mut g, &mut ct, time.delta_secs()); }
     let sh = g.w.shake; let f = g.frame as f32;
     g.shake_off = if sh > 0.05 { Vec2::new((f * 1.7).sin(), (f * 2.3).cos()) * sh * 3. * ct.scale.x.max(0.3) } else { Vec2::ZERO };
     ct.translation.x += g.shake_off.x; ct.translation.y += g.shake_off.y;
@@ -570,7 +581,7 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
     // squash on landing (harder landings squash more), stretch on take-off; springs back in ~0.12 s
     if !g.paused {
         if pl.grounded && !fx.grounded && fx.vy > 12. { fx.squash = -(fx.vy / 60.).clamp(0.12, 0.3); let at = cell_to_world(g.disp.x, g.disp.y + 2.); for k in 0..6 { let s = if k % 2 == 0 { 1. } else { -1. }; fx.parts.push(Part { p: at + Vec2::new(s * 3., 0.), v: Vec2::new(s * (14. + k as f32 * 6.), 6. + k as f32 * 2.), life: 0., max: 0.3, c: [150., 130., 120.], size: 1.6, g: 260. }); } }
-        if !pl.grounded && fx.grounded && pl.vy < -10. { fx.squash = 0.18; }
+        if !pl.grounded && pl.cling == 0 && pl.vy < -10. && fx.vy > -5. { fx.squash = 0.18; } // any sudden kick upward: a jump off the ground or a wall
         fx.grounded = pl.grounded; fx.vy = pl.vy; fx.squash *= (-dt * 18.).exp();
     }
     for (k, m) in w.moles.iter().enumerate() { if !m.alive { continue; }

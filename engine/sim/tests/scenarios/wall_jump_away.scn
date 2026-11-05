@@ -1,0 +1,43 @@
+// Clinging to the right wall, press away (left) and jump on the same tick: still a wall jump, not a drop.
+// Late jump: let go of the wall, then jump within the 0.1 s grace.
+map
+##############
+#............#
+#............#
+#............#
+#............#
+#............#
+#............#
+#............#
+#............#
+#............#
+#............#
+#............#
+#.@..........#
+##############
+end
+hold 1-60 right
+hold 61-70 right jump
+hold 71-74 right
+expect 74 cling == 1
+hold 76-85 left jump
+expect 85 vx < -5
+expect 85 vy < -10
+// fall back down, cling again, let go, then press jump 4 ticks later
+hold 86-180 right
+hold 181-190 right jump
+hold 191-200 right
+expect 200 cling == 1
+hold 201-204 left
+hold 205-212 left jump
+expect 212 vy < -10
+expect 212 vx < -5
+// past the grace (8 ticks off the wall) a jump does nothing in the air (climb up first so there's room to fall)
+hold 213-310 right
+hold 311-320 right jump
+hold 321-340 right up
+expect 340 cling == 1
+hold 341-348 left
+hold 349-351 left jump
+expect 351 vy > 0
+expect 351 grounded == 0
