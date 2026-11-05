@@ -1,0 +1,15 @@
+// Sand poured on the mole's head: it wriggles up through the loose grains and stands on top.
+map
+#######
+#.....#
+#.....#
+#.....#
+#.....#
+#.....#
+#sssss#
+#sssss#
+#ss@ss#
+#######
+end
+expect 60 is:0,0,Sand == 1    // the mole's old spot is filled; it's standing on the pile
+expect 60 hp > 80

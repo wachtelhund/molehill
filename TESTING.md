@@ -121,6 +121,8 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `pillar_on_rubble.scn` | Pillars, a ledge and bricks built on a sand floor stay rigid; no new sand appears |
 | `beam_spans_gap.scn` | Iron beams placed across a pit stay put, and the mole runs across them |
 | `beam_overload.scn` | A long wood span under deep sand cracks and falls as wooden debris |
+| `dirt_cavein_chokes.scn` | A void under a deep dirt bank caves in but bulking rubble chokes it off (< 600 cells, then sleeps) |
+| `buried_under_rock.scn` / `buried_in_sand.scn` | A mole buried under a rock slab stays put (no popping through rock); under loose sand it wriggles out |
 | `brush_place.scn` | A radius-2 brick brush fills the open part of the disc and uses items 4 cells to one |
 | `brush_clamp.scn` | Brush radius is clamped per item (iron beam max 2, pillar min 0.5, pickaxe max 3) |
 | `pillar_built_in_room.scn` | A wood pillar built cell by cell in a granite room stays rigid |

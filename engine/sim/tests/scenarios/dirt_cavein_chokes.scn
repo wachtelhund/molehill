@@ -1,0 +1,49 @@
+// A 10-wide void at the foot of a 30-row dirt bank caves in. Broken ground bulks (rubble takes
+// ~1.3x the room), so the cave-in fills its own void and stops a few rows up instead of
+// chimneying through the whole bank (it used to keep climbing: 830 cells by tick 1500).
+map
+########################################
+#dddddddddddddddddddddddddddddddddddddd#
+#dddddddddddddddddddddddddddddddddddddd#
+#dddddddddddddddddddddddddddddddddddddd#
+#dddddddddddddddddddddddddddddddddddddd#
+#dddddddddddddddddddddddddddddddddddddd#
+#dddddddddddddddddddddddddddddddddddddd#
+#dddddddddddddddddddddddddddddddddddddd#
+#dddddddddddddddddddddddddddddddddddddd#
+#dddddddddddddddddddddddddddddddddddddd#
+#dddddddddddddddddddddddddddddddddddddd#
+#dddddddddddddddddddddddddddddddddddddd#
+#dddddddddddddddddddddddddddddddddddddd#
+#dddddddddddddddddddddddddddddddddddddd#
+#dddddddddddddddddddddddddddddddddddddd#
+#dddddddddddddddddddddddddddddddddddddd#
+#dddddddddddddddddddddddddddddddddddddd#
+#dddddddddddddddddddddddddddddddddddddd#
+#dddddddddddddddddddddddddddddddddddddd#
+#dddddddddddddddddddddddddddddddddddddd#
+#dddddddddddddddddddddddddddddddddddddd#
+#dddddddddddddddddddddddddddddddddddddd#
+#dddddddddddddddddddddddddddddddddddddd#
+#dddddddddddddddddddddddddddddddddddddd#
+#dddddddddddddddddddddddddddddddddddddd#
+#dddddddddddddddddddddddddddddddddddddd#
+#dddddddddddddddddddddddddddddddddddddd#
+#dddddddddddddddddddddddddddddddddddddd#
+#dddddddddddddddddddddddddddddddddddddd#
+#dddddddddddddddddddddddddddddddddddddd#
+#dddddddddddddddddddddddddddddddddddddd#
+#dddddddddddddd..........dddddddddddddd#
+#dddddddddddddd..........dddddddddddddd#
+#dddddddddddddd..........dddddddddddddd#
+#dddddddddddddd..........dddddddddddddd#
+########################################
+#...####
+#...####
+#...####
+#.@.####
+########
+end
+expect 3000 crumbled > 50
+expect 3000 crumbled < 600
+expect 3000 awake == 0

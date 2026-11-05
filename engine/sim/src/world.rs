@@ -9,6 +9,8 @@ use crate::logic::{Dev, Logic};
 use crate::disasters::Disasters;
 use crate::air::{self, Air};
 use std::collections::VecDeque;
+/// Of every 10 cells of ground that crumble, how many leave an extra cell of rubble (bulking).
+pub const BULK_IN_10: u32 = 3;
 use std::sync::atomic::Ordering::Relaxed;
 
 pub const D_DIG: u8 = 1; pub const D_WOOD: u8 = 2; pub const D_BRICK: u8 = 3; pub const D_IRON: u8 = 4;
@@ -302,7 +304,26 @@ impl World {
         }
         let crumble = self.st.tick(&self.g);
         if !crumble.is_empty() { self.events.push(Event::Crumble); }
-        for &i in &crumble { let i = i as usize; let c = self.g.m(i).p().crumbles_to; self.g.set(i, c); if c.kind() == Kind::Solid { self.g.set_loose(i); } self.crumbled += 1; }
+        let mut bulk = vec![];
+        for &i in &crumble { let i = i as usize; let was = self.g.m(i); let c = was.p().crumbles_to; self.g.set(i, c); if c.kind() == Kind::Solid { self.g.set_loose(i); } self.crumbled += 1;
+            if !matches!(was, Mat::WoodBeam | Mat::IronBeam | Mat::Door | Mat::StoneBrick | Mat::Glass) && hash3(i as u32, 77, self.tick as u32) % 10 < BULK_IN_10 { bulk.push((i, c)); } }
+        // broken ground bulks: rubble takes ~1.3× the room the solid did, so a cave-in fills its own
+        // void and chokes off instead of climbing as a chimney through the whole layer. The extra
+        // rubble spills to the nearest open cell reachable from the break through loose ground,
+        // level with it or lower (never through rock, so it can't appear in a sealed room).
+        let (w, h) = (self.g.w, self.g.h);
+        for (i, c) in bulk {
+            let y0 = i / w; let mut q = VecDeque::from([i]); let mut seen = vec![i];
+            while let Some(k) = q.pop_front() {
+                if k != i && matches!(self.g.m(k).kind(), Kind::Empty | Kind::Gas) { self.g.set(k, c); if c.kind() == Kind::Solid { self.g.set_loose(k); } break; }
+                if seen.len() > 48 { break; }
+                let (x, y) = (k % w, k / w);
+                for (nx, ny) in [(x, y + 1), (x.wrapping_sub(1), y), (x + 1, y), (x.wrapping_sub(1), y + 1), (x + 1, y + 1)] {
+                    if nx >= w || ny >= h || ny < y0 { continue; }
+                    let j = ny * w + nx; if seen.contains(&j) || self.g.is_static(j) || self.g.m(j).kind() == Kind::Liquid { continue; }
+                    seen.push(j); q.push_back(j);
+                }
+            } }
         self.step_player();
         if self.tick % 2 == 0 { self.step_moles(); }
         // a knock (fall, lava, being buried, drowning) flashes the mole and jolts the view in proportion
@@ -626,11 +647,24 @@ impl World {
             if sy != 0. {
                 if !self.box_hits(self.pl.px, ny) { self.pl.py = ny; }
                 else if let Some(cx) = (sy < 0.).then(|| self.corner_nudge(ny, t.nudge)).flatten() { self.pl.px = cx; self.pl.py = ny; } // head clipped a corner: slide around it
-                else { if sy > 0. { self.pl.py = ny.floor(); while self.box_hits(self.pl.px, self.pl.py) && self.pl.py > 1. { self.pl.py -= 0.01; } airfall = false; } else { self.pl.py = (self.pl.py - BODY_H).floor() + BODY_H + 0.0; while self.box_hits(self.pl.px, self.pl.py) { self.pl.py += 0.01; if self.pl.py > self.g.h as f32 - 2. { break; } } } self.pl.vy = 0.; }
+                else {
+                    // snap against the floor/ceiling, but never search more than a cell past where we
+                    // were: when already wedged in (buried), an unbounded search pops you out through rock
+                    let was = self.pl.py;
+                    if sy > 0. { self.pl.py = ny.floor(); while self.box_hits(self.pl.px, self.pl.py) && self.pl.py > was - 1. { self.pl.py -= 0.01; } airfall = false; }
+                    else { self.pl.py = (self.pl.py - BODY_H).floor() + BODY_H + 0.0; while self.box_hits(self.pl.px, self.pl.py) && self.pl.py < was + 1. { self.pl.py += 0.01; } }
+                    if self.box_hits(self.pl.px, self.pl.py) { self.pl.py = was; }
+                    self.pl.vy = 0.; }
             }
         }
         // buried by falling rock/sand: wriggle up if there's room, else stay put (breath runs out)
-        if self.box_hits(self.pl.px, self.pl.py) { for k in 1..=3 { if !self.box_hits(self.pl.px, self.pl.py - k as f32) { self.pl.py -= k as f32; break; } } }
+        // (only through loose stuff: a solid rock ceiling stops you, you don't pop out above it)
+        if self.box_hits(self.pl.px, self.pl.py) { for k in 1..=3 {
+            let (x0, x1) = ((self.pl.px - BODY_HW).floor() as i32, (self.pl.px + BODY_HW - 1e-3).floor() as i32);
+            let (y0, y1) = ((self.pl.py - k as f32 - BODY_H).floor() as i32, (self.pl.py - 1e-3).floor() as i32);
+            let rock = (y0..=y1).any(|y| (x0..=x1).any(|x| !self.g.in_bounds(x, y) || self.g.is_static(self.g.idx(x as usize, y as usize))));
+            if rock { break; }
+            if !self.box_hits(self.pl.px, self.pl.py - k as f32) { self.pl.py -= k as f32; break; } } }
         self.pl.px = self.pl.px.clamp(2., self.g.w as f32 - 2.); self.pl.py = self.pl.py.clamp(BODY_H + 1., self.g.h as f32 - 2.);
         let (x, y) = (self.pl.px as usize, (self.pl.py - 0.001) as usize);
         let landed = self.box_hits(self.pl.px, self.pl.py + 0.05);

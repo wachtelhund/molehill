@@ -53,9 +53,18 @@ Polish only: no new features. Each item has a scenario in `engine/sim/tests/scen
   own-material beam debris; kept this branch's roof load, arch cap, moment shape and confinement.
   Harness: `put T dx dy Item` (one cell, no reach) next to main's brush `place`.
 
+## Run 2
+* **Cave-ins in dirt chimneyed through the whole layer.** Rubble took exactly the room the solid
+  did, so a void just migrated upward forever. Broken ground now bulks: 3 in 10 crumbling cells
+  leave an extra cell of rubble in the nearest open cell reachable through loose ground (never
+  through rock). A 10×4 void under 30 rows of dirt now rises ~7 rows and chokes: 378 cells
+  instead of 830 by tick 1500 and still climbing. Built blocks don't bulk. (`dirt_cavein_chokes`)
+* **A buried mole popped out through rock.** The vertical collision snap searched upward without
+  limit, so a mole wedged in sand under a granite slab came out 4 cells higher, in the room above.
+  The snap now searches at most one cell and otherwise stays put; the "wriggle up" only passes
+  through loose ground. (`buried_under_rock`, `buried_in_sand`)
+
 ## Open issues
-* Rubble doesn't bulk (loose volume = solid volume), so a collapse in weak dirt chimneys up
-  through the whole layer instead of choking itself off.
 * A resting pool can keep a 1-cell step if the lower spot is more than 48 cells away.
 * Lava never cools on its own; dry lava resting on a basalt crust stays lava.
 * Thin roofs are still judged only by their bottom fibre's tensile strength (a 1-cell clay skin
