@@ -204,6 +204,8 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `craft_unlock_by_touch.scn` | Survival: a recipe appears once any input is picked up; Creative lists all |
 | `craft_stations.scn` | Survival crafting at a workbench; a forge refuses cold and works with lava in reach; a workshop refuses unpowered and makes the drill once a lever powers its line |
 | `tool_tiers_survival.scn` | Survival digs with the best tool owned: claws (dirt, soft stone), pickaxe, drill (granite), bore (basalt) |
+| `forge_coal_fuel.scn` | With no lava in reach the forge burns a coal per job; with no fuel it's cold |
+| `feel_feedback.scn` | Each action answers on its tick: dig strike, refused dig (clink), throw, a 0.5 m landing bump |
 | `tnt_place_vs_throw.scn` | TNT set down lies unlit as a device; thrown it goes off where it lands; beams and copperline aren't thrown |
 | `knots.scn` | Truth tables of the both/either/turn/odd/catch knots, swapped in place |
 | `door.scn` | A lever opens a door; it waits for the mole to clear the doorway before shutting; no door on yourself |

@@ -90,7 +90,8 @@ pub fn craft_rows(g: &Game) -> Vec<CraftRow> {
     for st in STATIONS {
         let here = w.station_here(st); if !free && here.is_none() { continue; }
         let ready = if free { Ok(()) } else { here.map_or(Ok(()), |b| w.station_ready(b)) };
-        v.push(CraftRow { text: match ready { Ok(()) => st.name().to_string(), Err(e) => format!("{}: {e}", st.name()) }, recipe: None, ok: ready.is_ok(), head: true });
+        let burns = !free && st == Station::Forge && here.map_or(false, |b| !w.forge_hot(b));
+        v.push(CraftRow { text: match ready { Ok(()) if burns => "Forge: burns a coal per job (lava or fire near keeps it hot)".into(), Ok(()) => st.name().to_string(), Err(e) => format!("{}: {e}", st.name()) }, recipe: None, ok: ready.is_ok(), head: true });
         for (r, rec) in RECIPES.iter().enumerate() {
             if rec.station != st || !w.recipe_known(r) { continue; }
             let has = rec.inputs.iter().all(|&(it, n)| w.inv[it as usize] >= n);

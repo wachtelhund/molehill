@@ -2,7 +2,7 @@
 // * Workbench: always works. The pickaxe (tier 1) is made here, and then the pick digs limestone.
 // * Forge: needs heat. Cold, it refuses; lava run into a pit beside it (within 3 m) lights it.
 // * Workshop: needs power. Unpowered, it refuses; a thrown lever on copperline into it powers it, and the
-//   drill (tier 2) is made here.
+//   drill (tier 2: copper and tin) is made here.
 // (bedrock roof: a 70-tile room would cave in otherwise)
 map
 BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
@@ -23,19 +23,19 @@ mode survival
 give Wood 20
 give Stone 30
 give Clay 8
-give IronOre 6
-give Coal 4
-give CopperOre 4
+give CopperOre 8
+give TinOre 4
 give CopperWire 16
+mode survival
 craft 3 Pickaxe
 expect 4 inv:Pickaxe == 1             // the kit's pickaxe only: no workbench yet
 station 5 2 0 Workbench
 expect 6 buildings == 1
-expect 6 inv:Wood == 14
+expect 6 inv:Wood == 16                // 20 (give sets the count), less the bench's 4
 craft 7 Pickaxe
 expect 8 inv:Pickaxe == 2
 expect 8 tier == 1
-// the forge: cold, then lava in the pit beside it
+// the forge: cold (no coal in the pack, no lava), then lava in the pit beside it
 station 10 -12 0 Forge
 craft 12 Copper_ingot
 expect 13 inv:CopperIngot == 0
@@ -44,11 +44,11 @@ pour 14 -15 1 Lava
 pour 14 -14 1 Lava
 craft 16 Copper_ingot
 craft 17 Copper_ingot
-expect 18 inv:CopperIngot == 2
-craft 18 Iron_ingot
-craft 19 Iron_ingot
-craft 20 Iron_ingot
-expect 21 inv:IronIngot == 3
+craft 18 Copper_ingot
+craft 19 Tin_ingot
+craft 20 Tin_ingot
+expect 21 inv:CopperIngot == 3
+expect 21 inv:TinIngot == 2
 // the workshop, over to the right
 hold 22-60 right
 station 62 14 0 Workshop
