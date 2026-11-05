@@ -12,7 +12,7 @@ You play one Delver: a body **1.8 cells wide and 2.9 tall** (about 45 × 73 cm) 
 |---|---|
 | `A` / `D` | Run. Instant start and stop. Steps of 1–2 cells are climbed at full speed, and you shove through loose sand |
 | `Space` (or `W` off a wall) | Jump. Hold for a full jump, tap for a short hop |
-| Into a wall in the air | Cling. `W` / `S` climb up or down; let go and you slide slowly. `Space` wall-jumps away; at the top you mantle the ledge |
+| Into a wall in the air | Cling. `W` / `S` climb up or down; let go and you slide slowly. `Space` wall-jumps away (also pressing away plus `Space`, or `Space` within 0.1 s of letting go); at the top you mantle the ledge |
 | `W` / `Space` in water | Swim up |
 | `S` | Dig down (on the ground) |
 | Left mouse | Use the item in hand: dig, place a block brush, torch, copperline, device, spore, TNT or station |
@@ -35,7 +35,7 @@ Movement should feel like **Streets of Rogue**: instant start and stop, no input
 
 * Running reaches top speed in under 8 ticks and stops almost at once (ground acceleration 900, deceleration 1400 cells/s²).
 * Reversing in mid-air takes about 4 ticks. Letting go in the air **coasts** (only 60 cells/s² of drag), so wall-jump and run-off momentum carry.
-* **Coyote time** and a **jump buffer** of 0.1 s each: a jump 4 ticks after leaving a ledge works; 12 ticks after, it doesn't.
+* **Coyote time** and a **jump buffer** of 0.1 s each: a jump 4 ticks after leaving a ledge works; 12 ticks after, it doesn't. The same 0.1 s grace applies after letting go of a wall. A jump tap is latched until the next 60 Hz step, so a quick tap on a fast display is never lost, and the camera follows after the step, so a press shows the same frame.
 * Releasing jump early triples gravity (`cut_mul`) for a short hop. Falling uses 1.7× gravity, so arcs are snappy rather than floaty.
 * **Corner correction** (`nudge` 0.6 cells): rising into a corner slides the head round it, and moving sideways in the air snaps the feet to the nearest row so you slot into tunnel mouths. Jumping into a 2-wide shaft half a cell off-centre still goes up.
 * Feedback is immediate: the mining strike sounds on the first tick of a press and every 1/6 s after; a cleared bite or placed block pops on screen; any knock of more than 0.5 hp flashes the mole for 0.22 s and jolts the view in proportion; hard landings (8+ cells) thump the camera and squash the sprite.
@@ -61,7 +61,7 @@ Every movement constant lives in one place, `TUNE` in `world.rs`. Units are cell
 | `lava_mul`, `lava_sink`, `lava_up`, `lava_dps` | 0.25, 3, 22, 75 | lava |
 | `safe_fall` | 20 | cells you can fall without harm |
 
-Change `TUNE`, then rerun the tests and scenarios. The feel scenarios (`run_jump`, `coyote`, `coyote_late`, `air_turn`, `wall_jump`, `wall_climb`, `mantle`, `step_up`, `shaft_jump`, `tunnel_mouth`) assert the numbers that matter: rise, `vx` after N ticks, and the coyote window.
+Change `TUNE`, then rerun the tests and scenarios. The feel scenarios (`run_jump`, `coyote`, `coyote_late`, `air_turn`, `wall_jump`, `wall_jump_away`, `wall_climb`, `mantle`, `step_up`, `shaft_jump`, `tunnel_mouth`) assert the numbers that matter: rise, `vx` after N ticks, and the coyote window.
 
 ## Water and lava
 

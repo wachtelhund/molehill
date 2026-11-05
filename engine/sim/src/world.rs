@@ -34,7 +34,9 @@ pub struct Input { pub left: bool, pub right: bool, pub jump: bool, pub up: bool
 #[derive(Clone, Default, Debug)]
 pub struct Player { pub px: f32, pub py: f32, pub ppx: f32, pub ppy: f32, pub sync: Option<(usize, usize)>, pub coyote: f32, pub buffer: f32, pub lock: f32, pub cling: i8, pub jump_was: bool, pub vx: f32, pub vy: f32, pub ax: f32, pub ay: f32, pub grounded: bool, pub fall_from: usize, pub mine: Option<(usize, u32, u32)>, pub spawn: (usize, i64), pub dead_t: u32, pub deaths: u32,
     /// hit flash (s left) after taking a knock; `hp_was` = hp after the last tick, to spot the knock
-    pub flash: f32, pub hp_was: f32 }
+    pub flash: f32, pub hp_was: f32,
+    /// wall-jump grace (s left) after leaving a cling, and the side that wall was on
+    pub wall_t: f32, pub wall_side: i8 }
 pub const REACH_CELLS: f32 = 18.; // 4.5 m
 /// Mining brush radius (cells) per dig tool: claws, pickaxe, drill, bore. A pickaxe bite is about a mole tall.
 pub const BITES: [f32; 4] = [1.8, 2.5, 3.2, 4.2];
@@ -542,6 +544,12 @@ impl World {
         c.into_iter().find(|&x| (x - px).abs() <= max && (x - px).abs() > 1e-4 && !self.box_hits(x, ny) && !self.box_hits(x, self.pl.py))
     }
     pub fn swallow_held(&mut self) { self.pl.jump_was = true; }
+    /// Kick off the wall on `side` (1 = wall to the right): away and up, steering locked briefly.
+    fn wall_jump(&mut self, side: i8) {
+        let t = TUNE;
+        self.pl.vx = -(side as f32) * t.wall_jump_x; self.pl.vy = -t.wall_jump_y; self.pl.lock = t.wall_lock;
+        self.pl.buffer = 0.; self.pl.cling = 0; self.pl.coyote = 0.; self.pl.wall_t = 0.; self.events.push(Event::Place);
+    }
     fn step_player(&mut self) {
         if self.moles.is_empty() { return; }
         let dt = 1. / 60.;
@@ -573,6 +581,7 @@ impl World {
         // wall cling: airborne, touching a wall and pressing into it (or already clinging and still touching)
         let side = if wall_r && (dir > 0 || self.pl.cling == 1) { 1 } else if wall_l && (dir < 0 || self.pl.cling == -1) { -1 } else { 0 };
         self.pl.cling = if !ground && !wet && !lava && side != 0 && (self.pl.vy >= 0. || self.pl.cling != 0) && !(dir == -side) { side as i8 } else { 0 };
+        if self.pl.cling != 0 { self.pl.wall_t = t.coyote; self.pl.wall_side = self.pl.cling; } else if ground { self.pl.wall_t = 0.; } else { self.pl.wall_t = (self.pl.wall_t - dt).max(0.); }
         if dir != 0 { self.moles[0].facing = dir as i8; }
         let swim = if lava { t.lava_mul } else if wet { t.swim_mul } else { 1. };
         // horizontal: near-instant on the ground, slightly softer in the air, locked briefly after a wall jump
@@ -584,9 +593,7 @@ impl World {
             self.moles[0].facing = self.pl.cling;
             self.pl.vy = if inp.up { -t.climb } else if inp.down { t.climb * 1.3 } else { t.slide };
             self.pl.vx = self.pl.cling as f32 * 2.; // keep pressed against the wall
-            if self.pl.buffer > 0. { // wall jump away
-                self.pl.vx = -(self.pl.cling as f32) * t.wall_jump_x; self.pl.vy = -t.wall_jump_y; self.pl.lock = t.wall_lock; self.pl.buffer = 0.; self.pl.cling = 0; self.pl.coyote = 0.; self.events.push(Event::Place);
-            }
+            if self.pl.buffer > 0. { self.wall_jump(self.pl.cling); }
         } else if lava {
             // molten rock is thick: you sink slowly through it and can only claw upward a little
             self.pl.vy += t.gravity * 0.2 * dt;
@@ -600,6 +607,8 @@ impl World {
             if self.pl.buffer > 0. && !self.box_hits(self.pl.px, self.pl.py - 1.5) && !self.body_fluid_at(self.pl.px, self.pl.py - 1.6).0 { self.pl.vy = -t.jump_v * 0.8; self.pl.buffer = 0.; } // hop out at the surface
         } else {
             if self.pl.buffer > 0. && self.pl.coyote > 0. { self.pl.vy = -t.jump_v; self.pl.buffer = 0.; self.pl.coyote = 0.; }
+            // just let go of a wall (pressing away from it, say) and jump: still a wall jump
+            else if self.pl.buffer > 0. && self.pl.wall_t > 0. { self.wall_jump(self.pl.wall_side); }
             let g = if self.pl.vy > 0. { t.gravity * t.fall_mul } else if !inp.jump { t.gravity * t.cut_mul } else { t.gravity };
             self.pl.vy = (self.pl.vy + g * dt).min(t.terminal);
         }

@@ -104,6 +104,7 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `coyote.scn` / `coyote_late.scn` | A jump 4 ticks after leaving a ledge works; 12 ticks after, it doesn't |
 | `wall_climb.scn` | Cling to a wall, then climb more than 6 cells with W |
 | `wall_jump.scn` | Space while clinging launches you away from the wall |
+| `wall_jump_away.scn` | Pressing away plus Space, or Space within 0.1 s of letting go, still wall-jumps; later it doesn't |
 | `dig_tiers.scn` | The pickaxe clears rock within 40 ticks; the bore within 10 |
 | `water_flood.scn` | Mining a dirt plug floods the room below |
 | `tnt_collapse.scn` | A blast removes rock, and the sand cap falls |

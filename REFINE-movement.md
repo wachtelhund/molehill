@@ -44,6 +44,27 @@ Polish only: no new features or concepts. Each entry is one commit.
 6. **Step-up and mantle checked.** Both already behaved (steps of 1-2 cells at full speed; a climbed wall
    rolls you onto its top), so there was no tuning change, just coverage: scenarios `step_up` and `mantle`.
 
+### Run 2
+
+7. **Wall-jump grace.** Clinging and pressing away from the wall plus Space (the natural wall-jump input) let go
+   of the wall first, so the jump found no wall and the mole just dropped. Leaving a cling now keeps a
+   0.1 s grace (`TUNE.coyote`, like ground coyote) in which Space still kicks off that wall. Scenario:
+   `wall_jump_away` (same-tick press, a late press 4 ticks after letting go, none after 8 ticks).
+8. **One frame less lag on screen.** The camera follow and the mole's interpolated draw position were worked
+   out in `input()`, before that frame's sim steps ran, so every frame showed the mole where it was a step
+   earlier (about 16 ms behind the keys). They now run in `follow()` right after the steps (and after the old
+   shake offset is removed), so a press shows on the same frame. Game-only, so there's no scenario; the
+   cursor-to-cell mapping still uses the camera as drawn, which is what the player sees.
+9. **Quick taps aren't lost on fast displays.** Keys are read once per frame but the sim steps at 60 Hz, so on
+   a 120/144 Hz display a Space (or `W`) tap that went down and up between two steps was never seen. The press
+   is now latched until the next step consumes it, then the jump input goes back to the key's real state (so a
+   tap still gives the short hop). The menu-closing Space stays swallowed (`swallow_held`). Game-only.
+10. **Wall jumps stretch too.** The take-off stretch only fired when leaving the ground; it now fires on any
+    sudden kick upward when not clinging (ground jump, wall jump, a hop out of water), so a wall jump reads
+    on the sprite the same frame. Climbing doesn't trigger it. Game-only.
+11. **Ledge jumps checked.** Probed run-and-jump onto 3-, 4- and 5-cell ledges from 14 take-off points each:
+    all land on top; a late take-off costs at most ~0.25 s (cling, then the mantle). No change.
+
 ## Open issues
 * `main`'s solver still sends overburden through open caves, so dirt seams under deep rock are crushed in
   compression whatever supports them. That's a modelling choice from the other run; I left it alone.
