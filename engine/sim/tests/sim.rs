@@ -734,3 +734,11 @@ fn material_table_is_consistent() {
     b.snap = true; assert!(b.snapping(Brush::Place(Item::Brick)) && !b.snapping(Brush::Dig(1)), "snap is for building only");
     assert!(b.label(Brush::Place(Item::Brick)).starts_with("grid "));
 }
+#[test] fn fresh_copperline_reads_idle_before_the_next_tick() {
+    // the game draws between sim ticks: copperline laid since the last net rebuild has no net yet and
+    // must read as idle, not index out of bounds
+    let (mut w, x0, y0) = arena();
+    let b = w.logic.block_of(x0 + 8, y0 - 2); assert!(w.logic.place_wire(b));
+    assert!(!w.logic.net_lit(b));
+    w.step(); assert!(!w.logic.net_lit(b));
+}

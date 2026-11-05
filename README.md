@@ -60,6 +60,7 @@ You play one mole. The controls work like Terraria or Core Keeper.
 | `I` | Inventory grid. Click a slot to pick its item up, then click another slot to drop or swap it (the hotbar is the bottom row) |
 | `+` / `-`, `Ctrl`/`Cmd`+wheel | Zoom (also in Settings; clamped and saved) |
 | `G` | Headlamp lit / out |
+| `V` | Wiring view: a bold schematic of copperline (amber when carrying current), devices by role, knot inputs/outputs and names, thrum links and reach; the world dims. `V` again for the normal view |
 | `H` | Controls overlay |
 | `Esc` | Pause menu (Resume, Restart same seed, New Holt, Save, Load, Settings, Controls, Main Menu), or close a panel |
 | `K` / `L` | Save / load |
