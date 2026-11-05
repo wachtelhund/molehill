@@ -1,0 +1,45 @@
+// The two ways to use a charge. Set down (left or right mouse), it lies unlit on the floor as a device and
+// waits for a light, a line or a pick-up. Thrown (Q), it leaves lit and goes off where it lands. Blocks,
+// copperline and devices are never thrown: the pack keeps them.
+map
+BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+#....................................................................#
+#....................................................................#
+#....................................................................#
+#....................................................................#
+#....................................................................#
+#....................................................................#
+#....................................................................#
+#....................................................................#
+#....................................................................#
+#....................................................................#
+#....................................................................#
+#....................................................................#
+#....................................................................#
+#...................@................................................#
+#rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr#
+######################################################################
+end
+give Tnt 2
+give IronBeam 3
+give CopperWire 3
+// set down: a device, not lit, nothing loose, nothing goes off
+device 2 -12 -1 Tnt
+expect 3 inv:Tnt == 1
+expect 3 dev:-12,-1,Tnt == 1
+expect 3 lit:-12,-1 == 0
+expect 3 items:Tnt == 0
+expect 300 ev:Explode == 0
+// thrown: loose, lit at once, off within its fuse, far from the one set down (which stays put)
+throw 310 Tnt 1 -1 1
+expect 311 inv:Tnt == 0
+expect 311 items:Tnt == 1
+expect 311 ilit:Tnt == 1
+expect 410 ev:Explode == 1
+expect 410 dev:-12,-1,Tnt == 1
+// not throwables: they stay in the pack
+throw 420 IronBeam 1 -1 1
+throw 421 CopperWire 1 -1 1
+expect 422 inv:IronBeam == 3
+expect 422 inv:CopperWire == 3
+expect 422 items:IronBeam == 0

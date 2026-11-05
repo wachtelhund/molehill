@@ -27,6 +27,11 @@ Short log of what this run changed, and what is still open.
 * **Load is about 50 ms instead of 20 s**: `World::blank` builds the world shell without generating a window the load would overwrite anyway.
 * `examples/bandbench.rs` times slides, autosave, save and load on a game-sized world.
 
+## Interaction rules (Hampus)
+* **One table says what an item does**: `Item::uses` (set down / throw / pick up) and `Item::controls` (the input line). The slot tooltip shows that line, and so does the held-item label over the hotbar. Test `item_uses_table_is_consistent`.
+* **TNT**: set down unlit with left or right mouse; thrown lit with `Q`. `Q` refuses blocks, copperline, devices, torches and tools ("can't be thrown") instead of throwing anything in hand. Right mouse on an empty spot sets down the device or TNT in hand. Scenario `tnt_place_vs_throw`.
+* **Picking up is `E`** (was `Ctrl`+right mouse): the hovered device, unlit TNT, torch, or one copperline segment; hold and sweep for a run. The device on a block comes up first and its copperline stays laid until the next pass. A lit charge or burning fuse can't be picked up (Hampus: unlit only), which replaces the old defuse. World hover tips say "E: pick up". Scenarios `pickup_tnt` (replaces `tnt_defuse`), `pickup_wire`, `pickup_device`; test `torch_picks_up`. The harness gained a `torches` variable.
+
 ## Open
 * localStorage holds about 5 MB. A band is 10–40 KB, so a holt explored over a few hundred metres of depth could fill it. Bands the player never changed could be dropped and regenerated (not done: the falling-sand settling after generation would differ).
 * The web crash Hampus saw is not reproduced. Next time it happens, the browser console (View > Developer > JavaScript Console) shows `panicked at <file>:<line>`; that line pins it.

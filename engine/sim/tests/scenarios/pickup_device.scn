@@ -1,0 +1,33 @@
+// E picks up placed devices (lever, lamp, knot) and torches straight back into the pack: no digging.
+// (the harness's torch directive sets one down without spending it: 1 given + 1 picked up = 2)
+map
+##########################################
+#........................................#
+#........................................#
+#........................................#
+#........................................#
+#........................................#
+#.................@......................#
+##########################################
+end
+give Lamp 1
+give Gate 1
+give Torch 1
+device 2 -8 -1 Lever
+device 3 -4 -1 Lamp
+device 4 4 -1 Or
+torch 5 8 -1
+expect 6 inv:Lamp == 0
+expect 6 inv:Gate == 0
+expect 6 torches == 1
+pickup 10 -8 -1
+pickup 11 -4 -1
+pickup 12 4 -1
+pickup 13 8 -1
+expect 14 dev:-8,-1,Lever == 0
+expect 14 dev:-4,-1,Lamp == 0
+expect 14 dev:4,-1,Or == 0
+expect 14 inv:Lamp == 1
+expect 14 inv:Gate == 1
+expect 14 inv:Torch == 2
+expect 14 torches == 0
