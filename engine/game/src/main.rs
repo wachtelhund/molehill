@@ -801,17 +801,18 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
             want.push((12, k, cell_to_world(x, y), 6., sp.px.clone(), Vec2::splat(CPX * SF * 0.6), false, Color::srgba(1., 0.95, 0.8, 0.25 + 0.5 * f))); } }
     for (k, c) in w.chests.iter().enumerate() { if w.g.flags[c.y * W + c.x] & F_SEEN == 0 || w.g.is_solidish(c.y * W + c.x) && !c.opened { continue; } want.push((2, k, cell_to_world(c.x as f32 + 0.5 * SF, c.y as f32 + 1. - 1.1 * SF), 3., sp.chest[c.opened as usize].clone(), Vec2::new(16., 13.), false, lightf(c.x, c.y))); }
     for (k, b) in w.buildings.iter().enumerate() { want.push((3, k, cell_to_world(b.x as f32 + Station::W as f32 / 2., b.y as f32 + 1. - Station::H as f32 / 2.), 2., sp.station[b.kind as usize][b.built as usize].clone(), Vec2::new(Station::W as f32 * CPX, Station::H as f32 * CPX), false, lightf(b.x + 5 * S, b.y - 2 * S))); }
-    // torches: flickering flame frames and a warm halo that breathes; lit lamps get a steady pale halo
+    // torches: flickering flame frames and a small bloom round the flame (the light itself, with its shadows,
+    // is the sim's ray-cast light); lit lamps get a small steady bloom
     for (k, &(x, y)) in w.torches.iter().enumerate() {
         let h = hash3(x as u32, y as u32, 77) as f32 / u32::MAX as f32; let t = now * 9. + h * 40.;
         let fl = 0.85 + 0.1 * (t * 1.3).sin() + 0.05 * (t * 3.7).sin();
         let f = ((now * 10. + h * 7.) as usize + k) % 3;
         want.push((4, k, cell_to_world(x as f32 + 0.5, y as f32 + 1. - 0.75 * SF), 4.5, sp.torch_f[f].clone(), Vec2::new(8., 12.), false, Color::WHITE));
-        want.push((9, k, cell_to_world(x as f32 + 0.5, y as f32 + 1. - 1.3 * SF), 4.4, sp.glow.clone(), Vec2::splat(64. * fl), false, Color::srgba(1., 0.62, 0.28, 0.20 * fl)));
+        want.push((9, k, cell_to_world(x as f32 + 0.5, y as f32 + 1. - 1.3 * SF), 4.4, sp.glow.clone(), Vec2::splat(18. * fl), false, Color::srgba(1., 0.66, 0.3, 0.35 * fl)));
     }
     for (k, &b) in w.logic.dev_list.iter().enumerate() {
         if w.logic.dev[b] != Dev::Lamp as u8 || w.logic.dev_s[b] == 0 { continue; } let (x, y) = w.logic.centre(b);
-        want.push((10, k, cell_to_world(x as f32 + 0.5, y as f32 + 0.5), 4.4, sp.glow.clone(), Vec2::splat(72.), false, Color::srgba(1., 0.95, 0.75, 0.16)));
+        want.push((10, k, cell_to_world(x as f32 + 0.5, y as f32 + 0.5), 4.4, sp.glow.clone(), Vec2::splat(20.), false, Color::srgba(1., 0.95, 0.75, 0.3)));
     }
     for (k, f) in w.farms.iter().enumerate() { let st = if f.growth < 0.3 { 0 } else if f.growth < 0.85 { 1 } else { 2 }; want.push((5, k, cell_to_world(f.x as f32 + 0.5 * SF, f.y as f32 + 1. - 1.9 * SF), 3.5, sp.shroom[st].clone(), Vec2::splat(10.), false, lightf(f.x, f.y))); }
     // aim: a faint outline on the cell under the cursor; mining: the targeted cell brightens and cracks as it gives way

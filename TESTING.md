@@ -163,6 +163,7 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `buried_under_rock.scn` / `buried_in_sand.scn` | A mole buried under a rock slab stays put (no popping through rock); under loose sand it wriggles out |
 | `brush_place.scn` | A radius-2 brick brush fills the open part of the disc and uses items 4 cells to one |
 | `light_torch.scn` | A torch lights a pool with a bright core and a soft edge; a wall hides the far side |
+| `lava_shadow.scn` | A lava pool lights the floor beside it through the same rays as torches; a full-height wall shadows the far side |
 | `headlamp.scn` | The headlamp beam follows the aim, leaves behind the mole dark, keeps a small glow; out, only the faint mole glow |
 | `headlamp_wall.scn` | Rock stops the beam: the wall face is lit, the room behind it dark |
 | `held_torch.scn` | A torch in the paws lights around the mole; put away, it goes out |

@@ -46,6 +46,27 @@ pub mod kinds {
     pub const MOLE_GLOW: ([f32; 3], f32) = ([0.26, 0.23, 0.2], 2.);
 }
 
+/// Seed of the local glow flood per unit of emission (the rays carry the real light).
+const GLOW: f32 = 0.45 / 170.;
+
+/// Glowing surfaces as ray-cast sources: every 2 m square (in `r`, grown by `margin` cells) holding a
+/// glowing cell (lava, crystal, fungus, fire) that touches open air gets one point source in that
+/// air, coloured by the material, reaching further the brighter it glows (2–5 m). So a lava pool lights
+/// a cave with real shadows, like a torch does.
+pub fn surface_sources(g: &Grid, r: (usize, usize, usize, usize), margin: usize) -> Vec<Source> {
+    use std::collections::HashMap;
+    let (x0, y0) = (r.0.saturating_sub(margin), r.1.saturating_sub(margin)); let (x1, y1) = ((r.2 + margin).min(g.w - 1), (r.3 + margin).min(g.h - 1));
+    let b = 2 * CPM; let mut best: HashMap<(usize, usize), (u32, usize, usize, [u8; 3])> = HashMap::new();
+    let open = |i: usize| matches!(g.m(i).kind(), Kind::Empty | Kind::Gas);
+    for y in y0.max(1)..y1 { for x in x0.max(1)..x1 {
+        let i = y * g.w + x; let e = PROPS[g.mat[i] as usize].emit; let sum = e[0] as u32 + e[1] as u32 + e[2] as u32; if sum == 0 { continue; }
+        // the open neighbour the light leaves through (above first: pools and floors light upward)
+        let Some(o) = [i - g.w, i - 1, i + 1, i + g.w].into_iter().find(|&j| open(j)) else { continue };
+        let k = (x / b, y / b); if best.get(&k).is_none_or(|v| v.0 < sum) { best.insert(k, (sum, o % g.w, o / g.w, e)); }
+    } }
+    best.into_values().map(|(sum, x, y, e)| { let k = 0.8 / 170.; Source::point(x as f32 + 0.5, y as f32 + 0.5, [e[0] as f32 * k, e[1] as f32 * k, e[2] as f32 * k], (sum as f32 / 100.).clamp(2., 5.)) }).collect()
+}
+
 pub struct Light {
     pub w: usize, pub h: usize, pub rgb: Vec<[f32; 3]>, pub rect: (usize, usize, usize, usize),
     trans: [f32; 32], diag: f32, bounce: f32, liquid: f32,
@@ -72,7 +93,8 @@ impl Light {
         self.rect = (x0, y0, x1, y1);
         let w = self.w;
         // glow: seed the glowing cells, then spread
-        for y in y0..=y1 { for x in x0..=x1 { let i = y * w + x; let e = PROPS[g.mat[i] as usize].emit; self.rgb[i] = [e[0] as f32 / 170., e[1] as f32 / 170., e[2] as f32 / 170.]; self.direct[i] = [0.; 3]; } }
+        // (a faint local glow only: the light a glowing surface throws into the open is cast as rays, see `surface_sources`)
+        for y in y0..=y1 { for x in x0..=x1 { let i = y * w + x; let e = PROPS[g.mat[i] as usize].emit; self.rgb[i] = [e[0] as f32 * GLOW, e[1] as f32 * GLOW, e[2] as f32 * GLOW]; self.direct[i] = [0.; 3]; } }
         let t = self.trans; let dg = self.diag;
         Self::spread(&mut self.rgb, g, (x0, y0, x1, y1), w, |m| t[m], dg, 2);
         // direct light from every source that reaches the rect
@@ -114,7 +136,8 @@ impl Light {
         let rr = s.radius.max(1.); let side = (2. * rr).ceil() as usize + 3; let ox = s.x.floor() as i32 - side as i32 / 2; let oy = s.y.floor() as i32 - side as i32 / 2;
         self.scratch.clear(); self.scratch.resize(side * side, 0.);
         let (a0, span) = match s.cone { Some(c) => (c.dy.atan2(c.dx) - c.half, 2. * c.half), None => (0., std::f32::consts::TAU) };
-        let rays = ((span * rr * 1.5).ceil() as usize).max(8);
+        // one ray per rim cell is gap-free for short lights; long ones (torches, the beam) get 1.5
+        let dens = if rr <= 6. * CPM as f32 { 1.0 } else { 1.5 }; let rays = ((span * rr * dens).ceil() as usize).max(8);
         let step = 0.7f32; let n = (rr / step) as usize;
         for k in 0..rays {
             let a = a0 + span * (k as f32 + 0.5) / rays as f32; let (dx, dy) = (a.cos(), a.sin());
