@@ -185,3 +185,14 @@ bit-identical to before (checked before flipping it).
 * Blasts no longer leave fire in the crater (it burned furniture the blast had knocked loose).
 * Scenarios `blast_moves_sand`, `blast_wave_front`; harness vars `debris`, `debris:Mat`, `wave:DX,DY`, `front`,
   `frontcells`, and a `blast` section in `dump`. Dev flag `--shot-blast=K`.
+
+## TNT playtest pass (more destruction, no outline)
+* The drawn white front and its shimmer are gone; the wave shows only through debris and dust. Dust is about a
+  third as much, smaller and fainter, and still rides the wave out and settles.
+* More real destruction: faces crack at 1.0× strength (was 1.4×) and shatter at 2.5× (was 3×); the load on the
+  walls is raised by (1 + confinement); the march into rock runs radially (round craters) with λ = 0.8 m ×
+  (1 + 2·confinement); rubble flies at 0.9 of the push. Loose beds are pushed 0.8 m deep, down to 8 kPa.
+* Basalt and iron beams moved up the table (6500 / 9000 kPa) so they stay very hard.
+* Soft rock now loses ~250 tiles in a pocket (was 100), ~155 in a tunnel (was 84), ~38 in a cave (was 31);
+  granite ~22 (was 7), basalt ~4 (was 3).
+* Debris buried by a heap lands at the nearest open cell (out to 3 m) instead of hovering and being dropped.

@@ -1,5 +1,6 @@
-// The same charge in the same tunnel, cut through granite: it only chips the floor half a metre deep under
-// the charge. Basalt (blast_basalt_holds) barely marks.
+// The same charge in the same tunnel, cut through granite: it cracks the floor half a metre deep under the
+// charge and scars the roof over it (about 22 tiles, against soft rock's 155). Basalt (blast_basalt_holds)
+// barely marks.
 map
 ############################################################
 ############################################################
@@ -33,6 +34,7 @@ explode 5 28 -9 0.5
 expect 6 is:28,-8,Granite == 0    // the face under the charge is cracked out...
 expect 6 is:28,-6,Granite == 1    // ...but 0.5 m down it holds
 expect 6 is:22,-8,Granite == 1    // 1.5 m along the floor: whole
-expect 6 is:28,-13,Granite == 1   // the roof: whole
-expect 6 static:Granite > 1360    // a handful of tiles
-expect 6 static:Granite < 1380
+expect 6 is:28,-12,Granite == 0   // the roof face over it is cracked
+expect 6 is:28,-13,Granite == 1   // but no deeper
+expect 6 static:Granite > 1345    // 10 to 35 tiles
+expect 6 static:Granite < 1370

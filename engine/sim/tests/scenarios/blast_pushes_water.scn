@@ -1,6 +1,6 @@
 // A blast at the end of a flooded trough throws the water up and away: the pool is backed by its bed, so
-// it heaves up out of the trough in a plume of spray that rains back down. No water is lost (a cell or two
-// drains into the granite bed the charge cracked under it).
+// it heaves up out of the trough in a plume of spray that rains back down. No water is lost: what isn't
+// back in the trough has drained into the granite bed the charge cracked under it.
 map
 ################################
 #..............................#
@@ -23,4 +23,4 @@ expect 6 is:12,2,Water == 0      // the surface heaved right along the trough
 expect 6 debris:Water > 30       // most of the pool is in the air
 expect 6 count:Water < 14
 expect 120 debris:Water == 0     // and it has all come down again
-expect 240 count:Water > 43
+expect 240 count:Water > 40

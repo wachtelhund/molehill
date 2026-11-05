@@ -713,22 +713,10 @@ fn render_world(mut gm: ResMut<Game>, bg: Res<Bg>, mut images: ResMut<Assets<Ima
         // copperline and devices are sprites (wiring.rs), drawn over the world
         if buf[o..o + 4] != px { buf[o..o + 4].copy_from_slice(&px); changed[(y / CH) * (W / CH) + x / CH] = true; }
     } }
-    // blasts: the pressure front sweeping out along the tunnels (a bright leading edge with a dark
-    // shimmer behind it, fading with distance and age), and the cells it threw, in flight
+    // blasts: the cells a blast threw, in flight (the wave itself shows only through the dust it carries)
     let inview = |x: usize, y: usize| x >= x0 && x <= x1 && y >= y0 && y <= y1;
     let blend = |buf: &mut [u8], o: usize, c: [f32; 3], a: f32| { let a = a.clamp(0., 1.); for j in 0..3 { buf[o + j] = (buf[o + j] as f32 * (1. - a) + c[j] * a).min(255.) as u8; } buf[o + 3] = (buf[o + 3] as f32 + (255. - buf[o + 3] as f32) * a) as u8; };
     let acc = g.acc.clamp(0., 1.);
-    for wv in &wd.waves {
-        let r = wv.front_m(wd.tick) + acc / 60. * molehill_sim::debris::WAVE_SHOW_MPS; let band = molehill_sim::debris::WAVE_BAND_M;
-        let reach = wv.reach * molehill_sim::mat::CELL_M; let fade = (1. - r / (reach + 1.)).clamp(0., 1.).powf(0.7);
-        if fade <= 0. { continue; }
-        for c in &wv.cells { let dm = c.d * molehill_sim::mat::CELL_M; let e = dm - r; if e > band || e < -3. * band { continue; }
-            let i = c.i as usize; let (x, y) = (i % W, i / W); if !inview(x, y) || gr.flags[i] & F_SEEN == 0 { continue; }
-            let s = ((c.p / 5.).log10() / 2.6).clamp(0.12, 1.) * fade;
-            if e > -band { let k = 1. - e.abs() / band; blend(&mut buf, i * 4, [255., 238., 200.], k * k * s * 0.75); }
-            else { let k = 1. - (-e - band) / (2. * band); blend(&mut buf, i * 4, [10., 8., 6.], k * s * 0.3); }
-            changed[(y / CH) * (W / CH) + x / CH] = true; }
-    }
     for d in &wd.debris {
         let (fx, fy) = (d.ppx + (d.px - d.ppx) * acc, d.ppy + (d.py - d.ppy) * acc); if fx < 0. || fy < 0. { continue; }
         let (x, y) = (fx as usize, fy as usize); if x >= W || y >= H || !inview(x, y) { continue; }
@@ -891,22 +879,22 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
     if !g.paused { for wv in &w.waves {
         let age = wv.age(w.tick);
         if wv.tick > fx.waves_seen { fx.waves_seen = wv.tick; let at = cell_to_world(wv.cx as f32 + 0.5, wv.cy as f32 + 0.5);
-            for k in 0..26u32 { let h = hash3(wv.tick as u32, k, 41); let a = k as f32 / 26. * std::f32::consts::TAU; let r = ((h & 255) as f32 / 255.) * 0.8 + 0.4;
-                fx.parts.push(Part { p: at, v: Vec2::new(a.cos(), a.sin()) * 90. * r, life: 0., max: 1.6 + r, c: [90. + 30. * r, 86. + 30. * r, 80. + 28. * r], size: 3. + 3. * r, g: -10., drag: 3.5, al: 0.55 }); } }
+            for k in 0..10u32 { let h = hash3(wv.tick as u32, k, 41); let a = k as f32 / 10. * std::f32::consts::TAU; let r = ((h & 255) as f32 / 255.) * 0.8 + 0.4;
+                fx.parts.push(Part { p: at, v: Vec2::new(a.cos(), a.sin()) * 90. * r, life: 0., max: 1.6 + r, c: [90. + 30. * r, 86. + 30. * r, 80. + 28. * r], size: 2. + 2. * r, g: -10., drag: 3.5, al: 0.3 }); } }
         if age > 1.2 { continue; }
         let spd = molehill_sim::debris::WAVE_SHOW_MPS * molehill_sim::mat::CPM as f32 * CPX; let mut n = 0;
-        for c in wv.front(w.tick) { let i = c.i as usize; let h = hash3(c.i, g.frame as u32, 43); if h % 11 != 0 || c.p < 15. { continue; }
+        for c in wv.front(w.tick) { let i = c.i as usize; let h = hash3(c.i, g.frame as u32, 43); if h % 29 != 0 || c.p < 25. { continue; }
             let (x, y) = (i % W, i / W); if w.g.flags[i] & F_SEEN == 0 { continue; }
             // the dust takes the colour of the rock it was knocked off (or a grey haze in the open)
             let near = [1i64, -1, W as i64, -(W as i64)].iter().map(|o| (i as i64 + o).clamp(0, (W * H - 1) as i64) as usize).map(|j| w.g.m(j)).find(|m| m.kind() != Kind::Empty && m.kind() != Kind::Gas && m.kind() != Kind::Liquid);
             let col = near.map_or([150., 145., 135.], |m| { let k = PROPS[m as usize].color; [k[0] as f32 * 0.6 + 60., k[1] as f32 * 0.6 + 58., k[2] as f32 * 0.6 + 55.] });
             let l = ((c.dx as f32).powi(2) + (c.dy as f32).powi(2)).sqrt().max(1.); let dir = Vec2::new(c.dx as f32 / l, -(c.dy as f32) / l);
             let r = ((h >> 8) & 255) as f32 / 255.;
-            fx.parts.push(Part { p: cell_to_world(x as f32 + 0.5, y as f32 + 0.5), v: dir * spd * (0.35 + 0.3 * r) + Vec2::new(0., 10. * r), life: 0., max: 1.1 + r, c: col, size: 1.2 + 1.6 * r, g: 22., drag: 2.6, al: ((c.p / 150.).sqrt()).clamp(0.25, 0.8) });
-            n += 1; if n >= 40 { break; } }
+            fx.parts.push(Part { p: cell_to_world(x as f32 + 0.5, y as f32 + 0.5), v: dir * spd * (0.35 + 0.3 * r) + Vec2::new(0., 10. * r), life: 0., max: 0.8 + 0.6 * r, c: col, size: 1. + 1. * r, g: 22., drag: 2.6, al: ((c.p / 300.).sqrt()).clamp(0.15, 0.45) });
+            n += 1; if n >= 14 { break; } }
     } }
     for p in fx.parts.iter_mut() { p.life += dt; p.v.y -= p.g * dt; p.v *= (-p.drag * dt).exp(); p.p += p.v * dt; }
-    fx.parts.retain(|p| p.life < p.max); while fx.parts.len() > 600 { fx.parts.remove(0); }
+    fx.parts.retain(|p| p.life < p.max); while fx.parts.len() > 300 { fx.parts.remove(0); }
     for (k, p) in fx.parts.iter().enumerate() { let a = (1. - p.life / p.max) * p.al; want.push((8, k, p.p, 5.5, sp.px.clone(), Vec2::splat(p.size), false, Color::srgba(p.c[0] / 255., p.c[1] / 255., p.c[2] / 255., a))); }
     // loose items: drawn between their last two sim positions (they fly now); a lit charge blinks
     let a = g.acc.clamp(0., 1.);

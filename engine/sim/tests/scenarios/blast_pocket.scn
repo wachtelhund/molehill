@@ -1,6 +1,6 @@
 // Confinement: the same 0.5 kg in soft rock breaks more the tighter it is packed. Tamped into a 0.5 m pocket
-// it breaks about 100 tiles (a tunnel: about 80, see blast_soft_rock_tunnel); at the edge of a big cave the
-// gas spreads out and it breaks about 30 (blast_cave_soaks).
+// its gas can't vent, so it blows a round crater about 5 m across: about 250 tiles (a tunnel: about 155, see
+// blast_soft_rock_tunnel; on a big cave's floor about 38, blast_cave_soaks).
 map
 ############################################################
 #rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr#
@@ -32,5 +32,9 @@ map
 end
 expect 1 static:Rock == 1156
 explode 5 27 -14 0.5              // in the pocket
-expect 6 static:Rock < 1070       // 86+ tiles: more than the tunnel's ~80
-expect 6 static:Rock > 1000
+expect 6 static:Rock < 960        // 196+ tiles: well over the tunnel's ~155
+expect 6 static:Rock > 850
+expect 6 is:27,-14,Rock == 0      // the pocket itself is blown out...
+expect 6 is:27,-18,Rock == 0      // ...a metre round it is broken
+expect 6 is:27,-10,Rock == 0
+expect 6 is:27,-24,Rock == 1      // and 2.5 m off it holds

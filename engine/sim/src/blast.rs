@@ -31,16 +31,16 @@ pub const TNT_KG: f32 = 0.5;
 /// cracks into loose rubble above BLAST_CRACK × that, and shatters away above BLAST_SHATTER ×. Tuned so one
 /// 0.5 kg charge in an open 0.75 m tunnel cracks limestone and soft rock out to about 2 m (a crater about a
 /// metre deep), granite only within about half a metre, and basalt and iron hardly at all.
-pub const BLAST_KPA: [f32; 12] = [20., 60., 150., 220., 300., 360., 700., 1100., 1900., 2600., 3500., 5000.];
+pub const BLAST_KPA: [f32; 12] = [20., 60., 150., 220., 300., 360., 700., 1100., 1900., 2600., 6500., 9000.];
 pub fn blast_strength(m: Mat) -> f32 { if m == Mat::Bedrock { f32::INFINITY } else { BLAST_KPA.get(m.p().blast as usize).copied().unwrap_or(f32::INFINITY) } }
-pub const BLAST_CRACK: f32 = 1.4; pub const BLAST_SHATTER: f32 = 3.;
+pub const BLAST_CRACK: f32 = 1.0; pub const BLAST_SHATTER: f32 = 2.5;
 /// The shock fades into rock as e^(−depth / λ) past the face it hits, λ = BLAST_PEN_M × (1 + 2·confinement),
 /// confinement = rock the wave hit or shattered per open cell it filled (about 0.1 in a cave, 0.3 in a
 /// tunnel, near 1 tamped into a pocket).
-pub const BLAST_PEN_M: f32 = 0.6;
+pub const BLAST_PEN_M: f32 = 0.8;
 /// The push fades into a bed of loose ground (sand, gravel, rubble, ash) over this depth (m), and nothing
 /// under LAUNCH_KPA is thrown.
-pub const BLAST_LOOSE_M: f32 = 0.5; pub const LAUNCH_KPA: f32 = 12.;
+pub const BLAST_LOOSE_M: f32 = 0.8; pub const LAUNCH_KPA: f32 = 8.;
 /// TNT's energy (kJ/kg) and the share that stays as hot gas pushing on the walls of a closed space: in a
 /// tight pocket that quasi-static gas pressure, E·share / V, outlasts and outweighs the shock.
 pub const TNT_KJ: f32 = 4184.; pub const GAS_SHARE: f32 = 0.35;
@@ -126,6 +126,7 @@ impl World {
         let pen = BLAST_PEN_M * (1. + 2. * confined);
         for &(j, pj, d) in &faces {
             let m = self.g.m(j); if m == Mat::Empty { continue; }
+            let pj = pj * (1. + confined); // a boxed-in charge's gas keeps pushing on the walls
             let loose = m.kind() == Kind::Powder || self.g.loose(j);
             if loose {
                 // a bed or pile of loose ground: the push runs on into it, fading over BLAST_LOOSE_M, and every
@@ -141,15 +142,19 @@ impl World {
             }
             if pj > BLAST_CRACK * blast_strength(m) && m.kind() == Kind::Solid {
                 let c = m.p().crumbles_to; self.g.set(j, c); if c.kind() == Kind::Solid { self.g.set_loose(j); } rep.cracked += 1;
-                throw.push((j, pj, d, true, 0.6));
+                throw.push((j, pj, d, true, 0.9));
                 // the shock runs on into the rock, fading with depth: it cracks (or shatters) on until it is too
                 // weak for what it meets, so a crater has depth, not just a skin
-                let (mut x, mut y) = ((j % w) as i32, (j / w) as i32);
-                for k in 1..(4 * CPM) as i32 { x += d.0 as i32; y += d.1 as i32; if !self.g.in_bounds(x, y) { break; }
-                    let t = y as usize * w + x as usize; let mt = self.g.m(t); if mt.kind() != Kind::Solid || self.g.loose(t) { break; }
+                // (it runs radially, away from the charge, so a tamped charge breaks a round crater, not a cross)
+                let (jx, jy) = ((j % w) as f32 + 0.5, (j / w) as f32 + 0.5); let (rx, ry) = (jx - cx as f32 - 0.5, jy - cy as f32 - 0.5);
+                let rl = (rx * rx + ry * ry).sqrt(); let (ux, uy) = if rl < 0.5 { (d.0 as f32, d.1 as f32) } else { (rx / rl, ry / rl) };
+                let mut last = j;
+                for k in 1..(4 * CPM) as i32 { let (x, y) = ((jx + ux * k as f32).floor() as i32, (jy + uy * k as f32).floor() as i32); if !self.g.in_bounds(x, y) { break; }
+                    let t = y as usize * w + x as usize; if t == last { continue; } last = t; let mt = self.g.m(t);
+                    if mt.kind() == Kind::Empty { continue; } if mt.kind() != Kind::Solid || self.g.loose(t) { break; }
                     let pk = pj * (-(k as f32) * CELL_M / pen).exp(); let st = blast_strength(mt);
                     if pk > BLAST_SHATTER * st { self.g.set(t, Mat::Empty); rep.shattered += 1; }
-                    else if pk > BLAST_CRACK * st { let c = mt.p().crumbles_to; self.g.set(t, c); if c.kind() == Kind::Solid { self.g.set_loose(t); } rep.cracked += 1; throw.push((t, pk, d, true, 0.6)); }
+                    else if pk > BLAST_CRACK * st { let c = mt.p().crumbles_to; self.g.set(t, c); if c.kind() == Kind::Solid { self.g.set_loose(t); } rep.cracked += 1; throw.push((t, pk, d, true, 0.9)); }
                     else { break; } }
             }
         }

@@ -84,14 +84,20 @@ impl World {
             if hit && (d.vx.abs() + d.vy.abs() < 6. * SF || d.age > 20) || d.age > 240 { landed.push(k); }
             self.debris[k] = d;
         }
-        // land: in the cell it is in if that's open, else the nearest open cell above or beside it
+        // land: in the cell it is in if that's open, else the nearest open cell (above first, then level,
+        // then below), out to 3 m: a cell buried under the heap it fell into comes out on top of it
         for &k in landed.iter().rev() {
             let d = self.debris.swap_remove(k); let (x, y) = (d.px.floor() as i32, d.py.floor() as i32);
-            let r = 4 * S as i32;
-            let spot = (0..=r).flat_map(|dy| [0, -1, 1, -2, 2].into_iter().map(move |dx| (x + dx, y - dy))).find(|&(x, y)| open(&self.g, x, y) && self.g.m(y as usize * w as usize + x as usize) == Mat::Empty);
+            let free = |g: &crate::grid::Grid, x: i32, y: i32| x >= 0 && y >= 0 && x < w && y < h && g.m(y as usize * w as usize + x as usize) == Mat::Empty;
+            let mut spot = None;
+            'r: for r in 0..=3 * CPM as i32 {
+                for dy in -r..=r { for dx in [0].into_iter().chain((1..=r).flat_map(|v| [-v, v])) {
+                    if dx.abs() != r && dy.abs() != r { continue; } // the ring at Chebyshev distance r
+                    if free(&self.g, x + dx, y + dy) { spot = Some((x + dx, y + dy)); break 'r; } } }
+            }
             match spot {
                 Some((x, y)) => { let i = y as usize * w as usize + x as usize; self.g.set(i, Mat::from_u8(d.mat)); self.g.flags[i] = d.flags; if self.g.loose(i) { self.g.set_loose(i); } }
-                None => { let mut d = d; d.vx = 0.; d.vy = -2. * SF; if d.age < 600 { self.debris.push(d); } } // nowhere yet: hover a moment and try again
+                None => { let mut d = d; d.vx = 0.; d.vy = 0.; self.debris.push(d); } // sealed in: wait for room (never lost)
             }
         }
     }

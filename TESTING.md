@@ -200,9 +200,9 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `blast_shadow.scn` | A mole behind a wall (the wave can only get round its top) is barely hurt |
 | `blast_granite_vs_dirt.scn` | Between a dirt wall and a granite wall: the dirt is blown out and cracked, the granite takes it |
 | `blast_pushes_water.scn` | A blast in a flooded trough throws most of the pool up as spray, which all comes down again |
-| `blast_soft_rock_tunnel.scn` | One charge on a soft-rock tunnel floor: crater ~2.5 m each way and through the 1 m floor, rock 3.5 m off whole, ~80 tiles broken |
-| `blast_pocket.scn` / `blast_cave_soaks.scn` | Confinement: tamped into a pocket ~100 tiles, on a cave floor ~30 |
-| `blast_granite_chips.scn` / `blast_basalt_holds.scn` | Granite chips 0.5 m under the charge; basalt loses one tile |
+| `blast_soft_rock_tunnel.scn` | One charge on a soft-rock tunnel floor: crater through the 1 m floor and 1.25 m into the roof, rock 3.5 m off whole, 114+ tiles broken (~155), 100+ tiles of rubble thrown 4.5 m and more along the tunnel, all landed |
+| `blast_pocket.scn` / `blast_cave_soaks.scn` | Confinement: tamped into a pocket a round crater ~5 m across (196+ tiles, ~250), on a cave floor ~38 |
+| `blast_granite_chips.scn` / `blast_basalt_holds.scn` | Granite cracks 0.5 m under the charge and scars the roof (10 to 35 tiles); basalt loses only the face under it |
 | `blast_moves_sand.scn` | A charge by a sand bed throws a third of it into the air at once; the near end is scoured, and it all lands (none lost) |
 | `blast_wave_front.scn` | The front reaches a shaft round a corner by the tunnel (path longer than the straight line), never the rock between; the drawn front sweeps out; `dump` of its state |
 | `grain_in_body.scn` | A sand grain lying inside the mole's body (low tunnel, no wriggle room) is shoved aside instead of wedging it |

@@ -1,4 +1,4 @@
-// The same charge in a basalt tunnel: one tile under it is knocked out, nothing else.
+// The same charge in a basalt tunnel: the face under it is knocked out, a few tiles, nothing deeper.
 map
 ############################################################
 #aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa#
@@ -29,6 +29,6 @@ map
 end
 expect 1 static:Basalt == 934
 explode 5 28 -9 0.5
-expect 6 is:28,-7,Basalt == 1     // a quarter metre down: whole
+expect 6 is:28,-6,Basalt == 1     // half a metre down: whole
 expect 6 is:24,-8,Basalt == 1     // 1 m along: whole
 expect 6 static:Basalt > 925

@@ -1,5 +1,5 @@
-// A 6.5 m x 5 m cave soaks up the same 0.5 kg set on its floor: it scars the floor and walls (about 30 tiles)
-// where a tunnel loses about 80 (blast_soft_rock_tunnel) and a tamped pocket about 100 (blast_pocket).
+// A 6.5 m x 5 m cave soaks up the same 0.5 kg set on its floor: it scars the floor and walls (about 38 tiles)
+// where a tunnel loses about 155 (blast_soft_rock_tunnel) and a tamped pocket about 250 (blast_pocket).
 map
 ############################################################
 #rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr#
@@ -39,5 +39,5 @@ map
 end
 expect 1 static:Rock == 1104
 explode 5 28 -9 0.5               // on the cave floor
-expect 6 static:Rock < 1094       // it still breaks something
-expect 6 static:Rock > 1060       // but well under the tunnel's ~80 tiles
+expect 6 static:Rock < 1086       // it still breaks 18+ tiles
+expect 6 static:Rock > 1050       // but well under the tunnel's ~155
