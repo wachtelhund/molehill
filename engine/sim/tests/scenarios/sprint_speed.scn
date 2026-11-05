@@ -1,0 +1,24 @@
+// Sprint (Shift held while moving): instant, ~1.6x run speed, and a sprint jump carries further.
+map
+BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+#..........................................................................#
+#..........................................................................#
+#..........................................................................#
+#..........................................................................#
+#..........................................................................#
+#..........................................................................#
+#.@........................................................................#
+############################################################################
+end
+// two ticks to full sprint speed (24 cells/s); plain running is 15
+hold 1-2 right sprint
+expect 2 vx >= 23.9
+hold 3-6 right
+expect 6 vx <= 15
+// stops at once on release, like the run
+expect 8 vx == 0
+// a full sprint jump covers ~11.5 cells (a run jump ~7.5); dx counts the ~1.8 cells walked above
+hold 20-21 right sprint
+hold 22-48 right sprint jump
+expect 60 grounded == 1
+expect 60 dx > 12.5
