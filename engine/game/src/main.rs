@@ -248,6 +248,9 @@ fn input(mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<Button
         Some(Thing::Item(Item::Torch)) if lj => { if !g.w.place_torch(cx, cy) { g.msg = "Needs open space".into(); } }
         // TNT goes down inert; right mouse lights it, or wire it to a lever / knot / listener
         Some(Thing::Item(Item::Tnt)) if lj => { if g.w.logic.dev[blk] != 0 { g.w.use_device(cx, cy); } else if let Err(e) = g.w.place_device(Dev::Tnt, cx, cy) { g.msg = format!("Can't place: {e}"); } }
+        // pack items that are exactly one device place it (knots and thrummers come in several kinds: use their device slots)
+        Some(Thing::Item(it @ (Item::Lamp | Item::Vent))) if lj => { let d = if it == Item::Lamp { Dev::Lamp } else { Dev::Vent };
+            if g.w.logic.dev[blk] != 0 { g.w.use_device(cx, cy); } else if let Err(e) = g.w.place_device(d, cx, cy) { g.msg = format!("Can't place: {e}"); } }
         Some(Thing::Item(Item::Spore)) if lj => { if let Err(e) = g.w.plant(cx, cy) { g.msg = format!("Can't plant: {e}"); } }
         Some(Thing::Dev(d)) if lj => {
             if g.w.logic.dev[blk] != 0 { g.w.use_device(cx, cy); }

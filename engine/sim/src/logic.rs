@@ -156,7 +156,7 @@ impl Logic {
             let d = Dev::from_u8(self.dev[b]);
             let out = match d {
                 Dev::Lever => self.dev_s[b] == 1,
-                Dev::Plate => { let o = moles.iter().any(|&(x, y)| self.block_of(x, y) == b) || self.count(g, b, |i| g.m(i).kind() == Kind::Powder || (g.loose(i) && g.m(i).kind() == Kind::Solid)) >= 3; self.dev_s[b] = o as u8; o }
+                Dev::Plate => { let o = self.occupied(b, moles) || self.count(g, b, |i| g.m(i).kind() == Kind::Powder || (g.loose(i) && g.m(i).kind() == Kind::Solid)) >= 3; self.dev_s[b] = o as u8; o }
                 Dev::Sensor => { let o = self.count(g, b, |i| g.m(i).kind() == Kind::Liquid) >= 4; self.dev_s[b] = o as u8; o }
                 Dev::Rx => { let o = self.rx_on[b] != 0; self.dev_s[b] = o as u8; o }
                 // heatstone: thermoelement, live while lava touches its block or the blocks around it

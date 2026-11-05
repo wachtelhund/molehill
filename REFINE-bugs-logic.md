@@ -13,6 +13,8 @@ Short log of what this run changed, and what is still open.
 * Harness: `device`, `use`, `pickup`, `wire`, `saveload` directives; `dev:`, `lit:`, `on:`, `wire:`, `ev:` variables. Action events (clicks, places) are no longer dropped. New scenarios: `tnt_inert`, `tnt_lever`, `tnt_thrum`, `tnt_defuse`, `tnt_douse`, `saveload_devices`. New tests: `load_deep_does_not_fall_damage`, `wire_and_device_pack_accounting`, `replaced_fuse_is_not_burning`.
 * **Doors never shut on the mole**: a door (or floodgate) told to close waits while a mole stands in its block, then closes once it is clear. A door can't be placed on yourself. Scenario `door`.
 * Knots audited with a truth-table scenario (`knots`: both, either, turn, odd, catch). They were correct.
+* **Pressure plates see the whole mole**: a plate used to check only the mole's feet cell, so a plate just above the floor never triggered (depending on block alignment). It now uses the same body overlap as doors. Scenario `plate`.
+* **Lamp and Vent pack items place their device** on left click (they used to do nothing in hand).
 
 ## Open
 * Placing TNT onto a copperline that is already live sets it off on the next tick. That is consistent (it is powered), but easy to do by accident.
