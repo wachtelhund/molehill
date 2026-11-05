@@ -84,6 +84,9 @@ impl Grid {
         self.tick += 1;
         for c in 0..self.awake.len() { self.awake[c].store(self.awake_next[c].swap(0, Relaxed), Relaxed); }
         let stamp = ((self.tick % 255) + 1) as u8;
+        // stamps repeat every 255 ticks: clear old ones so a cell that last moved exactly
+        // 255·k ticks ago isn't mistaken for one that already moved this tick
+        if stamp == 1 { self.moved.fill(0); }
         let ptr = Ptr(self as *mut Grid);
         for phase in 0..4usize {
             let list: Vec<usize> = (0..self.cx * self.cy).filter(|&c| {
@@ -127,7 +130,10 @@ impl Grid {
             let d = i + w; let kd = self.kind_at(d);
             let above_powder = y > 0 && { let a = i - w; self.kind_at(a) == Kind::Powder || (self.loose(a) && self.kind_at(a) == Kind::Solid) };
             if kd == Kind::Empty || kd == Kind::Gas || (kd == Kind::Liquid && !above_powder && self.rnd(x, y, 1) & 1 == 0) { self.swap(i, d, stamp); return; }
+            // a grain that can't slide anywhere rests without keeping its chunk awake
+            let open = |s: i32| { let nx = x as i32 + s; nx >= 0 && (nx as usize) < w && self.mat[(i as i32 + s) as usize] == 0 && self.mat[(d as i32 + s) as usize] == 0 };
             let rep = m.p().repose;
+            if rep >= 1. || (!open(-1) && !open(1)) { return; } // never slides / nowhere to slide
             if rep > 0. && (self.rnd(x, y, 2) & 1023) as f32 / 1024. < rep { self.wake(x, y); return; }
             let dir: i32 = if self.rnd(x, y, 3) & 1 == 0 { -1 } else { 1 };
             for s in [dir, -dir] {
@@ -146,22 +152,11 @@ impl Grid {
                         if nm == Mat::Water { self.mat[i] = Mat::Basalt as u8; self.flags[i] = F_LOOSE; self.mat[n] = Mat::Steam as u8; self.life[n] = 90; self.moved[i] = stamp; self.moved[n] = stamp; self.wake(x, y); self.reactions.store(1, Relaxed); return; }
                         if matches!(nm, Mat::WoodBeam | Mat::Roots | Mat::Fungus | Mat::Coal | Mat::Door) && self.rnd(x, y, 4) % 40 == 0 { self.mat[n] = Mat::Fire as u8; self.life[n] = 70; self.reactions.store(1, Relaxed); }
                     }
-                    if self.rnd(x, y, 5) % 10 >= 3 { self.wake(x, y); return; } // viscous
                 }
-                if y + 1 < self.h {
-                    let d = i + w;
-                    let kd = self.kind_at(d);
-                    if kd == Kind::Empty || kd == Kind::Gas { self.swap(i, d, stamp); return; }
-                    // denser liquid sinks (lava under water handled by reaction)
-                    let dir: i32 = if self.rnd(x, y, 6) & 1 == 0 { -1 } else { 1 };
-                    for s in [dir, -dir] { let nx = x as i32 + s; if nx >= 0 && (nx as usize) < w { let j = (d as i32 + s) as usize; if self.mat[j] == 0 { self.swap(i, j, stamp); return; } } }
-                }
-                let disp = if m == Mat::Water { 6 } else { 2 };
-                let dir: i32 = if (self.tick as usize + x) & 1 == 1 { 1 } else { -1 };
-                for s in [dir, -dir] {
-                    let mut best = usize::MAX;
-                    for k in 1..=disp { let nx = x as i32 + s * k; if nx < 0 || nx as usize >= w { break; } let j = (i as i32 + s * k) as usize; if self.mat[j] != 0 { break; } best = j; if y + 1 < self.h && self.mat[j + w] == 0 { break; } }
-                    if best != usize::MAX { self.swap(i, best, stamp); return; }
+                if let Some(j) = self.liquid_target(x, y, m) {
+                    // lava is viscous: it only gets going on ~30% of ticks (but stays awake meanwhile)
+                    if m == Mat::Lava && self.rnd(x, y, 5) % 10 >= 3 { self.wake(x, y); return; }
+                    self.swap(i, j, stamp);
                 }
             }
             Kind::Gas => {
@@ -187,6 +182,34 @@ impl Grid {
             }
             _ => {}
         }
+    }
+    /// Where a liquid cell moves this tick, if anywhere.
+    fn liquid_target(&self, x: usize, y: usize, m: Mat) -> Option<usize> {
+        let (w, i) = (self.w, y * self.w + x);
+        if y + 1 < self.h {
+            let d = i + w;
+            if matches!(self.kind_at(d), Kind::Empty | Kind::Gas) { return Some(d); }
+            let dir: i32 = if self.rnd(x, y, 6) & 1 == 0 { -1 } else { 1 };
+            for s in [dir, -dir] { let nx = x as i32 + s; if nx >= 0 && (nx as usize) < w { let j = (d as i32 + s) as usize; if self.mat[j] == 0 { return Some(j); } } }
+        }
+        // Sideways flow. A cell spreads only when it has somewhere lower to go within reach
+        // or liquid is pressing on it from above (a heap levelling out). A resting surface
+        // with a part-filled top row then stays put instead of sloshing forever, so settled
+        // pools let their chunks sleep.
+        let disp = if m == Mat::Water { 6 } else { 2 };
+        let pressed = y > 0 && self.kind_at(i - w) == Kind::Liquid;
+        let dir: i32 = if (self.tick as usize + x) & 1 == 1 { 1 } else { -1 };
+        // how far a surface cell looks along its row for a lower spot. Reads stay < 64+48 cells from
+        // the chunk origin, clear of anything a same-phase chunk (128 away, moving ≤ 6) can write.
+        const LOOK: i32 = 48;
+        let (mut near, mut nd, mut level) = (0i32, i32::MAX, None);
+        for s in [dir, -dir] {
+            for k in 1..=LOOK { let nx = x as i32 + s * k; if nx < 0 || nx as usize >= w { break; } let j = (i as i32 + s * k) as usize; if self.mat[j] != 0 { break; }
+                if k <= disp && level.is_none() { level = Some(j); }
+                if y + 1 < self.h && self.mat[j + w] == 0 { if k < nd { nd = k; near = s; } break; } }
+        }
+        if near != 0 { return Some((i as i32 + near * nd.min(disp)) as usize); }
+        if pressed { level } else { None }
     }
     #[inline] pub fn n4(&self, x: usize, y: usize) -> impl Iterator<Item = usize> {
         let (w, h) = (self.w, self.h); let i = y * w + x;

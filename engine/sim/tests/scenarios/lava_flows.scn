@@ -1,0 +1,19 @@
+// Lava levels out too, just slower than water, and then sleeps.
+map
+#####################################
+#..............................#####
+#llllllll......................#####
+#llllllll......................#####
+#llllllll......................#####
+#llllllll......................#####
+#llllllll......................#####
+#llllllll......................#...#
+#llllllll......................#...#
+#llllllll......................#.@.#
+#####################################
+end
+expect 120 is:-3,0,Lava == 0     // much slower than water
+expect 900 is:-3,-1,Lava == 1
+expect 900 is:-31,-3,Lava == 0
+expect 900 count:Lava == 64
+expect 900 awake == 0

@@ -5,8 +5,8 @@ use molehill_sim::mat::{Mat, NMAT};
 use molehill_sim::world::World;
 
 fn mat_by_name(s: &str) -> Option<Mat> { (0..NMAT as u8).map(Mat::from_u8).find(|m| format!("{m:?}").eq_ignore_ascii_case(s)) }
-fn mat_char(c: char) -> Option<Mat> { Some(match c { '.' | '@' => Mat::Empty, '#' => Mat::Granite, 'B' => Mat::Bedrock, 'r' => Mat::Rock, 'd' => Mat::Dirt, 'c' => Mat::Clay, 's' => Mat::Sand, 'g' => Mat::Gravel, 'w' => Mat::Water, 'l' => Mat::Lava, 'o' => Mat::Coal, 'i' => Mat::IronOre, 'b' => Mat::WoodBeam, 'k' => Mat::StoneBrick, 'I' => Mat::IronBeam, _ => return None }) }
-fn ch_of(m: Mat) -> char { match m { Mat::Empty => '.', Mat::Granite => '#', Mat::Bedrock => 'B', Mat::Rock => 'r', Mat::Dirt => 'd', Mat::Clay => 'c', Mat::Sand => 's', Mat::Gravel => 'g', Mat::Water => 'w', Mat::Lava => 'l', Mat::Coal => 'o', Mat::IronOre => 'i', Mat::WoodBeam => 'b', Mat::StoneBrick => 'k', Mat::IronBeam => 'I', Mat::Steam => '~', _ => '?' } }
+fn mat_char(c: char) -> Option<Mat> { Some(match c { '.' | '@' => Mat::Empty, '#' => Mat::Granite, 'B' => Mat::Bedrock, 'r' => Mat::Rock, 'd' => Mat::Dirt, 'c' => Mat::Clay, 's' => Mat::Sand, 'g' => Mat::Gravel, 'w' => Mat::Water, 'l' => Mat::Lava, 'o' => Mat::Coal, 'i' => Mat::IronOre, 'b' => Mat::WoodBeam, 'k' => Mat::StoneBrick, 'I' => Mat::IronBeam, 'a' => Mat::Basalt, _ => return None }) }
+fn ch_of(m: Mat) -> char { match m { Mat::Empty => '.', Mat::Granite => '#', Mat::Bedrock => 'B', Mat::Rock => 'r', Mat::Dirt => 'd', Mat::Clay => 'c', Mat::Sand => 's', Mat::Gravel => 'g', Mat::Water => 'w', Mat::Lava => 'l', Mat::Coal => 'o', Mat::IronOre => 'i', Mat::WoodBeam => 'b', Mat::StoneBrick => 'k', Mat::IronBeam => 'I', Mat::Basalt => 'a', Mat::Steam => '~', _ => '?' } }
 
 enum Act { Hold(u64, u64, Vec<String>), Mine(u64, u64, i32, i32), Tool(u64, u8), Explode(u64, i32, i32, f32), Place(u64, i32, i32, String), Dump(u64), Ascii(u64), Expect(u64, String, String, f64, usize) }
 
@@ -18,13 +18,19 @@ impl Run {
             "px" => p.px as f64, "py" => p.py as f64, "vx" => p.vx as f64, "vy" => p.vy as f64,
             "dx" => (p.px - self.sx) as f64, "dy" => (p.py - self.sy) as f64, "rise" => (self.sy - self.top) as f64,
             "grounded" => p.grounded as u8 as f64, "cling" => p.cling as f64, "hp" => m.hp as f64, "breath" => m.breath as f64,
-            "deaths" => p.deaths as f64, "crumbled" => self.w.crumbled as f64, "tick" => self.w.tick as f64,
+            "deaths" => p.deaths as f64, "awake" => self.awake() as f64, "crumbled" => self.w.crumbled as f64, "tick" => self.w.tick as f64,
             _ if v.starts_with("count:") => { let mt = mat_by_name(&v[6..])?; let mut n = 0; for y in self.oy..self.oy + self.mh { for x in self.ox..self.ox + self.mw { if self.w.g.get(x, y) == mt { n += 1; } } } n as f64 }
             _ if v.starts_with("is:") => { // is:DX,DY,Mat  (relative to @)
                 let a: Vec<&str> = v[3..].split(',').collect(); let (dx, dy): (i32, i32) = (a.get(0)?.parse().ok()?, a.get(1)?.parse().ok()?);
                 (self.w.g.get((self.ax as i32 + dx) as usize, (self.ay as i32 + dy) as usize) == mat_by_name(a.get(2)?)?) as u8 as f64 }
             _ if v.starts_with("inv:") => { let i = molehill_sim::craft::ITEMS.iter().position(|it| format!("{it:?}").eq_ignore_ascii_case(&v[4..]))?; self.w.inv[i] as f64 }
             _ => return None })
+    }
+    /// CA chunks overlapping the map rectangle that are still awake.
+    fn awake(&self) -> usize {
+        use molehill_sim::grid::CHUNK; let g = &self.w.g; let mut n = 0;
+        for cy in self.oy / CHUNK..=(self.oy + self.mh - 1) / CHUNK { for cx in self.ox / CHUNK..=(self.ox + self.mw - 1) / CHUNK {
+            if g.awake[cy * g.cx + cx].load(std::sync::atomic::Ordering::Relaxed) != 0 { n += 1; } } } n
     }
     fn json(&self) -> String {
         let p = &self.w.pl; let m = &self.w.moles[0];

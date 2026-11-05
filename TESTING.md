@@ -5,7 +5,7 @@ Everything below runs headless. `molehill-sim` has no Bevy dependency, so these 
 ## 1. Unit and integration tests
 
 ```bash
-cargo test --release -p molehill-sim          # about 50 s; build the release profile, debug is very slow
+cargo test --release -p molehill-sim          # about 10 s; build the release profile, debug is very slow
 cargo test --release -p molehill-sim --test sim -- jump coyote   # filter by name
 ```
 
@@ -55,7 +55,7 @@ expect 60 rise >= 4.5   // assertion after tick T: <var> <op> <number>, ops: < <
 
 The map is stamped with its top-left so that `@` lands on the world spawn. A 20-cell granite frame is put around it, so the generated world can't leak in. Disasters are off. Rows shorter than the widest row are padded with `#`.
 
-Map legend: `.` empty, `#` granite, `B` bedrock, `r` rock, `d` dirt, `c` clay, `s` sand, `g` gravel, `w` water, `l` lava, `o` coal, `i` iron ore, `b` wood beam, `I` iron beam, `k` stone brick (`~` steam, `?` other, only in output).
+Map legend: `.` empty, `#` granite, `B` bedrock, `r` rock, `d` dirt, `c` clay, `s` sand, `g` gravel, `w` water, `l` lava, `o` coal, `i` iron ore, `a` basalt, `b` wood beam, `I` iron beam, `k` stone brick (`~` steam, `?` other, only in output).
 
 **Assertion variables:**
 
@@ -67,6 +67,7 @@ Map legend: `.` empty, `#` granite, `B` bedrock, `r` rock, `d` dirt, `c` clay, `
 | `grounded` `cling` | 0 or 1; cling is -1 (left wall), 0 or 1 (right wall) |
 | `hp` `breath` `deaths` | Mole vitals |
 | `crumbled` | Cells that have crumbled (world counter) |
+| `awake` | CA chunks overlapping the map that are still awake (0 = everything there has settled) |
 | `count:<Mat>` | Cells of that material inside the map rectangle, e.g. `count:Water` |
 | `is:DX,DY,<Mat>` | 1 if the cell at an offset from `@` is that material |
 | `inv:<Item>` | Inventory count |
@@ -89,6 +90,8 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `pillar_holds.scn` / `pillar_on_sand.scn` | Placed wood pillars stay rigid, also when standing on a sand floor |
 | `pillar_wide_hall.scn` | A lone pillar in a wide, sound hall isn't crushed |
 | `roof_unpropped.scn` / `roof_propped.scn` | A wide clay roof caves in; four pillar columns hold it |
+| `water_levels.scn` / `lava_flows.scn` | A heap levels to the right depth (water by tick 120, lava much later), nothing lost, then sleeps |
+| `lava_meets_water.scn` | Lava on water quenches to basalt with steam; the steam clears and the chamber sleeps |
 | `beam_span.scn` / `beam_overload.scn` | An iron beam bridges an 8-cell gap; a sand-loaded wood beam breaks into splinters |
 
 ### Writing a new scenario (for agents)
@@ -99,6 +102,10 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 4. Run the whole folder. Every scenario must PASS before you commit.
 
 Tuning constants for movement live in one place: `TUNE` in `sim/src/world.rs`. After changing them, rerun both the tests and the scenarios.
+
+## 2b. Settling / performance check
+
+`cargo run --release -p molehill-sim --example wakediag [seed]` generates a world, runs 1200 ticks and reports how many CA chunks are still awake and what is still changing. A settled world should be close to 0 awake chunks.
 
 ## 3. Visual check (optional)
 

@@ -1,0 +1,19 @@
+// A water heap levels out across the floor and its chunks go back to sleep.
+map
+#####################################
+#..............................#####
+#wwwwwwww......................#####
+#wwwwwwww......................#####
+#wwwwwwww......................#####
+#wwwwwwww......................#####
+#wwwwwwww......................#####
+#wwwwwwww......................#...#
+#wwwwwwww......................#...#
+#wwwwwwww......................#.@.#
+#####################################
+end
+expect 120 is:-3,-1,Water == 1   // reached the far wall, two rows deep
+expect 120 is:-31,-2,Water == 1  // only the 4-cell remainder sits on top
+expect 120 is:-31,-3,Water == 0
+expect 400 count:Water == 64     // nothing lost
+expect 400 awake == 0            // a resting pool doesn't keep the CA busy
