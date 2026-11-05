@@ -25,6 +25,9 @@ impl Run {
             _ if v.starts_with("util:") => { // util:DX,DY  stress utilisation of a cell (1.0 = at capacity)
                 let a: Vec<&str> = v[5..].split(',').collect(); let (dx, dy): (i32, i32) = (a.get(0)?.parse().ok()?, a.get(1)?.parse().ok()?);
                 self.w.st.util[self.w.g.idx((self.ax as i32 + dx) as usize, (self.ay as i32 + dy) as usize)] as f64 / 128. }
+            _ if v.starts_with("strain:") => { // strain:DX,DY  hover strain level: 0 idle, 1 bearing, 2 straining, 3 overloaded, 4 cracking
+                let a: Vec<&str> = v[7..].split(',').collect(); let (dx, dy): (i32, i32) = (a.get(0)?.parse().ok()?, a.get(1)?.parse().ok()?);
+                molehill_sim::tips::strain_at(&self.w, self.w.g.idx((self.ax as i32 + dx) as usize, (self.ay as i32 + dy) as usize)) as f64 }
             _ if v.starts_with("is:") => { // is:DX,DY,Mat  (relative to @)
                 let a: Vec<&str> = v[3..].split(',').collect(); let (dx, dy): (i32, i32) = (a.get(0)?.parse().ok()?, a.get(1)?.parse().ok()?);
                 (self.w.g.get((self.ax as i32 + dx) as usize, (self.ay as i32 + dy) as usize) == mat_by_name(a.get(2)?)?) as u8 as f64 }

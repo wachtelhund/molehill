@@ -10,3 +10,4 @@ pub mod disasters;
 pub mod save;
 pub mod view;
 pub mod air;
+pub mod tips;

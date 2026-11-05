@@ -244,3 +244,33 @@ pub fn glow() -> Image {
         let o = (y * n + x) * 4; d[o] = 255; d[o + 1] = 255; d[o + 2] = 255; d[o + 3] = (a * 255.) as u8; } }
     let mut im = image(n as u32, n as u32, d, false); im.sampler = ImageSampler::linear(); im
 }
+
+/// Per-cell pixel-art texture for a solid material at absolute cell (x, y): a brightness multiplier.
+/// Rock gets strata, granite salt-and-pepper, basalt columns, bricks a running bond, beams grain and rivets,
+/// ores and crystals glints (crystals twinkle with `t`). One cell = one texel, so patterns are cell-sized.
+pub fn mat_tex(m: molehill_sim::mat::Mat, x: u32, y: u32, t: u64) -> f32 {
+    use molehill_sim::grid::hash3;
+    use molehill_sim::mat::Mat as M;
+    let h = |a: u32, b: u32, s: u32| (hash3(a, b, s) & 255) as f32 / 255.;
+    let v = h(x, y, 31);
+    match m {
+        M::Granite => if v > 0.9 { 1.22 } else if v < 0.1 { 0.8 } else { 1. },
+        M::Rock => { let band = h(0, y / 3 + x / 23, 41); 0.92 + band * 0.14 + if v > 0.93 { 0.12 } else { 0. } }
+        M::Limestone => { let band = h(0, y / 2 + x / 40, 43); let fossil = if v > 0.97 { 1.2 } else { 1. }; (0.9 + band * 0.16) * fossil }
+        M::Basalt => { let col = x / 4 + (h(x / 4, y / 9, 47) * 2.) as u32; if (x + col) % 4 == 0 { 0.84 } else { 1. + (h(x / 4, y / 6, 49) - 0.5) * 0.1 } }
+        M::Bedrock => if (x / 3 + y / 2) % 5 == 0 { 0.82 } else { 1. },
+        M::Dirt | M::Clay => if v > 0.95 { 1.25 } else if v < 0.06 { 0.78 } else { 1. },
+        M::Gravel => if (x + y) % 2 == 0 && v > 0.4 { 1.18 } else { 0.9 },
+        M::Coal => if v > 0.86 { 1.6 } else { 1. },
+        M::CopperOre | M::TinOre | M::IronOre => if v > 0.82 { 1.35 } else if v < 0.2 { 0.82 } else { 1. },
+        M::Quartz | M::Crystal => { let tw = ((t as f32 * 0.05 + v * 40.).sin() * 0.5 + 0.5).powi(6); if v > 0.75 { 1.15 + tw * 0.45 } else { 0.95 } }
+        M::StoneBrick => { // 4×2 running bond with dark mortar
+            let row = y / 2; let off = if row % 2 == 0 { 0 } else { 2 };
+            if y % 2 == 1 || (x + off) % 4 == 0 { 0.72 } else { 1. + (h((x + off) / 4, row, 53) - 0.5) * 0.16 } }
+        M::WoodBeam | M::Door => { let grain = h(0, y, 57); let knot = if h(x / 2, y, 59) > 0.96 { 0.72 } else { 1. }; (0.9 + grain * 0.18) * knot }
+        M::IronBeam => { let rivet = x % 3 == 1 && y % 3 == 1; let seam = x % 6 == 0; if rivet { 1.3 } else if seam { 0.8 } else { 1. } }
+        M::Roots => if (x + y / 2) % 3 == 0 { 0.8 } else { 1.08 },
+        M::Fungus => if v > 0.85 { 1.3 } else { 1. },
+        _ => 1.,
+    }
+}

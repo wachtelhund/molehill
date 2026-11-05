@@ -9,19 +9,21 @@ Molehill is a falling-sand mole platformer and colony sim in Rust and Bevy 0.20.
 * `engine/game` (`molehill`) is the Bevy front-end.
   * `main.rs`: input, the fixed 60 Hz sim step with render interpolation, the camera, rendering, sprites.
   * `ui.rs` HUD; `menu.rs` main and pause menus; `art.rs` sprites and icons; `audio.rs` WebAudio (silent on native).
+* `docs/wiki/` is the wiki (start at `docs/wiki/README.md`). There is no GitHub wiki.
 * `site/` is a committed copy of the web build. Rebuild it with `cd engine && ./build-web.sh && cd .. && rm -rf site && cp -r dist site` (`dist/` is gitignored).
 
 ## Loop
 1. Change the sim, and write or adjust a scenario (`engine/sim/tests/scenarios/*.scn`) or test. See [TESTING.md](TESTING.md).
 2. From `engine/`, run `cargo test --release -p molehill-sim` and `cargo run --release -p molehill-sim --example scenario -- sim/tests/scenarios/*.scn`. Both must pass.
 3. Run `cargo build --release -p molehill`. Add one screenshot only if the change is visual; don't make videos unless asked.
-4. If the game changed, rebuild `site/`. Commit and push to `origin main`, then check that `git fetch && git rev-parse HEAD origin/main` match.
+4. If behaviour changed, update the matching `docs/wiki/` page. If the game changed, rebuild `site/`. Commit and push to `origin main`, then check that `git fetch && git rev-parse HEAD origin/main` match.
 
 ## Rules
 * The only remote is the private `origin` (github.com/wachtelhund/molehill). No GitHub Pages, Vercel or other hosting, and no work accounts. Never force-push.
 * Autosaves (`*.save`) are gitignored. Don't commit them.
 * The feel target is Streets of Rogue-snappy: instant start and stop, no input latency, and actions that fire on press with immediate feedback. Keep `TUNE` responsive, and test feel changes with scenarios (rise, `vx` after N ticks, coyote).
 * Menus pause the sim (`Game.paused`). The headless harness never touches the game crate.
+* Behaviour-changing merges must update `docs/wiki/` (the wiki: plain markdown on `main`, index `docs/wiki/README.md`, relative links). Change the page that describes the rule, number, control, device or build step in the same merge. The wiki's Lore page must match `LORE.md`, which wins if they disagree.
 
 ## Controls (in game)
 * `A`/`D` run; `Space` jumps (also `W` when you're not on a wall).
