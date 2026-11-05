@@ -74,7 +74,7 @@ The mole has **health**, **food** and **breath**, shown as the three bars in the
 
 * **Falls:** each cell beyond 20 costs 3 hp.
 * **Hunger** drains over time. Below 40 the mole eats from the pack on its own: a grub restores 45, a mushroom 35 and fungus 25. Starving hurts.
-* **Breath** drains in stale air (CO2 above 0.45), underwater and when buried by falling rock or sand. If there's room, a buried mole wriggles up.
+* **Breath** drains in stale air (CO2 above 0.45), underwater and when buried by falling rock or sand. A mole buried in loose ground wriggles up through it. Under rock it stays put: the collision snap searches at most one cell, so it can never pop out through a slab into the room above (`buried_under_rock`, `buried_in_sand`).
 * **Death:** after 2.5 s you respawn in the burrow with full health and breath (the window slides back to it if needed). The death count is kept in saves.
 
 ## Digging and reach

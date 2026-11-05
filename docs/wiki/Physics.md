@@ -59,7 +59,8 @@ The grid is a Noita-style cellular automaton on **64 × 64-cell chunks**:
 
 * A liquid falls first, then tries the lower diagonals.
 * **Sideways flow is purposeful.** A surface cell looks up to 48 cells along its row for a lower spot and moves toward it (water up to 6 cells a tick, lava 2). It also spreads when liquid presses on it from above, so a heap levels out. Otherwise it stays put, so a pool with a part-filled top row doesn't slosh forever.
-* **Lava is viscous:** it only moves on about 30 % of ticks. It sets wood, roots, fungus, coal and doors on fire.
+* **Lava is viscous:** it only moves on about 30 % of ticks. Flowing lava sets wood, roots, fungus, coal and doors on fire. Lava that has come to rest sleeps with its chunk, so it doesn't set fire to wood beside it.
+* **Thin lava cools.** Every 30 ticks, each lava cell has a 1-in-24 chance to be checked. If it has fewer than 10 lava cells in its 5 × 5 neighbourhood and rests on solid ground, it freezes into basalt. A splash sets in about 10–20 s, and a spreading sheet crusts from its thin front. Deep pools keep their heat, and only their thin edges crust. Lava never freezes on top of molten lava, because a crust there would just break up again (`lava_cools`).
 * **Lava meeting water** quenches: the lava cell becomes loose basalt **scoria** that sinks, and the water becomes **steam**. Steam drifts up, fades after about 1.5 s and sometimes condenses back into a drop of water.
 * **Fire** spreads to wood, roots, fungus and doors, rises, burns out, and turns to steam on touching water.
 * **For the mole,** water is swimmable and lava is a thick, burning liquid. You sink into it, wade at a quarter speed and burn at 75 hp/s (see [Player and Controls](Player-and-Controls.md#water-and-lava)).
@@ -117,6 +118,8 @@ Two refinements keep this honest:
 
 Utilisation is `u = σ / strength`. When `u > 1` the cell **cracks** visibly and a **40-tick** countdown starts. If the load is relieved in time, for example by building a pillar or digging less, the crack heals. Otherwise the cell crumbles into its loose form (dirt, gravel, sand, or splinters of its own material for wood and iron) and joins the falling sand. That debris can load the next roof, so failures can cascade.
 
+**Broken ground bulks.** Rubble takes more room than the solid it came from: 3 in 10 crumbling cells of natural ground leave an extra cell of rubble. It spills to the nearest open cell reachable from the break through loose ground, level with the break or lower, searching up to 48 cells. It never passes through rock, so rubble can't appear in a sealed room. A cave-in therefore fills its own void and chokes off instead of chimneying up through a whole dirt layer: a 10 × 4 void under 30 rows of dirt rises about 7 rows and stops (`dirt_cavein_chokes`). Built blocks (wood, iron, doors, brick, glass) don't bulk.
+
 ```
  dig wide ─▶ beam σt > tensile ─▶ crack (40 ticks) ─▶ crumble ─▶ debris loads the roof below ─▶ …
                      ▲                    │
@@ -134,9 +137,10 @@ Placed blocks are judged by the same rules, which is the point: you learn to bui
 
 ### Known limits
 
-* Rubble doesn't bulk up (loose volume equals solid volume), so a collapse in weak dirt can chimney up through the whole layer instead of choking itself off.
+* There's no liquid pressure. Water in a tall column doesn't push through a U-bend under a wall; it spreads sideways only when pressed from directly above. This is parked until after the cell resize.
 * Thin roofs are judged by their bottom fibre only: a 1-cell clay skin under granite limits the whole roof.
-* Lava never cools on its own.
+* Resting lava never ignites wood beside it.
+* A resting pool can keep a 1-cell step if the lower spot is more than 48 cells away.
 * Overburden still passes through caves higher up, which can crush a dirt seam under deep rock whatever supports it.
 
 ## Light
