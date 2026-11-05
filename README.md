@@ -72,7 +72,7 @@ For testing, all three tools and generous stacks of every item start in the pack
 
 * **Falling sand and fluids:** sand, gravel, water and lava. Lava meeting water becomes loose basalt scoria.
 * **Structural stress:** overburden, bending, compression and connectivity. Cracked cells crumble after 40 ticks. With no player action, the start burrow stands and a fresh world collapses only a little in the first 2 minutes (this is tested). Some natural caves may still settle in the fog away from the colony.
-* **Endless Deepholt:** you start in the middle layer of earth (depth 0 m). The 1024×512-cell grid is a sliding window over an infinite column: when the camera or colony nears the top or bottom edge, the window slides by 128 rows. Leaving rows are cached (your digging is kept), and new rows are generated on demand from a pure per-cell function of (seed, x, absolute row), so the world is deterministic per seed. Horizontally it is still bounded by bedrock walls.
+* **Endless Deepholt:** you start in the middle layer of earth (depth 0 m). The 1024×512-cell grid is a sliding window over an infinite column: when the camera or colony nears the top or bottom edge, the window slides by 128 rows. Leaving rows are stored as 8 m bands with everything in them (your digging, devices, torches and stations are kept), and new rows are generated on demand from a pure per-cell function of (seed, x, absolute row), so the world is deterministic per seed. Horizontally it is still bounded by bedrock walls.
 * **Seeded procgen:** biomes, strata by depth, caves, and pockets of water and lava. Water is common in shallow layers and lava deeper down (details below).
 * **Lighting:** unlit tunnels stay dark, and torches and powered lamps give light. There is also fog of war and a deep-earth parallax background. There is no sky light and no day cycle.
 * **Moles:**
@@ -97,7 +97,7 @@ For testing, all three tools and generous stacks of every item start in the pack
 * **Disasters:** floods, lava surges and quakes. Each starts with a 10 s warning banner and lasts 6 s, with camera shake. The first comes at about 2.5 min, then one every 90–180 s.
 * **Sound:** procedural WebAudio effects plus an ambient rumble that changes with depth. It is web only (native is silent) and starts after the first input.
 * **Music:** generative ambient (`game/src/music.rs`), no audio files: soft pads, kalimba-like plucks, rare bells and low drones through a cave reverb and echo. Pieces of 1–2 minutes alternate with long quiet rests. The mood follows the mole: airy and major up in the wet layers, earthy at home, darker deeper, low and smouldering near lava. It has its own quiet volume in Settings (default 35%; Enter mutes).
-* **Save/load:** a binary run-length-encoded format. It goes to localStorage on web and to files on native. It autosaves every 30 s and autoloads at start.
+* **Save/load:** a small manifest plus one run-length-encoded blob per 8 m band of the world, named by content hash. Autosaves (every 30 s) rewrite only the bands that changed. It goes to localStorage on web and to files on native, and autoloads at start.
 
 ## World generation (`sim/src/gen.rs`)
 

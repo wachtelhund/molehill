@@ -124,8 +124,8 @@ pub fn update(mut m: ResMut<Menu>, mut g: ResMut<Game>, keys: Res<ButtonInput<Ke
                 Item::Save => { crate::save_now(&mut g); m.go(Screen::Off); }
                 Item::Load => { if crate::load_saved(&mut g, &mut commands) { m.go(Screen::Off); } }
                 Item::Settings => m.go(Screen::Settings), Item::Controls => m.go(Screen::Controls),
-                Item::MainMenu => { crate::save_auto(&g); m.go(Screen::Main); }
-                Item::Quit => { crate::save_auto(&g); exit.write(AppExit::Success); }
+                Item::MainMenu => { crate::save_auto(&mut g); m.go(Screen::Main); }
+                Item::Quit => { crate::save_auto(&mut g); exit.write(AppExit::Success); }
                 Item::Fullscreen => { m.fullscreen = !m.fullscreen; if let Ok(mut w) = win.single_mut() { w.mode = if m.fullscreen { WindowMode::BorderlessFullscreen(MonitorSelection::Current) } else { WindowMode::Windowed }; } m.persist(); }
                 Item::Back => { let b = m.back; m.go(b); }
                 _ => {}

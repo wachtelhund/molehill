@@ -12,10 +12,10 @@ The Deepholt has no top and no bottom, so the game never holds "the world" in me
    │ bedrock │  2048 × 1024   │ bedrock │
    │  wall   │  live cells     │  wall   │   the sim, stress, light and air run only here
    └──────────────────────────────┘
-          … cached rows / not yet generated …
+          … stored bands / not yet generated …
 ```
 
-* **Vertically endless.** When the camera or colony gets near the top or bottom edge, the window **slides by 32 m** (`SLIDE` = 32 × CPM rows). The margin is `min(25 m, (h − SLIDE) / 2)`, so small test windows don't thrash. Rows that leave are stored in a cache (material + flags), so your tunnels are still there when you come back. Rows that have never been seen are generated fresh.
+* **Vertically endless.** When the camera or colony gets near the top or bottom edge, the window **slides by 32 m** (`SLIDE` = 32 × CPM rows). The margin is `min(25 m, (h − SLIDE) / 2)`, so small test windows don't thrash. Rows that leave are packed into 64-row **bands** (`band.rs`) with everything in them: cells, copperline and devices (a lit fuse keeps its time), air, torches, drops, stations and mushroom plots. So your tunnels and builds are still there when you come back. Until format 4, only the cells were kept and builds vanished. Rows that have never been seen are generated fresh.
 * **Horizontally bounded.** The two outermost columns on each side are bedrock.
 * **Deterministic.** Every generated cell is a pure function of `(seed, x, absolute row)`. The same seed always gives the same Deepholt, wherever you start looking. New rows are stabilised just like the first window (see below).
 * **Chests** come 6 per 32 m band (`CHEST_BAND`), each on a cave floor, chosen by hashing `(k, band, seed)`. Opened chests are remembered by absolute position across slides.
