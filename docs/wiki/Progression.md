@@ -11,7 +11,7 @@
    │
  ──┼── 0 m  the holt                            limestone · coal · copper
    │
-   │                                            granite · tin · iron (below ~35 m)
+   │                                            granite · tin · iron (about 40–85 m)
    │
    ↓ deeper: hotter, harder, richer, deadlier   basalt · lava (dominant below ~70 m) · Ancient ruins
 ```
@@ -41,7 +41,7 @@ Each tier is gated by a material from a deeper or harder band, and unlocks the n
 |---|---|---|---|---|
 | **1. Wood and stone** | wood, stone | dirt, clay, sand, limestone (**Pickaxe**) | wood pillars, planks, workbench, torches, simple furniture | the holt layers and the first grottos |
 | **2. Copper** | copper ore | (same, faster) | **copperline**, levers, doors, plates, knots, **thrummers** | copper seams just below the holt |
-| **3. Iron** | iron ore | granite, iron ore (**Drill**) | iron beams, stronger props, the forge's better recipes | below ~35 m, in granite |
+| **3. Iron** | iron ore | granite, iron ore (**Drill**) | iron beams, stronger props, the forge's better recipes | about 40–85 m, in granite |
 | **4. Power** | heat and flowing water | (same) | **water wheels**, **heatstones**, **pumps**, **fans**, powered lamps and doors | lava and water pockets: hazards turned to current |
 | **5. Heat-proof** | basalt and a heat-resistant alloy (working name *emberiron*) from the lava layer | basalt (**Bore**) | the Bore, lava-proof walls and pipes, deep outposts | below ~70 m, where lava dominates |
 | **6. Ancient relics** | found, never made | – | nothing: relics are unique and **can't be crafted** | Ancient facilities and ruins (see below) |
@@ -143,7 +143,7 @@ Everything the Ancients built obeys the same physics as everything else: weight,
 | Tools | Pickaxe, Drill, Bore with tiers 1–3 | the same three, unlocked by tiers 1, 3 and 5 |
 | Stations | workbench, kiln, furnace, anvil | workbench, forge (needs heat), workshop (needs copperline and power) |
 | Recipes | always listed | unlocked by first pick-up; at most 2 steps |
-| Light | torches, lamps and a headlamp; in Survival the headlamp and torches burn fungus oil (pressed from fungus) | fungus-oil fuel for torches and headlamp; glowmite lanterns |
+| Light | torches, lamps, a headlamp and a jarred glowmite in the paw; in Survival the headlamp and torches burn fungus oil (pressed from fungus), the glowmite needs no fuel | fungus-oil fuel for torches and headlamp; glowmite lanterns |
 | Death | Survival: wake in the burrow, the pack stays where you died (Creative: nothing hurts) | wake in the holt; carried items stay where you died |
 | Wood | **built:** grottos with regrowing root-trees (see [World and Generation](World-and-Generation.md#grottos)) | grottos with regrowing root-trees |
 | Decor | none | furniture, decorative blocks, back walls, dyes |
