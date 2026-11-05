@@ -17,11 +17,11 @@ Molehill's design rule is that **nothing happens by decree**. Collapse, flooding
 
 ## Materials
 
-Every cell holds one of 28 materials. Each has a **kind**, which picks how the falling-sand automaton treats it:
+Every cell holds one of 32 materials. Each has a **kind**, which picks how the falling-sand automaton treats it:
 
 | kind | materials | behaviour |
 |---|---|---|
-| Solid | bedrock, granite, rock, limestone, basalt, dirt, clay, gravel, coal and ores, quartz, crystal, roots, grass, glass, wood beam, stone brick, iron beam, door | Static until it cracks or is knocked **loose**; loose solids fall like powder |
+| Solid | bedrock, granite, rock, limestone, basalt, dirt, clay, gravel, coal and ores, quartz, crystal, roots, grass, moss, mycelium, root-tree and its roots, glass, wood beam, stone brick, iron beam, door | Static until it cracks or is knocked **loose**; loose solids fall like powder |
 | Powder | sand, fungus | Always fall and slide by angle of repose |
 | Liquid | water, lava | Fall, then spread sideways to level out |
 | Gas | steam, fire | Rise and fade |
@@ -144,6 +144,7 @@ Utilisation is `u = σ / strength`. When `u > 1` the cell **cracks** visibly and
 Placed blocks are judged by the same rules, which is the point: you learn to build the way the rock does.
 
 * **Wood pillars** are light and strong in compression (8000 kPa): prop a dirt or clay roof every metre or two.
+* **Decorative blocks** hold by their own numbers: planks 6000 kPa (light, like wood), polished stone 15000 kPa (like brick), tiles 9000 kPa but weak in tension, and carved pillars 22000 kPa, the strongest stone prop (scenario `decor_blocks`).
 * **Iron beams** have about 13 times the tensile strength of wood: they bridge wide gaps and carry heavy roofs.
 * **Stone brick** is strong in a wall but heavy on a roof.
 * Everything you place must touch something solid, so a stroke grows out of what it rests on. See [Tools and Items](Tools-and-Items.md#the-round-brush).

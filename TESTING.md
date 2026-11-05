@@ -52,6 +52,8 @@ lamp 1 on               // headlamp on/off from tick T (off by default in scenar
 aim 1 20 -2             // from tick T the mole looks at tile (dx,dy) from @ (the headlamp beam points there); `aim T none`
 wield 1 Torch           // from tick T the mole holds that item (a torch lights); `wield T none`
 torch 1 6 0             // at tick T put a torch on tile (dx,dy)
+furnish 2 Table 6 -2    // set a piece of furniture down at tile (dx,dy): it finds the floor below (or the ceiling above, for a banner)
+paint 2 Ochre 3 0       // paint a brush (`brush`) of standing blocks around tile (dx,dy) with a pigment, or dye the rug/banner/nest there
 dig 41-60 3 -1          // same, but (dx,dy) is relative to the mole's current cell (feet row), so it follows the mole
 explode 70 5 -2 3       // TNT-strength blast at (dx,dy) with radius r at tick T
 place 5 4 0 WoodPillar  // at tick T place a block item (WoodPillar, Brick, IronBeam) at (dx,dy), as a left click; a refusal prints NOTE
@@ -64,6 +66,10 @@ hand 1 Pickaxe          // the brush item in hand (Pickaxe, Drill, Bore or a blo
 snap 4 on               // grid snap; line 5 DX1 DY1 DX2 DY2 Brick drags a snapped line; snapcells = the square side in tiles
 slide 60                // slide the window away until only its bottom band is left, and back (things go into bands and return)
 put 2 8 0 WoodPillar    // put exactly one block cell at (dx,dy) at tick T, no reach check (scripted building)
+mode survival           // start in a game mode (survival | creative): its rules and its pack; `give` applies after
+nohunger                // the world's hunger option off (after `mode`): food never drains
+set 40 hp -1            // set a vital at tick T: hp, hunger, breath, or oil (headlamp oil, seconds)
+placetorch 150 3 -2     // place a torch from the pack at (dx,dy) as a click (in Survival it needs oil); a refusal prints NOTE
 grotto 2 6 -5 8 4       // at tick T a grotto's glowmite swarm centred on tile (dx,dy), radii rx ry in tiles
 catch 40 6 -5           // at tick T right-mouse the tile (dx,dy): catch the glowmite there, if any
 throw 2 Stone 1 -1 1    // throw one from the pack toward direction (dx,dy), power 0..1 of a full throw (TNT goes out lit)
@@ -77,7 +83,7 @@ expect 60 rise >= 4.5   // assertion after tick T: <var> <op> <number>, ops: < <
 
 The map is stamped with its top-left so that `@` lands on the world spawn (the mole stands centred on the `@` tile, feet on its bottom edge). A 20-tile granite frame is put around it, so the generated world can't leak in. Disasters are off. Rows shorter than the widest row are padded with `#`.
 
-Map legend: `.` empty, `#` granite, `B` bedrock, `r` rock, `d` dirt, `c` clay, `s` sand, `g` gravel, `w` water, `l` lava, `o` coal, `i` iron ore, `a` basalt, `b` wood beam, `I` iron beam, `k` stone brick, `T` root-tree, `R` root-tree roots, `m` moss, `y` mycelium (`~` steam, `?` other, only in output). The generated world's own grottos are left out of a scenario (`grottos` cleared).
+Map legend: `t` roots (a root tangle), `f` fungus, `.` empty, `#` granite, `B` bedrock, `r` rock, `d` dirt, `c` clay, `s` sand, `g` gravel, `w` water, `l` lava, `o` coal, `i` iron ore, `a` basalt, `b` wood beam, `I` iron beam, `k` stone brick, `T` root-tree, `R` root-tree roots, `m` moss, `y` mycelium, `p` planks, `q` polished stone, `x` tiles, `C` carved pillar (`~` steam, `?` other, only in output). The generated world's own grottos are left out of a scenario (`grottos` cleared).
 
 **Assertion variables:**
 
@@ -85,6 +91,7 @@ Map legend: `.` empty, `#` granite, `B` bedrock, `r` rock, `d` dirt, `c` clay, `
 |---|---|
 | `flash` `shake` | Hit-flash time left (s); view-shake strength (decays each tick) |
 | `step` | Distance the body moved this tick (tiles); catches teleport pops that a velocity check misses |
+| `hunger` `oil` `lamp` `mode` `hungeron` | Food (0-100); headlamp oil left (s); 1 if the headlamp shines; the mode (0 plain, 1 survival, 2 creative); 0 if hunger is turned off |
 | `items:Name` | How many of that item lie loose |
 | `ix:Name` `iy:Name` `ivx:Name` `ivy:Name` | The first loose item of that kind: centre in tiles from the `@` tile's centre (iy 0 = resting on the `@` floor), velocity in tiles/s |
 | `irest:Name` `ilit:Name` | 1 if that item is asleep (lying still); 1 if it's a lit charge |
@@ -101,6 +108,8 @@ Map legend: `.` empty, `#` granite, `B` bedrock, `r` rock, `d` dirt, `c` clay, `
 | `inv:<Item>` | Inventory count |
 | `static:<Mat>` | Like `count:` but only cells that are fixed in place (not loose debris) |
 | `util:DX,DY` | Stress utilisation of the cell at an offset from `@` (1.0 = at capacity; above that it cracks) |
+| `furn:Item` `tint:Item` | How many of that furniture stand in the world; the first one's dye (0 undyed, 1–6 the pigments) |
+| `paint:DX,DY` | The pigment painted on the tile's centre cell (0 unpainted; 1 ochre, 2 rust, 3 chalk, 4 verdigris, 5 woad, 6 soot) |
 | `light:DX,DY` | Brightness (luma) at the tile's centre; light is recomputed over the map every tick. About 1 is fully lit, under 0.05 is dark |
 | `strain:DX,DY` | The hover tooltip's strain level for that cell (`tips::strain_at`): 0 idle, 1 bearing, 2 straining, 3 overloaded, 4 cracking |
 | `dev:DX,DY,<Dev>` | 1 if the 1 m block at that offset holds that device |
@@ -125,6 +134,12 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `wall_jump.scn` | Space while clinging launches you away from the wall |
 | `wall_jump_away.scn` | Pressing away plus Space, or Space within 0.1 s of letting go, still wall-jumps; later it doesn't |
 | `no_ceiling_climb.scn` | Jumping into a low ceiling while holding sideways and `W` never clings; the mole falls back down |
+| `survival_kit.scn` | Survival's start kit; only owned tools dig (granite holds against a pickaxe); a save keeps the mode |
+| `survival_food.scn` | Hunger drains; the Delver eats grubs then roots below 40; starving hurts; root tangles give roots |
+| `survival_lamp_oil.scn` | The headlamp burns oil, refills from the pack, then presses fungus, then goes dark; a torch needs oil |
+| `survival_death_drop.scn` | Death leaves the whole pack where you fell; you wake in the burrow and walk back for it |
+| `survival_no_hunger.scn` | Hunger off: food never drains or gets eaten, the rest of Survival holds, and the option survives a save |
+| `creative_harmless.scn` | Creative: 999 of everything, a long fall and an empty belly don't hurt, the lamp needs no oil |
 | `throw_arc.scn` | A full throw flies a ~6 m arc, bounces, skids to rest; a weaker one falls shorter; walking over them picks them up |
 | `item_bounces_rests.scn` | A stone bounces off granite but not off dirt; both fall asleep on the floor without drifting |
 | `item_sinks_floats.scn` | Wood floats in water, an iron ingot sinks straight to the bottom, a grub sinks slowly |
@@ -157,6 +172,10 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `glowmite_catch.scn` | A grotto's glowmite swarm drifts over the map |
 | `brush_place.scn` | A radius-2 brick brush fills the open part of the disc and uses items 4 cells to one |
 | `light_torch.scn` | A torch lights a pool with a bright core and a soft edge; a wall hides the far side |
+| `furnish_room.scn` | Furniture finds its floor or ceiling; a rug lies under a table; overlaps and a blocked spot are refused; `E` takes a piece back |
+| `furniture_falls.scn` | Blast the floor from under a table and it falls loose as an item |
+| `decor_blocks.scn` | Carved pillars save the 12 m rock roof like wood pillars do; planks, tiles and polished stone lay with the brush |
+| `paint_and_dye.scn` | A pigment paints a brush of bricks (one pigment per 16 tiles), repaints, dyes a rug; paint and dye survive save/load |
 | `lava_shadow.scn` | A lava pool lights the floor beside it through the same rays as torches; a full-height wall shadows the far side |
 | `headlamp.scn` | The headlamp beam follows the aim, leaves behind the mole dark, keeps a small glow; out, only the faint mole glow |
 | `headlamp_wall.scn` | Rock stops the beam: the wall face is lit, the room behind it dark |

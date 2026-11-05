@@ -8,12 +8,13 @@ pub enum Item {
     Brick, Glass, Charcoal, CopperIngot, TinIngot, BronzeIngot, IronIngot,
     Torch, WoodPillar, IronBeam, CopperWire, Thrummer, Gate, Tnt, Lamp,
     StoneTools, BronzeTools, IronTools, Grub, Spore, Mushroom, Vent, Glowmite,
+    FungusOil, Root,
     // furnishing: decorative blocks (brush-built, structural), pigments (paint), furniture (placed props)
     Planks, PolishedStone, Tiles, CarvedPillar,
     Ochre, Rust, Chalk, Verdigris, Woad, Soot,
     Table, Stool, Nest, Shelf, Rug, Banner, Planter,
 }
-pub const NITEM: usize = 53;
+pub const NITEM: usize = 55;
 /// What an item can do in the world (see `Item::uses`).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Uses { pub place: bool, pub throw: bool, pub pick_up: bool }
@@ -22,6 +23,7 @@ pub const ITEMS: [Item; NITEM] = [
     Item::Brick, Item::Glass, Item::Charcoal, Item::CopperIngot, Item::TinIngot, Item::BronzeIngot, Item::IronIngot,
     Item::Torch, Item::WoodPillar, Item::IronBeam, Item::CopperWire, Item::Thrummer, Item::Gate, Item::Tnt, Item::Lamp,
     Item::StoneTools, Item::BronzeTools, Item::IronTools, Item::Grub, Item::Spore, Item::Mushroom, Item::Vent, Item::Glowmite,
+    Item::FungusOil, Item::Root,
     Item::Planks, Item::PolishedStone, Item::Tiles, Item::CarvedPillar,
     Item::Ochre, Item::Rust, Item::Chalk, Item::Verdigris, Item::Woad, Item::Soot,
     Item::Table, Item::Stool, Item::Nest, Item::Shelf, Item::Rug, Item::Banner, Item::Planter,
@@ -49,14 +51,14 @@ impl Item {
         if let Some(m) = self.mat() { return m.p().density; }
         match self {
             Charcoal => 400., CopperIngot => 8900., TinIngot => 7300., BronzeIngot => 8800., CopperWire => 3000., Thrummer | Gate | Vent => 2500.,
-            Tnt => 1500., Lamp => 2000., Rug | Banner | Nest => 300., Ochre | Rust | Chalk | Verdigris | Woad | Soot => 1800., StoneTools => 2500., BronzeTools => 5000., IronTools => 5500., Grub => 1050., Spore => 300., Mushroom => 600.,
+            Tnt => 1500., Lamp => 2000., StoneTools => 2500., BronzeTools => 5000., IronTools => 5500., Grub => 1050., Spore => 300., Mushroom => 600., FungusOil => 900., Root => 1100., Rug | Banner | Nest => 300., Ochre | Rust | Chalk | Verdigris | Woad | Soot => 1800.,
             _ => 2000.,
         }
     }
     /// Does heat `h` burn it up (a loose item in lava or fire)? TNT doesn't burn: it lights.
     pub fn burns(self, h: u8) -> bool {
         use Item::*;
-        match self { Tnt => false, Charcoal | Grub | Spore | Mushroom => h >= 1, _ => self.mat().map_or(false, |m| m.lit_by(h)) }
+        match self { Tnt => false, Charcoal | Grub | Spore | Mushroom | FungusOil | Root => h >= 1, _ => self.mat().map_or(false, |m| m.lit_by(h)) }
     }
     /// What the item in hand can do, from one table: set it down in the world, throw it, or neither
     /// (a crafting material). Blocks, copperline, devices, torches and tools are never thrown.
@@ -64,7 +66,7 @@ impl Item {
         use Item::*;
         let place = matches!(self, WoodPillar | Brick | IronBeam | CopperWire | Torch | Tnt | Lamp | Vent | Spore) || self.block().is_some() || self.pigment().is_some() || self.furn().is_some();
         let throw = matches!(self, Dirt | Clay | Sand | Gravel | Stone | Coal | CopperOre | TinOre | IronOre | Quartz | Crystal | Wood | Fungus
-            | Charcoal | CopperIngot | TinIngot | BronzeIngot | IronIngot | Grub | Spore | Mushroom | Tnt);
+            | Charcoal | CopperIngot | TinIngot | BronzeIngot | IronIngot | Grub | Spore | Mushroom | Tnt | FungusOil | Root);
         Uses { place, throw, pick_up: matches!(self, CopperWire | Torch | Tnt | Lamp | Vent) || self.furn().is_some() }
     }
     /// One line naming the inputs for the item in hand (hover tooltip and the hint over the hotbar).
@@ -101,7 +103,7 @@ impl Item {
         ["Dirt", "Clay", "Sand", "Gravel", "Stone", "Coal", "Copper ore", "Tin ore", "Iron ore", "Quartz", "Crystal", "Wood", "Fungus",
          "Brick", "Glass", "Charcoal", "Copper ingot", "Tin ingot", "Bronze ingot", "Iron ingot",
          "Torch", "Wood pillar", "Iron beam", "Copperline", "Thrummer", "Knot", "TNT", "Lamp",
-         "Stone tools", "Bronze tools", "Iron tools", "Grub", "Spore", "Mushroom", "Vent", "Glowmite",
+         "Stone tools", "Bronze tools", "Iron tools", "Grub", "Spore", "Mushroom", "Vent", "Glowmite", "Fungus oil", "Root",
          "Planks", "Polished stone", "Tiles", "Carved pillar",
          "Ochre", "Rust", "Chalk", "Verdigris", "Woad", "Soot",
          "Table", "Stool", "Nest", "Shelf", "Rug", "Banner", "Fungus planter"][self as usize]
@@ -122,6 +124,7 @@ impl Item {
          "Lights when current flows through it.", "Pack tools of stone.", "Pack tools of bronze.", "Pack tools of iron.",
          "Fat burrowing larva. A good meal.", "Mushroom spore. Plant it on soil to grow food.", "A ripe mushroom. Fills the belly.",
          "Draws stale air out of the tunnels around it.", "A glowmite caught in a jar. Glows softly, needs no fuel.",
+         "Pressed from fungus. Fuels the headlamp and soaks a torch so it burns.", "A fat, starchy root from a root tangle. A fair meal.",
          "Sawn boards for floors and panelling. A light prop.", "Stone dressed smooth. Fine walls and floors, as strong as brick.",
          "Fired clay tiles in a neat grid. Bright, but brittle under a roof.", "Fluted stone column. Holds a roof better than brick.",
          "Yellow earth pigment, ground from iron ore and clay.", "Red-brown pigment, ground from iron ore.", "Pale pigment, ground from quartz.",
@@ -138,6 +141,7 @@ impl Item {
             Charcoal => [70, 60, 60], CopperIngot => [230, 140, 80], TinIngot => [210, 215, 225], BronzeIngot => [205, 150, 70], IronIngot => [190, 190, 200],
             Torch => [255, 190, 90], WoodPillar => [180, 130, 80], IronBeam => [120, 130, 150], CopperWire => [240, 150, 90], Thrummer => [150, 120, 255],
             Gate => [120, 220, 160], Tnt => [220, 60, 50], Lamp => [255, 240, 170], StoneTools => [160, 156, 150], BronzeTools => [205, 150, 70], IronTools => [200, 205, 220], Grub => [235, 215, 170], Spore => [200, 170, 230], Mushroom => [214, 120, 90], Vent => [150, 200, 210], Glowmite => [190, 255, 160],
+            FungusOil => [200, 220, 120], Root => [190, 140, 90],
             Planks => [182, 134, 84], PolishedStone => [176, 170, 160], Tiles => [190, 108, 74], CarvedPillar => [164, 158, 148],
             Ochre | Rust | Chalk | Verdigris | Woad | Soot => PIGMENTS[self.pigment().unwrap_or(0) as usize],
             Table | Stool | Shelf => [160, 112, 66], Nest => [150, 170, 110], Rug => [176, 92, 70], Banner => [200, 70, 60], Planter => [110, 200, 130],

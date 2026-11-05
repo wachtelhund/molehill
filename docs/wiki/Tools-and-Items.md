@@ -51,7 +51,7 @@ Food (grubs, mushrooms, fungus) is eaten from the pack automatically when the mo
 
 The pack (`I`) is a grid of 70 slots, and the bottom row is the hotbar (`1`–`0`). Click a slot to pick its item up, then click another to drop or swap. Counts come from one shared inventory. Hovering a slot shows its name, count and a one-line description. Resting the cursor on a seen cell for about 0.35 s explains what's there (`sim/src/tips.rs`): the material (and whether it's loose debris), a device, copperline (carrying current or idle), a station (what it makes; craft by standing at it with the pack open), a chest (opened or not) or a mushroom plot (growth % and whether it's too bright or too dry). A standing block also says how hard it is working, read from the stress solver: bearing weight, straining, overloaded, or cracking, so you can see a span is about to fail before it does.
 
-> **Current build:** for testing, the game starts with all three tools and 999 of every item, and crafting is hidden. The sim's own starting pack (used by the tests) is small: 8 wood, 6 torches, 12 pillars, 12 grubs, 40 copperline, 6 knots, 3 thrummers, 6 spores and a vent.
+> **Modes:** New Holt asks for **Survival** (a small kit: stone tools, 4 torches, 3 grubs, 2 roots, 2 fungus oil; you dig only with tools you own; the headlamp and torches burn fungus oil) or **Creative** (999 of every item). Crafting is still hidden. **Fungus oil** is pressed from fungus (2 a measure, done by the pack when it runs out); a **root** is food from root tangles. See [Progression](Progression.md#survival-mode-today). The sim's own starting pack (used by the tests) is small: 8 wood, 6 torches, 12 pillars, 12 grubs, 40 copperline, 6 knots, 3 thrummers, 6 spores and a vent.
 
 ## Digging drops
 
@@ -71,6 +71,35 @@ One table (`Item::uses` in `craft.rs`) says whether an item is **set down**, **t
 | Spore | left mouse (plant on soil) | yes | no |
 | Loose materials, ingots, charcoal, grubs, mushrooms | no | yes | (lying loose: walk over it) |
 | Tools, glass | no | no | no |
+
+## Furnishing
+
+Making the holt look like home: decorative blocks, paint and furniture. In Survival they're crafted (all at the workbench except tiles, fired at the kiln) and unlock when you first hold their materials. In Creative they're in the pack.
+
+**Decorative blocks** are built with the round block brush (`[`/`]` resize, grid snap works too). They are structural, by their own numbers (see [Physics](Physics.md#materials)):
+
+| block | recipe | look | strength |
+|---|---|---|---|
+| Planks | 2 wood → 8 | boards with seams and staggered joints | light, like a wood prop (6000 kPa) |
+| Polished stone | 4 stone + 1 sand → 4 | smooth slabs, fine joints, a faint sheen | as strong as brick |
+| Tiles | 2 clay + 1 coal → 6 (kiln) | glazed squares with pale grout | brittle under a roof |
+| Carved pillar | 4 stone → 2 | a fluted column | the strongest stone prop (22000 kPa) |
+
+**Pigments** are ground at the workbench: ochre (iron ore + clay), rust (iron ore), chalk (quartz), verdigris (copper ore), woad (fungus), soot (charcoal); each makes 4. With a pigment in hand, left mouse paints a brush of standing blocks (any solid block: brick, planks, even raw rock). The pigment takes over most of the colour and the block keeps its pattern and shading. One pigment covers 16 tiles. Painting a rug, banner or nest dyes its cloth. Paint goes with the block (a painted block that falls is still painted) and is kept in saves.
+
+**Furniture** is placed with left mouse and taken back with `E`. A pale ghost shows where it will go. It isn't solid, so the mole walks past it.
+
+| piece | size | stands | notes |
+|---|---|---|---|
+| Table | 2 × 1 m | on the floor | with a cup and a bowl |
+| Stool | 0.75 m | on the floor | |
+| Nest | 2.25 × 0.75 m | on the floor | a basket bed; its blanket takes dye |
+| Shelf | 1.5 × 2 m | on the floor | pots, jars, a crystal, a tablet |
+| Rug | 2.5 m | on the floor | lies under other furniture; takes dye |
+| Banner | 0.75 × 1.5 m | hangs from the ceiling | takes dye |
+| Fungus planter | 1.25 m | on the floor | glows soft green (a ray-cast light) |
+
+Furniture finds the floor below the cursor, or the ceiling above it for a banner. It needs two thirds of its width supported and room for its whole footprint, and pieces can't overlap (except a rug). If its floor or ceiling is dug or blasted away, it falls loose as its item. Back walls (panelling behind open cells) are designed in [PROGRESSION](../../PROGRESSION.md) but not built yet.
 
 ## Throwing
 

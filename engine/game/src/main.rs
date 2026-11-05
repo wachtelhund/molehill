@@ -17,6 +17,7 @@ use bevy::input::mouse::{AccumulatedMouseScroll, MouseScrollUnit};
 use bevy::input::keyboard::Key;
 use bevy::window::PrimaryWindow;
 use molehill_sim::view as sv;
+use molehill_sim::survival::Mode;
 use molehill_sim::craft::{self, Item, Station, ITEMS, NITEM, QUESTS, RECIPES, STATIONS};
 use molehill_sim::grid::{hash3, F_SEEN};
 use molehill_sim::mat::{Kind, Mat, PROPS, S, SF};
@@ -239,7 +240,7 @@ fn dev_dump(n: Local<u32>, g: Res<Game>, sp: Res<Sprites>, images: Res<Assets<Im
         info!("dumped art to {dir}");
     }
 }
-fn make_world(seed: u32) -> World { let mut w = World::new(W, H, seed); w.disasters.enabled = false; for v in w.inv.iter_mut() { *v = (*v).max(999); } stage_scene(&mut w); w }
+fn make_world(seed: u32, mode: Mode) -> World { let mut w = World::new(W, H, seed); w.disasters.enabled = false; w.set_mode(mode); stage_scene(&mut w); w }
 /// --scene=water|tnt (native, for recording): stage a set piece next to the burrow. Play is unchanged.
 fn stage_scene(w: &mut World) {
     #[cfg(not(target_arch = "wasm32"))] {
@@ -307,7 +308,7 @@ fn stage_scene(w: &mut World) {
 
 fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, mut fonts: ResMut<Assets<Font>>) {
     let seed = seed_now() % 100000;
-    let w = make_world(seed);
+    let w = make_world(seed, Mode::Survival);
     // The world is split into CH×CH-cell chunk textures; only chunks whose composited pixels changed
     // are touched (Assets::get_mut marks an image for re-upload), so a quiet frame uploads nothing.
     let oy0 = w.oy;
@@ -367,12 +368,13 @@ fn reset_view(g: &mut Game, commands: &mut Commands) {
     g.w.pl.sync = None; g.inv_open = false; g.help = false; g.acc = 0.;
 }
 /// Start a fresh holt (world) from a seed.
-pub fn begin(g: &mut Game, commands: &mut Commands, seed: u32) { g.w = make_world(seed); g.seed = seed; reset_view(g, commands); g.msg = format!("Holt {seed}"); }
+pub fn begin(g: &mut Game, commands: &mut Commands, seed: u32, mode: Mode) { g.w = make_world(seed, mode); g.seed = seed; reset_view(g, commands); g.msg = format!("Holt {seed} ({})", mode.name()); }
 /// Load the manual save (or the autosave). Returns false if there is none or it failed.
 pub fn load_saved(g: &mut Game, commands: &mut Commands) -> bool {
     match load_slot("molehill-manual").or_else(|| load_slot("molehill-auto")) {
         Some(Ok(w)) if w.g.w != W || w.g.h != H => { g.msg = format!("Load failed: save is {}x{}, this build is {W}x{H}", w.g.w, w.g.h); false }
-        Some(Ok(w)) => { g.w = w; for v in g.w.inv.iter_mut() { *v = (*v).max(999); } reset_view(g, commands); g.msg = "Game loaded".into(); true }
+        // a save from before modes was a Creative holt (everything in the pack)
+        Some(Ok(w)) => { g.w = w; if g.w.mode == Mode::Plain { g.w.mode = Mode::Creative; g.w.rules = Mode::Creative.rules(); } if g.w.mode == Mode::Creative { for v in g.w.inv.iter_mut() { *v = (*v).max(999); } } reset_view(g, commands); g.msg = "Game loaded".into(); true }
         Some(Err(e)) => { g.msg = format!("Load failed: {e}"); false } None => { g.msg = "No save yet".into(); false } }
 }
 fn make_bg(w: &World) -> Bg {
@@ -744,7 +746,7 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
             want.push((0, k, cell_to_world(g.disp.x, g.disp.y + SF - 1.5 * SF - up), 5., img, size, m.facing < 0, c));
         } }
     // the lit headlamp's lens gets a small warm halo (the beam itself is the sim's light)
-    if let (Some(m), true) = (w.moles.first().filter(|m| m.alive), w.gear.lamp) {
+    if let (Some(m), true) = (w.moles.first().filter(|m| m.alive), w.lamp_lit()) { // (a dry lamp shows no halo)
         let lens = if pl.cling != 0 { cell_to_world(g.disp.x - pl.cling as f32 * 1.4 * SF, g.disp.y + SF - 2.25 * SF) + Vec2::new(-pl.cling as f32 * 4., 12.) }
             else { cell_to_world(g.disp.x, g.disp.y + SF - 1.5 * SF) + Vec2::new(m.facing as f32 * 11., 4.) };
         want.push((15, 0, lens, 5.2, sp.glow.clone(), Vec2::splat(14.), false, Color::srgba(1., 0.93, 0.62, 0.45)));

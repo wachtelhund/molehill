@@ -1,6 +1,6 @@
 # Progression
 
-> **Design, not yet implemented.** This page describes where Molehill is going, not what the game does today. The current build is effectively Creative mode: every tool and 999 of every item in the pack, crafting hidden. The other pages describe what is actually in the code. Everything here must follow [Lore](Lore.md).
+> **Mostly design.** This page describes where Molehill is going. The game now has a **Survival** and a **Creative** mode, with the first slice of Survival in (see [Survival mode today](#survival-mode-today)); everything else here is design unless marked **built**. The other pages describe what is actually in the code. Everything here must follow [Lore](Lore.md).
 
 ## The idea in one line
 
@@ -11,7 +11,7 @@
    │
  ──┼── 0 m  the holt                            limestone · coal · copper
    │
-   │                                            granite · tin · iron (below ~35 m)
+   │                                            granite · tin · iron (about 40–85 m)
    │
    ↓ deeper: hotter, harder, richer, deadlier   basalt · lava (dominant below ~70 m) · Ancient ruins
 ```
@@ -41,7 +41,7 @@ Each tier is gated by a material from a deeper or harder band, and unlocks the n
 |---|---|---|---|---|
 | **1. Wood and stone** | wood, stone | dirt, clay, sand, limestone (**Pickaxe**) | wood pillars, planks, workbench, torches, simple furniture | the holt layers and the first grottos |
 | **2. Copper** | copper ore | (same, faster) | **copperline**, levers, doors, plates, knots, **thrummers** | copper seams just below the holt |
-| **3. Iron** | iron ore | granite, iron ore (**Drill**) | iron beams, stronger props, the forge's better recipes | below ~35 m, in granite |
+| **3. Iron** | iron ore | granite, iron ore (**Drill**) | iron beams, stronger props, the forge's better recipes | about 40–85 m, in granite |
 | **4. Power** | heat and flowing water | (same) | **water wheels**, **heatstones**, **pumps**, **fans**, powered lamps and doors | lava and water pockets: hazards turned to current |
 | **5. Heat-proof** | basalt and a heat-resistant alloy (working name *emberiron*) from the lava layer | basalt (**Bore**) | the Bore, lava-proof walls and pipes, deep outposts | below ~70 m, where lava dominates |
 | **6. Ancient relics** | found, never made | – | nothing: relics are unique and **can't be crafted** | Ancient facilities and ruins (see below) |
@@ -110,7 +110,20 @@ Wood is the first material and must stay precious, so it doesn't come from the e
 | mode | what it is |
 |---|---|
 | **Survival** (the main game) | Everything above: start with almost nothing, dig, survive, build up the tiers, furnish the holt and grow the colony. The long goal is the **Lid**: following the old myth upward and through the **Ancients'** facilities, which hint at it. |
-| **Creative** | Everything in the pack, nothing hurts. This is what the current build is. |
+| **Creative** | Everything in the pack, nothing hurts. |
+
+### Survival mode today
+
+The first slice of Survival is in the game (`sim/src/survival.rs`); the rest of this page is still design.
+
+* **New Holt** asks for a mode: **Survival** or **Creative**. The mode is kept in the save; a save from before modes loads as Creative.
+* **Start kit:** stone tools (the Pickaxe), 4 torches, 3 grubs, 2 roots and 2 measures of fungus oil. Nothing else.
+* **Tools you own:** you dig only with tools in the pack. The hotbar's Drill and Bore act as your best tool until you have them.
+* **Food:** hunger drains; below 40 the Delver eats from the pack on its own (grub 45, mushroom 35, root 30, fungus 25). Root tangles turn up edible **roots** when dug, soil turns up grubs, and fungus is food too. Starving hurts. **Hunger can be turned off** for a holt: a New Holt option, also in Settings for the current holt, and saved with it. Then food never drains and the food bar is hidden.
+* **Light costs fuel:** a lit headlamp burns a measure of **fungus oil** every 3 minutes, and placing a torch soaks up a measure. With no oil left the pack presses 2 fungus into a measure; with neither, the headlamp goes dark and torches won't light.
+* **Stale air** works as before.
+* **Death:** you wake in the burrow with an empty pack. Everything you carried lies where you fell as loose items (a pile you can walk back over). Items that burn are lost if that was in lava or fire.
+* **Creative:** 999 of everything, nothing hurts, nothing needs fuel.
 
 ### The Ancients
 
@@ -126,12 +139,12 @@ Everything the Ancients built obeys the same physics as everything else: weight,
 
 | area | today | this design |
 |---|---|---|
-| Mode | Creative-like test build (999 of everything, crafting hidden) | Survival as the main game; Creative kept |
+| Mode | New Holt picks **Survival** (small kit, food, fuel, the pack lost at death) or **Creative** (999 of everything); crafting still hidden | Survival as the main game; Creative kept |
 | Tools | Pickaxe, Drill, Bore with tiers 1–3 | the same three, unlocked by tiers 1, 3 and 5 |
 | Stations | workbench, kiln, furnace, anvil | workbench, forge (needs heat), workshop (needs copperline and power) |
 | Recipes | always listed | unlocked by first pick-up; at most 2 steps |
-| Light | torches, lamps and a headlamp, no fuel | fungus-oil fuel for torches and headlamp; glowmite lanterns |
-| Death | respawn in the burrow, pack kept | wake in the holt; carried items stay where you died |
+| Light | torches, lamps, a headlamp and a jarred glowmite in the paw; in Survival the headlamp and torches burn fungus oil (pressed from fungus), the glowmite needs no fuel | fungus-oil fuel for torches and headlamp; glowmite lanterns |
+| Death | Survival: wake in the burrow, the pack stays where you died (Creative: nothing hurts) | wake in the holt; carried items stay where you died |
 | Wood | **built:** grottos with regrowing root-trees (see [World and Generation](World-and-Generation.md#grottos)) | grottos with regrowing root-trees |
 | Decor | none | furniture, decorative blocks, back walls, dyes |
 | Colony | one mole | Delvers move in when the holt is comfortable |
