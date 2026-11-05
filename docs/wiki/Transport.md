@@ -10,6 +10,13 @@ The deeper the holt goes, the further its Delvers haul, so getting about is a la
 | 3–4 | **Lifts** (counterweight, or wound by current) | **built** |
 | 3+ | **Pressure tubes** (the top of the ladder for now) | **built** |
 
+**Hover tips.** Rest the cursor on a machine and its tip says what it's doing and the one or two inputs that matter (`tips::transport_tip`, test `transport_hover_tips_say_what_to_do`):
+* **Cart:** get in or push it; how much cargo it carries (`E` unloads it), or that it's empty (throw things in, `E` picks it up); off the rails. While riding, how to jump out.
+* **Rope ladder:** climb, or let go while on it; `E` takes it down.
+* **Lift:** the counterweight and cage in kg and whether it rises or sinks, or that current winds it; stone on or off.
+* **Tube hopper:** blowing (drop items in to send, ride with an empty paw) or receiving only; which hopper it sends to.
+* **Track and pipe:** whether the track is powered; that a line needs hoppers.
+
 The Ancients' tube stations and waygates in the ruins stay broken: they are endgame finds, not working lines (see [World and Generation](World-and-Generation.md#ruins-of-the-ancients)).
 
 ## Rails
