@@ -29,6 +29,9 @@ const FAR: usize = 4; // chunk rows drawn beyond each end of the simulated windo
     pub demo_right: bool,
     /// mouse buttons held since a menu closed: ignored until released (the click that closed the menu must not dig or place)
     pub mouse_latch: bool,
+    /// a jump pressed since the last sim step (kept for that step even if already released, so a quick tap
+    /// between two 60 Hz steps on a faster display isn't lost); `jump_key` = the jump keys' held state
+    jump_tap: bool, jump_key: bool,
     /// in-world feedback pops: (kind 0 bite / 1 placed block, x, y, radius in cells, start time s)
     pub pops: Vec<(u8, f32, f32, f32, f32)>,
     /// smoothed camera lookahead (cells)
@@ -236,7 +239,7 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, mut fonts: R
         px: images.add(art::image(1, 1, vec![255; 4], true)),
     };
     commands.insert_resource(sp);
-    let disp = Vec2::new(sx, sy + 1.5); commands.insert_resource(Game { w, chunks, buf: vec![1; W * H * 4], uploads: 0, acc: 0., paused: true, speed: 1, frame: 0, last_light: 0, msg: String::new(), help: false, ev: vec![], shake_off: Vec2::ZERO, autosave: 0., last_oy: oy0, far, far_done, inv_open: false, aim: None, slots: default_slots(), held: None, hot: 0, sel_t: 0., toasts: vec![], log_seen: 0, show_dev: false, disp, seed, brush: [0.; 7], demo_right: false, mouse_latch: false, pops: vec![], look: Vec2::ZERO });
+    let disp = Vec2::new(sx, sy + 1.5); commands.insert_resource(Game { w, chunks, buf: vec![1; W * H * 4], uploads: 0, acc: 0., paused: true, speed: 1, frame: 0, last_light: 0, msg: String::new(), help: false, ev: vec![], shake_off: Vec2::ZERO, autosave: 0., last_oy: oy0, far, far_done, inv_open: false, aim: None, slots: default_slots(), held: None, hot: 0, sel_t: 0., toasts: vec![], log_seen: 0, show_dev: false, disp, seed, brush: [0.; 7], demo_right: false, mouse_latch: false, jump_tap: false, jump_key: false, pops: vec![], look: Vec2::ZERO });
 }
 
 pub fn save_now(g: &mut Game) { let b = molehill_sim::save::save(&g.w); g.msg = match storage_put("molehill-manual", &b) { Ok(()) => "Game saved".into(), Err(e) => format!("Save failed: {e}") }; }
@@ -262,7 +265,7 @@ fn input(mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<Button
          win: Query<&Window, With<PrimaryWindow>>, mut cam: Query<&mut Transform, With<Camera2d>>, time: Res<Time>,
          mut commands: Commands, mut menu: ResMut<menu::Menu>) {
     let Ok(win) = win.single() else { return }; let Ok(mut ct) = cam.single_mut() else { return };
-    if g.paused { g.w.input = Default::default(); g.aim = None; return; } // a menu is open: no input, no aim ring
+    if g.paused { g.w.input = Default::default(); g.aim = None; g.jump_tap = false; return; } // a menu is open: no input, no aim ring
     let sc = ct.scale.x; let now = time.elapsed_secs();
     let ctrl = keys.pressed(KeyCode::ControlLeft) || keys.pressed(KeyCode::ControlRight);
     // toasts: short game messages and new world log lines (deduplicated, at most 3 live)
@@ -278,7 +281,9 @@ fn input(mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<Button
     let upk = keys.pressed(KeyCode::KeyW) || keys.pressed(KeyCode::ArrowUp);
     g.w.input.up = upk; g.w.input.down = keys.pressed(KeyCode::KeyS) || keys.pressed(KeyCode::ArrowDown);
     // Space jumps (and wall-jumps); W also jumps when not on a wall, and climbs when clinging
-    g.w.input.jump = keys.pressed(KeyCode::Space) || upk && g.w.pl.cling == 0;
+    let jk = keys.pressed(KeyCode::Space) || upk && g.w.pl.cling == 0;
+    if keys.just_pressed(KeyCode::Space) || (keys.just_pressed(KeyCode::KeyW) || keys.just_pressed(KeyCode::ArrowUp)) && g.w.pl.cling == 0 { g.jump_tap = true; }
+    g.jump_key = jk; g.w.input.jump = jk || g.jump_tap;
     g.w.input.mine = None;
     let sel0 = g.hot;
     // wheel: hotbar; Ctrl+wheel: brush size with a brush item in hand, else zoom; Shift+wheel: zoom.
@@ -384,7 +389,8 @@ fn simulate(mut commands: Commands, mut g: ResMut<Game>, time: Res<Time>, mut ca
         let mut n = 0; while g.acc >= 1. && n < 3 * g.speed {
             let pre = std::mem::take(&mut g.w.events); let pm = std::mem::take(&mut g.w.marks); g.w.step();
             let mut e = std::mem::take(&mut g.w.events); let m = std::mem::take(&mut g.w.marks); let gg = &mut *g; gg.ev.extend(pre); gg.ev.append(&mut e);
-            gg.pops.extend(pm.into_iter().chain(m).map(|(k, x, y, r)| (k, x, y, r, now))); g.acc -= 1.; n += 1; }
+            gg.pops.extend(pm.into_iter().chain(m).map(|(k, x, y, r)| (k, x, y, r, now))); g.acc -= 1.; n += 1;
+            if g.jump_tap { g.jump_tap = false; g.w.input.jump = g.jump_key; } } // the tap was seen: back to the key's state
         g.pops.retain(|p| now - p.4 < 0.25);
         g.autosave += time.delta_secs();
         if g.autosave > 30. { g.autosave = 0.; let b = molehill_sim::save::save(&g.w); let _ = storage_put("molehill-auto", &b); }

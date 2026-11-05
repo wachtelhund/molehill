@@ -55,6 +55,10 @@ Polish only: no new features or concepts. Each entry is one commit.
    earlier (about 16 ms behind the keys). They now run in `follow()` right after the steps (and after the old
    shake offset is removed), so a press shows on the same frame. Game-only, so there's no scenario; the
    cursor-to-cell mapping still uses the camera as drawn, which is what the player sees.
+9. **Quick taps aren't lost on fast displays.** Keys are read once per frame but the sim steps at 60 Hz, so on
+   a 120/144 Hz display a Space (or `W`) tap that went down and up between two steps was never seen. The press
+   is now latched until the next step consumes it, then the jump input goes back to the key's real state (so a
+   tap still gives the short hop). The menu-closing Space stays swallowed (`swallow_held`). Game-only.
 
 ## Open issues
 * `main`'s solver still sends overburden through open caves, so dirt seams under deep rock are crushed in
