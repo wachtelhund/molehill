@@ -78,7 +78,7 @@ grotto 2 6 -5 8 4       // at tick T a grotto's glowmite swarm centred on tile (
 catch 40 6 -5           // at tick T right-mouse the tile (dx,dy): catch the glowmite there, if any
 throw 2 Stone 1 -1 1    // throw one from the pack toward direction (dx,dy), power 0..1 of a full throw (TNT goes out lit)
 drop 1 Wood 26 -12 0 0  // a loose item centred on tile (dx,dy), optionally moving at (vx,vy) tiles/s
-place 2 6 0 Cart        // a transport machine from the pack goes down whole at (dx,dy) (a cart finds the track, else the floor)
+place 2 6 0 Cart        // a transport machine from the pack goes down whole at (dx,dy): a cart finds the track (else the floor), a RopeLadder hangs from the rock above, a Lift's head under the shaft's ceiling
 load 21 27 Stone        // (scripted) put that many items into the first cart's cargo
 dump 50                 // print the JSON state after tick T
 ascii 80                // print the map region after tick T
@@ -115,6 +115,8 @@ Map legend: `t` roots (a root tangle), `f` fungus, `.` empty, `#` granite, `B` b
 | `p:DX,DY` | The last blast's peak overpressure (kPa) on that tile |
 | `carts` / `cartx` / `carty` / `cartv` | Carts in the world; the first cart's position (tiles from the map corner) and speed along the track (tiles/s) |
 | `cartpow` | Whether the track under the first cart is powered (live copperline in its block) |
+| `ladders` / `climbing` | Rope ladders hung; whether the mole is on one |
+| `lifts` / `lifty` / `liftv` / `ballast` | Lifts; the first one's cage floor (tiles from the map top), speed (tiles/s, + = down) and stones of ballast |
 | `cargo` / `cartrail` / `cartgap` / `riding` | The first cart's cargo (items), whether it is on the rails, how far it is ahead of the mole (tiles), whether the mole rides a cart |
 | `debris` / `debris:Mat` | Cells a blast threw that are still in flight (tiles), all or of one material |
 | `wave:DX,DY` | The path distance (m) the last blast's front ran to reach that tile (-1: it never got there) |
@@ -220,6 +222,8 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `cart_off_rail.scn` | With the track gone under it a cart drops off the rails and won't roll when pushed |
 | `powered_rail_climbs.scn` | Copperline on the track drives a cart up a 1-in-3 climb while a lever powers it; the line shuttles between its bumpers; lever off and it coasts to the foot |
 | `rail_too_steep_to_push.scn` | Plain track: the mole can't push even an empty cart up a 1-in-3 (needs ~330 N, it has 320 N) |
+| `rope_ladder_climb.scn` / `rope_ladder_falls.scn` | A ladder tied on a cliff's lip: climbed at 2 m/s, hangs still without keys, climbed over onto the top; dig out its rock and it falls |
+| `lift_counterweight.scn` / `lift_powered.scn` | A cage with the mole sits at the foot until six stones of ballast outweigh it, then rises (brake-limited) carrying the mole; ballast off and it sinks; saved. Current at the head winds it up with no ballast |
 | `rail_needs_support.scn` | A rail span over a drop breaks and falls; its ends on rock hold |
 | `blast_moves_sand.scn` | A charge by a sand bed throws a third of it into the air at once; the near end is scoured, and it all lands (none lost) |
 | `blast_wave_front.scn` | The front reaches a shaft round a corner by the tunnel (path longer than the straight line), never the rock between; the drawn front sweeps out; `dump` of its state |

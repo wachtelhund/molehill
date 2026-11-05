@@ -1,0 +1,44 @@
+// A rope ladder tied on the lip of a 4 m cliff hangs down its face to the floor. The mole climbs it with W
+// (2 m/s, slower than a wall climb), hangs still on it when it lets go of the keys (no sliding, unlike a
+// wall), climbs on over the lip onto the top, and back at the foot a jump lets go of it.
+map
+##############################
+#............................#
+#............................#
+#............................#
+#............................#
+#............................#
+#............................#
+############.................#
+############.................#
+############.................#
+############.................#
+############.................#
+############.................#
+############.................#
+############.................#
+############.................#
+############.................#
+############.................#
+############.................#
+############.................#
+############.................#
+############.................#
+############.@...............#
+##############################
+##############################
+##############################
+end
+give RopeLadder 1
+place 2 -1 -10 RopeLadder         // beside the cliff: it ties on at the lip
+expect 3 ladders == 1
+hold 10-40 up                     // climb
+expect 12 climbing == 1
+expect 40 py < 21                 // going up...
+expect 40 py > 15                 // ...at the ladder's pace (8 tiles/s)
+expect 70 climbing == 1           // keys off: still on the ladder
+expect 70 vy == 0                 // hanging still
+hold 80-220 up left               // on up and over the lip
+expect 240 py < 8                 // up on the cliff top
+expect 240 grounded == 1
+expect 240 px < 11                // standing on the cliff top

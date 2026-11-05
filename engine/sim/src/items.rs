@@ -31,7 +31,7 @@ impl World {
         let (x0, x1) = ((px - ITEM_HW).floor() as i32, (px + ITEM_HW - 1e-3).floor() as i32);
         let (y0, y1) = ((py - ITEM_HW).floor() as i32, (py + ITEM_HW - 1e-3).floor() as i32);
         for y in y0..=y1 { for x in x0..=x1 { if !self.g.in_bounds(x, y) || !self.passable(x as usize, y as usize) { return true; } } }
-        false
+        !self.tr.lifts.is_empty() && self.platform_hits_box(px, py, ITEM_HW) // a lift's cage floor
     }
     fn mat_at(&self, px: f32, py: f32) -> Mat { let (x, y) = (px.floor() as i32, py.floor() as i32); if self.g.in_bounds(x, y) { self.g.get(x as usize, y as usize) } else { Mat::Bedrock } }
     /// How much of the box is in liquid (0..1, from three samples down its middle) and the densest liquid there.

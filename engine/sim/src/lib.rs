@@ -16,6 +16,7 @@ pub mod items;
 pub mod blast;
 pub mod debris;
 pub mod transport;
+pub mod lifts;
 pub mod survival;
 pub mod ruins;
 pub mod lore;

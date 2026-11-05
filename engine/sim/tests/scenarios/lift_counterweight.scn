@@ -1,0 +1,57 @@
+// A lift in a 3.5 m shaft, balanced by hand. The cage (60 kg) with the mole on it (30 kg) is heavier than the
+// bare counterweight (40 kg), so it sits at the foot. Six stones of ballast loaded from the cage (60 kg more)
+// make the counterweight the heavier and it rises, carrying the mole to the top; the head's brake holds it
+// to 2 m/s. Take the six stones back and the cage sinks to the foot again.
+map
+##############################
+##############################
+#########............#########
+#########............#########
+#########............#########
+#########............#########
+#########............#########
+#########............#########
+#########............#########
+#########............#########
+#########............#########
+#########............#########
+#########............#########
+#########............#########
+#########............#########
+#########............#########
+#########..@.........#########
+##############################
+##############################
+end
+give Lift 1
+give Stone 10
+place 2 4 -2 Lift                 // the head hangs under the shaft's ceiling; the cage starts at the foot
+expect 3 lifts == 1
+expect 3 lifty > 14
+hold 5-20 right                   // step onto the cage (it spans the shaft's middle)
+expect 60 liftv == 0              // cage and mole outweigh the bare counterweight
+wield 61 Stone
+use 62 4 -1
+use 64 4 -1
+use 66 4 -1
+use 68 4 -1
+use 70 4 -1
+use 72 4 -1
+expect 73 ballast == 6
+expect 110 liftv < 0              // rising
+expect 110 liftv > -9             // no faster than the brake allows (8 tiles/s)
+expect 300 lifty < 5              // at the top of the shaft...
+expect 300 py < 5                 // ...with the mole on it
+expect 300 inv:Stone == 4
+wield 301 none
+use 302 4 -14
+use 304 4 -14
+use 306 4 -14
+use 308 4 -14
+use 310 4 -14
+use 312 4 -14
+expect 313 ballast == 0
+expect 600 lifty > 14             // down at the foot again, mole and all
+expect 600 py > 14
+saveload 601                      // the lift and its ballast are saved
+expect 602 lifts == 1

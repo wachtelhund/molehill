@@ -16,9 +16,9 @@ pub enum Item {
     // relics of the Ancients: found in ruins, never made (see ruins.rs)
     AncientBit, GroundLens,
     // transport (transport.rs)
-    Rail, Cart,
+    Rail, Cart, RopeLadder, Lift,
 }
-pub const NITEM: usize = 59;
+pub const NITEM: usize = 61;
 /// What an item can do in the world (see `Item::uses`).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Uses { pub place: bool, pub throw: bool, pub pick_up: bool }
@@ -32,7 +32,7 @@ pub const ITEMS: [Item; NITEM] = [
     Item::Ochre, Item::Rust, Item::Chalk, Item::Verdigris, Item::Woad, Item::Soot,
     Item::Table, Item::Stool, Item::Nest, Item::Shelf, Item::Rug, Item::Banner, Item::Planter,
     Item::AncientBit, Item::GroundLens,
-    Item::Rail, Item::Cart,
+    Item::Rail, Item::Cart, Item::RopeLadder, Item::Lift,
 ];
 /// Paint colours by pigment index (0 = unpainted): ochre, rust, chalk, verdigris, woad, soot.
 pub const PIGMENTS: [[u8; 3]; 7] = [[0, 0, 0], [206, 160, 70], [164, 70, 46], [232, 226, 210], [84, 162, 132], [74, 112, 190], [50, 46, 52]];
@@ -57,7 +57,7 @@ impl Item {
         if let Some(m) = self.mat() { return m.p().density; }
         match self {
             Charcoal => 400., CopperIngot => 8900., TinIngot => 7300., BronzeIngot => 8800., CopperWire => 3000., Thrummer | Gate | Vent => 2500.,
-            Tnt => 1500., Lamp => 2000., Pickaxe => 2500., Drill => 5000., Bore => 5500., Grub => 1050., Spore => 300., Mushroom => 600., FungusOil => 900., Root => 1100., AncientBit => 7000., GroundLens => 2600., Cart => 1200., Rug | Banner | Nest => 300., Ochre | Rust | Chalk | Verdigris | Woad | Soot => 1800.,
+            Tnt => 1500., Lamp => 2000., Pickaxe => 2500., Drill => 5000., Bore => 5500., Grub => 1050., Spore => 300., Mushroom => 600., FungusOil => 900., Root => 1100., AncientBit => 7000., GroundLens => 2600., Cart => 1200., RopeLadder => 500., Lift => 3000., Rug | Banner | Nest => 300., Ochre | Rust | Chalk | Verdigris | Woad | Soot => 1800.,
             _ => 2000.,
         }
     }
@@ -70,10 +70,10 @@ impl Item {
     /// (a crafting material). Blocks, copperline, devices, torches and tools are never thrown.
     pub fn uses(self) -> Uses {
         use Item::*;
-        let place = matches!(self, WoodPillar | Brick | IronBeam | CopperWire | Torch | Tnt | Lamp | Vent | Spore) || self.block().is_some() || self.pigment().is_some() || self.furn().is_some() || matches!(self, Cart);
+        let place = matches!(self, WoodPillar | Brick | IronBeam | CopperWire | Torch | Tnt | Lamp | Vent | Spore) || self.block().is_some() || self.pigment().is_some() || self.furn().is_some() || matches!(self, Cart | RopeLadder | Lift);
         let throw = matches!(self, Dirt | Clay | Sand | Gravel | Stone | Coal | CopperOre | TinOre | IronOre | Quartz | Crystal | Wood | Fungus
             | Charcoal | CopperIngot | TinIngot | BronzeIngot | IronIngot | Grub | Spore | Mushroom | Tnt | FungusOil | Root);
-        Uses { place, throw, pick_up: matches!(self, CopperWire | Torch | Tnt | Lamp | Vent | Cart) || self.furn().is_some() }
+        Uses { place, throw, pick_up: matches!(self, CopperWire | Torch | Tnt | Lamp | Vent | Cart | RopeLadder | Lift) || self.furn().is_some() }
     }
     /// One line naming the inputs for the item in hand (hover tooltip and the hint over the hotbar).
     pub fn controls(self) -> &'static str {
@@ -83,6 +83,8 @@ impl Item {
             WoodPillar | Brick | IronBeam | Planks | PolishedStone | Tiles | CarvedPillar => "Left mouse: build (hold to keep building)",
             Rail => "Left mouse: lay track (X: snap to a straight line) · carts run along its top",
             Cart => "Left mouse: set on the track · right mouse: get in · walk into it: push · E: unload, then pick up",
+            RopeLadder => "Left mouse: hang from the rock above (it unrolls to the floor) · W/S: climb · E: take down",
+            Lift => "Left mouse: hang the head under a shaft's ceiling · right mouse on the head: stone on (stone in paw) or off · E: take down",
             Ochre | Rust | Chalk | Verdigris | Woad | Soot => "Left mouse: paint blocks, or dye a rug, banner or nest (hold to keep painting)",
             Table | Stool | Nest | Shelf | Rug | Planter => "Left mouse: set down on the floor · E: pick up",
             Banner => "Left mouse: hang from the ceiling · E: pick up",
@@ -114,7 +116,7 @@ impl Item {
          "Pickaxe", "Drill", "Bore", "Grub", "Spore", "Mushroom", "Vent", "Glowmite", "Fungus oil", "Root",
          "Planks", "Polished stone", "Tiles", "Carved pillar",
          "Ochre", "Rust", "Chalk", "Verdigris", "Woad", "Soot",
-         "Table", "Stool", "Nest", "Shelf", "Rug", "Banner", "Fungus planter", "Ancient bit", "Ground lens", "Rail", "Mine cart"][self as usize]
+         "Table", "Stool", "Nest", "Shelf", "Rug", "Banner", "Fungus planter", "Ancient bit", "Ground lens", "Rail", "Mine cart", "Rope ladder", "Lift"][self as usize]
     }
     /// One plain line for the hover tooltip: what it is and what it's for.
     pub fn desc(self) -> &'static str {
@@ -142,7 +144,9 @@ impl Item {
          "A relic of the Ancients: a bit of a metal no forge makes now. Carried, every bite digs a quarter faster.",
          "A relic of the Ancients: a lens ground true. Carried, the headlamp burns half the oil.",
          "Track: copper straps on wooden sleepers. Lay it on a floor; mine carts run along it, downhill on their own.",
-         "A copper-bound cart on four wheels. Push it, ride it, throw cargo in. Rolls downhill on its own."][self as usize]
+         "A copper-bound cart on four wheels. Push it, ride it, throw cargo in. Rolls downhill on its own.",
+         "Fungus-fibre rope and wooden rungs. Hang it from a ledge: it unrolls up to 8 m. Slow, but needs no power.",
+         "A cage on a rope with a counterweight. Load stone on to lift the cage, or wind it with current."][self as usize]
     }
     pub fn color(self) -> [u8; 3] {
         use Item::*;
@@ -155,7 +159,7 @@ impl Item {
             Gate => [120, 220, 160], Tnt => [220, 60, 50], Lamp => [255, 240, 170], Pickaxe => [160, 156, 150], Drill => [205, 150, 70], Bore => [200, 205, 220], Grub => [235, 215, 170], Spore => [200, 170, 230], Mushroom => [214, 120, 90], Vent => [150, 200, 210], Glowmite => [190, 255, 160], FungusOil => [200, 220, 120], Root => [190, 140, 90],
             Planks => [182, 134, 84], PolishedStone => [176, 170, 160], Tiles => [190, 108, 74], CarvedPillar => [164, 158, 148],
             Ochre | Rust | Chalk | Verdigris | Woad | Soot => PIGMENTS[self.pigment().unwrap_or(0) as usize],
-            Table | Stool | Shelf => [160, 112, 66], Nest => [150, 170, 110], Rug => [176, 92, 70], Banner => [200, 70, 60], Planter => [110, 200, 130], AncientBit => [150, 200, 210], GroundLens => [210, 235, 250], Rail => [150, 120, 84], Cart => [130, 96, 60],
+            Table | Stool | Shelf => [160, 112, 66], Nest => [150, 170, 110], Rug => [176, 92, 70], Banner => [200, 70, 60], Planter => [110, 200, 130], AncientBit => [150, 200, 210], GroundLens => [210, 235, 250], Rail => [150, 120, 84], Cart => [130, 96, 60], RopeLadder => [170, 140, 90], Lift => [150, 150, 160],
         }
     }
 }
@@ -222,6 +226,7 @@ pub static RECIPES: &[Recipe] = &[
     Recipe { name: "Rug", station: Station::Workbench, inputs: &[(Item::Fungus, 4)], out: (Item::Rug, 1), ticks: 90 },
     Recipe { name: "Banner", station: Station::Workbench, inputs: &[(Item::Fungus, 2), (Item::Wood, 1)], out: (Item::Banner, 1), ticks: 90 },
     Recipe { name: "Fungus planter", station: Station::Workbench, inputs: &[(Item::Wood, 2), (Item::Fungus, 2), (Item::Dirt, 2)], out: (Item::Planter, 1), ticks: 90 },
+    Recipe { name: "Rope ladder", station: Station::Workbench, inputs: &[(Item::Wood, 2), (Item::Fungus, 2)], out: (Item::RopeLadder, 1), ticks: 90 },
     Recipe { name: "TNT", station: Station::Workbench, inputs: &[(Item::Coal, 2), (Item::Sand, 2)], out: (Item::Tnt, 1), ticks: 90 },
     // forge: heat. Smelting, firing, metalwork (tier 2 copper, tier 3 iron, and the Bore)
     Recipe { name: "Brick x4", station: Station::Forge, inputs: &[(Item::Clay, 2)], out: (Item::Brick, 4), ticks: 120 },
@@ -239,6 +244,8 @@ pub static RECIPES: &[Recipe] = &[
     Recipe { name: "Mine cart", station: Station::Forge, inputs: &[(Item::CopperIngot, 2), (Item::Wood, 4)], out: (Item::Cart, 1), ticks: 200 },
     Recipe { name: "Bore", station: Station::Forge, inputs: &[(Item::IronIngot, 6), (Item::CopperIngot, 2), (Item::Crystal, 2)], out: (Item::Bore, 1), ticks: 300 },
     // workshop: copperline and power. Machines and fine parts
+    // vertical travel: a rope ladder (tier 1: wood and fungus fibre), a counterweighted lift (tier 3: iron)
+    Recipe { name: "Lift", station: Station::Workshop, inputs: &[(Item::IronIngot, 2), (Item::Wood, 4), (Item::CopperIngot, 1)], out: (Item::Lift, 1), ticks: 240 },
     Recipe { name: "Drill", station: Station::Workshop, inputs: &[(Item::CopperIngot, 3), (Item::TinIngot, 2)], out: (Item::Drill, 1), ticks: 240 },
     Recipe { name: "Knot", station: Station::Workshop, inputs: &[(Item::CopperIngot, 1), (Item::Quartz, 1)], out: (Item::Gate, 1), ticks: 100 },
     Recipe { name: "Thrummer", station: Station::Workshop, inputs: &[(Item::Crystal, 2), (Item::CopperIngot, 2), (Item::Glass, 1)], out: (Item::Thrummer, 1), ticks: 200 },

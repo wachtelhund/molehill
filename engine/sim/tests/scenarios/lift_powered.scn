@@ -1,0 +1,38 @@
+// A lift wound by power: copperline at its head carrying current turns the winch, which winds the cage up at
+// 1.5 m/s with no ballast at all (the cage and mole outweigh the bare counterweight). Lever off and the
+// balance takes over: the heavier cage sinks back to the foot.
+map
+##############################
+##############################
+#########............#########
+#########............#########
+#########............#########
+#########............#########
+#########............#########
+#########............#########
+#########............#########
+#########............#########
+#########............#########
+#########............#########
+#########............#########
+#########............#########
+#########............#########
+#########............#########
+#########..@.........#########
+##############################
+##############################
+end
+give Lift 1
+give CopperWire 4
+place 2 4 -2 Lift
+wire 2 4 -14 8 -14                // copperline at the head, along under the ceiling and down the wall
+wire 2 8 -14 8 -10
+device 2 8 -10 Lever
+hold 5-20 right                   // onto the cage
+expect 60 liftv == 0
+use 61 8 -10                      // lever on
+expect 100 liftv < -5             // winding up at 1.5 m/s (6 tiles/s)
+expect 300 lifty < 5              // up at the head
+expect 300 py < 5                 // with the mole
+use 301 8 -10                     // lever off
+expect 600 lifty > 14             // down at the foot again

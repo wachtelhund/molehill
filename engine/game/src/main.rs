@@ -797,7 +797,7 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
             else if m.hp < 40. { Color::srgb(1., 0.6, 0.6) } else { let l = lightf(m.x, m.y - S).to_srgba(); let v = l.red.max(0.55); Color::srgb(v, v, v) };
         // pose: dig > climb > air > run > idle. Run and climb phases follow distance moved, so feet don't skate.
         let (pose, ph) = if pl.mine.is_some() { (art::Pose::Dig, (now * 14.) as u32) }
-            else if pl.cling != 0 { (art::Pose::Climb, (pl.py / (1.2 * SF)).abs() as u32) }
+            else if pl.cling != 0 || w.tr.climbing { (art::Pose::Climb, (pl.py / (1.2 * SF)).abs() as u32) }
             else if !pl.grounded { (if pl.vy < 2. * SF { art::Pose::Jump } else { art::Pose::Fall }, 0) }
             else if pl.vx.abs() > 0.5 * SF { (art::Pose::Run, (pl.px / (1.1 * SF)).abs() as u32) }
             else { (art::Pose::Idle, (now * 1.6) as u32) };
@@ -924,6 +924,32 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
             want.push((32, k, mid + Vec2::new(0., ch / 2. + 1. + 2. * n), z - 0.02, sp.px.clone(), Vec2::new(cw - 4., 2. + 4. * n), false, lit(col[0] as f32 / 255., col[1] as f32 / 255., col[2] as f32 / 255.))); }
         for (j, s) in [-1f32, 1.].into_iter().enumerate() {
             want.push((33, k * 2 + j, cell_to_world(x, y) + Vec2::new(s * (cw / 2. - 3.), 2.5), z + 0.02, sp.px.clone(), Vec2::splat(5.), false, lit(0.2, 0.18, 0.17))); }
+    }
+    // rope ladders: two fibre ropes with wooden rungs every 0.25 m, lit where they hang
+    for (k, l) in w.tr.ladders.iter().enumerate() {
+        if w.g.flags[l.top.min(H - 1) * W + l.x.min(W - 1)] & F_SEEN == 0 { continue; }
+        let lt = lightf(l.x, l.top + l.len / 2).to_srgba(); let rope = Color::srgb(0.62 * lt.red, 0.5 * lt.green, 0.32 * lt.blue); let rung = Color::srgb(0.55 * lt.red, 0.38 * lt.green, 0.22 * lt.blue);
+        let (xc, y0, len) = (l.x as f32 + 0.5, l.top as f32, l.len as f32);
+        let mid = cell_to_world(xc, y0 + len / 2.);
+        for (j, s) in [-1f32, 1.].into_iter().enumerate() { want.push((34, k * 2 + j, mid + Vec2::new(s * 0.9 * SF * CPX, 0.), 3.9, sp.px.clone(), Vec2::new(1., len * CPX), false, rope)); }
+        for j in 0..(l.len / S) { want.push((35, k * 64 + j, cell_to_world(xc, y0 + (j * S) as f32 + 0.5 * SF), 3.95, sp.px.clone(), Vec2::new(1.8 * SF * CPX, 1.), false, rung)); }
+    }
+    // lifts: the head frame under the ceiling, the rope down to the cage floor, the cage's rails, and the
+    // counterweight on its own rope beside the shaft wall (it rises as the cage sinks)
+    for (k, l) in w.tr.lifts.iter().enumerate() {
+        if w.g.flags[l.head.min(H - 1) * W + l.x.min(W - 1)] & F_SEEN == 0 { continue; }
+        let y = l.py + (l.y - l.py) * a; let (x0, _, x1, _) = l.cage(); let xc = (x0 + x1) / 2.; let cw = x1 - x0;
+        let lt = lightf(l.x, l.head + 2).to_srgba(); let lit = |r: f32, gg: f32, b: f32| Color::srgb(r * lt.red, gg * lt.green, b * lt.blue);
+        let head = l.head as f32;
+        want.push((36, k, cell_to_world(xc, head + 0.5 * SF), 3.9, sp.px.clone(), Vec2::new(cw * CPX + 4., SF * CPX), false, lit(0.45, 0.33, 0.2)));
+        want.push((37, k, cell_to_world(xc, head + SF), 3.95, sp.px.clone(), Vec2::splat(SF * CPX * 1.2), false, lit(0.6, 0.6, 0.66)));
+        want.push((38, k, cell_to_world(xc, (head + SF + y) / 2.), 3.8, sp.px.clone(), Vec2::new(1., (y - head - SF).max(0.) * CPX), false, lit(0.55, 0.48, 0.36)));
+        let cl = lightf(xc as usize, (y as usize).saturating_sub(1)).to_srgba(); let cage = |r: f32, gg: f32, b: f32| Color::srgb(r * cl.red, gg * cl.green, b * cl.blue);
+        want.push((39, k, cell_to_world(xc, y + 0.5), 4.3, sp.px.clone(), Vec2::new(cw * CPX, CPX), false, cage(0.62, 0.6, 0.62)));
+        for (j, s) in [-1f32, 1.].into_iter().enumerate() { want.push((40, k * 2 + j, cell_to_world(xc + s * (cw / 2. - 0.5), y - 1.5 * SF), 4.3, sp.px.clone(), Vec2::new(1.5, 3. * SF * CPX), false, cage(0.5, 0.5, 0.55))); }
+        want.push((41, k, cell_to_world(xc, y - 3. * SF), 4.3, sp.px.clone(), Vec2::new(cw * CPX, 1.5), false, cage(0.5, 0.5, 0.55)));
+        let cwy = head + SF + (l.bottom as f32 - 1. - y).max(0.); let cwx = x1 - 1.;
+        want.push((42, k, cell_to_world(cwx, cwy + SF), 3.7, sp.px.clone(), Vec2::new(1.5 * SF * CPX, 2. * SF * CPX), false, lit(0.4, 0.38, 0.36)));
     }
     for (k, c) in w.chests.iter().enumerate() { if w.g.flags[c.y * W + c.x] & F_SEEN == 0 || w.g.is_solidish(c.y * W + c.x) && !c.opened { continue; } want.push((2, k, cell_to_world(c.x as f32 + 0.5 * SF, c.y as f32 + 1. - 1.1 * SF), 3., sp.chest[c.opened as usize].clone(), Vec2::new(16., 13.), false, lightf(c.x, c.y))); }
     for (k, b) in w.buildings.iter().enumerate() { want.push((3, k, cell_to_world(b.x as f32 + Station::W as f32 / 2., b.y as f32 + 1. - Station::H as f32 / 2.), 2., sp.station[b.kind.art() as usize][b.built as usize].clone(), Vec2::new(Station::W as f32 * CPX, Station::H as f32 * CPX), false, lightf(b.x + 5 * S, b.y - 2 * S))); }

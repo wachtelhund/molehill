@@ -62,7 +62,7 @@ impl Cart {
 }
 
 /// Pack items that go down whole as a transport machine (`World::place_transport`).
-pub fn is_machine(it: Item) -> bool { matches!(it, Item::Cart) }
+pub fn is_machine(it: Item) -> bool { matches!(it, Item::Cart | Item::RopeLadder | Item::Lift) }
 
 /// Everything transport keeps between ticks.
 #[derive(Clone, Debug, Default)]
@@ -70,6 +70,8 @@ pub struct Transport {
     pub carts: Vec<Cart>,
     /// the cart the mole rides, if any
     pub riding: Option<usize>,
+    /// rope ladders and lifts (see lifts.rs), and whether the mole is on a ladder
+    pub ladders: Vec<crate::lifts::Ladder>, pub lifts: Vec<crate::lifts::Lift>, pub climbing: bool,
 }
 
 impl World {
@@ -119,6 +121,11 @@ impl World {
                 self.tr.carts.push(Cart { x: xf, y, px: xf, py: y, v: 0., vy: 0., dir: self.moles.first().map_or(1, |m| m.facing), on_rail: false, cargo: vec![] });
                 self.events.push(Event::Place); Ok(true)
             }
+            Item::RopeLadder | Item::Lift => {
+                if self.inv[it as usize] == 0 { return Err("none left"); }
+                if it == Item::RopeLadder { self.place_ladder(x, y)?; } else { self.place_lift(x, y)?; }
+                self.inv[it as usize] -= 1; Ok(true)
+            }
             _ => Ok(false),
         }
     }
@@ -129,7 +136,7 @@ impl World {
             if self.tr.riding == Some(k) { self.leave_cart(); } else { self.tr.riding = Some(k); self.say("In the cart. Space to jump out.".into()); }
             self.events.push(Event::Click); return true;
         }
-        false
+        self.use_lift(x, y)
     }
     fn leave_cart(&mut self) {
         if let Some(k) = self.tr.riding.take() { let c = &self.tr.carts[k];
@@ -138,7 +145,7 @@ impl World {
     }
     /// `E` on a cart: take its cargo into the pack; an empty cart (nobody in it) comes up itself.
     pub fn pick_up_transport(&mut self, x: usize, y: usize) -> Option<Item> {
-        let k = self.cart_at(x, y)?;
+        let Some(k) = self.cart_at(x, y) else { return self.pick_up_lift(x, y) };
         if !self.tr.carts[k].cargo.is_empty() { for (it, n) in std::mem::take(&mut self.tr.carts[k].cargo) { self.inv[it as usize] += n; } return Some(Item::Cart); }
         if self.tr.riding == Some(k) { return None; }
         self.tr.carts.remove(k); if let Some(r) = self.tr.riding { if r > k { self.tr.riding = Some(r - 1); } }
@@ -219,6 +226,7 @@ impl World {
                 self.tr.carts[a].v = na * 0.9; self.tr.carts[b].v = nb * 0.9; self.events.push(Event::Click);
             } } }
         self.push_carts();
+        self.step_lifts();
     }
 
     /// The mole walking into a cart pushes it: a force on the cart's mass, and the mole is held at its side
@@ -267,21 +275,33 @@ impl World {
             if riding == Some(k as i64) { new_ride = Some(keep.len()); } keep.push(c);
         }
         self.tr.carts = keep; self.tr.riding = new_ride;
+        let (dr, hh) = (rows, h as i64);
+        self.tr.ladders.retain_mut(|l| { let t = l.top as i64 - dr; let a = l.ay as i64 - dr; if t < 1 || a < 0 || t + l.len as i64 >= hh { return false; } l.top = t as usize; l.ay = a as usize; true });
+        self.tr.lifts.retain_mut(|l| { let hd = l.head as i64 - dr; let b = l.bottom as i64 - dr; if hd < 1 || b >= hh - 1 { return false; } l.head = hd as usize; l.bottom = b as usize; l.y -= dy; l.py -= dy; true });
     }
     /// Save: the carts (window-relative cells) and their cargo.
     pub fn encode_transport(&self) -> Vec<u8> {
-        let mut o = crate::band::Wr(vec![]); o.u8(1);
+        let mut o = crate::band::Wr(vec![]); o.u8(2);
         o.u32(self.tr.carts.len() as u32);
         for c in &self.tr.carts { o.f32(c.x); o.f32(c.y); o.f32(c.v); o.u8((c.dir + 1) as u8); o.u32(c.cargo.len() as u32); for &(it, n) in &c.cargo { o.u8(it as u8); o.u32(n); } }
+        // v2: ladders and lifts
+        o.u32(self.tr.ladders.len() as u32); for l in &self.tr.ladders { o.u32(l.x as u32); o.u32(l.top as u32); o.u32(l.len as u32); o.u32(l.ax as u32); o.u32(l.ay as u32); }
+        o.u32(self.tr.lifts.len() as u32); for l in &self.tr.lifts { o.u32(l.x as u32); o.u32(l.head as u32); o.f32(l.y); o.u32(l.bottom as u32); o.u32(l.ballast); }
         o.0
     }
     pub fn decode_transport(&mut self, b: &[u8]) -> Result<(), String> {
-        let mut r = crate::band::Rd { b, p: 0 }; let _ver = r.u8()?;
+        let mut r = crate::band::Rd { b, p: 0 }; let ver = r.u8()?;
         let (gw, gh) = (self.g.w as f32, self.g.h as f32);
         for _ in 0..r.len(4096)? {
             let (x, y, v, dir) = (r.f32()?, r.f32()?, r.f32()?, r.u8()? as i8 - 1);
             let mut cargo = vec![]; for _ in 0..r.len(NITEM)? { let (it, n) = (r.u8()?, r.u32()?); if (it as usize) < NITEM { cargo.push((crate::craft::ITEMS[it as usize], n)); } }
             if x > 1. && x < gw - 1. && y > 1. && y < gh - 1. { self.tr.carts.push(Cart { x, y, px: x, py: y, v, vy: 0., dir: dir.signum().max(-1), on_rail: false, cargo }); }
+        }
+        if ver >= 2 {
+            let (w, h) = (self.g.w, self.g.h);
+            for _ in 0..r.len(4096)? { let (x, top, len, ax, ay) = (r.u32()? as usize, r.u32()? as usize, r.u32()? as usize, r.u32()? as usize, r.u32()? as usize); if x < w && ax < w && top > 0 && top + len < h && ay < h { self.tr.ladders.push(crate::lifts::Ladder { x, top, len, ax, ay }); } }
+            for _ in 0..r.len(4096)? { let (x, head, y, bottom, ballast) = (r.u32()? as usize, r.u32()? as usize, r.f32()?, r.u32()? as usize, r.u32()?);
+                if x < w && head > 0 && bottom < h - 1 && y.is_finite() { self.tr.lifts.push(crate::lifts::Lift { x, head, y, py: y, v: 0., bottom, ballast }); } }
         }
         Ok(())
     }

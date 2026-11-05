@@ -38,6 +38,12 @@ impl Run {
             "cartrail" => self.w.tr.carts.first().map_or(0., |c| c.on_rail as u8 as f64),
             "cartgap" => self.w.tr.carts.first().map_or(0., |c| (c.x - self.w.pl.px) as f64 / kf),
             "cartpow" => self.w.tr.carts.first().map_or(0., |c| self.w.rail_powered(c.x.max(0.) as usize, c.y.max(0.) as usize) as u8 as f64),
+            // ladders and lifts: how many; whether the mole is on a ladder; the first lift's cage floor (tiles from
+            // the map top), its speed (tiles/s, + = down) and its counterweight's ballast (stones)
+            "ladders" => self.w.tr.ladders.len() as f64, "climbing" => self.w.tr.climbing as u8 as f64, "lifts" => self.w.tr.lifts.len() as f64,
+            "lifty" => self.w.tr.lifts.first().map_or(-1., |l| (l.y - self.oy as f32) as f64 / kf),
+            "liftv" => self.w.tr.lifts.first().map_or(0., |l| l.v as f64 / kf),
+            "ballast" => self.w.tr.lifts.first().map_or(0., |l| l.ballast as f64),
             "riding" => self.w.tr.riding.is_some() as u8 as f64,
             "debris" => self.w.debris.len() as f64 / (K * K) as f64,
             "front" => self.w.waves.last().map_or(-1., |v| v.front_m(self.w.tick) as f64),

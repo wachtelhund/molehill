@@ -75,13 +75,13 @@ Making the holt **look like home** is a core goal, not a side feature. A Delver 
 
 The deeper the holt reaches, the further its Delvers have to haul, so travel climbs the same tier ladder as everything else. Every way of getting about is a machine you build, which runs on weight, water, heat and current.
 
-> **Built:** rails and mine carts (tier 2, copper): track as a built block, carts that roll downhill by gravity, are pushed, ridden and loaded, and stop at the end of the track. **Powered rails**: copperline laid along the track drives carts while it carries current, so they climb, and a lever or knot switches the line. Details: [Transport](Transport.md). Next: ladders and lifts, then pressure tubes.
+> **Built:** rails and mine carts (tier 2, copper): track as a built block, carts that roll downhill by gravity, are pushed, ridden and loaded, and stop at the end of the track. **Powered rails**: copperline laid along the track drives carts while it carries current, so they climb, and a lever or knot switches the line. **Rope ladders** (tier 1) and counterweighted **lifts** (tier 3), balanced with stone by hand or wound up by current. Details: [Transport](Transport.md). Next: pressure tubes.
 
 | tier | transport | how it works |
 |---|---|---|
 | **2** (**built**) | **Rails and mine carts** | Laid track and a cart that carries cargo (ore, stone, wood, a Delver). Push it on the level; on a slope, gravity does the work and it runs downhill on its own. Track needs support like any built block |
-| **2–3** | **Rope ladders** | Cheap vertical access down a shaft. Slow, but needs no power |
-| **3–4** | **Lifts** | A platform on a counterweight. A loaded cage rises when the counterweight is heavier, so loads are balanced by hand at first and driven by power later |
+| **1** (**built**) | **Rope ladders** | Cheap vertical access down a shaft. Slow, but needs no power |
+| **3–4** (**built**) | **Lifts** | A platform on a counterweight. A loaded cage rises when the counterweight is heavier, so loads are balanced by hand at first and driven by power later |
 | **4** (**built**) | **Powered rails** | Track with copperline laid along it, fed by a water wheel or heatstone. Carts run faster and can climb. A lever or knot can switch them, so a powered line can be automated with the same logic as doors and pumps |
 | **5** | **Pressure tubes** | A sealed tube network that blows capsules along it with air pressure from pumps. Fast and long-distance, and it climbs as easily as it runs flat. Tubes must hold their pressure: a cave-in or a breach stops the line |
 | **6** | **Ancient waygates** | The endgame network: see below |
@@ -158,6 +158,6 @@ Everything the Ancients built obeys the same physics as everything else: weight,
 | Decor | **built:** furniture, decorative blocks and pigments (see [Tools and Items](Tools-and-Items.md#furnishing)); back walls not yet | furniture, decorative blocks, back walls, dyes |
 | Colony | one mole | Delvers move in when the holt is comfortable |
 | Late game | **built:** the Lid myth as clues and a journal, denser higher up (see [Lore](Lore.md#the-lid-in-the-game)) | Ancient facilities, ruins, relics, the Lid myth |
-| Travel | walking, climbing, digging; **built:** rails and mine carts, powered rails | carts and rails, ladders and lifts, powered rails, pressure tubes; Ancient waygates (open decision) |
+| Travel | walking, climbing, digging; **built:** rails and mine carts, powered rails, rope ladders, lifts | carts and rails, ladders and lifts, powered rails, pressure tubes; Ancient waygates (open decision) |
 
 Any of these that gets built should move from this page into the page that describes the system, as it lands on `main`.

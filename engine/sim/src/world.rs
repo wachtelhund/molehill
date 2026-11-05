@@ -752,7 +752,7 @@ impl World {
         let (x0, x1) = ((px - BODY_HW).floor() as i32, (px + BODY_HW - 1e-3).floor() as i32);
         let (y0, y1) = ((py - BODY_H).floor() as i32, (py - 1e-3).floor() as i32);
         for y in y0..=y1 { for x in x0..=x1 { if !self.g.in_bounds(x, y) || !self.passable(x as usize, y as usize) { return true; } } }
-        false
+        !self.tr.lifts.is_empty() && self.platform_hits(px, py) // a lift's cage floor
     }
     fn body_fluid_at(&self, px: f32, py: f32) -> (bool, bool) {
         let (x, ym) = (px as usize, (py - BODY_H * 0.5) as usize); if x >= self.g.w || ym >= self.g.h { return (false, false); }
@@ -868,6 +868,8 @@ impl World {
             else if c != 0 && self.side_wall_at(self.pl.px, self.pl.py, c, 1.1 * SF) { c } else { 0 };
         // grab as soon as the rise has slowed to climbing speed (no float up to the apex first)
         self.pl.cling = if !ground && !wet && !lava && self.pl.mantle <= 0. && side != 0 && (self.pl.vy >= -t.climb || c != 0) && !(dir == -side) { side as i8 } else { 0 };
+        // on a rope ladder (transport, lifts.rs): no cling, and a jump off it counts as from the ground
+        let climbing = self.ladder_climb(ground, jump_edge); if climbing { self.pl.cling = 0; self.pl.coyote = t.coyote; }
         if self.pl.cling != 0 { self.pl.wall_t = t.coyote; self.pl.wall_side = self.pl.cling; } else if ground { self.pl.wall_t = 0.; } else { self.pl.wall_t = (self.pl.wall_t - dt).max(0.); }
         if dir != 0 { self.moles[0].facing = dir as i8; }
         let swim = if lava { t.lava_mul } else if wet { t.swim_mul } else { 1. };
@@ -878,7 +880,11 @@ impl World {
         let a = if ground { if dir == 0 || (target * self.pl.vx) < 0. { t.ground_decel } else { t.ground_accel } } else if dir == 0 { t.air_decel } else { t.air_accel } * dt;
         self.pl.vx += (target - self.pl.vx).clamp(-a, a);
         // vertical
-        if self.pl.mantle > 0. {
+        if climbing {
+            // hands on the rungs: W/S climb at the ladder's pace, and it hangs still otherwise (no slide)
+            self.pl.vy = if inp.up { -crate::lifts::LADDER_UP } else if inp.down { crate::lifts::LADDER_DOWN } else { 0. };
+            self.pl.vx = self.pl.vx.clamp(-4. * SF, 4. * SF);
+        } else if self.pl.mantle > 0. {
             // rolling over the ledge: carried sideways onto the top at the ledge's height
             self.pl.mantle -= dt; self.pl.vy = 0.; self.pl.vx = self.pl.wall_side as f32 * t.mantle_v;
             if self.pl.buffer > 0. { self.pl.mantle = 0.; self.pl.vy = -t.jump_v; self.pl.buffer = 0.; self.pl.coyote = 0.; }

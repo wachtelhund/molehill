@@ -1,12 +1,13 @@
 # Transport
 
-The deeper the holt goes, the further its Delvers haul, so getting about is a ladder of machines you build. They run on weight, slope, friction and current, like everything else (see [Lore](Lore.md): no magic, nothing modern). The code is `engine/sim/src/transport.rs`.
+The deeper the holt goes, the further its Delvers haul, so getting about is a ladder of machines you build. They run on weight, slope, friction and current, like everything else (see [Lore](Lore.md): no magic, nothing modern). The code is `engine/sim/src/transport.rs` (carts) and `lifts.rs` (ladders and lifts).
 
 | tier | machine | state |
 |---|---|---|
 | 2 | **Rails and mine carts** | **built** |
 | 4 | **Powered rails** (copperline along the track) | **built** |
-| 2–4 | Rope ladders and lifts | to come |
+| 1 | **Rope ladders** | **built** |
+| 3–4 | **Lifts** (counterweight, or wound by current) | **built** |
 | 5 | Pressure tubes | to come |
 
 The Ancients' tube stations and waygates in the ruins stay broken: they are endgame finds, not working lines (see [World and Generation](World-and-Generation.md#ruins-of-the-ancients)).
@@ -52,11 +53,36 @@ There is no separate powered rail: **copperline laid along the track** (in the s
 
 `powered_rail_climbs`: a cart at the foot of a 1-in-3 climb sits still on dead track. The lever drives it up, along the top, into the bumper and back down. Lever off while it runs down, and it coasts to the foot and stops.
 
+## Rope ladders
+
+Cheap vertical access that needs no power.
+* **Hanging one.** Left mouse in a drop hangs a ladder from the nearest rock above: a ceiling over it, or the lip of a ledge beside it (the rope tied on the ledge's top, hanging down its face). It unrolls straight down until it meets the floor, at most 8 m.
+* **Climbing.** Over a ladder, `W` / `S` grab on and climb: 2 m/s up and 2.5 m/s down, slower than a wall climb (2.6 m/s). But let go of the keys and you hang still: there's no slide as there is on a wall. Climb on past the top to roll onto the ledge. A jump lets go and counts as a jump from the ground (`rope_ladder_climb`).
+* **It hangs from its rock.** Dig out the rock it's tied to and the ladder falls as a loose item (`rope_ladder_falls`). A floor that rises under it (sand, a block) shortens it. `E` takes it down.
+
+## Lifts
+
+A **lift** is a cage on a rope over a head frame, balanced by a counterweight. Left mouse in a shaft hangs the head under the shaft's ceiling, as far up as its 32 m rope reaches. The 1.5 m cage starts at the shaft's floor. The cage floor is a platform: the mole stands on it and rides with it, and loose items lie on it.
+
+| | value |
+|---|---|
+| cage | 60 kg, plus 30 kg with a mole on it and 5 kg per item lying on it |
+| counterweight | 40 kg frame plus 10 kg per stone of ballast |
+| balance | a = g·(counterweight − cage) / (counterweight + cage), held to 2 m/s by the head's brake |
+| winch | wound by current: up at 1.5 m/s whatever it carries |
+
+* **Balanced by hand.** Right mouse on the head or the cage with stone in the paw adds a stone of ballast. Right mouse with anything else takes one back into the pack. The cage rises while the counterweight is the heavier, and sinks while it isn't. A mole on the cage (90 kg together) needs six stones (100 kg) to go up. Take them back off at the top and it comes down again (`lift_counterweight`).
+* **Driven by power.** Copperline at the head carrying current turns the winch and winds the cage up, with no ballast needed. Cut the current and the balance takes over: an unballasted cage sinks back down (`lift_powered`).
+* **The shaft must be clear.** Anything in the way (a cave-in, a block) stops the cage there. If the ceiling the head hangs from goes, the head comes down: the lift and its ballast fall as loose items. `E` on the head takes the lift down, ballast and all.
+* Ladders, lifts and their ballast are saved.
+
 ## Making them
 
-| station | makes | from |
-|---|---|---|
-| Forge | 8 rail | 1 copper ingot + 1 wood |
-| Forge | mine cart | 2 copper ingots + 4 wood |
+| station | makes | from | tier |
+|---|---|---|---|
+| Workbench | rope ladder | 2 wood + 2 fungus | 1 |
+| Forge | 8 rail | 1 copper ingot + 1 wood | 2 |
+| Forge | mine cart | 2 copper ingots + 4 wood | 2 |
+| Workshop | lift | 2 iron ingots + 4 wood + 1 copper ingot | 3 |
 
-Both are tier 2 (copper): they need no iron, so they come before the drill (test `transport_is_reachable_in_survival`). Creative has 999 of each (`creative_has_transport_freely`).
+Rails and carts need no iron, so they come before the drill. The lift needs iron and the workshop, so it comes after the drill (test `transport_is_reachable_in_survival`). Creative has 999 of each (`creative_has_transport_freely`).
