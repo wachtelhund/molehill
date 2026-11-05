@@ -12,7 +12,8 @@ use std::collections::VecDeque;
 /// v3: endless Deepholt (window offset, cached rows), farms, stale air. Older (surface-world) saves are refused.
 pub const VERSION: u32 = 3;
 const MAGIC: &[u8; 8] = b"MOLEHILL";
-const ENGINE: &str = "bevy-v3";
+/// The engine tag also names the cell resolution: a save at another cells-per-metre won't load.
+const ENGINE: &str = if crate::mat::CPM == 4 { "bevy-v3" } else if crate::mat::CPM == 8 { "bevy-v3-cpm8" } else { "bevy-v3-cpm?" };
 
 struct Wr(Vec<u8>);
 impl Wr {
@@ -77,7 +78,9 @@ pub fn load(b: &[u8]) -> R<World> {
     if r.take(8).map_err(|_| "not a Molehill save".to_string())? != MAGIC { return Err("not a Molehill save".into()); }
     let ver = r.u32()?; if ver > VERSION { return Err(format!("save version {ver} is newer than this build ({VERSION})")); }
     if ver < 3 { return Err("old save from the surface world - start a new holt (N)".into()); }
-    let eng = r.str()?; if eng != ENGINE { return Err(format!("save is from engine '{eng}', expected '{ENGINE}'")); }
+    let eng = r.str()?;
+    if eng != ENGINE && eng.starts_with("bevy-v3") { return Err("save is from an older, coarser Deepholt - start a new holt (N)".into()); }
+    if eng != ENGINE { return Err(format!("save is from engine '{eng}', expected '{ENGINE}'")); }
     let (gw, gh) = (r.len(1 << 14)?, r.len(1 << 14)?); if gw % 64 != 0 || gh % 64 != 0 || gw == 0 || gh == 0 { return Err("bad world dimensions".into()); }
     let seed = r.u32()?; let tick = r.u64()?; let gtick = r.u64()?;
     let nm = r.len(256)?; let mut remap = vec![0u8; nm];

@@ -37,12 +37,14 @@ pub fn describe(w: &World, x: usize, y: usize) -> Option<Tip> {
         }
     }
     for c in &w.chests {
-        if x + 2 >= c.x && x <= c.x + 1 && y + 3 >= c.y && y <= c.y && !w.g.is_solidish(c.y * w.g.w + c.x) {
+        let k = crate::mat::S;
+        if x + 2 * k >= c.x && x <= c.x + 2 * k - 1 && y + 3 * k >= c.y && y <= c.y && !w.g.is_solidish(c.y * w.g.w + c.x) {
             return tip("Old Delver chest".into(), vec![if c.opened { "Empty now.".into() } else { "Walk up to it to open it.".into() }]);
         }
     }
     for f in &w.farms {
-        if x + 1 >= f.x && x <= f.x + 1 && y + 2 >= f.y && y <= f.y {
+        let k = crate::mat::S;
+        if x + k >= f.x && x <= f.x + 2 * k - 1 && y + 2 * k >= f.y && y <= f.y {
             let mut l = vec![format!("Growing: {}%. Drops mushrooms when grown.", (f.growth.clamp(0., 1.) * 100.).round())];
             if f.why & 1 != 0 { l.push("Too bright here: mushrooms want the dark.".into()); }
             if f.why & 2 != 0 { l.push("Too dry: it needs water nearby.".into()); }

@@ -12,5 +12,5 @@ map
 #######
 end
 expect 100 is:0,-3,Granite == 1
-expect 100 py >= 128          // still in the pocket (feet at row 129); it used to end up at 125, above the slab
+expect 100 py >= 7.9          // still in the pocket (feet on the bottom edge of map row 7); it used to end up 4 rows higher, above the slab
 expect 100 hp < 60      // suffocating under the sand

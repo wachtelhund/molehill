@@ -1,7 +1,10 @@
 //! Headless, deterministic scenario runner (no window, no GPU).
 //! Usage: cargo run --release -p molehill-sim --example scenario -- sim/tests/scenarios/*.scn [--json]
 //! See TESTING.md for the file format. Exit code 1 if any assertion fails.
-use molehill_sim::mat::{Mat, NMAT};
+//! Scenarios are written in tiles of 0.25 m (the original cell size): every map character is stamped as
+//! a K×K block of cells (K = mat::S), offsets and radii are scaled up, and positions, speeds, counts and
+//! cell lookups are reported back in tiles, so a scenario means the same thing at any resolution.
+use molehill_sim::mat::{Mat, NMAT, S as K};
 use molehill_sim::world::World;
 
 fn mat_by_name(s: &str) -> Option<Mat> { (0..NMAT as u8).map(Mat::from_u8).find(|m| format!("{m:?}").eq_ignore_ascii_case(s)) }
@@ -13,24 +16,25 @@ enum Act { Brush(u64, f32), Place(u64, i32, i32, String), Put(u64, i32, i32, Str
 struct Run { w: World, ox: usize, oy: usize, mw: usize, mh: usize, ax: usize, ay: usize, sx: f32, sy: f32, top: f32, events: Vec<String> }
 impl Run {
     fn var(&self, v: &str) -> Option<f64> {
-        let p = &self.w.pl; let m = &self.w.moles[0];
+        let p = &self.w.pl; let m = &self.w.moles[0]; let kf = K as f64;
         Some(match v {
-            "px" => p.px as f64, "py" => p.py as f64, "vx" => p.vx as f64, "vy" => p.vy as f64,
-            "dx" => (p.px - self.sx) as f64, "dy" => (p.py - self.sy) as f64, "rise" => (self.sy - self.top) as f64,
+            // px, py: tiles from the map's top-left corner; velocities in tiles/s
+            "px" => (p.px - self.ox as f32) as f64 / kf, "py" => (p.py - self.oy as f32) as f64 / kf, "vx" => p.vx as f64 / kf, "vy" => p.vy as f64 / kf,
+            "dx" => (p.px - self.sx) as f64 / kf, "dy" => (p.py - self.sy) as f64 / kf, "rise" => (self.sy - self.top) as f64 / kf,
             "grounded" => p.grounded as u8 as f64, "cling" => p.cling as f64, "hp" => m.hp as f64, "breath" => m.breath as f64,
-            "deaths" => p.deaths as f64, "awake" => self.awake() as f64, "crumbled" => self.w.crumbled as f64, "tick" => self.w.tick as f64,
+            "deaths" => p.deaths as f64, "awake" => self.awake() as f64, "crumbled" => self.w.crumbled as f64 / (kf * kf), "tick" => self.w.tick as f64,
             "flash" => p.flash as f64, "shake" => self.w.shake as f64,
-            _ if v.starts_with("count:") => { let mt = mat_by_name(&v[6..])?; let mut n = 0; for y in self.oy..self.oy + self.mh { for x in self.ox..self.ox + self.mw { if self.w.g.get(x, y) == mt { n += 1; } } } n as f64 }
-            _ if v.starts_with("static:") => { let mt = mat_by_name(&v[7..])?; let mut n = 0; for y in self.oy..self.oy + self.mh { for x in self.ox..self.ox + self.mw { let i = self.w.g.idx(x, y); if self.w.g.get(x, y) == mt && !self.w.g.loose(i) { n += 1; } } } n as f64 }
+            _ if v.starts_with("count:") => { let mt = mat_by_name(&v[6..])?; let mut n = 0; for y in self.oy..self.oy + self.mh { for x in self.ox..self.ox + self.mw { if self.w.g.get(x, y) == mt { n += 1; } } } n as f64 / (kf * kf) }
+            _ if v.starts_with("static:") => { let mt = mat_by_name(&v[7..])?; let mut n = 0; for y in self.oy..self.oy + self.mh { for x in self.ox..self.ox + self.mw { let i = self.w.g.idx(x, y); if self.w.g.get(x, y) == mt && !self.w.g.loose(i) { n += 1; } } } n as f64 / (kf * kf) }
             _ if v.starts_with("util:") => { // util:DX,DY  stress utilisation of a cell (1.0 = at capacity)
                 let a: Vec<&str> = v[5..].split(',').collect(); let (dx, dy): (i32, i32) = (a.get(0)?.parse().ok()?, a.get(1)?.parse().ok()?);
-                self.w.st.util[self.w.g.idx((self.ax as i32 + dx) as usize, (self.ay as i32 + dy) as usize)] as f64 / 128. }
+                self.tile(dx, dy).map(|i| self.w.st.util[i]).max()? as f64 / 128. }
             _ if v.starts_with("strain:") => { // strain:DX,DY  hover strain level: 0 idle, 1 bearing, 2 straining, 3 overloaded, 4 cracking
                 let a: Vec<&str> = v[7..].split(',').collect(); let (dx, dy): (i32, i32) = (a.get(0)?.parse().ok()?, a.get(1)?.parse().ok()?);
-                molehill_sim::tips::strain_at(&self.w, self.w.g.idx((self.ax as i32 + dx) as usize, (self.ay as i32 + dy) as usize)) as f64 }
+                self.tile(dx, dy).map(|i| molehill_sim::tips::strain_at(&self.w, i)).max()? as f64 }
             _ if v.starts_with("is:") => { // is:DX,DY,Mat  (relative to @)
                 let a: Vec<&str> = v[3..].split(',').collect(); let (dx, dy): (i32, i32) = (a.get(0)?.parse().ok()?, a.get(1)?.parse().ok()?);
-                (self.w.g.get((self.ax as i32 + dx) as usize, (self.ay as i32 + dy) as usize) == mat_by_name(a.get(2)?)?) as u8 as f64 }
+                let mt = mat_by_name(a.get(2)?)?; (2 * self.tile(dx, dy).filter(|&i| self.w.g.m(i) == mt).count() >= K * K) as u8 as f64 } // most of the tile
             _ if v.starts_with("inv:") => { let i = molehill_sim::craft::ITEMS.iter().position(|it| format!("{it:?}").eq_ignore_ascii_case(&v[4..]))?; self.w.inv[i] as f64 }
             _ if v.starts_with("dev:") || v.starts_with("lit:") || v.starts_with("wire:") || v.starts_with("on:") => { // dev:DX,DY,Name  lit:DX,DY  wire:DX,DY  on:DX,DY (powered)
                 let (k, rest) = v.split_once(':')?; let a: Vec<&str> = rest.split(',').collect(); let (x, y) = self.at(a.get(0)?.parse().ok()?, a.get(1)?.parse().ok()?);
@@ -39,7 +43,11 @@ impl Run {
             _ if v.starts_with("ev:") => self.events.iter().filter(|e| e.split(':').nth(1) == Some(&v[3..])).count() as f64,
             _ => return None })
     }
-    fn at(&self, dx: i32, dy: i32) -> (usize, usize) { ((self.ax as i32 + dx) as usize, (self.ay as i32 + dy) as usize) }
+    /// The cell nearest the centre of the tile (dx, dy) from '@'.
+    fn at(&self, dx: i32, dy: i32) -> (usize, usize) { let k = K as i32; ((self.ax as i32 + dx * k + k / 2) as usize, (self.ay as i32 + dy * k + k / 2) as usize) }
+    /// Every cell of the tile (dx, dy) from '@'.
+    fn tile(&self, dx: i32, dy: i32) -> impl Iterator<Item = usize> + '_ { let k = K as i32; let (x0, y0) = (self.ax as i32 + dx * k, self.ay as i32 + dy * k);
+        (0..k * k).map(move |j| self.w.g.idx((x0 + j % k) as usize, (y0 + j / k) as usize)) }
     /// CA chunks overlapping the map rectangle that are still awake.
     fn awake(&self) -> usize {
         use molehill_sim::grid::CHUNK; let g = &self.w.g; let mut n = 0;
@@ -49,14 +57,25 @@ impl Run {
     fn json(&self) -> String {
         let p = &self.w.pl; let m = &self.w.moles[0];
         let mut counts = vec![0u32; NMAT]; for y in self.oy..self.oy + self.mh { for x in self.ox..self.ox + self.mw { counts[self.w.g.get(x, y) as usize] += 1; } }
-        let c: Vec<String> = counts.iter().enumerate().filter(|(_, n)| **n > 0).map(|(i, n)| format!("\"{:?}\":{n}", Mat::from_u8(i as u8))).collect();
+        let c0: Vec<String> = vec![];
         let inv: Vec<String> = molehill_sim::craft::ITEMS.iter().enumerate().filter(|(i, _)| self.w.inv[*i] > 0).map(|(i, it)| format!("\"{it:?}\":{}", self.w.inv[i])).collect();
+        let c: Vec<String> = counts.iter().enumerate().filter(|(_, n)| **n > 0).map(|(i, n)| format!("\"{:?}\":{}", Mat::from_u8(i as u8), *n as f32 / (K * K) as f32)).collect(); let _ = c0;
         format!("{{\"tick\":{},\"player\":{{\"px\":{:.3},\"py\":{:.3},\"vx\":{:.3},\"vy\":{:.3},\"grounded\":{},\"cling\":{},\"hp\":{:.1},\"breath\":{:.1},\"deaths\":{}}},\"inv\":{{{}}},\"mats\":{{{}}},\"events\":[{}]}}",
-            self.w.tick, p.px, p.py, p.vx, p.vy, p.grounded, p.cling, m.hp, m.breath, p.deaths, inv.join(","), c.join(","), self.events.iter().map(|e| format!("\"{e}\"")).collect::<Vec<_>>().join(","))
+            self.w.tick, self.var("px").unwrap(), self.var("py").unwrap(), self.var("vx").unwrap(), self.var("vy").unwrap(), p.grounded, p.cling, m.hp, m.breath, p.deaths, inv.join(","), c.join(","), self.events.iter().map(|e| format!("\"{e}\"")).collect::<Vec<_>>().join(","))
     }
-    fn ascii(&self) -> String {
-        let mut s = String::new(); let (mx, my) = (self.w.moles[0].x, self.w.moles[0].y);
-        for y in self.oy..self.oy + self.mh { for x in self.ox..self.ox + self.mw { s.push(if x == mx && (my - 2..=my).contains(&y) { 'M' } else { ch_of(self.w.g.get(x, y)) }); } s.push('\n'); } s
+    /// The map region, one character per tile (its most common material; M = the mole's body).
+    fn ascii(&self) -> String { let kf = K as f64;
+        let mut s = String::new(); let p = &self.w.pl;
+        let (bx0, bx1) = (((p.px - molehill_sim::world::BODY_HW) / kf as f32).floor() as i64, ((p.px + molehill_sim::world::BODY_HW - 1e-3) / kf as f32).floor() as i64);
+        let (by0, by1) = (((p.py - molehill_sim::world::BODY_H) / kf as f32).floor() as i64, ((p.py - 1e-3) / kf as f32).floor() as i64);
+        let _ = (bx0, bx1);
+        let mx = (p.px / kf as f32).floor() as i64;
+        for ty in 0..self.mh / K { for tx in 0..self.mw / K {
+            let (x0, y0) = (self.ox + tx * K, self.oy + ty * K); let (ax, ay) = ((x0 / K) as i64, (y0 / K) as i64);
+            if ax == mx && (by0..=by1).contains(&ay) { s.push('M'); continue; }
+            let mut n = [0u16; NMAT]; for j in 0..K * K { n[self.w.g.get(x0 + j % K, y0 + j / K) as usize] += 1; }
+            let m = (0..NMAT).max_by_key(|&k| (n[k], std::cmp::Reverse(k))).unwrap(); s.push(ch_of(Mat::from_u8(m as u8)));
+        } s.push('\n'); } s
     }
 }
 
@@ -93,18 +112,26 @@ fn run_file(path: &str, json: bool) -> bool {
         }
     }
     for a in &acts { ticks = ticks.max(match a { Act::Hold(_, b, _) | Act::Mine(_, b, _, _) | Act::Dig(_, b, _, _) => *b, Act::Tool(t, _) | Act::Brush(t, _) | Act::Place(t, ..) | Act::Put(t, ..) | Act::Explode(t, ..) | Act::Device(t, ..) | Act::Use(t, ..) | Act::Pickup(t, ..) | Act::Wire(t, ..) | Act::SaveLoad(t) | Act::Dump(t) | Act::Ascii(t) | Act::Expect(t, ..) => *t }); }
-    let mut w = World::new(512, 256, seed); w.disasters.enabled = false; w.drops.clear(); w.torches.clear(); w.farms.clear();
-    let (sx0, sy0) = (w.moles[0].x, w.moles[0].y);
+    let mut w = World::new(512 * K, 256 * K, seed); w.disasters.enabled = false; w.drops.clear(); w.torches.clear(); w.farms.clear();
+    // tile-aligned spawn tile: the map is laid out in K×K tiles from here
+    let (sx0, sy0) = (w.moles[0].x / K, w.moles[0].y / K);
     let mh = map.len(); let mw = map.iter().map(|l| l.chars().count()).max().unwrap_or(0);
     let (mut ax, mut ay) = (0, 0); for (y, l) in map.iter().enumerate() { if let Some(x) = l.chars().position(|c| c == '@') { ax = x; ay = y; } }
-    let (ox, oy) = (sx0 - ax, sy0 - ay);
+    let (tox, toy) = (sx0 - ax, sy0 - ay); let (ox, oy) = (tox * K, toy * K);
     // solid granite frame around the map so the generated world can't crumble into the scenario
-    for y in oy.saturating_sub(20)..(oy + mh + 20).min(w.g.h) { for x in ox.saturating_sub(20)..(ox + mw + 20).min(w.g.w) { let i = w.g.idx(x, y); w.g.set(i, Mat::Granite); w.g.flags[i] = 0; } }
+    let fr = 20 * K;
+    for y in oy.saturating_sub(fr)..(oy + mh * K + fr).min(w.g.h) { for x in ox.saturating_sub(fr)..(ox + mw * K + fr).min(w.g.w) { let i = w.g.idx(x, y); w.g.set(i, Mat::Granite); w.g.flags[i] = 0; } }
     for (y, l) in map.iter().enumerate() { let cs: Vec<char> = l.chars().collect(); for x in 0..mw { let c = *cs.get(x).unwrap_or(&'#');
-        let m = mat_char(c).unwrap_or_else(|| panic!("{path}: unknown map char '{c}'")); let i = w.g.idx(ox + x, oy + y); w.g.set(i, m); w.g.flags[i] = 0; } }
+        let m = mat_char(c).unwrap_or_else(|| panic!("{path}: unknown map char '{c}'"));
+        for j in 0..K * K { let i = w.g.idx(ox + x * K + j % K, oy + y * K + j / K); w.g.set(i, m); w.g.flags[i] = 0; } } }
     for (n, k) in gives { let i = molehill_sim::craft::ITEMS.iter().position(|it| format!("{it:?}").eq_ignore_ascii_case(&n)).unwrap_or_else(|| panic!("unknown item {n}")); w.inv[i] = k; }
-    w.moles[0].x = ox + ax; w.moles[0].y = oy + ay; w.pl.sync = None; w.pl = Default::default(); w.pl.fall_from = oy + ay; w.moles[0].hp = 100.; w.pl.spawn = (ox + ax, w.oy + (oy + ay) as i64);
-    let mut r = Run { ox, oy, mw, mh, ax: ox + ax, ay: oy + ay, sx: 0., sy: 0., top: f32::MAX, events: vec![], w };
+    // the mole stands centred on the '@' tile, feet on its bottom edge
+    let (ax, ay) = (ox + ax * K, oy + ay * K); // '@' tile's top-left cell
+    let (fx, fy) = (ax + K / 2, ay + K - 1); // feet cell
+    w.moles[0].x = fx; w.moles[0].y = fy; w.pl = Default::default(); w.pl.fall_from = fy; w.moles[0].hp = 100.; w.pl.spawn = (fx, w.oy + fy as i64);
+    w.pl.px = (ax as f32) + K as f32 / 2.; w.pl.py = (ay + K) as f32; w.pl.ppx = w.pl.px; w.pl.ppy = w.pl.py; w.pl.grounded = true; w.pl.sync = Some((fx, fy));
+    let (mw, mh) = (mw * K, mh * K);
+    let mut r = Run { ox, oy, mw, mh, ax, ay, sx: 0., sy: 0., top: f32::MAX, events: vec![], w };
     let (mut ok, mut fails) = (0, 0);
     let t0 = r.w.tick;
     for tick in 0..=ticks {
@@ -112,14 +139,14 @@ fn run_file(path: &str, json: bool) -> bool {
             let mut inp = molehill_sim::world::Input::default(); inp.tool = r.w.input.tool; inp.brush = r.w.input.brush;
             for a in &acts { match a {
                 Act::Hold(a, b, ks) if (*a..=*b).contains(&tick) => for k in ks { match k.as_str() { "left" => inp.left = true, "right" => inp.right = true, "jump" => inp.jump = true, "up" => inp.up = true, "down" => inp.down = true, o => panic!("unknown key {o}") } },
-                Act::Mine(a, b, dx, dy) if (*a..=*b).contains(&tick) => inp.mine = Some(((r.ax as i32 + dx) as usize, (r.ay as i32 + dy) as usize)),
-                Act::Dig(a, b, dx, dy) if (*a..=*b).contains(&tick) => { let m = &r.w.moles[0]; inp.mine = Some(((m.x as i32 + dx) as usize, (m.y as i32 + dy) as usize)); }
+                Act::Mine(a, b, dx, dy) if (*a..=*b).contains(&tick) => inp.mine = Some(r.at(*dx, *dy)),
+                Act::Dig(a, b, dx, dy) if (*a..=*b).contains(&tick) => { let m = &r.w.moles[0]; let k = K as i32; inp.mine = Some(((m.x as i32 + dx * k) as usize, (m.y as i32 + dy * k) as usize)); }
                 Act::Tool(t, n) if *t == tick => inp.tool = *n,
-                Act::Brush(t, b) if *t == tick => inp.brush = *b,
-                Act::Explode(t, dx, dy, rr) if *t == tick => { let (x, y) = ((r.ax as i32 + dx) as usize, (r.ay as i32 + dy) as usize); r.w.explode(x, y, *rr, 6); }
+                Act::Brush(t, b) if *t == tick => inp.brush = *b * K as f32,
+                Act::Explode(t, dx, dy, rr) if *t == tick => { let (x, y) = r.at(*dx, *dy); r.w.explode(x, y, *rr * K as f32, 6); }
                 Act::Place(t, dx, dy, it) if *t == tick => {
                     let item = molehill_sim::craft::ITEMS.iter().copied().find(|i| format!("{i:?}").eq_ignore_ascii_case(it)).unwrap_or_else(|| panic!("{path}: unknown item {it}"));
-                    let (x, y) = ((r.ax as i32 + dx) as usize, (r.ay as i32 + dy) as usize);
+                    let (x, y) = r.at(*dx, *dy);
                     if let Err(e) = r.w.place_brush(x, y, item, inp.brush) { println!("  NOTE {path} tick {tick}: place {it} at {dx},{dy} failed: {e}"); }
                 }
                 Act::Device(t, dx, dy, n) if *t == tick => { let (x, y) = r.at(*dx, *dy);
@@ -133,8 +160,10 @@ fn run_file(path: &str, json: bool) -> bool {
                 Act::SaveLoad(t) if *t == tick => { let b = molehill_sim::save::save(&r.w); let mut w = molehill_sim::save::load(&b).unwrap_or_else(|e| panic!("{path}: reload failed: {e}")); w.disasters.enabled = false; r.w = w; }
                 Act::Put(t, dx, dy, it) if *t == tick => {
                     let item = molehill_sim::craft::ITEMS.iter().copied().find(|i| format!("{i:?}").eq_ignore_ascii_case(it)).unwrap_or_else(|| panic!("{path}: unknown item {it}"));
-                    let (x, y) = ((r.ax as i32 + dx) as usize, (r.ay as i32 + dy) as usize);
-                    if let Err(e) = r.w.place_block_at(x, y, item) { println!("  NOTE {path} tick {tick}: put {it} at {dx},{dy} failed: {e}"); }
+                    // fill the whole tile, bottom row first, so each cell rests on the one below or a neighbour
+                    let cells: Vec<usize> = r.tile(*dx, *dy).collect(); let mut err = None; let mut left = cells.clone();
+                    for _ in 0..K * K { left.retain(|&i| { let (x, y) = (i % r.w.g.w, i / r.w.g.w); match r.w.place_block_at(x, y, item) { Ok(()) => false, Err(e) => { err = Some(e); true } } }); if left.is_empty() { break; } }
+                    if !left.is_empty() { if let Some(e) = err { println!("  NOTE {path} tick {tick}: put {it} at {dx},{dy} failed: {e}"); } }
                 }
                 _ => {} } }
             r.w.input = inp; let pre = std::mem::take(&mut r.w.events); r.w.step(); // keep events from actions (clicks, places) like the game does

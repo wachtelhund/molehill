@@ -1,8 +1,8 @@
 //! Cell grid + Noita-style falling-sand CA on 64×64 chunks.
 //! Chunks are updated in 4 checkerboard phases; chunks within a phase are ≥64 cells apart,
-//! and no cell moves more than 6 cells per tick, so a phase can run in parallel (rayon) safely
+//! and no cell moves more than 6·S cells per tick, so a phase can run in parallel (rayon) safely
 //! and deterministically (RNG is a hash of position+tick, not a shared stream).
-use crate::mat::{Kind, Mat, PROPS};
+use crate::mat::{Kind, Mat, PROPS, S};
 use std::sync::atomic::{AtomicU8, Ordering::Relaxed};
 
 pub const CHUNK: usize = 64;
@@ -139,7 +139,7 @@ impl Grid {
             // and float on a denser one (sand on lava); drag makes sinking slower than falling
             let rho = m.p().density;
             let sinks = |j: usize| PROPS[self.mat[j] as usize].kind == Kind::Liquid && PROPS[self.mat[j] as usize].density < rho;
-            if kd == Kind::Empty || kd == Kind::Gas { self.swap(i, d, stamp); return; }
+            if kd == Kind::Empty || kd == Kind::Gas { let j = self.fall_to(x, y); self.swap(i, j, stamp); return; }
             // ...and bob up through a denser one (wood debris broken loose underwater)
             if y > 0 { let a = i - w; if PROPS[self.mat[a] as usize].kind == Kind::Liquid && PROPS[self.mat[a] as usize].density > rho {
                 if self.rnd(x, y, 11) & 1 == 0 { self.swap(i, a, stamp); } else { self.wake(x, y); } return; } }
@@ -194,12 +194,19 @@ impl Grid {
             _ => {}
         }
     }
+    /// Free fall from (x, y) into the open cell below: up to S cells per tick, so things fall as fast
+    /// in metres at any resolution (the cell below is known to be empty or gas).
+    #[inline] fn fall_to(&self, x: usize, y: usize) -> usize {
+        let w = self.w; let mut j = (y + 1) * w + x;
+        for _ in 1..S { if j + w < self.mat.len() && matches!(self.kind_at(j + w), Kind::Empty | Kind::Gas) { j += w; } else { break; } }
+        j
+    }
     /// Where a liquid cell moves this tick, if anywhere.
     fn liquid_target(&self, x: usize, y: usize, m: Mat) -> Option<usize> {
         let (w, i) = (self.w, y * self.w + x);
         if y + 1 < self.h {
             let d = i + w;
-            if matches!(self.kind_at(d), Kind::Empty | Kind::Gas) { return Some(d); }
+            if matches!(self.kind_at(d), Kind::Empty | Kind::Gas) { return Some(self.fall_to(x, y)); }
             let dir: i32 = if self.rnd(x, y, 6) & 1 == 0 { -1 } else { 1 };
             for s in [dir, -dir] { let nx = x as i32 + s; if nx >= 0 && (nx as usize) < w { let j = (d as i32 + s) as usize; if self.mat[j] == 0 { return Some(j); } } }
         }
@@ -207,12 +214,13 @@ impl Grid {
         // or liquid is pressing on it from above (a heap levelling out). A resting surface
         // with a part-filled top row then stays put instead of sloshing forever, so settled
         // pools let their chunks sleep.
-        let disp = if m == Mat::Water { 6 } else { 2 };
+        let disp = if m == Mat::Water { 6 * S as i32 } else { 2 * S as i32 };
         let pressed = y > 0 && self.kind_at(i - w) == Kind::Liquid;
         let dir: i32 = if (self.tick as usize + x) & 1 == 1 { 1 } else { -1 };
         // how far a surface cell looks along its row for a lower spot. Reads stay < 64+48 cells from
-        // the chunk origin, clear of anything a same-phase chunk (128 away, moving ≤ 6) can write.
+        // the chunk origin, clear of anything a same-phase chunk (128 away, moving ≤ 6·S) can write.
         const LOOK: i32 = 48;
+        const _: () = assert!(64 + LOOK as usize <= 128 - 6 * S, "liquid look-ahead would race a same-phase chunk");
         let (mut near, mut nd, mut level) = (0i32, i32::MAX, None);
         for s in [dir, -dir] {
             for k in 1..=LOOK { let nx = x as i32 + s * k; if nx < 0 || nx as usize >= w { break; } let j = (i as i32 + s * k) as usize; if self.mat[j] != 0 { break; }
