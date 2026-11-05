@@ -153,7 +153,7 @@ Everything the Ancients built obeys the same physics as everything else: weight,
 | Wood | **built:** grottos with regrowing root-trees (see [World and Generation](World-and-Generation.md#grottos)) | grottos with regrowing root-trees |
 | Decor | **built:** furniture, decorative blocks and pigments (see [Tools and Items](Tools-and-Items.md#furnishing)); back walls not yet | furniture, decorative blocks, back walls, dyes |
 | Colony | one mole | Delvers move in when the holt is comfortable |
-| Late game | none | Ancient facilities, ruins, relics, the Lid myth |
+| Late game | **built:** the Lid myth as clues and a journal, denser higher up (see [Lore](Lore.md#the-lid-in-the-game)) | Ancient facilities, ruins, relics, the Lid myth |
 | Travel | walking, climbing, digging | carts and rails, ladders and lifts, powered rails, pressure tubes; Ancient waygates (open decision) |
 
 Any of these that gets built should move from this page into the page that describes the system, as it lands on `main`.
