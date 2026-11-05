@@ -28,11 +28,13 @@ pub struct Stress {
     pub overburden: Vec<f32>,
     pub last_fail: usize,
     pub reach: Vec<bool>,
+    /// failure threshold on utilisation (1.0 at runtime; gen uses a safety factor)
+    pub thr: f32,
 }
 pub const CRACK_TICKS: u8 = 40;
 
 impl Stress {
-    pub fn new(n: usize) -> Self { Stress { util: vec![0; n], pending: vec![0; n], cracking: vec![], overburden: vec![0.; n], last_fail: 0, reach: vec![] } }
+    pub fn new(n: usize) -> Self { Stress { util: vec![0; n], pending: vec![0; n], cracking: vec![], overburden: vec![0.; n], last_fail: 0, reach: vec![], thr: 1.0 } }
 
     /// Full solve. Returns indices with u > 1.
     /// Height of the load-bearing column above any cell (16 m), the pressure-arch height.
@@ -112,7 +114,7 @@ impl Stress {
         for i in 0..n {
             let u = util[i];
             self.util[i] = (u * 128.).min(255.) as u8;
-            if u > 1. && g.mat[i] != Mat::Bedrock as u8 { fail.push(i as u32); }
+            if u > self.thr && g.mat[i] != Mat::Bedrock as u8 { fail.push(i as u32); }
         }
         fail
     }

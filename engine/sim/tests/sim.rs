@@ -179,3 +179,16 @@ mod v3b {
     let stale = a.at(30, 30); assert!(stale > 0.45, "sealed tunnel goes stale: {stale}");
     for _ in 0..100 { a.update(&g, &[(30, 30)]); } assert!(a.at(30, 30) < stale * 0.5, "vent clears");
 }
+
+/// Fresh worlds must not shed their caves: < 0.1% of static cells lost in 5 minutes (18000 ticks), many seeds.
+#[test]
+fn fresh_worlds_are_stable_multi_seed() {
+    let seeds = [1u32, 4, 777, 9630, 1295, 12822, 11, 14];
+    let hs: Vec<_> = seeds.iter().map(|&s| std::thread::spawn(move || {
+        let mut w = molehill_sim::world::World::new(1024, 512, s); w.disasters.enabled = false;
+        let solid = (0..w.g.mat.len()).filter(|&i| w.g.is_static(i)).count();
+        for _ in 0..18000 { w.step(); }
+        (s, w.crumbled as f64 / solid as f64)
+    })).collect();
+    for h in hs { let (s, f) = h.join().unwrap(); assert!(f < 0.001, "seed {s} lost {:.3}%", f * 100.); }
+}

@@ -76,8 +76,8 @@ impl Gen {
         if dd < 35. { let l = n2.fbm(fx, fy * 3., 50., 3); if l > 0.67 { m = if n1.at(fx / 30., fy / 30.) > 0.5 { Mat::Gravel } else { Mat::Sand }; if l > 0.71 { fl |= F_WET; } } }
         let vein = |nn: &Noise, sc: f32, sal: f32| (nn.fbm(fx + sal, fy * 1.3, sc, 3) - 0.5).abs();
         if m != Mat::Sand && m != Mat::Gravel {
-            if dd > -20. && dd < 70. && vein(&self.n1, 70., 11.) < 0.018 { m = Mat::Coal; }
-            if dd > -60. && dd < 20. && vein(&self.n0, 30., 900.) < 0.008 { m = Mat::Coal; }
+            if dd > -20. && dd < 9. && vein(&self.n1, 70., 11.) < 0.018 { m = Mat::Coal; } // coal never forms where lava runs
+            if dd > -60. && dd < 9. && vein(&self.n0, 30., 900.) < 0.008 { m = Mat::Coal; }
             if dd > 0. && vein(&self.n2, 45., 77.) < 0.012 { m = Mat::CopperOre; }
             if dd > 10. && vein(&self.n3, 40., 501.) < 0.009 { m = Mat::TinOre; }
             if dd > 35. && vein(&self.n0, 55., 1234.) < 0.012 { m = Mat::IronOre; }
@@ -88,7 +88,7 @@ impl Gen {
         if edge && m != Mat::Sand {
             let r = self.n0.at(fx / 9., fy / 9.);
             if dd > 45. && r > 0.80 { m = Mat::Crystal; } else if dd > 35. && r < 0.10 { m = Mat::Quartz; }
-            else if open(x, wy - 1) && dd < 70. && n1.at(fx / 14., fy / 14.) > 0.68 { m = Mat::Fungus; }
+            else if open(x, wy - 1) && dd < 9. && n1.at(fx / 14., fy / 14.) > 0.68 { m = Mat::Fungus; }
             else if dd < -10. && n2.at(fx / 7., fy / 7.) > 0.7 { m = Mat::Roots; }
         }
         (m as u8, fl)
@@ -101,6 +101,12 @@ impl Gen {
         let base = oy + y0 as i64 - 1;
         let open = |x: usize, wy: i64| { let r = wy - base; if r >= 0 && (r as usize) < rows { op[r as usize * w + x] } else { self.open(x, wy) } };
         for y in y0..y1 { for x in 0..w { let (m, f) = self.cell_with(x, oy + y as i64, w, &open); let i = y * w + x; g.mat[i] = m; g.flags[i] = f; } }
+        // lava pockets have long since baked their surroundings: nothing burnable within reach of lava
+        for y in y0..y1 { for x in 2..w - 2 { if g.mat[y * w + x] != Mat::Lava as u8 { continue; }
+            for yy in y.saturating_sub(4).max(y0)..(y + 5).min(y1) { for xx in x.saturating_sub(4)..(x + 5).min(w - 2) {
+                let j = yy * w + xx; if matches!(Mat::from_u8(g.mat[j]), Mat::Coal | Mat::Roots | Mat::Fungus) { g.mat[j] = Mat::Basalt as u8; }
+            } }
+        } }
         // unsupported sand at gen time turns to sandstone
         for y in (y0..y1).rev() { if y + 1 >= g.h { continue; } for x in 1..w - 1 {
             let i = y * w + x; if g.mat[i] != Mat::Sand as u8 { continue; }
@@ -137,6 +143,8 @@ pub fn generate(g: &mut Grid, seed: u32, oy: i64) -> (Gen, GenInfo) {
     stabilize_keep(g, &mut st, 0, usize::MAX, Some(keep));
     g.wake_all(); for _ in 0..240 { g.step_ca(); }
     stabilize_keep(g, &mut st, 0, usize::MAX, Some(keep));
+    // the burrow floor stays soil (farms need it), even where the stability pass reinforced it
+    for x in cx0..=cx1 { let i = (cy1 + 1) * w + x; if matches!(Mat::from_u8(g.mat[i]), Mat::Granite | Mat::Limestone) { g.mat[i] = Mat::Clay as u8; } }
     g.struct_dirty = Some((0, 0, w - 1, h - 1)); g.wake_all();
     let biome = gen.biome.clone();
     (gen, GenInfo { surface: vec![0; w], biome, chests: vec![], start: (sx / 4, cy1 / 4), seed })
@@ -149,17 +157,20 @@ pub fn stabilize_rows(g: &mut Grid, st: &mut Stress, y0: usize, y1: usize) { sta
 pub fn stabilize_keep(g: &mut Grid, st: &mut Stress, y0: usize, y1: usize, keep: Option<(usize, usize, usize, usize)>) {
     let kept = |x: usize, y: usize| keep.map_or(false, |(a, b, c, d)| x >= a && x <= c && y >= b && y <= d);
     let (w, h) = (g.w, g.h);
-    for it in 0..80 {
+    let thr0 = st.thr; st.thr = 0.45; // gen-time safety factor: fresh caves must survive fluids shifting about
+    for it in 0..100 {
+        if it == 40 { st.thr = 1.0; } // out of patience with the margin: just make sure nothing actually fails
         let fail: Vec<u32> = st.solve(g).into_iter().filter(|&i| (i as usize / w) >= y0 && (i as usize / w) < y1).collect();
         if fail.is_empty() { break; }
         for &i in &fail {
-            let i = i as usize; let m = Mat::from_u8(g.mat[i]); if kept(i % w, i / w) { continue; }
+            let i = i as usize; let m = Mat::from_u8(g.mat[i]); // (keep protects the burrow's air, not its roof)
             if !st.reach[i] { g.mat[i] = 0; continue; } // floating island: no load path
             if it >= 4 { // still failing: widen the pillar / thicken the roof by filling neighbouring voids
                 let (x, y) = (i % w, i / w);
-                for (dx, dy) in [(-1i32, 0i32), (1, 0), (0, 1), (-1, 1), (1, 1), (0, 2)] { let (nx, ny) = (x as i32 + dx, y as i32 + dy); if nx > 1 && ny > 0 && (nx as usize) < w - 2 && (ny as usize) < h - 4 { let j = ny as usize * w + nx as usize; if kept(nx as usize, ny as usize) { continue; } if g.mat[j] == 0 || g.mat[j] == Mat::Water as u8 || g.mat[j] == Mat::Lava as u8 { g.mat[j] = Mat::Granite as u8; } } }
+                for (dx, dy) in [(-1i32, 0i32), (1, 0), (0, 1), (-1, 1), (1, 1), (0, 2)] { let (nx, ny) = (x as i32 + dx, y as i32 + dy); if nx > 1 && ny > 0 && (nx as usize) < w - 2 && (ny as usize) < h { let j = ny as usize * w + nx as usize; if kept(nx as usize, ny as usize) { continue; } if g.mat[j] == 0 || g.mat[j] == Mat::Water as u8 || g.mat[j] == Mat::Lava as u8 { g.mat[j] = Mat::Granite as u8; } } }
             }
             g.mat[i] = if it < 3 && m.p().tensile < Mat::Limestone.p().tensile { Mat::Limestone as u8 } else { Mat::Granite as u8 };
         }
     }
+    st.thr = thr0;
 }
