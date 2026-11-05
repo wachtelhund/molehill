@@ -135,14 +135,14 @@ pub fn generate(g: &mut Grid, seed: u32, oy: i64) -> (Gen, GenInfo) {
     for y in cy0 - 6..cy1 + 6 { for x in cx0 - 8..=cx1 + 8 { let i = y * w + x; if g.mat[i] == Mat::Water as u8 || g.mat[i] == Mat::Lava as u8 { g.mat[i] = Mat::Clay as u8; } } }
     // a domed burrow: the roof steps down toward the walls so no roof run spans more than a few cells
     let top = |x: usize| { let t = (x as f32 - sx as f32) / 15.; cy0 + (12. * t * t).round() as usize };
-    for x in cx0 - 3..=cx1 + 3 { let t = top(x.clamp(cx0, cx1)); for y in t.saturating_sub(5)..t { g.mat[y * w + x] = Mat::Granite as u8; } }
+    for x in cx0 - 3..=cx1 + 3 { let t = top(x.clamp(cx0, cx1)); for y in t.saturating_sub(5)..t { g.mat[y * w + x] = Mat::Limestone as u8; } }
     for x in cx0..=cx1 { for y in top(x)..=cy1 { g.mat[y * w + x] = 0; } }
     // side walls tie the dome down to the floor (otherwise an open cavern beside it leaves the roof floating)
-    for x in (cx0 - 3..cx0).chain(cx1 + 1..=cx1 + 3) { for y in top(x.clamp(cx0, cx1))..=cy1 { let i = y * w + x; if Mat::from_u8(g.mat[i]).kind() != crate::mat::Kind::Solid { g.mat[i] = Mat::Granite as u8; } } }
+    for x in (cx0 - 3..cx0).chain(cx1 + 1..=cx1 + 3) { for y in top(x.clamp(cx0, cx1))..=cy1 { let i = y * w + x; if Mat::from_u8(g.mat[i]).kind() != crate::mat::Kind::Solid { g.mat[i] = Mat::Limestone as u8; } } }
     for y in cy1 + 1..cy1 + 4 { for x in cx0 - 4..=cx1 + 4 { g.mat[y * w + x] = Mat::Clay as u8; } }
     // ...and the walls stand on rock: if a cavern lies under the burrow, drop granite legs down to the next solid ground
     let mut st = Stress::new(w * h); st.solve(g);
-    for x in (cx0 - 4..cx0).chain(cx1 + 1..=cx1 + 4) { let mut y = cy1 + 4; while y < h - 1 && !st.reach[y * w + x] { g.mat[y * w + x] = Mat::Granite as u8; g.flags[y * w + x] = 0; y += 1; } }
+    for x in (cx0 - 4..cx0).chain(cx1 + 1..=cx1 + 4) { let mut y = cy1 + 4; while y < h - 1 && !st.reach[y * w + x] { g.mat[y * w + x] = Mat::Limestone as u8; g.flags[y * w + x] = 0; y += 1; } } // diggable with claws
     let keep = (cx0, cy0, cx1, cy1);
     for y in cy0 - 6..cy1 + 4 { for x in cx0 - 4..=cx1 + 4 { g.flags[y * w + x] = 0; } } // built cells are fresh rock, not rubble
     stabilize_keep(g, &mut st, 0, usize::MAX, Some(keep));

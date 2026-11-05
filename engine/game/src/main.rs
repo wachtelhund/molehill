@@ -249,6 +249,7 @@ fn render_world(mut gm: ResMut<Game>, bg: Res<Bg>, mut images: ResMut<Assets<Ima
         } else {
             let lit = x >= lr.0 && x <= lr.2 && y >= lr.1 && y <= lr.3;
             let l = if lit { wd.light.at(i) } else { [0.05; 3] };
+            let l = [l[0].max(0.17), l[1].max(0.16), l[2].max(0.19)]; // remembered rock stays faintly visible
             match p.kind {
                 Kind::Empty | Kind::Gas => {
                     let lum = (l[0] * 0.3 + l[1] * 0.5 + l[2] * 0.2).min(1.3);

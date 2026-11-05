@@ -71,7 +71,7 @@ impl World {
         let mut fy = sy.min(h - 6); while fy < h - 5 && !wd.g.is_solidish(wd.g.idx(sx, fy + 1)) { fy += 1; }
         wd.stockpile = (sx + 6, fy - 2, sx + 16, fy);
         for k in 0..4 { wd.moles.push(Mole { name: NAMES[k], x: sx - 8 + k * 4, y: fy, hp: 100., breath: 100., path: VecDeque::new(), job: None, work: 0, work_cell: None, carry: None, hunger: 80. + k as f32 * 4., sleep: 70. + k as f32 * 7., facing: 1, fall: 0, idle: 0, anim: k as u32 * 7, alive: true }); }
-        light::reveal_box(&mut wd.g, sx - 24, fy - 16, sx + 24, fy + 2);
+        light::reveal_box(&mut wd.g, sx - 60, fy.saturating_sub(42), sx + 60, (fy + 52).min(h - 1)); // the colony knows its neighbourhood
         { let b = wd.logic.block_of(sx, fy - 5); let gg = &mut wd.g; wd.logic.place(gg, Dev::Vent, b); } // the burrow's air shaft
         wd.torches.push((sx - 12, fy - 2)); wd.torches.push((sx + 12, fy - 2));
         for (it, n) in [(Item::Wood, 8), (Item::Torch, 6), (Item::WoodPillar, 12), (Item::Grub, 12), (Item::CopperWire, 40), (Item::Gate, 6), (Item::Thrummer, 3), (Item::Spore, 6), (Item::Vent, 1)] { wd.inv[it as usize] = n; }
@@ -156,7 +156,8 @@ impl World {
                 let (nx, ny) = (x as i32 + dx, y as i32 + dy); if nx < 1 || ny < 1 || nx as usize >= w - 1 || ny as usize >= self.g.h - 1 { continue; }
                 let n = ny as usize * w + nx as usize; if prev.contains_key(&n) { continue; }
                 if !self.standable(nx as usize, ny as usize) { continue; }
-                if dx != 0 && dy != 0 && !(self.standable(nx as usize, y) || self.standable(x, ny as usize)) { continue; }
+                let step_up = dy < 0 && self.g.is_solidish(self.g.idx(nx as usize, y)) && y >= MOLE_H && self.passable(x, y - MOLE_H); // hop onto a one-cell ledge
+                if dx != 0 && dy != 0 && !step_up && !(self.standable(nx as usize, y) || self.standable(x, ny as usize)) { continue; }
                 prev.insert(n, c); q.push_back(n);
             }
         }

@@ -215,3 +215,18 @@ fn start_burrow_is_safe() {
     })).collect();
     for h in hs { let (s, n) = h.join().unwrap(); assert_eq!(n, 4, "seed {s}: a mole died in the start burrow"); }
 }
+
+/// The start burrow is not a cage: claws can dig out through its walls.
+#[test]
+fn colony_can_dig_out_of_the_burrow() {
+    for s in [3636u32, 777] {
+        let mut w = molehill_sim::world::World::new(1024, 512, s); w.disasters.enabled = false;
+        let (x0, y) = (w.moles[3].x + 6, w.moles[3].y - 1);
+        let before: Vec<u8> = (x0..x0 + 12).map(|x| w.g.mat[y * 1024 + x]).collect();
+        for x in x0..x0 + 12 { w.designate(x, y - 1, 1, molehill_sim::world::D_DIG); }
+        for _ in 0..60 * 90 { w.step(); }
+        // open, or dug and then caved in to rubble: either way the wall rock is breached
+        let dug = (x0..x0 + 12).filter(|&x| { let m = w.g.mat[y * 1024 + x]; m == 0 || m != before[x - x0] }).count();
+        assert!(dug >= 9, "seed {s}: only {dug}/12 tunnel cells dug");
+    }
+}
