@@ -53,3 +53,43 @@ pub fn wheel_use(m: Mods, has_brush: bool) -> WheelUse {
 /// The scroll amount to use. With Shift held, browsers and macOS turn a vertical wheel into a horizontal
 /// one, so while sprinting a sideways-only scroll counts as the wheel.
 pub fn wheel_delta(dx: f32, dy: f32, m: Mods) -> f32 { if dy == 0. && m.shift { -dx } else { dy } }
+
+/// The brush sizes the player picked, per brush item (dig tools and blocks), and grid snap for building.
+/// Kept here so the size keys and the wheel are tested headless (`brush_size_keys.scn`).
+#[derive(Clone, Debug, Default)]
+pub struct BrushSizes { want: [f32; 7], pub snap: bool, snap_k: usize }
+/// Grid snap square sizes in cells: a quarter, half and whole metre.
+pub const SNAP_CELLS: [usize; 3] = [crate::mat::CPM / 4, crate::mat::CPM / 2, crate::mat::CPM];
+impl BrushSizes {
+    fn slot(b: crate::world::Brush) -> usize {
+        use crate::{world::Brush, craft::Item};
+        match b { Brush::Dig(n) => (n as usize).min(3), Brush::Place(Item::WoodPillar) => 4, Brush::Place(Item::Brick) => 5, _ => 6 }
+    }
+    /// Radius in cells for this brush (the pick, clamped to the item's range).
+    pub fn radius(&self, b: crate::world::Brush) -> f32 { crate::world::brush_radius(b, self.want[Self::slot(b)]) }
+    /// Is this brush placing on the grid (snap on, a block in hand)?
+    pub fn snapping(&self, b: crate::world::Brush) -> bool { self.snap && matches!(b, crate::world::Brush::Place(_)) }
+    /// Side of the snap square in cells.
+    pub fn snap_cells(&self) -> usize { SNAP_CELLS[self.snap_k.min(SNAP_CELLS.len() - 1)] }
+    /// Grow (+) or shrink (−) the brush by whole steps: a tile of radius, or with grid snap the next square size.
+    pub fn step(&mut self, b: crate::world::Brush, steps: i32) {
+        if steps == 0 { return; }
+        if self.snapping(b) { self.snap_k = (self.snap_k as i32 + steps).clamp(0, SNAP_CELLS.len() as i32 - 1) as usize; return; }
+        let k = Self::slot(b); let r = self.radius(b);
+        let (lo, hi, _) = crate::world::brush_range(b).unwrap_or((r, r, r));
+        self.want[k] = (r + steps as f32 * 0.5 * crate::mat::SF).clamp(lo, hi);
+    }
+    /// The size written beside the outline: the brush across, or the grid square, in metres.
+    pub fn label(&self, b: crate::world::Brush) -> String {
+        if self.snapping(b) { format!("grid {} m", fmt_m(self.snap_cells() as f32 * crate::mat::CELL_M)) }
+        else { format!("{} m", fmt_m(2. * self.radius(b) * crate::mat::CELL_M)) }
+    }
+}
+fn fmt_m(v: f32) -> String { let s = format!("{v:.2}"); s.trim_end_matches('0').trim_end_matches('.').to_string() }
+/// Brush size keys: `[` shrinks, `]` grows. `typed` is the character the key produced (on a Swedish or
+/// German Mac `[` is Option+8), `physical` the key right of P on a US layout; either counts.
+pub fn brush_key_steps(typed_open: bool, typed_close: bool, phys_open: bool, phys_close: bool) -> i32 {
+    (typed_close || phys_close) as i32 - (typed_open || phys_open) as i32
+}
+/// Digits pick a hotbar slot, except with Option/Alt held: on many Mac layouts that types a symbol (`[` `]`).
+pub fn digit_selects_slot(m: Mods) -> bool { !m.alt }
