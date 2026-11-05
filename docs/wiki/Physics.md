@@ -160,7 +160,7 @@ Placed blocks are judged by the same rules, which is the point: you learn to bui
 
 Light is per-cell RGB, and there is no sky light and no day cycle: everything is lit by something down here. Two kinds of light are added together.
 
-**Glow** comes from glowing materials (lava, crystal, fungus, fire). It is seeded in those cells and spread with a two-sweep 8-neighbour chamfer pass:
+**Every light casts rays**, so all of it is shadowed the same way: torches, lamps, kilns, the headlamp, a held torch, and glowing materials. A glowing surface (lava, crystal, fungus, fire) that touches open air becomes a ray-cast point source in that air: one per 2 m square, coloured by the material, reaching 2–5 m by how brightly it glows (`light::surface_sources`). A lava pool therefore lights a cave with real shadows. On top of that, a faint **glow** is seeded in the glowing cells themselves and spread a short way with a two-sweep 8-neighbour chamfer pass:
 
 ```
 L(i) = max(L(i), L(n) · t(i) · d)     t = 0.90 open, 0.80 liquid, ≈ 0.3 into rock (per 0.25 m);  d = 0.93 on diagonals
@@ -189,7 +189,7 @@ L(i) = max(L(i), L(n) · t(i) · d)     t = 0.90 open, 0.80 liquid, ≈ 0.3 into
 
 The **headlamp** sits on the mole's hard hat and points at the cursor, or ahead and a little down when nothing is aimed at. While it's lit, it also reveals fog of war along its beam. Toggle it with `G` or in Settings (saved).
 
-Light is computed only over the camera view plus a margin, every second frame: about 3 ms natively for the view, plus about 0.6 ms for the headlamp and 20 torches (`cargo run --release -p molehill-sim --example stepbench`).
+Light is computed only over the camera view plus a margin, every second frame: about 3.4 ms natively for the view including its glowing surfaces, plus about 0.3 ms for the headlamp and 20 torches. Short lights (6 m or less) cast one ray per rim cell, long ones 1.5. The game draws only a small bloom sprite at a torch's or lamp's flame; the pool of light and its shadows are the sim's (`cargo run --release -p molehill-sim --example stepbench`).
 
 ## Stale air
 

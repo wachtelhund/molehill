@@ -1,0 +1,13 @@
+// Glowing material lights through the same rays as torches: a lava pool lights the open floor
+// beside it, and a wall casts a shadow on the far side.
+map
+##############################################
+#................................#...........#
+#................................#...........#
+#................................#...........#
+#..@.............................#...........#
+######################llllll##################
+end
+expect 3 light:18,0 > 0.3             // open floor beside the pool: lit
+expect 3 light:28,-2 > 0.2            // lit in front of the wall
+expect 3 light:34,0 < 0.08            // the full-height wall at 30 shadows the floor behind it

@@ -524,7 +524,8 @@ impl World {
         v
     }
     pub fn compute_light(&mut self, rect: (usize, usize, usize, usize)) {
-        let src = self.light_sources(); self.light_rect = rect;
+        let mut src = self.light_sources(); self.light_rect = rect;
+        src.extend(light::surface_sources(&self.g, rect, 5 * crate::mat::CPM)); // lava, crystal, fungus, fire: rays too
         self.light.compute(&self.g, rect, &src);
     }
 

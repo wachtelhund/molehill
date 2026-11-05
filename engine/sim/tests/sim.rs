@@ -818,3 +818,18 @@ fn material_table_is_consistent() {
     assert!(!w.logic.net_lit(b));
     w.step(); assert!(!w.logic.net_lit(b));
 }
+#[test] fn torch_light_is_blocked_by_a_wall() {
+    // a torch on the floor of an open arena; a granite wall 2 m away. The same spot 1 m past the wall
+    // is dark, while the mirrored spot on the open side is lit: the torch casts a shadow.
+    use molehill_sim::mat::CPM;
+    let (mut w, x0, y0) = arena();
+    let (tx, ty) = (x0, y0 - CPM); w.torches.push((tx, ty));
+    for y in y0 - 3 * CPM..=y0 { for x in tx + 2 * CPM..tx + 2 * CPM + CPM / 2 { let i = w.g.idx(x, y); w.g.set(i, Mat::Granite); } }
+    w.compute_light((x0 - 30 * CPM / 4, y0 - 7 * CPM, x0 + 30 * CPM / 4, y0));
+    let luma = |w: &World, x: usize, y: usize| { let l = w.light.at(w.g.idx(x, y)); l[0] * 0.3 + l[1] * 0.5 + l[2] * 0.2 };
+    let behind = luma(&w, tx + 3 * CPM, ty); let open = luma(&w, tx - 3 * CPM, ty);
+    assert!(open > 0.25, "open side lit ({open})");
+    assert!(behind < 0.05, "behind the wall dark ({behind}), open side {open}");
+    // and every light source goes through the same rays: the torch is one of the sources
+    assert!(w.light_sources().iter().any(|s| (s.x - (tx as f32 + 0.5)).abs() < 0.01 && (s.y - (ty as f32 + 0.5)).abs() < 0.01));
+}
