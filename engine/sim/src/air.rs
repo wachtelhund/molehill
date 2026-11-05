@@ -5,14 +5,16 @@
 //! * Sinks: vents (strong, around the vent block) and slow seepage into porous soil (dirt/sand/gravel/
 //!   roots/clay faces). Since the surface is sealed, a closed tunnel system slowly goes stale.
 use crate::grid::Grid;
-use crate::mat::{Kind, Mat};
+use crate::mat::{Kind, Mat, S};
 
-pub const AB: usize = 8;
+pub const AB: usize = 8 * S; // 2 m blocks
 pub const UPDATE_TICKS: u64 = 15;
-pub const MOLE_CO2: f32 = 0.08;
-pub const TORCH_CO2: f32 = 0.05;
+/// Point sources are in legacy cell-units of CO2 per update; a block holds S² times the cells now.
+const PT: f32 = (S * S) as f32;
+pub const MOLE_CO2: f32 = 0.08 * PT;
+pub const TORCH_CO2: f32 = 0.05 * PT;
 pub const FIRE_CO2: f32 = 0.03;
-pub const FARM_CO2: f32 = 0.01;
+pub const FARM_CO2: f32 = 0.01 * PT;
 const DIFF: f32 = 0.22;
 const SEEP: f32 = 0.0016;
 

@@ -12,9 +12,11 @@
 //!   `atten`), links ≥ 0 form a graph; TX reaches RX on the same channel directly or via repeaters.
 //! * Lava (≥2 cells) or rubble (≥10 loose cells) in a block destroys its wire/device.
 use crate::grid::Grid;
-use crate::mat::{Kind, Mat};
+use crate::mat::{Kind, Mat, CPM, S};
 
-pub const B: usize = 4;
+pub const B: usize = CPM; // one block = 1 m
+/// Cell counts below were set for a 4×4-cell block; A scales them to the block's area.
+const A: usize = S * S;
 /// Knock strength above the listener's threshold (dB).
 pub const THRUM_POWER: f32 = 60.;
 pub const FUSE_TICKS: i16 = 24;
@@ -90,7 +92,7 @@ impl Logic {
     fn reset(&mut self, b: usize) { self.dev_s[b] = 0; self.dev_p[b] = 0; self.burn[b] = 0; self.powered[b] = 0; self.rx_on[b] = 0; self.tx_on[b] = 0; }
     /// Returns false if the block is occupied or not open enough.
     pub fn place(&mut self, g: &mut Grid, d: Dev, b: usize) -> bool {
-        if self.dev[b] != 0 || self.count(g, b, |i| g.is_solidish(i)) > 8 { return false; }
+        if self.dev[b] != 0 || self.count(g, b, |i| g.is_solidish(i)) > 8 * A { return false; }
         self.reset(b); self.dev[b] = d as u8; self.dev_p[b] = if d == Dev::Timer { 40 } else if d.is_thrum() { 1 } else { 0 };
         if d.is_gate() { self.wire[b] = 0; }
         if d == Dev::Door { self.set_door(g, b, false); }
@@ -125,7 +127,7 @@ impl Logic {
     }
     /// A mole's body (feet cell (x, y), 3 tall, about a cell either side) overlaps block b.
     pub fn occupied(&self, b: usize, moles: &[(usize, usize)]) -> bool {
-        moles.iter().any(|&(x, y)| (x.saturating_sub(1)..=x + 1).any(|xx| (0..3).any(|k| y >= k && self.block_of(xx, y - k) == b)))
+        moles.iter().any(|&(x, y)| (x.saturating_sub(S)..=x + S).any(|xx| (0..3 * S).any(|k| y >= k && self.block_of(xx, y - k) == b)))
     }
     fn set_door(&self, g: &mut Grid, b: usize, open: bool) {
         let (x0, y0) = ((b % self.bw) * B, (b / self.bw) * B);
@@ -133,7 +135,7 @@ impl Logic {
             let i = y * g.w + x; let m = g.m(i);
             if open { if m == Mat::Door { g.set(i, Mat::Empty); } }
             else if m.kind() != Kind::Solid || g.loose(i) {
-                if m != Mat::Empty { for yy in (y0.saturating_sub(12)..y0).rev() { let j = yy * g.w + x; if g.mat[j] == 0 { g.set(j, m); break; } } }
+                if m != Mat::Empty { for yy in (y0.saturating_sub(12 * S)..y0).rev() { let j = yy * g.w + x; if g.mat[j] == 0 { g.set(j, m); break; } } }
                 g.set(i, Mat::Door);
             }
         } }
@@ -168,13 +170,13 @@ impl Logic {
             let d = Dev::from_u8(self.dev[b]);
             let out = match d {
                 Dev::Lever => self.dev_s[b] == 1,
-                Dev::Plate => { let o = self.occupied(b, moles) || self.count(g, b, |i| g.m(i).kind() == Kind::Powder || (g.loose(i) && g.m(i).kind() == Kind::Solid)) >= 3; self.dev_s[b] = o as u8; o }
-                Dev::Sensor => { let o = self.count(g, b, |i| g.m(i).kind() == Kind::Liquid) >= 4; self.dev_s[b] = o as u8; o }
+                Dev::Plate => { let o = self.occupied(b, moles) || self.count(g, b, |i| g.m(i).kind() == Kind::Powder || (g.loose(i) && g.m(i).kind() == Kind::Solid)) >= 3 * A; self.dev_s[b] = o as u8; o }
+                Dev::Sensor => { let o = self.count(g, b, |i| g.m(i).kind() == Kind::Liquid) >= 4 * A; self.dev_s[b] = o as u8; o }
                 Dev::Rx => { let o = self.rx_on[b] != 0; self.dev_s[b] = o as u8; o }
                 // heatstone: thermoelement, live while lava touches its block or the blocks around it
-                Dev::Heat => { let o = self.nb(b).iter().filter(|&&c| c != usize::MAX && c != b).map(|&c| self.count(g, c, |i| g.m(i) == Mat::Lava)).sum::<usize>() >= 2; self.dev_s[b] = o as u8; o }
+                Dev::Heat => { let o = self.nb(b).iter().filter(|&&c| c != usize::MAX && c != b).map(|&c| self.count(g, c, |i| g.m(i) == Mat::Lava)).sum::<usize>() >= 2 * A; self.dev_s[b] = o as u8; o }
                 // water wheel: turns while water moves through its block
-                Dev::Wheel => { let o = self.count(g, b, |i| g.m(i) == Mat::Water && g.moved[i] == ((g.tick % 255) + 1) as u8) >= 2; self.dev_s[b] = o as u8; o }
+                Dev::Wheel => { let o = self.count(g, b, |i| g.m(i) == Mat::Water && g.moved[i] == ((g.tick % 255) + 1) as u8) >= 2 * A; self.dev_s[b] = o as u8; o }
                 _ => false,
             };
             if out { for c in self.nb(b) { if c < self.wire.len() && self.wire[c] != 0 { on[self.net_id[c] as usize] = 1; } } }
@@ -214,9 +216,9 @@ impl Logic {
             if self.wire[b] == 0 && self.dev[b] == 0 { continue; }
             let d = Dev::from_u8(self.dev[b]); if matches!(d, Dev::Door | Dev::Floodgate | Dev::Plate) { continue; }
             let lava = self.count(g, b, |i| g.mat[i] == Mat::Lava as u8);
-            let buried = self.count(g, b, |i| g.m(i).kind() == Kind::Powder || (g.loose(i) && g.mat[i] != 0)) >= 10;
+            let buried = self.count(g, b, |i| g.m(i).kind() == Kind::Powder || (g.loose(i) && g.mat[i] != 0)) >= 10 * A;
             if matches!(d, Dev::Tnt | Dev::Fuse) { if lava > 0 { self.ignite(b); } continue; } // a buried charge stays put
-            if lava >= 2 || buried {
+            if lava >= 2 * A || buried {
                 self.wire[b] = 0; self.dev[b] = 0; self.mark();
                 self.msgs.push(format!("{} destroyed by {}", if d == Dev::None { "Wire" } else { d.name() }, if lava > 0 { "lava" } else { "cave-in" }));
             }
@@ -229,7 +231,7 @@ impl Logic {
             if self.dev[b] != Dev::Fuse as u8 && !tnt { continue; }
             if self.burn[b] == 0 && self.count(g, b, |i| g.mat[i] == Mat::Lava as u8 || g.mat[i] == Mat::Fire as u8) > 0 { self.ignite(b); }
             if self.burn[b] <= 0 { continue; }
-            if self.count(g, b, |i| g.mat[i] == Mat::Water as u8) >= 4 { self.burn[b] = 0; self.msgs.push(format!("{} doused", if tnt { "TNT fuse" } else { "Fuse" })); continue; }
+            if self.count(g, b, |i| g.mat[i] == Mat::Water as u8) >= 4 * A { self.burn[b] = 0; self.msgs.push(format!("{} doused", if tnt { "TNT fuse" } else { "Fuse" })); continue; }
             self.burn[b] -= 1;
             if tnt { if self.burn[b] == 0 { self.detonate(b); } continue; }
             if self.burn[b] == 0 { self.dev[b] = 0; self.dirty = true;
@@ -240,11 +242,11 @@ impl Logic {
     fn pump(&self, g: &mut Grid, b: usize) {
         let bx = b % self.bw; let mut by = (b / self.bw) as i64 - 1; let mut crossed = false; let mut out = None;
         for _ in 0..16 { if by < 0 { break; } let ob = by as usize * self.bw + bx;
-            if self.count(g, ob, |i| g.is_solidish(i)) >= 12 { crossed = true; } else if crossed && self.count(g, ob, |i| g.mat[i] == 0) > 0 { out = Some(ob); break; }
+            if self.count(g, ob, |i| g.is_solidish(i)) >= 12 * A { crossed = true; } else if crossed && self.count(g, ob, |i| g.mat[i] == 0) > 0 { out = Some(ob); break; }
             by -= 1; }
         let Some(out) = out else { return };
         let (x0, y0, ox, oy) = (bx * B, (b / self.bw) * B, (out % self.bw) * B, (out / self.bw) * B); let mut moved = 0;
-        for y in (y0..y0 + B).rev() { for x in x0..x0 + B { if moved >= 3 { return; }
+        for y in (y0..y0 + B).rev() { for x in x0..x0 + B { if moved >= 3 * A { return; }
             let i = y * g.w + x; let m = g.m(i); if m.kind() != Kind::Liquid { continue; }
             'o: for yy in (oy..oy + B).rev() { for xx in ox..ox + B { let j = yy * g.w + xx; if g.mat[j] == 0 { g.set(j, m); g.set(i, Mat::Empty); moved += 1; break 'o; } } }
         } }

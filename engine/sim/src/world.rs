@@ -3,7 +3,7 @@ use crate::craft::*;
 use crate::gen::{self, Gen, GenInfo};
 use crate::grid::{hash3, Grid, F_SEEN, F_WET};
 use crate::light::{self, Light};
-use crate::mat::{Kind, Mat, NMAT};
+use crate::mat::{Kind, Mat, CELL_M, CPM, NMAT, S, SF};
 use crate::stress::Stress;
 use crate::logic::{Dev, Logic};
 use crate::disasters::Disasters;
@@ -11,13 +11,17 @@ use crate::air::{self, Air};
 use std::collections::VecDeque;
 /// Of every 10 cells of ground that crumble, how many leave an extra cell of rubble (bulking).
 pub const BULK_IN_10: u32 = 3;
+/// Rows the window slides by when the colony nears its edge (32 m).
+pub const SLIDE: usize = 32 * CPM;
+/// Cells of a placed block one pack item makes (a legacy tile is S×S cells, and an item made 4 of them).
+pub const CELLS_PER_BLOCK: u16 = 4 * (S * S) as u16;
 /// Lava cooling sweep period (ticks), and the chance per sweep (1 in N) that a thin bit of lava freezes.
 pub const LAVA_COOL_EVERY: u64 = 30; pub const LAVA_COOL_1_IN: u32 = 24;
 use std::sync::atomic::Ordering::Relaxed;
 
 pub const D_DIG: u8 = 1; pub const D_WOOD: u8 = 2; pub const D_BRICK: u8 = 3; pub const D_IRON: u8 = 4;
-pub const MOLE_H: usize = 3;
-const REACH: i32 = 3;
+pub const MOLE_H: usize = 3 * S;
+const REACH: i32 = 3 * S as i32;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Job { Dig, Build, Haul(usize), Deliver, Craft(usize), Station(usize), Flee, Eat, Sleep }
@@ -41,9 +45,9 @@ pub struct Player { pub px: f32, pub py: f32, pub ppx: f32, pub ppy: f32, pub sy
     pub flash: f32, pub hp_was: f32,
     /// wall-jump grace (s left) after leaving a cling, and the side that wall was on
     pub wall_t: f32, pub wall_side: i8 }
-pub const REACH_CELLS: f32 = 18.; // 4.5 m
+pub const REACH_CELLS: f32 = 4.5 * CPM as f32; // 4.5 m
 /// Mining brush radius (cells) per dig tool: claws, pickaxe, drill, bore. A pickaxe bite is about a mole tall.
-pub const BITES: [f32; 4] = [1.8, 2.5, 3.2, 4.2];
+pub const BITES: [f32; 4] = [1.8 * SF, 2.5 * SF, 3.2 * SF, 4.2 * SF];
 /// What a round brush is attached to: a dig tool tier (0 claws .. 3 bore) or a placeable block item.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Brush { Dig(u8), Place(Item) }
@@ -51,16 +55,16 @@ pub enum Brush { Dig(u8), Place(Item) }
 /// of 0.5 is one cell, 1.0 a plus of five. Defaults: dig tools keep their `BITES`; pillars and beams place one cell, bricks a small plus.
 pub fn brush_range(b: Brush) -> Option<(f32, f32, f32)> {
     Some(match b {
-        Brush::Dig(t) => match t { 0 => (0.5, 1.8, BITES[0]), 1 => (0.5, 3.0, BITES[1]), 2 => (0.5, 4.0, BITES[2]), _ => (1.0, 5.5, BITES[3]) },
-        Brush::Place(Item::WoodPillar) => (0.5, 3.0, 0.5),
-        Brush::Place(Item::Brick) => (0.5, 3.5, 1.0),
-        Brush::Place(Item::IronBeam) => (0.5, 2.0, 0.5),
+        Brush::Dig(t) => match t { 0 => (0.5 * SF, 1.8 * SF, BITES[0]), 1 => (0.5 * SF, 3.0 * SF, BITES[1]), 2 => (0.5 * SF, 4.0 * SF, BITES[2]), _ => (1.0 * SF, 5.5 * SF, BITES[3]) },
+        Brush::Place(Item::WoodPillar) => (0.5 * SF, 3.0 * SF, 0.5 * SF),
+        Brush::Place(Item::Brick) => (0.5 * SF, 3.5 * SF, 1.0 * SF),
+        Brush::Place(Item::IronBeam) => (0.5 * SF, 2.0 * SF, 0.5 * SF),
         _ => return None,
     })
 }
 /// The radius actually used: the requested one (0 = default), clamped to the item's range.
 pub fn brush_radius(b: Brush, want: f32) -> f32 {
-    match brush_range(b) { Some((lo, hi, def)) => if want <= 0. { def } else { want.clamp(lo, hi) }, None => 0.5 }
+    match brush_range(b) { Some((lo, hi, def)) => if want <= 0. { def } else { want.clamp(lo, hi) }, None => 0.5 * SF }
 }
 /// Cells (dx, dy) of a round brush of radius r, nearest the centre first.
 pub fn disc(r: f32) -> Vec<(i32, i32)> {
@@ -69,7 +73,7 @@ pub fn disc(r: f32) -> Vec<(i32, i32)> {
     v.sort_by_key(|&(dx, dy)| dx * dx + dy * dy); v
 }
 /// Player body (cells): an AABB centred on px, feet at py.
-pub const BODY_HW: f32 = 0.9; pub const BODY_H: f32 = 2.9;
+pub const BODY_HW: f32 = 0.9 * SF; pub const BODY_H: f32 = 2.9 * SF;
 /// Movement tuning (cells, seconds). One place to tweak the feel.
 #[derive(Clone, Copy, Debug)]
 pub struct Tune { pub run: f32, pub ground_accel: f32, pub ground_decel: f32, pub air_accel: f32, /// air drag with no direction held (keeps wall-jump and run-off momentum)
@@ -78,10 +82,11 @@ pub struct Tune { pub run: f32, pub ground_accel: f32, pub ground_decel: f32, pu
     pub nudge: f32,
     pub swim_mul: f32, pub swim_grav: f32, pub buoyancy: f32, pub swim_up: f32, pub swim_max: f32, pub lava_dps: f32, pub safe_fall: usize,
     pub lava_mul: f32, pub lava_sink: f32, pub lava_up: f32 }
-pub const TUNE: Tune = Tune { run: 15., ground_accel: 900., ground_decel: 1400., air_accel: 480., air_decel: 60., gravity: 150., fall_mul: 1.7, cut_mul: 3.0, jump_v: 42., terminal: 60.,
-    coyote: 0.1, buffer: 0.1, climb: 10.5, slide: 3., wall_jump_x: 17., wall_jump_y: 36., wall_lock: 0.13, step: 2., mantle: 3., nudge: 0.6,
-    swim_mul: 0.55, swim_grav: 0.35, buoyancy: 40., swim_up: 70., swim_max: 11., lava_dps: 75., safe_fall: 20,
-    lava_mul: 0.25, lava_sink: 3., lava_up: 22. }; // lava: thick, you wade and slowly sink, and it burns fast
+/// Lengths are written in legacy 0.25 m tiles times SF, so the feel is the same in metres at any CPM.
+pub const TUNE: Tune = Tune { run: 15. * SF, ground_accel: 900. * SF, ground_decel: 1400. * SF, air_accel: 480. * SF, air_decel: 60. * SF, gravity: 150. * SF, fall_mul: 1.7, cut_mul: 3.0, jump_v: 42. * SF, terminal: 60. * SF,
+    coyote: 0.1, buffer: 0.1, climb: 10.5 * SF, slide: 3. * SF, wall_jump_x: 17. * SF, wall_jump_y: 36. * SF, wall_lock: 0.13, step: 2. * SF, mantle: 3. * SF, nudge: 0.6 * SF,
+    swim_mul: 0.55, swim_grav: 0.35, buoyancy: 40. * SF, swim_up: 70. * SF, swim_max: 11. * SF, lava_dps: 75., safe_fall: 20 * S,
+    lava_mul: 0.25, lava_sink: 3. * SF, lava_up: 22. * SF }; // lava: thick, you wade and slowly sink, and it burns fast
 #[derive(Clone)]
 pub struct Drop { pub x: usize, pub y: usize, pub item: Item, pub n: u32, pub claimed: bool }
 /// A mushroom plot: the open cell where the mushroom stands, on soil. `growth` 0..1, `why` = what's
@@ -127,15 +132,15 @@ impl World {
             light_rect: (0, 0, w - 1, h - 1), events: vec![], marks: vec![], react_pending: false, logic: Logic::new(w, h), disasters: Disasters::new(seed), shake: 0., air: Air::new(w, h), farms: vec![], harvested: 0, input: Input::default(), pl: Player::default(), gen: gn, oy, cache: Default::default(), opened: Default::default(), info, g,
         };
         wd.refresh_chests();
-        let (sx, sy) = (wd.info.start.0 * 4, wd.info.start.1 * 4);
+        let (sx, sy) = (wd.info.start.0 * CPM, wd.info.start.1 * CPM);
         // floor of the start chamber: the first support below
-        let mut fy = sy.min(h - 6); while fy < h - 5 && !wd.g.is_solidish(wd.g.idx(sx, fy + 1)) { fy += 1; }
-        wd.stockpile = (sx + 6, fy - 2, sx + 16, fy);
+        let mut fy = sy.min(h - 6 * S); while fy < h - 5 * S && !wd.g.is_solidish(wd.g.idx(sx, fy + 1)) { fy += 1; }
+        wd.stockpile = (sx + 6 * S, fy - 2 * S, sx + 16 * S, fy);
         for k in 0..1 { wd.moles.push(Mole { name: NAMES[k], x: sx, y: fy, hp: 100., breath: 100., path: VecDeque::new(), job: None, work: 0, work_cell: None, carry: None, hunger: 80. + k as f32 * 4., sleep: 70. + k as f32 * 7., facing: 1, fall: 0, idle: 0, anim: k as u32 * 7, alive: true }); }
         wd.pl.spawn = (sx, wd.oy + fy as i64); wd.pl.fall_from = fy;
-        light::reveal_box(&mut wd.g, sx - 60, fy.saturating_sub(42), sx + 60, (fy + 52).min(h - 1)); // the colony knows its neighbourhood
-        { let b = wd.logic.block_of(sx, fy - 5); let gg = &mut wd.g; wd.logic.place(gg, Dev::Vent, b); } // the burrow's air shaft
-        wd.torches.push((sx - 12, fy - 2)); wd.torches.push((sx + 12, fy - 2));
+        light::reveal_box(&mut wd.g, sx - 60 * S, fy.saturating_sub(42 * S), sx + 60 * S, (fy + 52 * S).min(h - 1)); // the colony knows its neighbourhood
+        { let b = wd.logic.block_of(sx, fy - 5 * S); let gg = &mut wd.g; wd.logic.place(gg, Dev::Vent, b); } // the burrow's air shaft
+        wd.torches.push((sx - 12 * S, fy - 2 * S)); wd.torches.push((sx + 12 * S, fy - 2 * S));
         for (it, n) in [(Item::Wood, 8), (Item::Torch, 6), (Item::WoodPillar, 12), (Item::Grub, 12), (Item::CopperWire, 40), (Item::Gate, 6), (Item::Thrummer, 3), (Item::Spore, 6), (Item::Vent, 1)] { wd.inv[it as usize] = n; }
         for k in 0..NMAT { if wd.g.mat.iter().zip(&wd.g.flags).any(|(&m, &f)| m as usize == k && f & F_SEEN != 0) { wd.discovered[k] = true; } }
         // settle the structure once so crack timers start from the real state
@@ -144,13 +149,13 @@ impl World {
         wd
     }
     pub fn say(&mut self, s: String) { self.log.push((self.tick, s)); if self.log.len() > 60 { self.log.remove(0); } }
-    pub fn depth_m(&self, _x: usize, y: usize) -> f32 { (self.oy + y as i64) as f32 * 0.25 }
-    /// Chests for every 128-row band overlapping the window (opened ones stay opened).
+    pub fn depth_m(&self, _x: usize, y: usize) -> f32 { (self.oy + y as i64) as f32 * CELL_M }
+    /// Chests for every chest band overlapping the window (opened ones stay opened).
     pub fn refresh_chests(&mut self) {
-        let h = self.g.h as i64; self.chests.clear();
-        for band in self.oy.div_euclid(128)..=(self.oy + h).div_euclid(128) {
+        let h = self.g.h as i64; self.chests.clear(); let bh = gen::CHEST_BAND as i64; let mg = 4 * S as i64;
+        for band in self.oy.div_euclid(bh)..=(self.oy + h).div_euclid(bh) {
             for (x, wy) in self.gen.chests_in_band(band, self.g.w) {
-                let y = wy - self.oy; if y < 4 || y >= h - 4 { continue; }
+                let y = wy - self.oy; if y < mg || y >= h - mg { continue; }
                 self.chests.push(Chest { x, y: y as usize, opened: self.opened.contains(&(x, wy)) });
             }
         }
@@ -196,11 +201,11 @@ impl World {
     fn follow_colony(&mut self) {
         let h = self.g.h; let ys: Vec<usize> = self.moles.iter().filter(|m| m.alive).map(|m| m.y).collect(); if ys.is_empty() { return; }
         let (lo, hi) = (*ys.iter().min().unwrap(), *ys.iter().max().unwrap());
-        // margin m from either edge triggers a 128-row slide; m ≤ (h-128)/2 guarantees the slide
+        // margin m from either edge triggers a SLIDE-row slide; m ≤ (h-SLIDE)/2 guarantees the slide
         // lands the colony inside [m, h-m], so it can't immediately trigger the opposite slide
         // (with m = 100 a 256-row window thrashed back and forth every 30 ticks)
-        let m = 100.min(h.saturating_sub(128) / 2);
-        if hi > h - m && lo >= m + 128 { self.shift(128); } else if lo < m && hi + 128 <= h - m { self.shift(-128); }
+        let m = (100 * S).min(h.saturating_sub(SLIDE) / 2);
+        if hi > h - m && lo >= m + SLIDE { self.shift(SLIDE as i64); } else if lo < m && hi + SLIDE <= h - m { self.shift(-(SLIDE as i64)); }
     }
 
     #[inline] fn passable(&self, x: usize, y: usize) -> bool { let m = self.g.get(x, y); matches!(m, Mat::Empty | Mat::Steam | Mat::Water | Mat::Lava | Mat::Fire) && !self.is_building_cell(x, y, false) }
@@ -293,7 +298,7 @@ impl World {
         } }
         for m in self.moles.iter_mut() { let d = ((m.x as f32 - cx as f32).powi(2) + (m.y as f32 - cy as f32).powi(2)).sqrt(); if d < r * 1.5 { m.hp -= 80. * (1. - d / (r * 1.5)); } }
         self.logic.on_explosion(&mut self.g, cx, cy, r);
-        self.events.push(Event::Explode); self.shake = self.shake.max(r / 3.);
+        self.events.push(Event::Explode); self.shake = self.shake.max(r / (3. * SF));
     }
 
     pub fn step(&mut self) {
@@ -320,7 +325,7 @@ impl World {
             let y0 = i / w; let mut q = VecDeque::from([i]); let mut seen = vec![i];
             while let Some(k) = q.pop_front() {
                 if k != i && matches!(self.g.m(k).kind(), Kind::Empty | Kind::Gas) { self.g.set(k, c); if c.kind() == Kind::Solid { self.g.set_loose(k); } break; }
-                if seen.len() > 48 { break; }
+                if seen.len() > 48 * S { break; }
                 let (x, y) = (k % w, k / w);
                 for (nx, ny) in [(x, y + 1), (x.wrapping_sub(1), y), (x + 1, y), (x.wrapping_sub(1), y + 1), (x + 1, y + 1)] {
                     if nx >= w || ny >= h || ny < y0 { continue; }
@@ -339,7 +344,7 @@ impl World {
         self.logic.step(&mut self.g, &mp, self.tick);
         for s in std::mem::take(&mut self.logic.msgs) { self.say(s); }
         let booms = std::mem::take(&mut self.logic.booms);
-        for b in booms { if self.logic.dev[b] == Dev::Tnt as u8 { self.logic.remove(&mut self.g, b); let (x, y) = self.logic.centre(b); self.explode(x, y, 9., 6); } }
+        for b in booms { if self.logic.dev[b] == Dev::Tnt as u8 { self.logic.remove(&mut self.g, b); let (x, y) = self.logic.centre(b); self.explode(x, y, 9. * SF, 6); } }
         if self.tick % LAVA_COOL_EVERY == 0 { self.cool_lava(); }
         // disasters
         let mut dz = std::mem::replace(&mut self.disasters, Disasters::new(0));
@@ -362,22 +367,22 @@ impl World {
     pub fn plant(&mut self, x: usize, y: usize) -> Result<(), &'static str> {
         if self.inv[Item::Spore as usize] == 0 { return Err("no spores (dig fungus to find some)"); }
         if x < 1 || y + 1 >= self.g.h || x + 1 >= self.g.w { return Err("out of bounds"); }
-        // snap to the floor: climb out of rock or drop through air (up to 6 cells)
-        let mut y = y; for _ in 0..6 { if y > 1 && self.g.mat[self.g.idx(x, y)] != 0 { y -= 1; } else if y + 2 < self.g.h && self.g.mat[self.g.idx(x, y + 1)] == 0 { y += 1; } else { break; } }
+        // snap to the floor: climb out of rock or drop through air (up to 1.5 m)
+        let mut y = y; for _ in 0..6 * S { if y > 1 && self.g.mat[self.g.idx(x, y)] != 0 { y -= 1; } else if y + 2 < self.g.h && self.g.mat[self.g.idx(x, y + 1)] == 0 { y += 1; } else { break; } }
         if self.g.mat[self.g.idx(x, y)] != 0 { return Err("needs an open cell"); }
         if !matches!(self.g.get(x, y + 1), Mat::Dirt | Mat::Clay | Mat::Roots | Mat::Gravel | Mat::Fungus | Mat::Grass) || self.g.loose(self.g.idx(x, y + 1)) { return Err("needs a soil floor (dirt, clay, roots)"); }
-        if self.farms.iter().any(|f| f.x.abs_diff(x) < 3 && f.y.abs_diff(y) < 3) { return Err("too close to another mushroom"); }
+        if self.farms.iter().any(|f| f.x.abs_diff(x) < 3 * S && f.y.abs_diff(y) < 3 * S) { return Err("too close to another mushroom"); }
         self.inv[Item::Spore as usize] -= 1; self.farms.push(Farm { x, y, growth: 0., why: 0 }); self.events.push(Event::Place); Ok(())
     }
     /// Growth check for one plot: (bright, dry).
     pub fn farm_conditions(&self, x: usize, y: usize) -> (bool, bool) {
-        let near = |px: usize, py: usize, r: usize| px.abs_diff(x) <= r && py.abs_diff(y) <= r;
+        let near = |px: usize, py: usize, r: usize| px.abs_diff(x) <= r * S && py.abs_diff(y) <= r * S;
         let bright = self.torches.iter().any(|&(tx, ty)| near(tx, ty, 10)) || self.logic.dev_list.iter().any(|&b| self.logic.dev[b] == Dev::Lamp as u8 && self.logic.dev_s[b] != 0 && { let (cx, cy) = self.logic.centre(b); near(cx, cy, 10) })
             || self.buildings.iter().any(|b| b.built && matches!(b.kind, Station::Kiln | Station::Furnace) && near(b.x + Station::W / 2, b.y, 12));
         let mut wet = 0;
-        for dy in -4i32..=4 { for dx in -4i32..=4 { let (nx, ny) = (x as i32 + dx, y as i32 + dy); if !self.g.in_bounds(nx, ny) { continue; } let i = self.g.idx(nx as usize, ny as usize);
+        let r = 4 * S as i32; for dy in -r..=r { for dx in -r..=r { let (nx, ny) = (x as i32 + dx, y as i32 + dy); if !self.g.in_bounds(nx, ny) { continue; } let i = self.g.idx(nx as usize, ny as usize);
             if self.g.mat[i] == Mat::Water as u8 { wet += 3; } else if self.g.flags[i] & F_WET != 0 || self.g.mat[i] == Mat::Clay as u8 { wet += 1; } } }
-        (bright, wet < 4)
+        (bright, wet < 4 * S * S)
     }
     fn step_farms(&mut self) {
         let mut k = 0;
@@ -401,8 +406,8 @@ impl World {
     }
     pub fn compute_light(&mut self, rect: (usize, usize, usize, usize)) {
         let mut pts: Vec<(usize, usize, [f32; 3])> = self.torches.iter().map(|&(x, y)| (x, y, [1.6, 1.15, 0.6])).collect();
-        for m in &self.moles { if m.alive { pts.push((m.x, m.y - 1, [0.35, 0.30, 0.25])); } }
-        for b in &self.buildings { if b.built && matches!(b.kind, Station::Kiln | Station::Furnace) { pts.push((b.x + Station::W / 2, b.y - 1, [1.4, 0.6, 0.2])); } }
+        for m in &self.moles { if m.alive { pts.push((m.x, m.y - S, [0.35, 0.30, 0.25])); } }
+        for b in &self.buildings { if b.built && matches!(b.kind, Station::Kiln | Station::Furnace) { pts.push((b.x + Station::W / 2, b.y - S, [1.4, 0.6, 0.2])); } }
         for &b in &self.logic.dev_list { if self.logic.dev[b] == Dev::Lamp as u8 && self.logic.dev_s[b] != 0 { let (x, y) = self.logic.centre(b); pts.push((x, y, [1.3, 1.25, 0.9])); } }
         let day = self.day; self.light_rect = rect;
         self.light.compute(&self.g, rect, day, &pts);
@@ -415,12 +420,12 @@ impl World {
             self.moles[k].anim += 1;
             self.mole_physics(k);
             if !self.moles[k].alive { continue; }
-            if (self.tick / 2 + k as u64) % 4 == 0 { let (x, y) = (self.moles[k].x, self.moles[k].y - 1); let before = self.g.flags.clone(); light::reveal(&mut self.g, x, y, 28); self.note_discoveries(&before, x, y); }
+            if (self.tick / 2 + k as u64) % 4 == 0 { let (x, y) = (self.moles[k].x, self.moles[k].y - S); let before = self.g.flags.clone(); light::reveal(&mut self.g, x, y, 28 * S); self.note_discoveries(&before, x, y); }
             let d = self.depth_m(self.moles[k].x, self.moles[k].y); if d > self.max_depth { self.max_depth = d; }
         }
     }
     fn note_discoveries(&mut self, before: &[u8], x: usize, y: usize) {
-        let w = self.g.w; let (x0, y0, x1, y1) = (x.saturating_sub(29), y.saturating_sub(29), (x + 29).min(w - 1), (y + 29).min(self.g.h - 1));
+        let w = self.g.w; let (x0, y0, x1, y1) = (x.saturating_sub(29 * S), y.saturating_sub(29 * S), (x + 29 * S).min(w - 1), (y + 29 * S).min(self.g.h - 1));
         for yy in y0..=y1 { for xx in x0..=x1 {
             let i = yy * w + xx; if before[i] & F_SEEN == 0 && self.g.flags[i] & F_SEEN != 0 {
                 let m = self.g.m(i);
@@ -434,7 +439,7 @@ impl World {
     }
     fn mole_physics(&mut self, k: usize) {
         let (x, y) = (self.moles[k].x, self.moles[k].y);
-        let head = self.g.idx(x, y - 1); let hm = self.g.m(head);
+        let head = self.g.idx(x, y - S); let hm = self.g.m(head);
         let in_lava = (0..MOLE_H).any(|j| matches!(self.g.get(x, y - j), Mat::Lava | Mat::Fire) && !(k == 0 && self.g.get(x, y - j) == Mat::Lava));
         let m = &mut self.moles[k];
         if in_lava { m.hp -= 4.; }
@@ -445,7 +450,7 @@ impl World {
         if m.job == Some(Job::Sleep) { m.sleep = (m.sleep + 2.5 * dt).min(100.); } else { m.sleep = 100.; /* one mole, no bedtime for now */ }
         if m.hunger <= 0. { m.hp -= 1. * dt; }
         if m.hunger > 60. && m.sleep > 50. && m.breath > 80. { m.hp = (m.hp + 0.5 * dt).min(100.); }
-        let co2 = self.air.at(x, y - 1);
+        let co2 = self.air.at(x, y - S);
         if hm == Mat::Water { m.breath = (m.breath - 0.25).max(0.); if m.breath <= 0. { m.hp -= 0.6; } }
         else if co2 > 0.45 { m.breath = (m.breath - (co2 - 0.45) * 1.2).max(0.); if m.breath <= 0. { m.hp -= 0.4; } }
         else { m.breath = (m.breath + 2.).min(100.); }
@@ -453,7 +458,7 @@ impl World {
         if buried {
             self.moles[k].hp -= 1.5; self.events.push(Event::Hurt);
             // try to wriggle up or sideways
-            for (dx, dy) in [(0i32, -1i32), (-1, 0), (1, 0), (0, -2), (-2, 0), (2, 0), (0, -3)] { let (nx, ny) = ((x as i32 + dx) as usize, (y as i32 + dy) as usize); if self.fits(nx, ny) { self.moles[k].x = nx; self.moles[k].y = ny; break; } }
+            for (dx, dy) in [(0i32, -1i32), (-1, 0), (1, 0), (0, -2), (-2, 0), (2, 0), (0, -3)] { let (dx, dy) = (dx * S as i32, dy * S as i32); let (nx, ny) = ((x as i32 + dx) as usize, (y as i32 + dy) as usize); if self.fits(nx, ny) { self.moles[k].x = nx; self.moles[k].y = ny; break; } }
             self.moles[k].path.clear();
         }
         // a hungry mole snacks from its pack
@@ -461,29 +466,29 @@ impl World {
         if self.moles[k].hp <= 0. { self.moles[k].alive = false; self.pl.dead_t = 0; self.pl.deaths += 1; let nm = self.moles[k].name; self.events.push(Event::Death); self.say(format!("{} has died. Back to the burrow...", nm)); }
     }
     fn drop_item(&mut self, x: usize, y: usize, item: Item, n: u32) {
-        if let Some(d) = self.drops.iter_mut().find(|d| d.item == item && d.x.abs_diff(x) <= 3 && d.y.abs_diff(y) <= 3 && d.n < 20) { d.n += n; return; }
+        if let Some(d) = self.drops.iter_mut().find(|d| d.item == item && d.x.abs_diff(x) <= 3 * S && d.y.abs_diff(y) <= 3 * S && d.n < 20) { d.n += n; return; }
         self.drops.push(Drop { x, y, item, n, claimed: false });
     }
     fn dig_cell(&mut self, i: usize, mx: usize, my: usize) {
         let m = self.g.m(i); let wet = self.g.flags[i] & F_WET != 0;
         self.g.set(i, if wet { Mat::Water } else { Mat::Empty }); self.desig[i] = 0; self.events.push(Event::Dig);
-        if matches!(m, Mat::Dirt | Mat::Clay | Mat::Gravel | Mat::Roots | Mat::Grass) && hash3(i as u32, self.tick as u32, 0x6b) % 48 == 0 { self.drop_item(mx, my, Item::Grub, 1); }
-        if m == Mat::Fungus && hash3(i as u32, self.tick as u32, 0x5b) % 2 == 0 { self.drop_item(mx, my, Item::Spore, 1); }
+        if matches!(m, Mat::Dirt | Mat::Clay | Mat::Gravel | Mat::Roots | Mat::Grass) && hash3(i as u32, self.tick as u32, 0x6b) % (48 * S * S) as u32 == 0 { self.drop_item(mx, my, Item::Grub, 1); }
+        if m == Mat::Fungus && hash3(i as u32, self.tick as u32, 0x5b) % (2 * S * S) as u32 == 0 { self.drop_item(mx, my, Item::Spore, 1); }
         if let Some(it) = drop_of(m) {
             self.dig_acc[m as usize] += 1;
-            let per = if matches!(m, Mat::Crystal | Mat::Quartz) { 3 } else { CELLS_PER_ITEM };
+            let per = if matches!(m, Mat::Crystal | Mat::Quartz) { 3 * (S * S) as u16 } else { CELLS_PER_ITEM };
             if self.dig_acc[m as usize] >= per { self.dig_acc[m as usize] = 0; self.drop_item(mx, my, it, 1); }
         }
-        let (x, y) = (i % self.g.w, i / self.g.w); light::reveal(&mut self.g, x, y, 3);
+        let (x, y) = (i % self.g.w, i / self.g.w); light::reveal(&mut self.g, x, y, 3 * S);
     }
     fn place_cell(&mut self, i: usize, d: u8) {
         let it = build_item(d);
-        if self.place_acc[d as usize] == 0 { if self.inv[it as usize] == 0 { return; } self.inv[it as usize] -= 1; self.place_acc[d as usize] = 4; }
+        if self.place_acc[d as usize] == 0 { if self.inv[it as usize] == 0 { return; } self.inv[it as usize] -= 1; self.place_acc[d as usize] = CELLS_PER_BLOCK; }
         self.place_acc[d as usize] -= 1;
         self.g.set(i, build_mat(d)); self.desig[i] = 0; self.pillars += 1; self.events.push(Event::Place);
     }
-    /// Lava loses heat where there's little of it: a cell with fewer than 10 lava cells in its 5×5
-    /// neighbourhood (a splash, a thin sheet, a trickle down a wall) now and then freezes into solid
+    /// Lava loses heat where there's little of it: a cell with fewer than 10 tiles' worth of lava in
+    /// the 5×5-tile (1.25 m) neighbourhood (a splash, a thin sheet, a trickle down a wall) now and then freezes into solid
     /// basalt where it rests on solid ground. Deep pools keep their heat (only their thin edges
     /// crust), so lava lakes stay molten.
     fn cool_lava(&mut self) {
@@ -492,16 +497,16 @@ impl World {
         for y in 0..h { for x in 0..w { let i = y * w + x; if self.g.mat[i] != lava { continue; }
             if hash3(x as u32, y as u32, (self.tick / LAVA_COOL_EVERY) as u32 ^ 0x1A7A) % LAVA_COOL_1_IN != 0 { continue; }
             let mut n = 0;
-            for yy in y.saturating_sub(2)..=(y + 2).min(h - 1) { for xx in x.saturating_sub(2)..=(x + 2).min(w - 1) { if self.g.mat[yy * w + xx] == lava { n += 1; } } }
+            let r = 2 * S; for yy in y.saturating_sub(r)..=(y + r).min(h - 1) { for xx in x.saturating_sub(r)..=(x + r).min(w - 1) { if self.g.mat[yy * w + xx] == lava { n += 1; } } }
             // it sets from the bottom up, on solid ground: a crust on top of molten lava would just break up again
-            if n - 1 < 10 && y + 1 < h && self.g.is_static(i + w) { freeze.push(i); } } }
+            if n - 1 < 10 * S * S && y + 1 < h && self.g.is_static(i + w) { freeze.push(i); } } }
         for i in freeze { self.g.set(i, Mat::Basalt); }
     }
     fn check_chests(&mut self) {
         for c in 0..self.chests.len() {
             if self.chests[c].opened { continue; }
             let (cx, cy) = (self.chests[c].x, self.chests[c].y);
-            let near = self.moles.iter().any(|m| m.alive && m.x.abs_diff(cx) <= 4 && m.y.abs_diff(cy) <= 4);
+            let near = self.moles.iter().any(|m| m.alive && m.x.abs_diff(cx) <= 4 * S && m.y.abs_diff(cy) <= 4 * S);
             if !near || self.g.is_solidish(self.g.idx(cx, cy)) { continue; }
             self.chests[c].opened = true; self.chests_opened += 1; self.opened.insert((cx, self.oy + cy as i64));
             let h = hash3(cx as u32, cy as u32, self.info.seed);
@@ -519,7 +524,7 @@ impl World {
     }
     /// Cell centre within the mole's reach (measured from its chest).
     pub fn in_reach(&self, x: usize, y: usize) -> bool {
-        let Some(m) = self.moles.first() else { return false }; let (dx, dy) = (x as f32 - m.x as f32, y as f32 - (m.y as f32 - 1.));
+        let Some(m) = self.moles.first() else { return false }; let (dx, dy) = (x as f32 - m.x as f32, y as f32 - (m.y as f32 - SF));
         dx * dx + dy * dy <= REACH_CELLS * REACH_CELLS
     }
     /// Ticks to mine cell i with the current tools (None = can't: wrong kind or tool tier too low).
@@ -540,9 +545,9 @@ impl World {
         let (c0, c1) = ((px - BODY_HW).floor() as i32, (px + BODY_HW - 1e-3).floor() as i32);
         let (r0, r1) = ((py - BODY_H).floor() as i32, (py - 1e-3).floor() as i32);
         let (xs, ys) = if (r0 - 1..=r1).contains(&my) && (mx > c1 || mx < c0) {
-            (if mx > c1 { (c1 + 1, mx.min(c1 + 6)) } else { (mx.max(c0 - 6), c0 - 1) }, (r0, r1))
+            (if mx > c1 { (c1 + 1, mx.min(c1 + 6 * S as i32)) } else { (mx.max(c0 - 6 * S as i32), c0 - 1) }, (r0, r1))
         } else if (c0 - 1..=c1 + 1).contains(&mx) && (my > r1 || my < r0) {
-            ((c0, c1), if my > r1 { (r1 + 1, my.min(r1 + 6)) } else { (my.max(r0 - 6), r0 - 1) })
+            ((c0, c1), if my > r1 { (r1 + 1, my.min(r1 + 6 * S as i32)) } else { (my.max(r0 - 6 * S as i32), r0 - 1) })
         } else { return vec![] };
         let mut v = vec![];
         for y in ys.0..=ys.1 { for x in xs.0..=xs.1 { if self.g.in_bounds(x, y) { v.push(self.g.idx(x as usize, y as usize)); } } }
@@ -558,7 +563,7 @@ impl World {
     fn body_fluid_at(&self, px: f32, py: f32) -> (bool, bool) {
         let (x, ym) = (px as usize, (py - BODY_H * 0.5) as usize); if x >= self.g.w || ym >= self.g.h { return (false, false); }
         let m = self.g.get(x, ym);
-        let lava = [py - 0.5, py - BODY_H * 0.5, py - BODY_H + 0.2].iter().any(|&yy| yy >= 0. && (yy as usize) < self.g.h && self.g.get(x, yy as usize) == Mat::Lava);
+        let lava = [py - 0.5 * SF, py - BODY_H * 0.5, py - BODY_H + 0.2 * SF].iter().any(|&yy| yy >= 0. && (yy as usize) < self.g.h && self.g.get(x, yy as usize) == Mat::Lava);
         (m == Mat::Water, lava)
     }
     fn body_fluid(&self) -> (bool, bool) { self.body_fluid_at(self.pl.px, self.pl.py) }
@@ -596,8 +601,9 @@ impl World {
             self.pl.dead_t += 1; if self.pl.dead_t < 150 { return; }
             // respawn at the burrow (slide the window back to it if needed)
             let (sx, swy) = self.pl.spawn; let h = self.g.h as i64;
-            for _ in 0..64 { let y = swy - self.oy; if y < 100 { self.shift(-128); } else if y > h - 100 { self.shift(128); } else { break; } }
-            let mut y = (swy - self.oy).clamp(4, h - 3) as usize; while y > 4 && !self.fits(sx, y) { y -= 1; }
+            let (mg, sl) = (100 * S as i64, SLIDE as i64);
+            for _ in 0..64 { let y = swy - self.oy; if y < mg { self.shift(-sl); } else if y > h - mg { self.shift(sl); } else { break; } }
+            let mut y = (swy - self.oy).clamp(4 * S as i64, h - 3 * S as i64) as usize; while y > 4 * S && !self.fits(sx, y) { y -= 1; }
             let m = &mut self.moles[0]; m.x = sx; m.y = y; m.hp = 100.; m.breath = 100.; m.hunger = m.hunger.max(50.); m.alive = true; m.fall = 0;
             self.pl = Player { spawn: self.pl.spawn, deaths: self.pl.deaths, fall_from: y, ..Default::default() };
             self.say("You crawl back into the burrow.".into()); return;
@@ -631,7 +637,7 @@ impl World {
         if self.pl.cling != 0 {
             self.moles[0].facing = self.pl.cling;
             self.pl.vy = if inp.up { -t.climb } else if inp.down { t.climb * 1.3 } else { t.slide };
-            self.pl.vx = self.pl.cling as f32 * 2.; // keep pressed against the wall
+            self.pl.vx = self.pl.cling as f32 * 2. * SF; // keep pressed against the wall
             if self.pl.buffer > 0. { self.wall_jump(self.pl.cling); }
         } else if lava {
             // molten rock is thick: you sink slowly through it and can only claw upward a little
@@ -643,7 +649,7 @@ impl World {
             self.pl.vy += (t.gravity * t.swim_grav - t.buoyancy) * dt;
             if inp.jump || inp.up { self.pl.vy -= t.swim_up * dt; }
             self.pl.vy = self.pl.vy.clamp(-t.swim_max, t.swim_max);
-            if self.pl.buffer > 0. && !self.box_hits(self.pl.px, self.pl.py - 1.5) && !self.body_fluid_at(self.pl.px, self.pl.py - 1.6).0 { self.pl.vy = -t.jump_v * 0.8; self.pl.buffer = 0.; } // hop out at the surface
+            if self.pl.buffer > 0. && !self.box_hits(self.pl.px, self.pl.py - 1.5 * SF) && !self.body_fluid_at(self.pl.px, self.pl.py - 1.6 * SF).0 { self.pl.vy = -t.jump_v * 0.8; self.pl.buffer = 0.; } // hop out at the surface
         } else {
             if self.pl.buffer > 0. && self.pl.coyote > 0. { self.pl.vy = -t.jump_v; self.pl.buffer = 0.; self.pl.coyote = 0.; }
             // just let go of a wall (pressing away from it, say) and jump: still a wall jump
@@ -686,20 +692,20 @@ impl World {
         }
         // buried by falling rock/sand: wriggle up if there's room, else stay put (breath runs out)
         // (only through loose stuff: a solid rock ceiling stops you, you don't pop out above it)
-        if self.box_hits(self.pl.px, self.pl.py) { for k in 1..=3 {
+        if self.box_hits(self.pl.px, self.pl.py) { for k in 1..=3 * S {
             let (x0, x1) = ((self.pl.px - BODY_HW).floor() as i32, (self.pl.px + BODY_HW - 1e-3).floor() as i32);
             let (y0, y1) = ((self.pl.py - k as f32 - BODY_H).floor() as i32, (self.pl.py - 1e-3).floor() as i32);
             let rock = (y0..=y1).any(|y| (x0..=x1).any(|x| !self.g.in_bounds(x, y) || self.g.is_static(self.g.idx(x as usize, y as usize))));
             if rock { break; }
             if !self.box_hits(self.pl.px, self.pl.py - k as f32) { self.pl.py -= k as f32; break; } } }
-        self.pl.px = self.pl.px.clamp(2., self.g.w as f32 - 2.); self.pl.py = self.pl.py.clamp(BODY_H + 1., self.g.h as f32 - 2.);
+        self.pl.px = self.pl.px.clamp(2. * SF, self.g.w as f32 - 2. * SF); self.pl.py = self.pl.py.clamp(BODY_H + 1., self.g.h as f32 - 2.);
         let (x, y) = (self.pl.px as usize, (self.pl.py - 0.001) as usize);
         let landed = self.box_hits(self.pl.px, self.pl.py + 0.05);
-        if landed && !self.pl.grounded && !wet && !lava { let f = y.saturating_sub(self.pl.fall_from); if f >= 8 { self.shake = self.shake.max(0.25 + f as f32 * 0.02); } if f > t.safe_fall { self.moles[0].hp -= (f - t.safe_fall) as f32 * 3.; self.events.push(Event::Hurt); } }
+        if landed && !self.pl.grounded && !wet && !lava { let f = y.saturating_sub(self.pl.fall_from); if f >= 8 * S { self.shake = self.shake.max(0.25 + f as f32 * 0.02 / SF); } if f > t.safe_fall { self.moles[0].hp -= (f - t.safe_fall) as f32 * 3. / SF; self.events.push(Event::Hurt); } }
         if landed || wet || lava || self.pl.cling != 0 || self.pl.vy < 0. { self.pl.fall_from = y; }
         let _ = airfall;
         self.pl.grounded = landed;
-        if self.pl.vx.abs() > 0.5 && landed || self.pl.cling != 0 && self.pl.vy.abs() > 1. { self.moles[0].anim += 1; }
+        if self.pl.vx.abs() > 0.5 * SF && landed || self.pl.cling != 0 && self.pl.vy.abs() > SF { self.moles[0].anim += 1; }
         self.moles[0].x = x; self.moles[0].y = y; self.pl.sync = Some((x, y));
         // mining: hold on a spot; each bite clears a mole-sized disc (radius BITES[tool]) around it. Progress
         // carries over while the cursor drags within 2 cells, so sweeping carves a tunnel smoothly.
@@ -710,7 +716,7 @@ impl World {
                 let need = cells.iter().filter_map(|&i| self.mine_time(i)).max();
                 if let Some(need) = need {
                     let i = self.g.idx(mx, my);
-                    let work = match self.pl.mine { Some((j, w, _)) if (j % self.g.w).abs_diff(mx) <= 2 && (j / self.g.w).abs_diff(my) <= 2 => w + 1, _ => 1 };
+                    let work = match self.pl.mine { Some((j, w, _)) if (j % self.g.w).abs_diff(mx) <= 2 * S && (j / self.g.w).abs_diff(my) <= 2 * S => w + 1, _ => 1 };
                     self.moles[0].facing = if mx >= x { 1 } else { -1 };
                     if work % 10 == 1 { self.events.push(Event::Dig); } // the strike is heard on press, then every 1/6 s
                     if work >= need { self.pl.mine = None; for c in cells { if self.mine_time(c).is_some() { self.dig_cell(c, x, y); } }
@@ -724,7 +730,7 @@ impl World {
         let mut k = 0;
         while k < self.drops.len() {
             let d = &self.drops[k];
-            if d.x.abs_diff(x) <= 3 && d.y.abs_diff(y) <= 4 { let d = self.drops.swap_remove(k); self.inv[d.item as usize] += d.n; } else { k += 1; }
+            if d.x.abs_diff(x) <= 3 * S && d.y.abs_diff(y) <= 4 * S { let d = self.drops.swap_remove(k); self.inv[d.item as usize] += d.n; } else { k += 1; }
         }
     }
     /// Place a block item (pillar, brick, beam) into an open cell within reach, touching something solid.
@@ -740,7 +746,7 @@ impl World {
         if self.moles.iter().any(|m| m.alive && m.x == x && y <= m.y && y + MOLE_H > m.y) { return Err("you are standing there"); }
         if !self.g.n4(x, y).any(|j| self.g.is_solidish(j)) { return Err("needs something to rest on"); }
         if self.place_acc[d as usize] == 0 && self.inv[it as usize] == 0 { return Err("none left"); }
-        self.place_cell(i, d); self.marks.push((1, x as f32 + 0.5, y as f32 + 0.5, 0.5)); Ok(())
+        self.place_cell(i, d); self.marks.push((1, x as f32 + 0.5, y as f32 + 0.5, 0.5 * SF)); Ok(())
     }
     /// Place a device (lever, knot, TNT, ...) in the 1 m block under (x, y), paying its pack item.
     /// TNT goes down inert: light it (`use_device`), or put current on a copperline beside it.
@@ -756,7 +762,7 @@ impl World {
         if !self.logic.place(&mut self.g, d, b) { return Err("needs open space"); }
         if had_wire && self.logic.wire[b] == 0 { self.inv[Item::CopperWire as usize] += 1; } // a knot replaced the copperline
         if let Some(it) = cost { self.inv[it as usize] -= 1; }
-        let (cx, cy) = self.logic.centre(b); self.events.push(Event::Place); self.marks.push((1, cx as f32 + 0.5, cy as f32 + 0.5, 1.)); Ok(())
+        let (cx, cy) = self.logic.centre(b); self.events.push(Event::Place); self.marks.push((1, cx as f32 + 0.5, cy as f32 + 0.5, SF)); Ok(())
     }
     /// Right mouse on a device: flip a lever, step a thrum channel or ticker, light a fuse or TNT.
     pub fn use_device(&mut self, x: usize, y: usize) -> bool {
@@ -814,7 +820,7 @@ impl World {
     /// Craft one recipe at once; needs the right station built within 16 cells of the mole.
     pub fn craft_now(&mut self, r: usize) -> Result<(), String> {
         let rec = &RECIPES[r]; let Some(m) = self.moles.first() else { return Err("no mole".into()) };
-        let near = self.buildings.iter().any(|b| b.built && b.kind == rec.station && (b.x + Station::W / 2).abs_diff(m.x) <= 16 && b.y.abs_diff(m.y) <= 10);
+        let near = self.buildings.iter().any(|b| b.built && b.kind == rec.station && (b.x + Station::W / 2).abs_diff(m.x) <= 16 * S && b.y.abs_diff(m.y) <= 10 * S);
         if !near { return Err(format!("stand at a {}", rec.station.name())); }
         if let Some(&(it, n)) = rec.inputs.iter().find(|&&(it, n)| self.inv[it as usize] < n) { return Err(format!("need {} {}", n, it.name())); }
         for &(it, n) in rec.inputs { self.inv[it as usize] -= n; } self.inv[rec.out.0 as usize] += rec.out.1;
@@ -823,7 +829,7 @@ impl World {
     pub fn quest_done(&self, q: usize) -> bool {
         match QUESTS[q].goal {
             Goal::Depth(m) => self.max_depth >= m, Goal::Have(it, n) => self.inv[it as usize] >= n,
-            Goal::Built(s) => self.buildings.iter().any(|b| b.built && b.kind == s), Goal::Chests(n) => self.chests_opened >= n, Goal::Pillars(n) => self.pillars >= n,
+            Goal::Built(s) => self.buildings.iter().any(|b| b.built && b.kind == s), Goal::Chests(n) => self.chests_opened >= n, Goal::Pillars(n) => self.pillars >= n * (S * S) as u32,
         }
     }
     fn check_quests(&mut self) {

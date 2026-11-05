@@ -4,9 +4,9 @@
 //! transmittance (open air 0.90/cell, rock ~0.3 so light just licks the wall face) and d = 0.93
 //! for diagonals. Computed only over a rectangle (camera view + margin) so cost is bounded.
 use crate::grid::{Grid, F_SEEN};
-use crate::mat::{Kind, Mat, PROPS};
+use crate::mat::{Kind, Mat, PROPS, SF};
 
-pub struct Light { pub w: usize, pub h: usize, pub rgb: Vec<[f32; 3]>, pub rect: (usize, usize, usize, usize), trans: [f32; 32] }
+pub struct Light { pub w: usize, pub h: usize, pub rgb: Vec<[f32; 3]>, pub rect: (usize, usize, usize, usize), trans: [f32; 32], diag: f32 }
 
 impl Light {
     pub fn new(w: usize, h: usize) -> Self {
@@ -15,7 +15,9 @@ impl Light {
             trans[i] = match p.kind { Kind::Empty | Kind::Gas => 0.90, Kind::Liquid => 0.80, _ => (1. - p.opacity as f32 / 255.) * 0.55 };
         }
         trans[Mat::Glass as usize] = 0.88;
-        Light { w, h, rgb: vec![[0.; 3]; w * h], rect: (0, 0, 0, 0), trans }
+        // the factors above are per legacy 0.25 m tile: per cell they're the SF-th root, so light reaches as far in metres
+        for t in trans.iter_mut() { *t = t.powf(1. / SF); }
+        Light { w, h, rgb: vec![[0.; 3]; w * h], rect: (0, 0, 0, 0), trans, diag: 0.93f32.powf(1. / SF) }
     }
     #[inline] pub fn at(&self, i: usize) -> [f32; 3] { self.rgb[i] }
 
@@ -41,19 +43,20 @@ impl Light {
             if px >= x0 && px <= x1 && py >= y0 && py <= y1 { let i = py * w + px; for k in 0..3 { self.rgb[i][k] = self.rgb[i][k].max(c[k]); } }
         }
         // propagate: forward then backward, twice
+        let dg = self.diag;
         for _ in 0..2 {
             for y in y0..=y1 { for x in x0..=x1 {
                 let i = y * w + x; let t = self.trans[g.mat[i] as usize]; let mut l = self.rgb[i];
                 let mut take = |j: usize, f: f32| { let s = self.rgb[j]; for k in 0..3 { let v = s[k] * f; if v > l[k] { l[k] = v; } } };
                 if x > x0 { take(i - 1, t); }
-                if y > y0 { take(i - w, t); if x > x0 { take(i - w - 1, t * 0.93); } if x < x1 { take(i - w + 1, t * 0.93); } }
+                if y > y0 { take(i - w, t); if x > x0 { take(i - w - 1, t * dg); } if x < x1 { take(i - w + 1, t * dg); } }
                 self.rgb[i] = l;
             } }
             for y in (y0..=y1).rev() { for x in (x0..=x1).rev() {
                 let i = y * w + x; let t = self.trans[g.mat[i] as usize]; let mut l = self.rgb[i];
                 let mut take = |j: usize, f: f32| { let s = self.rgb[j]; for k in 0..3 { let v = s[k] * f; if v > l[k] { l[k] = v; } } };
                 if x < x1 { take(i + 1, t); }
-                if y < y1 { take(i + w, t); if x < x1 { take(i + w + 1, t * 0.93); } if x > x0 { take(i + w - 1, t * 0.93); } }
+                if y < y1 { take(i + w, t); if x < x1 { take(i + w + 1, t * dg); } if x > x0 { take(i + w - 1, t * dg); } }
                 self.rgb[i] = l;
             } }
         }
@@ -64,8 +67,9 @@ impl Light {
 /// revealed until (and including) the first opaque cell.
 pub fn reveal(g: &mut Grid, cx: usize, cy: usize, r: usize) -> usize {
     let mut n = 0;
-    for k in 0..96 {
-        let a = k as f32 / 96. * std::f32::consts::TAU; let (dx, dy) = (a.cos(), a.sin());
+    let rays = 96 * crate::mat::S; // enough rays that their spacing at the rim stays the same in cells
+    for k in 0..rays {
+        let a = k as f32 / rays as f32 * std::f32::consts::TAU; let (dx, dy) = (a.cos(), a.sin());
         let (mut x, mut y) = (cx as f32 + 0.5, cy as f32 + 0.5);
         for _ in 0..r {
             let (xi, yi) = (x as i32, y as i32); if !g.in_bounds(xi, yi) { break; }

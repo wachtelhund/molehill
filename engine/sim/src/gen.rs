@@ -2,8 +2,11 @@
 //! ore veins, aquifers, deep lava, crystal geodes, fungus, roots. Then a stability pass so
 //! fresh caves obey the structural model.
 use crate::grid::{hash3, Grid, F_WET};
-use crate::mat::Mat;
+use crate::mat::{Mat, CPM, S, SF};
 use crate::stress::Stress;
+
+/// Rows per chest band (32 m).
+pub const CHEST_BAND: usize = 32 * CPM;
 
 pub struct Noise { seed: u32 }
 impl Noise {
@@ -30,7 +33,7 @@ pub const BIOME_NAMES: [&str; 4] = ["Loamlands", "Karst caverns", "Granite crags
 pub struct GenInfo { pub surface: Vec<usize>, pub biome: Vec<Biome>, pub chests: Vec<(usize, usize)>, pub start: (usize, usize), pub seed: u32 }
 
 pub fn biome_at(n: &Noise, x: usize) -> Biome {
-    let v = n.fbm(x as f32, 0.5, 260., 2);
+    let v = n.fbm(x as f32 / SF, 0.5, 260., 2);
     if v < 0.36 { Biome::Loam } else if v < 0.52 { Biome::Karst } else if v < 0.66 { Biome::Crags } else { Biome::Ashlands }
 }
 
@@ -45,7 +48,7 @@ impl Gen {
     }
     /// Open cave cell? Blobby caverns + thin winding tunnels.
     pub fn open(&self, x: usize, wy: i64) -> bool {
-        let (fx, fy) = (x as f32, wy as f32);
+        let (fx, fy) = (x as f32 / SF, wy as f32 / SF); // noise runs in legacy 0.25 m tiles: features keep their size in metres
         let band = match self.biome[x] { Biome::Karst => 0.04, Biome::Loam => 0.0, Biome::Crags => -0.03, Biome::Ashlands => 0.01 };
         let c = self.n3.fbm(fx, fy * 1.6, 46., 3) + band;
         let t = (self.n1.fbm(fx + 5000., fy * 1.3, 110., 2) - 0.5).abs();
@@ -53,15 +56,15 @@ impl Gen {
     }
     pub fn cell(&self, x: usize, wy: i64, w: usize) -> (u8, u8) { self.cell_with(x, wy, w, &|x, wy| self.open(x, wy)) }
     fn cell_with(&self, x: usize, wy: i64, w: usize, open: &dyn Fn(usize, i64) -> bool) -> (u8, u8) {
-        if x < 2 || x >= w - 2 { return (Mat::Bedrock as u8, 0); }
-        let (fx, fy) = (x as f32, wy as f32); let d = fy * 0.25; // metres below the starting layer
+        if x < 2 * S || x >= w - 2 * S { return (Mat::Bedrock as u8, 0); }
+        let (fx, fy) = (x as f32 / SF, wy as f32 / SF); let d = fy * 0.25; // fx, fy in legacy 0.25 m tiles; d = metres below the starting layer
         let dd = d + (self.n1.fbm(fx, fy, 60., 3) - 0.5) * 10. + match self.biome[x] { Biome::Loam => -4., Biome::Karst => 2., Biome::Crags => 8., Biome::Ashlands => 4. };
         if open(x, wy) {
             // fluid pockets: wetter up, hotter down
             let pk = self.n2.fbm(fx + 7000., fy * 1.4, 28., 2);
             if pk > 0.63 {
                 let lava_p = ((dd - 10.) / 60.).clamp(0., 0.92); let water_p = ((40. - dd) / 60.).clamp(0.08, 1.);
-                let r = (hash3((x / 24) as u32, (wy.div_euclid(24)) as u32, self.seed ^ 0xF1) & 1023) as f32 / 1024.;
+                let r = (hash3((x / (24 * S)) as u32, (wy.div_euclid(24 * S as i64)) as u32, self.seed ^ 0xF1) & 1023) as f32 / 1024.;
                 if r < lava_p { return (Mat::Lava as u8, 0); }
                 if r < lava_p + water_p * (1. - lava_p) { return (Mat::Water as u8, 0); }
             }
@@ -84,11 +87,12 @@ impl Gen {
             if dd > 45. && vein(&self.n1, 25., 4321.) < 0.006 { m = Mat::Quartz; }
         }
         // decoration on cave walls
-        let edge = open(x, wy - 1) || open(x, wy + 1) || open(x - 1, wy) || open(x + 1, wy);
+        let (k, ki) = (S, S as i64); // a decoration skin one legacy tile thick
+        let edge = open(x, wy - ki) || open(x, wy + ki) || open(x - k, wy) || open(x + k, wy);
         if edge && m != Mat::Sand {
             let r = self.n0.at(fx / 9., fy / 9.);
             if dd > 45. && r > 0.80 { m = Mat::Crystal; } else if dd > 35. && r < 0.10 { m = Mat::Quartz; }
-            else if open(x, wy - 1) && dd < 9. && n1.at(fx / 14., fy / 14.) > 0.68 { m = Mat::Fungus; }
+            else if open(x, wy - ki) && dd < 9. && n1.at(fx / 14., fy / 14.) > 0.68 { m = Mat::Fungus; }
             else if dd < -10. && n2.at(fx / 7., fy / 7.) > 0.7 { m = Mat::Roots; }
         }
         (m as u8, fl)
@@ -96,14 +100,15 @@ impl Gen {
     /// Fill window rows [y0, y1) with generated content; `oy` = absolute row of window row 0.
     pub fn fill_rows(&self, g: &mut Grid, oy: i64, y0: usize, y1: usize) {
         let w = g.w;
-        let rows = y1 - y0 + 2; let mut op = vec![false; rows * w];
-        for r in 0..rows { for x in 2..w - 2 { op[r * w + x] = self.open(x, oy + y0 as i64 - 1 + r as i64); } }
-        let base = oy + y0 as i64 - 1;
+        let rows = y1 - y0 + 2 * S; let mut op = vec![false; rows * w];
+        for r in 0..rows { for x in 2 * S..w - 2 * S { op[r * w + x] = self.open(x, oy + y0 as i64 - S as i64 + r as i64); } }
+        let base = oy + y0 as i64 - S as i64;
         let open = |x: usize, wy: i64| { let r = wy - base; if r >= 0 && (r as usize) < rows { op[r as usize * w + x] } else { self.open(x, wy) } };
         for y in y0..y1 { for x in 0..w { let (m, f) = self.cell_with(x, oy + y as i64, w, &open); let i = y * w + x; g.mat[i] = m; g.flags[i] = f; } }
         // lava pockets have long since baked their surroundings: nothing burnable within reach of lava
-        for y in y0..y1 { for x in 2..w - 2 { if g.mat[y * w + x] != Mat::Lava as u8 { continue; }
-            for yy in y.saturating_sub(4).max(y0)..(y + 5).min(y1) { for xx in x.saturating_sub(4)..(x + 5).min(w - 2) {
+        let r = 4 * S;
+        for y in y0..y1 { for x in 2 * S..w - 2 * S { if g.mat[y * w + x] != Mat::Lava as u8 { continue; }
+            for yy in y.saturating_sub(r).max(y0)..(y + r + 1).min(y1) { for xx in x.saturating_sub(r)..(x + r + 1).min(w - 2 * S) {
                 let j = yy * w + xx; if matches!(Mat::from_u8(g.mat[j]), Mat::Coal | Mat::Roots | Mat::Fungus) { g.mat[j] = Mat::Basalt as u8; }
             } }
         } }
@@ -114,12 +119,12 @@ impl Gen {
             if !(ok(i + w) && ok(i + w - 1) && ok(i + w + 1)) { g.mat[i] = Mat::Rock as u8; }
         } }
     }
-    /// Chest sites in a 128-row band (deterministic): (x, absolute row).
+    /// Chest sites in a CHEST_BAND-row (32 m) band (deterministic): (x, absolute row).
     pub fn chests_in_band(&self, band: i64, w: usize) -> Vec<(usize, i64)> {
-        let mut v = vec![];
+        let mut v = vec![]; let bh = CHEST_BAND as i64;
         for k in 0..6u32 {
-            let x = 8 + hash3(k, band as u32, self.seed ^ 0xC4) as usize % (w - 16);
-            for dy in 0..128i64 { let wy = band * 128 + dy; if self.open(x, wy) && !self.open(x, wy + 1) && self.cell(x, wy, w).0 == 0 { v.push((x, wy)); break; } }
+            let x = 8 * S + hash3(k, band as u32, self.seed ^ 0xC4) as usize % (w - 16 * S);
+            for dy in 0..bh { let wy = band * bh + dy; if self.open(x, wy) && !self.open(x, wy + 1) && self.cell(x, wy, w).0 == 0 { v.push((x, wy)); break; } }
         }
         v
     }
@@ -131,32 +136,32 @@ pub fn generate(g: &mut Grid, seed: u32, oy: i64) -> (Gen, GenInfo) {
     let gen = Gen::new(seed, w);
     gen.fill_rows(g, oy, 0, h);
     let sx = w / 2; let cy1 = (-oy) as usize; // window row of the starting layer
-    let (cx0, cx1, cy0) = (sx - 15, sx + 15, cy1 - 12);
-    for y in cy0 - 6..cy1 + 6 { for x in cx0 - 8..=cx1 + 8 { let i = y * w + x; if g.mat[i] == Mat::Water as u8 || g.mat[i] == Mat::Lava as u8 { g.mat[i] = Mat::Clay as u8; } } }
+    let (cx0, cx1, cy0) = (sx - 15 * S, sx + 15 * S, cy1 - 12 * S);
+    for y in cy0 - 6 * S..cy1 + 6 * S { for x in cx0 - 8 * S..=cx1 + 8 * S { let i = y * w + x; if g.mat[i] == Mat::Water as u8 || g.mat[i] == Mat::Lava as u8 { g.mat[i] = Mat::Clay as u8; } } }
     // a domed burrow: the roof steps down toward the walls so no roof run spans more than a few cells
-    let top = |x: usize| { let t = (x as f32 - sx as f32) / 15.; cy0 + (12. * t * t).round() as usize };
-    for x in cx0 - 3..=cx1 + 3 { let t = top(x.clamp(cx0, cx1)); for y in t.saturating_sub(5)..t { g.mat[y * w + x] = Mat::Limestone as u8; } }
+    let top = |x: usize| { let t = (x as f32 - sx as f32) / (15. * SF); cy0 + (12. * SF * t * t).round() as usize };
+    for x in cx0 - 3 * S..=cx1 + 3 * S { let t = top(x.clamp(cx0, cx1)); for y in t.saturating_sub(5 * S)..t { g.mat[y * w + x] = Mat::Limestone as u8; } }
     for x in cx0..=cx1 { for y in top(x)..=cy1 { g.mat[y * w + x] = 0; } }
     // side walls tie the dome down to the floor (otherwise an open cavern beside it leaves the roof floating)
-    for x in (cx0 - 3..cx0).chain(cx1 + 1..=cx1 + 3) { for y in top(x.clamp(cx0, cx1))..=cy1 { let i = y * w + x; if Mat::from_u8(g.mat[i]).kind() != crate::mat::Kind::Solid { g.mat[i] = Mat::Limestone as u8; } } }
-    for y in cy1 + 1..cy1 + 4 { for x in cx0 - 4..=cx1 + 4 { g.mat[y * w + x] = Mat::Clay as u8; } }
+    for x in (cx0 - 3 * S..cx0).chain(cx1 + 1..=cx1 + 3 * S) { for y in top(x.clamp(cx0, cx1))..=cy1 { let i = y * w + x; if Mat::from_u8(g.mat[i]).kind() != crate::mat::Kind::Solid { g.mat[i] = Mat::Limestone as u8; } } }
+    for y in cy1 + 1..cy1 + 4 * S { for x in cx0 - 4 * S..=cx1 + 4 * S { g.mat[y * w + x] = Mat::Clay as u8; } }
     // ...and the walls stand on rock: if a cavern lies under the burrow, drop granite legs down to the next solid ground
     let mut st = Stress::new(w * h); st.solve(g);
-    for x in (cx0 - 4..cx0).chain(cx1 + 1..=cx1 + 4) { let mut y = cy1 + 4; while y < h - 1 && !st.reach[y * w + x] { g.mat[y * w + x] = Mat::Limestone as u8; g.flags[y * w + x] = 0; y += 1; } } // diggable with claws
+    for x in (cx0 - 4 * S..cx0).chain(cx1 + 1..=cx1 + 4 * S) { let mut y = cy1 + 4 * S; while y < h - 1 && !st.reach[y * w + x] { g.mat[y * w + x] = Mat::Limestone as u8; g.flags[y * w + x] = 0; y += 1; } } // diggable with claws
     let keep = (cx0, cy0, cx1, cy1);
-    for y in cy0 - 6..cy1 + 4 { for x in cx0 - 4..=cx1 + 4 { g.flags[y * w + x] = 0; } } // built cells are fresh rock, not rubble
+    for y in cy0 - 6 * S..cy1 + 4 * S { for x in cx0 - 4 * S..=cx1 + 4 * S { g.flags[y * w + x] = 0; } } // built cells are fresh rock, not rubble
     stabilize_keep(g, &mut st, 0, usize::MAX, Some(keep));
     g.wake_all(); for _ in 0..240 { g.step_ca(); }
     // nothing the settling pass let flow in stays inside the burrow
-    for y in cy0 - 8..=cy1 { for x in cx0 - 3..=cx1 + 3 { let i = y * w + x; if matches!(Mat::from_u8(g.mat[i]), Mat::Water | Mat::Lava | Mat::Steam) { g.mat[i] = if x >= cx0 && x <= cx1 && y >= cy0 && y <= cy1 { 0 } else { Mat::Clay as u8 }; } } }
+    for y in cy0 - 8 * S..=cy1 { for x in cx0 - 3 * S..=cx1 + 3 * S { let i = y * w + x; if matches!(Mat::from_u8(g.mat[i]), Mat::Water | Mat::Lava | Mat::Steam) { g.mat[i] = if x >= cx0 && x <= cx1 && y >= cy0 && y <= cy1 { 0 } else { Mat::Clay as u8 }; } } }
     stabilize_keep(g, &mut st, 0, usize::MAX, Some(keep));
     // the burrow floor stays soil (farms need it), even where the stability pass reinforced it
-    for x in cx0..=cx1 { let i = (cy1 + 1) * w + x; if matches!(Mat::from_u8(g.mat[i]), Mat::Granite | Mat::Limestone) { g.mat[i] = Mat::Clay as u8; } }
+    for x in cx0..=cx1 { for y in cy1 + 1..=cy1 + S { let i = y * w + x; if matches!(Mat::from_u8(g.mat[i]), Mat::Granite | Mat::Limestone) { g.mat[i] = Mat::Clay as u8; } } }
     // claws can always dig down out of the burrow: no granite just below its floor
-    for y in cy1 + 2..cy1 + 9 { for x in cx0 - 4..=cx1 + 4 { let i = y * w + x; if g.mat[i] == Mat::Granite as u8 { g.mat[i] = Mat::Limestone as u8; } } }
+    for y in cy1 + 1 + S..cy1 + 9 * S { for x in cx0 - 4 * S..=cx1 + 4 * S { let i = y * w + x; if g.mat[i] == Mat::Granite as u8 { g.mat[i] = Mat::Limestone as u8; } } }
     g.struct_dirty = Some((0, 0, w - 1, h - 1)); g.wake_all();
     let biome = gen.biome.clone();
-    (gen, GenInfo { surface: vec![0; w], biome, chests: vec![], start: (sx / 4, cy1 / 4), seed })
+    (gen, GenInfo { surface: vec![0; w], biome, chests: vec![], start: (sx / CPM, cy1 / CPM), seed })
 }
 
 pub fn stabilize(g: &mut Grid, st: &mut Stress) { stabilize_rows(g, st, 0, usize::MAX) }

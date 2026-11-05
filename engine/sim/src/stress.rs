@@ -20,9 +20,9 @@
 //! Utilisation u = σ / strength. u > 1 → the cells crack (visible) and crumble into the
 //! falling-sand sim after a short delay unless the load is relieved (e.g. a pillar is built).
 use crate::grid::Grid;
-use crate::mat::{Kind, Mat, CELL_M, G, PROPS};
+use crate::mat::{Kind, Mat, CELL_M, CPM, G, PROPS, S};
 
-const ARCH: usize = 64;
+const ARCH: usize = 16 * CPM; // 16 m
 pub struct Stress {
     pub util: Vec<u8>,      // utilisation ×128 (128 = at capacity, 255 = ≥2× or no load path)
     pub pending: Vec<u8>,   // crack countdown
@@ -91,7 +91,7 @@ impl Stress {
                 let right = xb + 1 < w && st(y * w + xb + 1) && supports(y * w + xb + 1 + w);
                 let span = (xb - xa + 1) as f32 * CELL_M;
                 let mut hmin = usize::MAX; let mut rho = 0f32; let mut tmin = f32::MAX; let mut qtop = 0f32;
-                let cap = ((xb - xa + 1) + 1).min(80);
+                let cap = ((xb - xa + 1) + 1).min(80 * S);
                 for xx in xa..=xb {
                     let mut k = 0; while k < cap && y >= k && st((y - k) * w + xx) { rho += PROPS[g.mat[(y - k) * w + xx] as usize].density; k += 1; }
                     hmin = hmin.min(k); tmin = tmin.min(PROPS[g.mat[y * w + xx] as usize].tensile);
@@ -137,8 +137,8 @@ impl Stress {
                 // bears down on the supports: a lone prop in a sound hall isn't crushed.
                 let rt = (xa..=xb).map(|xx| ctop[y * w + xx]).min().unwrap_or(0);
                 let cell_w = PROPS[Mat::Granite as usize].density * G * CELL_M / 1000.;
-                let mut nl = 0; while xa > nl && !st(y * w + xa - nl - 1) && nl < 400 { nl += 1; }
-                let mut nr = 0; while xb + nr + 1 < w && !st(y * w + xb + nr + 1) && nr < 400 { nr += 1; }
+                let mut nl = 0; while xa > nl && !st(y * w + xa - nl - 1) && nl < 400 * S { nl += 1; }
+                let mut nr = 0; while xb + nr + 1 < w && !st(y * w + xb + nr + 1) && nr < 400 * S { nr += 1; }
                 let (cl, cr) = ((nl + 1) as f32 * cell_w, (nr + 1) as f32 * cell_w);
                 let trib = |j: usize, cap: f32| if open(j) && rt > vtop[j] { 0. } else { p[j].min(cap) };
                 let vl: f32 = (1..=nl).map(|k| trib(y * w + xa - k, cl)).sum();

@@ -53,7 +53,7 @@ impl Item {
     }
 }
 /// What digging a cell yields (one item per `CELLS_PER_ITEM` cells of that material).
-pub const CELLS_PER_ITEM: u16 = 6;
+pub const CELLS_PER_ITEM: u16 = 6 * (crate::mat::S * crate::mat::S) as u16; // 6 legacy tiles
 pub fn drop_of(m: Mat) -> Option<Item> {
     use Mat::*;
     Some(match m {
@@ -75,7 +75,7 @@ impl Station {
         match self { Station::Workbench => &[(Item::Wood, 6)], Station::Kiln => &[(Item::Stone, 8), (Item::Clay, 4)], Station::Furnace => &[(Item::Brick, 10)], Station::Anvil => &[(Item::IronIngot, 5)] }
     }
     /// footprint in cells
-    pub const W: usize = 10; pub const H: usize = 7;
+    pub const W: usize = 10 * crate::mat::S; pub const H: usize = 7 * crate::mat::S;
 }
 
 pub struct Recipe { pub name: &'static str, pub station: Station, pub inputs: &'static [(Item, u32)], pub out: (Item, u32), pub ticks: u32 }

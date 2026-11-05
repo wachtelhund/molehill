@@ -82,7 +82,13 @@ impl Mat {
          "Hot vapour from water meeting lava.", "Burning. Spreads to wood and roots.", "Clear pane."][self as usize]
     }
 }
-pub const CELL_M: f32 = 0.25; // metres per cell
+/// Cells per metre: the one resolution knob. Everything sized in cells (movement, brushes, devices,
+/// worldgen features, the window, rendering) derives from it, so the world behaves the same in metres.
+pub const CPM: usize = 4;
+pub const CELL_M: f32 = 1.0 / CPM as f32; // metres per cell
+/// Cells per legacy tile (the original 0.25 m cell): constants first tuned in those tiles scale by this.
+pub const S: usize = CPM / 4;
+pub const SF: f32 = S as f32;
 
 /// Thrumming (knock-signal through rock) physics, derived from the material table.
 /// * Stiffness: rock-mass modulus E ≈ 300 × UCS (modulus ratio); liquids use bulk modulus 2.2 GPa;
