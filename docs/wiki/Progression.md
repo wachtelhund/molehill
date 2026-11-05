@@ -1,6 +1,6 @@
 # Progression
 
-> **Mostly design.** This page describes where Molehill is going. The game now has a **Survival** and a **Creative** mode, with the first slice of Survival in (see [Survival mode today](#survival-mode-today)); everything else here is design unless marked **built**. The other pages describe what is actually in the code. Everything here must follow [Lore](Lore.md).
+> **Mostly design.** This page describes where Molehill is going. The game now has a **Survival** and a **Creative** mode, with the first slice of Survival in (see [Survival mode today](#survival-mode-today)) and **crafting** built (stations, recipes unlocked by touch, the tool ladder: see [Crafting](#crafting)); everything else here is design unless marked **built**. The other pages describe what is actually in the code. Everything here must follow [Lore](Lore.md).
 
 ## The idea in one line
 
@@ -60,6 +60,8 @@ The tool ladder matches the rock: the **Pickaxe** for soft ground, the **Drill**
 * **Short chains.** At most two steps from the ground to the thing: ore → ingot → tool. No intermediate parts lists.
 
 ## Furnishing and decor
+
+> **Built:** decorative blocks (planks, polished stone, tiles, carved pillars), six pigments that paint blocks and dye cloth, and furniture (table, stool, nest, shelf, rug, banner, glowing fungus planter). Details: [Tools and Items](Tools-and-Items.md#furnishing). Not yet: back walls, and Delvers moving in.
 
 Making the holt **look like home** is a core goal, not a side feature. A Delver should be able to stand in their main hall and be proud of it.
 
@@ -149,7 +151,7 @@ Everything the Ancients built obeys the same physics as everything else: weight,
 | Light | torches, lamps, a headlamp and a jarred glowmite in the paw; in Survival the headlamp and torches burn fungus oil (pressed from fungus), the glowmite needs no fuel | fungus-oil fuel for torches and headlamp; glowmite lanterns |
 | Death | Survival: wake in the burrow, the pack stays where you died (Creative: nothing hurts) | wake in the holt; carried items stay where you died |
 | Wood | **built:** grottos with regrowing root-trees (see [World and Generation](World-and-Generation.md#grottos)) | grottos with regrowing root-trees |
-| Decor | none | furniture, decorative blocks, back walls, dyes |
+| Decor | **built:** furniture, decorative blocks and pigments (see [Tools and Items](Tools-and-Items.md#furnishing)); back walls not yet | furniture, decorative blocks, back walls, dyes |
 | Colony | one mole | Delvers move in when the holt is comfortable |
 | Late game | none | Ancient facilities, ruins, relics, the Lid myth |
 | Travel | walking, climbing, digging | carts and rails, ladders and lifts, powered rails, pressure tubes; Ancient waygates (open decision) |

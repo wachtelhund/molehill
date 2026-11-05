@@ -63,6 +63,8 @@ The tool ladder matches the rock: the **Pickaxe** for soft ground, the **Drill**
 
 ## Furnishing and decor
 
+> **Built:** decorative blocks (planks, polished stone, tiles, carved pillars), six pigments that paint blocks and dye cloth, and furniture (table, stool, nest, shelf, rug, banner, glowing fungus planter). Details: [Tools and Items](docs/wiki/Tools-and-Items.md#furnishing). Not yet: back walls, and Delvers moving in.
+
 Making the holt **look like home** is a core goal, not a side feature. A Delver should be able to stand in their main hall and be proud of it.
 
 * **Furniture:** tables, beds and nests, shelves, chests, rugs, banners, lamps, fungus planters.
