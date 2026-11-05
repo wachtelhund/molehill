@@ -58,15 +58,6 @@ impl World {
         self.drops.push(d); self.events.push(Event::Click); Ok(())
     }
 
-    /// A blast at (cx, cy) with radius r throws loose items outward.
-    pub(crate) fn fling_items(&mut self, cx: f32, cy: f32, r: f32) {
-        for d in self.drops.iter_mut() {
-            let (dx, dy) = (d.px - cx, d.py - cy); let dist = (dx * dx + dy * dy).sqrt(); if dist > r * 1.5 { continue; }
-            let k = 60. * SF * (1. - dist / (r * 1.5)); let (ux, uy) = if dist > 1e-3 { (dx / dist, dy / dist) } else { (0., -1.) };
-            d.vx += ux * k; d.vy += uy * k - 10. * SF; d.rest = 0;
-        }
-    }
-
     /// One tick of every loose item.
     pub(crate) fn step_items(&mut self) {
         let dt = 1. / 60.; let t = TUNE; let mut gone = vec![]; let mut booms = vec![];

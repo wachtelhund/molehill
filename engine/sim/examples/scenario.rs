@@ -25,6 +25,9 @@ impl Run {
             "grounded" => p.grounded as u8 as f64, "cling" => p.cling as f64, "hp" => m.hp as f64, "breath" => m.breath as f64,
             "deaths" => p.deaths as f64, "brush" => self.sizes.radius(self.held) as f64 / kf, "snapcells" => self.sizes.snap_cells() as f64 / kf, "torches" => self.w.torches.len() as f64, "awake" => self.awake() as f64, "crumbled" => self.w.crumbled as f64 / (kf * kf), "tick" => self.w.tick as f64,
             "flash" => p.flash as f64, "shake" => self.w.shake as f64,
+            _ if v.starts_with("p:") => { // p:DX,DY  the last blast's peak overpressure (kPa) on that tile (its maximum)
+                let a: Vec<&str> = v[2..].split(',').collect(); let (dx, dy): (i32, i32) = (a.get(0)?.parse().ok()?, a.get(1)?.parse().ok()?);
+                if self.w.blast_field.is_empty() { 0. } else { self.tile(dx, dy).map(|i| self.w.blast_field[i]).fold(0f32, f32::max) as f64 } }
             // glowmites drifting over the map
             "glowmites" => self.w.glowmites().iter().filter(|g| g.0 >= self.ox as f32 && g.0 < (self.ox + self.mw) as f32 && g.1 >= self.oy as f32 && g.1 < (self.oy + self.mh) as f32).count() as f64,
             // how far the body moved this tick, in tiles (catches teleport pops a velocity check misses)
@@ -147,7 +150,7 @@ fn run_file(path: &str, json: bool) -> bool {
         }
     }
     for a in &acts { ticks = ticks.max(match a { Act::Hold(_, b, _) | Act::Mine(_, b, _, _) | Act::Dig(_, b, _, _) => *b, Act::Grotto(t, ..) | Act::Catch(t, ..) | Act::Tool(t, _) | Act::Throw(t, ..) | Act::Loose(t, ..) | Act::Brush(t, _) | Act::Place(t, ..) | Act::Put(t, ..) | Act::Explode(t, ..) | Act::Device(t, ..) | Act::Use(t, ..) | Act::Pickup(t, ..) | Act::Wire(t, ..) | Act::SaveLoad(t) | Act::Lamp(t, _) | Act::Aim(t, _) | Act::Wield(t, _) | Act::Torch(t, ..) | Act::Slide(t) | Act::SizeKey(t, ..) | Act::SizeWheel(t, ..) | Act::Hand(t, ..) | Act::Snap(t, ..) | Act::Line(t, ..) | Act::Dump(t) | Act::Ascii(t) | Act::Expect(t, ..) => *t }); }
-    let mut w = World::new(512 * K, 256 * K, seed); w.disasters.enabled = false; w.drops.clear(); w.torches.clear(); w.farms.clear(); w.grottos.clear(); // (the generated world's own grottos aren't part of the scenario)
+    let mut w = World::new(512 * K, 256 * K, seed); w.disasters.enabled = false; w.drops.clear(); w.torches.clear(); w.farms.clear(); w.grottos.clear(); w.keep_blast_field = true; // (the generated world's own grottos aren't part of the scenario)
     // tile-aligned spawn tile: the map is laid out in K×K tiles from here
     let (sx0, sy0) = (w.moles[0].x / K, w.moles[0].y / K);
     let mh = map.len(); let mw = map.iter().map(|l| l.chars().count()).max().unwrap_or(0);
@@ -187,7 +190,7 @@ fn run_file(path: &str, json: bool) -> bool {
                 Act::Aim(t, a) if *t == tick => r.w.gear.aim = a.map(|(dx, dy)| { let (x, y) = r.at(dx, dy); (x as f32 + 0.5, y as f32 + 0.5) }),
                 Act::Wield(t, it) if *t == tick => r.w.gear.held = molehill_sim::craft::ITEMS.iter().copied().find(|i| format!("{i:?}").eq_ignore_ascii_case(it)),
                 Act::Torch(t, dx, dy) if *t == tick => { let c = r.at(*dx, *dy); r.w.torches.push(c); }
-                Act::Explode(t, dx, dy, rr) if *t == tick => { let (x, y) = r.at(*dx, *dy); r.w.explode(x, y, *rr * K as f32, 6); }
+                Act::Explode(t, dx, dy, kg) if *t == tick => { let (x, y) = r.at(*dx, *dy); r.w.blast(x, y, *kg); } // a blast of kg TNT-equivalent (a TNT charge is 0.5)
                 Act::Place(t, dx, dy, it) if *t == tick => {
                     let item = molehill_sim::craft::ITEMS.iter().copied().find(|i| format!("{i:?}").eq_ignore_ascii_case(it)).unwrap_or_else(|| panic!("{path}: unknown item {it}"));
                     let (x, y) = r.at(*dx, *dy);

@@ -149,3 +149,19 @@ bit-identical to before (checked before flipping it).
   reaching the window's top edge was judged thin. Stabilisation now covers 32 m of old rows, and a static
   column reaching the edge counts as full thickness. (`slides_leave_nothing_failing`)
 * Still to come: glowmite lanterns (a crafted, placeable light), tree crowns or branches that regrow.
+
+## Physics-based explosions
+* `World::explode` (a fixed-radius disc) is replaced by `World::blast(x, y, kg)`, a pressure wave (`blast.rs`).
+  - The wave runs Dijkstra over open, gas and liquid cells.
+  - Kinney-Graham overpressure on the equivalent radius of the volume filled, so tunnels carry it and
+    caves dissipate it.
+  - A gas-pressure term for confinement, and diffraction loss by detour, so walls shadow.
+  - Faces crack or shatter by blast strength (15 kPa × 2^blast from the material table).
+  - Loose ground and water are thrown (water in a plume, none lost); items fly along the wave.
+  - Mole damage comes from local overpressure; charges, fuses and devices react by pressure on their block;
+    listeners hear the knock.
+  - Deterministic and bounded (400k cells, 3 kPa floor); about 2 ms per charge.
+* A TNT charge is 0.25 kg. Its reach changed: a thrower 6 m off in the same closed room now loses about 13 hp
+  (`thrown_tnt_explodes_at_landing` expects hp > 80 there). The harness's `explode` takes kg.
+* Scenarios `blast_tunnel_vs_cave`, `blast_shadow`, `blast_granite_vs_dirt`, `blast_pushes_water`; `tnt_chain` and the
+  other TNT scenarios still pass. Harness variable `p:DX,DY`.

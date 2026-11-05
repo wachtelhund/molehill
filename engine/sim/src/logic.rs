@@ -12,7 +12,7 @@
 //!   `atten`), links ≥ 0 form a graph; TX reaches RX on the same channel directly or via repeaters.
 //! * Lava (≥2 cells) or rubble (≥10 loose cells) in a block destroys its wire/device.
 use crate::grid::Grid;
-use crate::mat::{Kind, Mat, CPM, S, SF};
+use crate::mat::{Kind, Mat, CPM, S};
 
 pub const B: usize = CPM; // one block = 1 m
 /// Cell counts below were set for a 4×4-cell block; A scales them to the block's area.
@@ -22,6 +22,8 @@ pub const THRUM_POWER: f32 = 60.;
 pub const FUSE_TICKS: i16 = 24;
 /// A lit TNT charge goes off after this many ticks (1.5 s): time to run, short enough to feel snappy.
 pub const TNT_FUSE: i16 = 90;
+/// Blast overpressure (kPa) on a block that sets off a charge in it, lights a fuse cord, wrecks a device.
+pub const BLAST_SETS_OFF: f32 = 60.; pub const BLAST_LIGHTS: f32 = 30.; pub const BLAST_WRECKS: f32 = 400.;
 
 #[repr(u8)]
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -53,6 +55,8 @@ pub struct Logic {
     pub wire: Vec<u8>, pub dev: Vec<u8>, pub dev_p: Vec<i16>, pub dev_s: Vec<u8>, pub burn: Vec<i16>, pub powered: Vec<u8>,
     net_id: Vec<i32>, pub net_on: Vec<u8>, nets: usize, dirty: bool,
     pub dev_list: Vec<usize>, pub links: Vec<(usize, usize, f32)>, rx_on: Vec<u8>, tx_on: Vec<u8>, thrum_dirty: bool,
+    /// ticks a listener still hears a blast's knock
+    pub heard: Vec<u8>,
     pub booms: Vec<usize>, pub msgs: Vec<String>,
 }
 fn find(p: &mut [u32], mut a: usize) -> usize { while p[a] as usize != a { p[a] = p[p[a] as usize]; a = p[a] as usize; } a }
@@ -61,7 +65,7 @@ impl Logic {
     pub fn new(w: usize, h: usize) -> Logic {
         let (bw, bh) = (w / B, h / B); let n = bw * bh;
         Logic { bw, bh, wire: vec![0; n], dev: vec![0; n], dev_p: vec![0; n], dev_s: vec![0; n], burn: vec![0; n], powered: vec![0; n],
-            net_id: vec![-1; n], net_on: vec![0], nets: 0, dirty: true, dev_list: vec![], links: vec![], rx_on: vec![0; n], tx_on: vec![0; n], thrum_dirty: true, booms: vec![], msgs: vec![] }
+            net_id: vec![-1; n], net_on: vec![0], nets: 0, dirty: true, dev_list: vec![], links: vec![], rx_on: vec![0; n], tx_on: vec![0; n], thrum_dirty: true, heard: vec![0; n], booms: vec![], msgs: vec![] }
     }
     pub fn block_of(&self, x: usize, y: usize) -> usize { (y / B).min(self.bh - 1) * self.bw + (x / B).min(self.bw - 1) }
     pub fn centre(&self, b: usize) -> (usize, usize) { ((b % self.bw) * B + 2, (b / self.bw) * B + 2) }
@@ -79,7 +83,7 @@ impl Logic {
         }
         let down = br > 0;
         sh(&mut self.wire, bw, bh, s, down); sh(&mut self.dev, bw, bh, s, down); sh(&mut self.dev_p, bw, bh, s, down); sh(&mut self.dev_s, bw, bh, s, down);
-        sh(&mut self.burn, bw, bh, s, down); sh(&mut self.powered, bw, bh, s, down); sh(&mut self.rx_on, bw, bh, s, down); sh(&mut self.tx_on, bw, bh, s, down);
+        sh(&mut self.burn, bw, bh, s, down); sh(&mut self.powered, bw, bh, s, down); sh(&mut self.rx_on, bw, bh, s, down); sh(&mut self.tx_on, bw, bh, s, down); sh(&mut self.heard, bw, bh, s, down);
         self.invalidate();
     }
     pub fn invalidate(&mut self) { self.dirty = true; self.thrum_dirty = true; }
@@ -115,16 +119,29 @@ impl Logic {
     /// Set a TNT charge off now (current, a blast nearby, a fuse cord burning into it).
     pub fn detonate(&mut self, b: usize) { if self.dev[b] == Dev::Tnt as u8 && !self.booms.contains(&b) { self.booms.push(b); } }
     pub fn lit(&self, b: usize) -> bool { self.burn[b] > 0 }
-    /// A blast of radius r (cells) sets off charges within r + 1.5 m and fuse cords within r + 1 m.
-    pub fn on_explosion(&mut self, g: &mut Grid, cx: usize, cy: usize, r: f32) {
+    /// A blast's overpressure `p` (kPa, per cell): a charge in a block hit by 60 kPa or more goes off with
+    /// it, a fuse cord at 30 kPa lights, and above 400 kPa copperline and the other devices are wrecked.
+    pub fn on_blast(&mut self, g: &mut Grid, p: &[f32]) {
         for b in 0..self.wire.len() {
             if self.wire[b] == 0 && self.dev[b] == 0 { continue; }
-            let (x, y) = self.centre(b); let d = ((x as f32 - cx as f32).powi(2) + (y as f32 - cy as f32).powi(2)).sqrt();
+            let (x0, y0) = ((b % self.bw) * B, (b / self.bw) * B);
+            let mut pb = 0f32; for y in y0..(y0 + B).min(g.h) { for x in x0..(x0 + B).min(g.w) { pb = pb.max(p[y * g.w + x]); } }
             let dv = Dev::from_u8(self.dev[b]);
-            if dv == Dev::Tnt && d <= r + 6. * SF { self.detonate(b); continue; }
-            if dv == Dev::Fuse && d <= r + 4. * SF { self.ignite(b); continue; }
-            if d <= r * 0.8 { self.remove(g, b); }
+            if dv == Dev::Tnt && pb >= BLAST_SETS_OFF { self.detonate(b); continue; }
+            if dv == Dev::Fuse && pb >= BLAST_LIGHTS { self.ignite(b); continue; }
+            if pb >= BLAST_WRECKS { self.remove(g, b); }
         }
+    }
+    /// A blast at cell (x, y) with knock power `db`: every listener it reaches through the rock (same
+    /// spreading, absorption and boundary losses as a thrum) hears it, on any channel, for half a second.
+    pub fn blast_heard(&mut self, g: &Grid, x: usize, y: usize, db: f32) {
+        for k in 0..self.dev_list.len() { let b = self.dev_list[k]; if self.dev[b] != Dev::Rx as u8 { continue; }
+            // the blast couples its knock into the rock round it: the ray starts at the first solid cell on the way
+            let (tx, ty) = self.centre(b); let (n, mut sx, mut sy) = (64 * CPM, x as f32, y as f32);
+            let (dx, dy) = (tx as f32 - x as f32, ty as f32 - y as f32); let l = (dx * dx + dy * dy).sqrt().max(1.);
+            for _ in 0..n { let (cx, cy) = (sx as usize, sy as usize); if cx >= g.w || cy >= g.h || !g.m(cy * g.w + cx).passable() { break; } sx += dx / l; sy += dy / l; }
+            let (cx, cy) = ((sx as usize).min(g.w - 1), (sy as usize).min(g.h - 1));
+            if self.ray_budget(g, (cx, cy), (tx, ty), usize::MAX, b, db) >= 0. { self.heard[b] = 30; } }
     }
     /// A mole's body (feet cell (x, y), 3 tall, about a cell either side) overlaps block b.
     pub fn occupied(&self, b: usize, moles: &[(usize, usize)]) -> bool {
@@ -253,13 +270,15 @@ impl Logic {
             'o: for yy in (oy..oy + B).rev() { for xx in ox..ox + B { let j = yy * g.w + xx; if g.mat[j] == 0 { g.set(j, m); g.set(i, Mat::Empty); moved += 1; break 'o; } } }
         } }
     }
-    pub fn link_budget(&self, g: &Grid, a: usize, b: usize) -> f32 {
-        let (x0, y0) = self.centre(a); let (x1, y1) = self.centre(b);
-        let (x0, y0, x1, y1) = (x0 as i64, y0 as i64, x1 as i64, y1 as i64);
+    pub fn link_budget(&self, g: &Grid, a: usize, b: usize) -> f32 { self.ray_budget(g, self.centre(a), self.centre(b), a, b, THRUM_POWER) }
+    /// Budget (dB) left after a knock of `power` travels from cell p0 to cell p1 (blocks `a` and `b`, the
+    /// knocker's and the listener's, are skipped).
+    fn ray_budget(&self, g: &Grid, p0: (usize, usize), p1: (usize, usize), a: usize, b: usize, power: f32) -> f32 {
+        let (x0, y0, x1, y1) = (p0.0 as i64, p0.1 as i64, p1.0 as i64, p1.1 as i64);
         // 2D (cylindrical) spreading from 1 m, then absorption + boundary losses along the ray.
         // The thrummer and listener are braced against their own block, so those cells are skipped.
         let r_m = ((((x1 - x0).pow(2) + (y1 - y0).pow(2)) as f32).sqrt() * crate::mat::CELL_M).max(1.);
-        let mut budget = THRUM_POWER - 10. * r_m.log10();
+        let mut budget = power - 10. * r_m.log10();
         let (dx, dy) = ((x1 - x0).abs(), -(y1 - y0).abs()); let (sx, sy) = (if x0 < x1 { 1 } else { -1 }, if y0 < y1 { 1 } else { -1 });
         let (mut x, mut y, mut err) = (x0, y0, dx + dy);
         let mut prev: Option<f32> = None;
@@ -281,6 +300,7 @@ impl Logic {
     }
     fn propagate_thrum(&mut self) {
         self.rx_on.iter_mut().for_each(|v| *v = 0);
+        for b in 0..self.heard.len() { if self.heard[b] > 0 { self.heard[b] -= 1; self.rx_on[b] = 1; } } // a blast's knock
         if self.links.is_empty() { return; }
         for &tx in &self.dev_list {
             if self.dev[tx] != Dev::Tx as u8 || self.tx_on[tx] == 0 { continue; }

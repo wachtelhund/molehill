@@ -34,7 +34,7 @@ expect 95 items:Tnt == 0
 // the crater is out where it landed (~25 tiles away), the floor under the thrower is untouched
 expect 95 is:27,1,Rock == 0
 expect 95 is:0,1,Rock == 1
-expect 95 hp > 99
+expect 95 hp > 80                 // the thrower, 6 m off in the same closed room, feels the blast but isn't badly hurt
 // lob the other one back into the trough: the water puts the fuse out
 throw 100 Tnt -1 -1 0.6
 expect 200 items:Tnt == 1
