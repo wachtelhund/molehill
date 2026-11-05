@@ -14,6 +14,7 @@ pub mod air;
 pub mod tips;
 pub mod items;
 pub mod blast;
+pub mod debris;
 pub mod survival;
 pub mod ruins;
 pub mod lore;

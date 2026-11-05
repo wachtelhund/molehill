@@ -26,6 +26,16 @@ impl Run {
             "deaths" => p.deaths as f64, "tier" => self.w.dig_power() as f64, "buildings" => self.w.buildings.len() as f64, "brush" => self.sizes.radius(self.held) as f64 / kf, "snapcells" => self.sizes.snap_cells() as f64 / kf, "torches" => self.w.torches.len() as f64, "awake" => self.awake() as f64, "crumbled" => self.w.crumbled as f64 / (kf * kf), "tick" => self.w.tick as f64,
             "hunger" => m.hunger as f64, "oil" => self.w.lamp_oil as f64, "lamp" => self.w.lamp_lit() as u8 as f64, "mode" => self.w.mode as u8 as f64, "relics" => self.w.relics as f64, "ruins_seen" => self.w.ruins_seen.len() as f64, "hungeron" => !self.w.rules.no_hunger as u8 as f64,
             "flash" => p.flash as f64, "shake" => self.w.shake as f64,
+            // the last blast's wave and what it threw: cells in flight (tiles), the drawn front's radius (m),
+            // the tiles in it now, and wave:DX,DY the path distance (m) the front ran to reach a tile (-1: never)
+            "debris" => self.w.debris.len() as f64 / (K * K) as f64,
+            "front" => self.w.waves.last().map_or(-1., |v| v.front_m(self.w.tick) as f64),
+            "frontcells" => self.w.waves.last().map_or(0., |v| v.front(self.w.tick).count() as f64 / (K * K) as f64),
+            _ if v.starts_with("debris:") => { let m = mat_by_name(&v[7..])?; self.w.debris_of(m) as f64 / (K * K) as f64 }
+            _ if v.starts_with("wave:") => {
+                let a: Vec<&str> = v[5..].split(',').collect(); let (dx, dy): (i32, i32) = (a.get(0)?.parse().ok()?, a.get(1)?.parse().ok()?);
+                let Some(wv) = self.w.waves.last() else { return Some(-1.) }; let t: Vec<usize> = self.tile(dx, dy).collect();
+                wv.cells.iter().filter(|c| t.contains(&(c.i as usize))).map(|c| c.d * molehill_sim::mat::CELL_M).reduce(f32::min).map_or(-1., |d| d as f64) }
             _ if v.starts_with("p:") => { // p:DX,DY  the last blast's peak overpressure (kPa) on that tile (its maximum)
                 let a: Vec<&str> = v[2..].split(',').collect(); let (dx, dy): (i32, i32) = (a.get(0)?.parse().ok()?, a.get(1)?.parse().ok()?);
                 if self.w.blast_field.is_empty() { 0. } else { self.tile(dx, dy).map(|i| self.w.blast_field[i]).fold(0f32, f32::max) as f64 } }
@@ -89,14 +99,25 @@ impl Run {
         for cy in self.oy / CHUNK..=(self.oy + self.mh - 1) / CHUNK { for cx in self.ox / CHUNK..=(self.ox + self.mw - 1) / CHUNK {
             if g.awake[cy * g.cx + cx].load(std::sync::atomic::Ordering::Relaxed) != 0 { n += 1; } } } n
     }
+    /// The last blast's wave: where its drawn front is now (path metres from the charge), how far it reached,
+    /// the tiles in the front (relative to the mole's start, at most 48), and the cells in flight.
+    fn blast_json(&self) -> String {
+        let Some(wv) = self.w.waves.last() else { return format!("{{\"debris\":{}}}", self.w.debris.len() as f32 / (K * K) as f32) };
+        let k = K as i64; let w = self.w.g.w;
+        let mut tiles: Vec<(i64, i64)> = wv.front(self.w.tick).map(|c| (((c.i as usize % w) as i64 - self.ax as i64).div_euclid(k), ((c.i as usize / w) as i64 - self.ay as i64).div_euclid(k))).collect();
+        tiles.sort(); tiles.dedup(); let nt = tiles.len(); tiles.truncate(48);
+        format!("{{\"age_s\":{:.3},\"front_m\":{:.2},\"reach_m\":{:.2},\"wave_tiles\":{},\"front_tiles\":{},\"front\":[{}],\"debris\":{}}}",
+            wv.age(self.w.tick), wv.front_m(self.w.tick), wv.reach * molehill_sim::mat::CELL_M, wv.cells.len() as f32 / (K * K) as f32, nt,
+            tiles.iter().map(|(x, y)| format!("[{x},{y}]")).collect::<Vec<_>>().join(","), self.w.debris.len() as f32 / (K * K) as f32)
+    }
     fn json(&self) -> String {
         let p = &self.w.pl; let m = &self.w.moles[0];
         let mut counts = vec![0u32; NMAT]; for y in self.oy..self.oy + self.mh { for x in self.ox..self.ox + self.mw { counts[self.w.g.get(x, y) as usize] += 1; } }
         let c0: Vec<String> = vec![];
         let inv: Vec<String> = molehill_sim::craft::ITEMS.iter().enumerate().filter(|(i, _)| self.w.inv[*i] > 0).map(|(i, it)| format!("\"{it:?}\":{}", self.w.inv[i])).collect();
         let c: Vec<String> = counts.iter().enumerate().filter(|(_, n)| **n > 0).map(|(i, n)| format!("\"{:?}\":{}", Mat::from_u8(i as u8), *n as f32 / (K * K) as f32)).collect(); let _ = c0;
-        format!("{{\"tick\":{},\"player\":{{\"px\":{:.3},\"py\":{:.3},\"vx\":{:.3},\"vy\":{:.3},\"grounded\":{},\"cling\":{},\"hp\":{:.1},\"breath\":{:.1},\"deaths\":{}}},\"inv\":{{{}}},\"mats\":{{{}}},\"events\":[{}]}}",
-            self.w.tick, self.var("px").unwrap(), self.var("py").unwrap(), self.var("vx").unwrap(), self.var("vy").unwrap(), p.grounded, p.cling, m.hp, m.breath, p.deaths, inv.join(","), c.join(","), self.events.iter().map(|e| format!("\"{e}\"")).collect::<Vec<_>>().join(","))
+        format!("{{\"tick\":{},\"player\":{{\"px\":{:.3},\"py\":{:.3},\"vx\":{:.3},\"vy\":{:.3},\"grounded\":{},\"cling\":{},\"hp\":{:.1},\"breath\":{:.1},\"deaths\":{}}},\"inv\":{{{}}},\"mats\":{{{}}},\"blast\":{},\"events\":[{}]}}",
+            self.w.tick, self.var("px").unwrap(), self.var("py").unwrap(), self.var("vx").unwrap(), self.var("vy").unwrap(), p.grounded, p.cling, m.hp, m.breath, p.deaths, inv.join(","), c.join(","), self.blast_json(), self.events.iter().map(|e| format!("\"{e}\"")).collect::<Vec<_>>().join(","))
     }
     /// The map region, one character per tile (its most common material; M = the mole's body).
     fn ascii(&self) -> String { let kf = K as f64;

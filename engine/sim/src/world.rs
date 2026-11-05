@@ -166,6 +166,8 @@ pub struct World {
     pub grottos: Vec<gen::Grotto>,
     /// keep the last blast's overpressure field (kPa per cell) in `blast_field` (tests and the harness)
     pub keep_blast_field: bool, pub blast_field: Vec<f32>,
+    /// cells a blast threw, in flight (see `debris.rs`), and the recent blasts' waves (for drawing)
+    pub debris: Vec<crate::debris::Debris>, pub waves: Vec<crate::debris::Wave>,
     /// glowmites caught: (grotto id, glowmite) → tick. A grotto's swarm refills: each comes back after GLOWMITE_BACK.
     pub caught: std::collections::HashMap<(u32, u8), u64>,
     /// Survival, Creative, or Plain (the bare rules: tests and scenarios); `rules` is what the mode switches on
@@ -198,7 +200,7 @@ impl World {
             st: Stress::new(w * h), light: Light::new(w, h), tick: 0, inv: [0; NITEM], dig_acc: [0; NMAT], place_acc: [0; 9], desig: vec![0; w * h],
             moles: vec![], drops: vec![], stockpile: (0, 0, 0, 0), buildings: vec![], torches: vec![], chests: vec![], furniture: vec![], paint_acc: 0,
             quest: 0, log: vec![], discovered: [false; NMAT], chests_opened: 0, pillars: 0, max_depth: 0., craft_queue: vec![], gear: Gear::default(), known: [false; NITEM], mode: Default::default(), rules: Default::default(), lamp_oil: 0., lamp_dry: false, ruins: vec![], ruins_seen: Default::default(), relics: 0, crumbled: 0,
-            light_rect: (0, 0, w - 1, h - 1), events: vec![], marks: vec![], react_pending: false, logic: Logic::new(w, h), disasters: Disasters::new(seed), shake: 0., air: Air::new(w, h), farms: vec![], harvested: 0, input: Input::default(), pl: Player::default(), gen: gn, oy, bands: Default::default(), opened: Default::default(), clues: vec![], found_clues: Default::default(), journal: vec![], grottos: vec![], caught: Default::default(), keep_blast_field: false, blast_field: vec![], info, g,
+            light_rect: (0, 0, w - 1, h - 1), events: vec![], marks: vec![], react_pending: false, logic: Logic::new(w, h), disasters: Disasters::new(seed), shake: 0., air: Air::new(w, h), farms: vec![], harvested: 0, input: Input::default(), pl: Player::default(), gen: gn, oy, bands: Default::default(), opened: Default::default(), clues: vec![], found_clues: Default::default(), journal: vec![], grottos: vec![], caught: Default::default(), keep_blast_field: false, blast_field: vec![], debris: vec![], waves: vec![], info, g,
         }
     }
     pub fn new(w: usize, h: usize, seed: u32) -> World {
@@ -286,6 +288,7 @@ impl World {
         let dy = |y: usize| -> Option<usize> { let v = y as i64 - rows; if v >= 0 && v < h as i64 { Some(v as usize) } else { None } };
         for m in self.moles.iter_mut() { if let Some(v) = dy(m.y) { m.y = v; } else { m.alive = false; } m.path.clear(); m.job = None; m.work_cell = None; }
         self.drops = std::mem::take(&mut self.drops).into_iter().filter_map(|mut d| dy(d.y).map(|v| { d.y = v; d.py -= rows as f32; d.ppy -= rows as f32; d })).collect();
+        self.debris = std::mem::take(&mut self.debris).into_iter().filter_map(|mut d| dy(d.py.max(0.) as usize).map(|_| { d.py -= rows as f32; d.ppy -= rows as f32; d })).collect(); self.waves.clear();
         self.torches = std::mem::take(&mut self.torches).into_iter().filter_map(|(x, y)| dy(y).map(|v| (x, v))).collect();
         self.buildings = std::mem::take(&mut self.buildings).into_iter().filter_map(|mut b| dy(b.y).filter(|&v| v >= Station::H).map(|v| { b.y = v; b.claimed = false; b })).collect();
         self.furniture = std::mem::take(&mut self.furniture).into_iter().filter_map(|mut f| dy(f.y).filter(|&v| v >= 16 * S).map(|v| { f.y = v; f })).collect();
@@ -454,6 +457,7 @@ impl World {
             } }
         self.step_player();
         self.step_items();
+        self.step_debris(); let now = self.tick; self.waves.retain(|v| v.live(now));
         if self.tick % 2 == 0 { self.step_moles(); }
         // a knock (fall, lava, being buried, drowning) flashes the mole and jolts the view in proportion
         self.step_survival();

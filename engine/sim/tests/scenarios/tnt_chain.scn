@@ -1,5 +1,5 @@
-// A blast sets off a second charge up to 1.5 m beyond its 2.25 m radius. Here the second charge is
-// 3 m right and 1 m up (3.16 m away): at 8 cells/m a bare-cell margin only reached 3.0 m and it stayed put.
+// A blast sets off a second charge when its wave reaches it at 130 kPa or more. Here the second charge is
+// 3 m right and 1 m up (3.16 m away) and sees about 170 kPa: it goes off too.
 map
 ##########################################
 #........................................#

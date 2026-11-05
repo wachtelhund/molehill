@@ -56,7 +56,7 @@ clue 1 Note 8 0         // put a Lid clue (Carving, Note, Draft, Relic) on the f
 furnish 2 Table 6 -2    // set a piece of furniture down at tile (dx,dy): it finds the floor below (or the ceiling above, for a banner)
 paint 2 Ochre 3 0       // paint a brush (`brush`) of standing blocks around tile (dx,dy) with a pigment, or dye the rug/banner/nest there
 dig 41-60 3 -1          // same, but (dx,dy) is relative to the mole's current cell (feet row), so it follows the mole
-explode 70 5 -2 0.25    // a blast of kg TNT-equivalent at (dx,dy) at tick T (a TNT charge is 0.25)
+explode 70 5 -2 0.25    // a blast of kg TNT-equivalent at (dx,dy) at tick T (a TNT charge is 0.5)
 place 5 4 0 WoodPillar  // at tick T place a block item (WoodPillar, Brick, IronBeam) at (dx,dy), as a left click; a refusal prints NOTE
 device 5 12 -1 Tnt      // place a device (logic::Dev name: Lever, Tnt, And, Tx, Rx, Lamp, Fuse, ...) in the 1 m block at (dx,dy)
 use 10 12 -1            // right mouse on the device there: flip a lever, light TNT or a fuse, step a channel
@@ -111,6 +111,9 @@ Map legend: `t` roots (a root tangle), `f` fungus, `.` empty, `#` granite, `B` b
 | `awake` | CA chunks overlapping the map that are still awake (0 = everything there has settled) |
 | `glowmites` | Glowmites drifting over the map rectangle |
 | `p:DX,DY` | The last blast's peak overpressure (kPa) on that tile |
+| `debris` / `debris:Mat` | Cells a blast threw that are still in flight (tiles), all or of one material |
+| `wave:DX,DY` | The path distance (m) the last blast's front ran to reach that tile (-1: it never got there) |
+| `front` / `frontcells` | The last blast's drawn front: its radius now (path m, 22 m/s), and the tiles in it |
 | `count:<Mat>` | Tiles' worth of that material inside the map rectangle (cells / K²), e.g. `count:Water` |
 | `is:DX,DY,<Mat>` | 1 if the cell at an offset from `@` is that material |
 | `inv:<Item>` | Inventory count |
@@ -128,7 +131,7 @@ Map legend: `t` roots (a root tangle), `f` fungus, `.` empty, `#` granite, `B` b
 
 Devices sit on a 1 m (4×4-cell) block grid. The spawn cell is block-aligned, so blocks start at offsets that are multiples of 4.
 
-The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of the scenario tick), player state, non-zero inventory, material counts in the map rectangle, and events as `"tick:Event"`.
+The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of the scenario tick), player state, non-zero inventory, material counts in the map rectangle, the last blast's wave (`blast`: `age_s`, `front_m`, `reach_m`, `wave_tiles`, `front_tiles`, up to 48 `front` tiles relative to `@`, and `debris` in flight), and events as `"tick:Event"`.
 
 ### Included scenarios
 
@@ -197,11 +200,16 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `held_torch.scn` | A torch in the paws lights around the mole; put away, it goes out |
 | `hover_strain.scn` | The hover warns of an overloaded wood span (cracking) before it falls; floor and loose debris read idle |
 | `brush_clamp.scn` | Brush radius is clamped per item (iron beam max 2, pillar min 0.5, pickaxe max 3) |
-| `tnt_chain.scn` | A blast sets off a second charge 3.16 m away (60 kPa on its block sets it off) |
+| `tnt_chain.scn` | A blast sets off a second charge 3.16 m away (130 kPa on its block sets it off) |
 | `blast_tunnel_vs_cave.scn` | The same charge keeps ~370 kPa 5 m down a tunnel, ~80 kPa 5 m across a cave |
 | `blast_shadow.scn` | A mole behind a wall (the wave can only get round its top) is barely hurt |
 | `blast_granite_vs_dirt.scn` | Between a dirt wall and a granite wall: the dirt is blown out and cracked, the granite takes it |
-| `blast_pushes_water.scn` | A blast in a flooded trough heaves the water up and out in a plume; none is lost |
+| `blast_pushes_water.scn` | A blast in a flooded trough throws most of the pool up as spray, which all comes down again |
+| `blast_soft_rock_tunnel.scn` | One charge on a soft-rock tunnel floor: crater ~2.5 m each way and through the 1 m floor, rock 3.5 m off whole, ~80 tiles broken |
+| `blast_pocket.scn` / `blast_cave_soaks.scn` | Confinement: tamped into a pocket ~100 tiles, on a cave floor ~30 |
+| `blast_granite_chips.scn` / `blast_basalt_holds.scn` | Granite chips 0.5 m under the charge; basalt loses one tile |
+| `blast_moves_sand.scn` | A charge by a sand bed throws a third of it into the air at once; the near end is scoured, and it all lands (none lost) |
+| `blast_wave_front.scn` | The front reaches a shaft round a corner by the tunnel (path longer than the straight line), never the rock between; the drawn front sweeps out; `dump` of its state |
 | `grain_in_body.scn` | A sand grain lying inside the mole's body (low tunnel, no wriggle room) is shoved aside instead of wedging it |
 | `pillar_built_in_room.scn` | A wood pillar built cell by cell in a granite room stays rigid |
 | `pillars_rock_roof.scn` / `roof_needs_pillar.scn` | Two pillars at the third points save a 12 m rock roof that caves in (bending) without them |
@@ -256,7 +264,7 @@ Zoom limits and brush ranges also have unit tests in `sim/tests/sim.rs` (`zoom_i
 
 **Web frame time:** serve `dist/` (`python3 -m http.server`) and measure `requestAnimationFrame` intervals in Chrome after starting a holt. At 8 cells/m on an M4 with the active region: 58 fps (p95 16.8 ms) from a fresh holt's first seconds, 60 fps steady state.
 
-Blast tests in `sim.rs`: `blast_overpressure_curve` (Kinney-Graham values, monotone, deterministic, bounded), `blast_is_heard_by_listeners`. `--example blastbench` times one charge.
+Blast tests in `sim.rs`: `blast_overpressure_curve` (Kinney-Graham values, monotone, deterministic, bounded), `blast_is_heard_by_listeners`, `blast_debris_deterministic_and_conserved`. `--example blastbench` times one charge.
 
 Worldgen tests in `sim.rs`: `ore_sits_in_its_depth_bands` (copper just below the holt, iron in the mid granite, basalt below 90 m), `grottos_follow_the_layers` (frequency by depth band over 6 seeds, none in the deep, deterministic), `generated_grottos_hold` (fresh holts' grottos stay open with their trees up), `slides_leave_nothing_failing`, `glowmites_drift_glow_and_get_caught`.
 
@@ -266,4 +274,4 @@ Performance-related tests in `sim.rs`: `local_stress_resolve_matches_full_solve`
 
 `cargo build --release -p molehill`. On a headless Linux box, run it under `Xvfb :99` with `VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.json`, wait about 8 s, and grab one frame with `ffmpeg -f x11grab`. The game opens on the main menu; press Enter to start a New Holt. One screenshot is enough; don't record videos unless asked.
 
-Native builds also take a frame by themselves: `molehill --fresh --seed=4242 --shot=out.bmp [--shot-at=150] [--shot-ui=pause|inv|help|dev] [--shot-walk]` starts a holt, writes one BMP and quits. Add `--dump-art=DIR` to also write every sprite (8×) and the composited world around the mole (`view.bmp`); these are CPU-side, so they work even where the window frame doesn't. On macOS the window must be visible on screen: launched from a background shell the surface reads back empty.
+Native builds also take a frame by themselves: `molehill --fresh --seed=4242 --shot=out.bmp [--shot-at=150] [--shot-ui=pause|inv|help|dev] [--shot-walk] [--shot-blast=K]` starts a holt, writes one BMP and quits. Add `--dump-art=DIR` to also write every sprite (8×) and the composited world around the mole (`view.bmp`); these are CPU-side, so they work even where the window frame doesn't. On macOS the window must be visible on screen: launched from a background shell the surface reads back empty.
