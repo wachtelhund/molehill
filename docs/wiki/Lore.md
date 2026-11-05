@@ -36,7 +36,7 @@ The lore is a design constraint as much as a story. Here is where it shows up in
 | No sky, no surface | The world is a sliding window over an infinite column (see [World and Generation](World-and-Generation.md)). There is no daylight: `World::step` pins `day` to 0, and all light comes from emitters and lamps. |
 | Cooler and wetter up, hotter and drier down | Fluid pockets choose water or lava by depth: the lava share rises from 0 at 10 m to 92 % at 70 m. Stone hardens from dirt and clay to limestone, granite and basalt. |
 | Everything follows physics | Roofs and pillars are checked with beam bending and compression from a material table in kg/m³ and kPa (see [Physics](Physics.md)). |
-| Delvers see poorly | Fog of war, a dark palette, and tunnels that stay black until you light them. Remembered rock is drawn deliberately dim. |
+| Delvers see poorly | Fog of war, a dark palette, and tunnels that stay black until you light them. Remembered rock is drawn deliberately dim. A Delver carries its own handmade light: a fungus-oil lamp on its hat, whose beam reaches 12 m and is stopped by rock. |
 | Dangers | Cave-ins (structural failure), flooding, lava, stale air (CO2 on a block grid) and hunger are all simulated. |
 | Handmade tech | Every device has a plain name: lever, both-knot, ticker, catch-knot, floodgate, listener, relay thrummer. Tooltips are checked by a test (`every_thing_has_a_lore_safe_tooltip`). |
 | Thrumming | Modelled as an elastic wave through the actual cells between thrummer and listener (see [Devices and Copperline](Devices-and-Copperline.md#thrumming)). |
