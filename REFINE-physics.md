@@ -95,6 +95,11 @@ bit-identical to before (checked before flipping it).
   gave 26-34 fps.
 * TNT and fuse chaining past the blast radius were still bare cells (+6/+4), so the margin shrank to
   0.75/0.5 m. They're 1.5 m/1 m again (`tnt_chain`; reported by the wiki session).
+* **Generation (Phase 2 start):** stabilisation re-solved the full 2M-cell window every round (40-100
+  rounds). Now the first round is a full solve and later rounds re-solve only around the cells the
+  last round changed (`Stress::solve_cells`; exact, since every failing cell is changed). Roof rows
+  are kept between solves and region solves use an 8 m side margin. Under the same machine load,
+  `World::new` on the game window went from 6.6-9.6 s to 2.2 s. (`genbench` example)
 * Tests now take about a minute (the multi-seed stability runs cover 4× the cells).
 
 ## Open issues
