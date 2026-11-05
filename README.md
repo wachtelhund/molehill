@@ -2,6 +2,7 @@
 
 A colony sim about moles digging through the Deepholt, an endless falling-sand underworld where every tunnel has to carry real loads. There is no sky and no surface (see [LORE.md](LORE.md)). This is a private project with no hosted build; play it locally.
 
+* **Wiki:** [docs/wiki](docs/wiki/README.md) covers the lore, world generation, physics, controls, items, devices, testing and architecture.
 * **v3 engine:** Rust + Bevy 0.20 in [`engine/`](engine/). The older TypeScript v2 prototype lives in [`legacy/`](legacy/).
 
 ## Play locally
@@ -34,6 +35,7 @@ Tests: `cd engine && cargo test --release -p molehill-sim`. Headless scenarios: 
 | `engine/game` | `molehill`: the Bevy front-end. It composites the world into 128 chunk textures of 64×64 cells and uploads only the chunks that changed. It also draws the sprites, the HUD, the wire and device overlay, and the procedural WebAudio sound. |
 | `engine/web`, `engine/build-web.sh` | the wasm build, written to `dist/` |
 | `site/` | committed copy of the web build, for local play |
+| `docs/wiki/` | the wiki (markdown pages; start at [`docs/wiki/README.md`](docs/wiki/README.md)) |
 | `legacy/` | the TS v2 prototype, plus the screenshot scripts (`legacy/scripts/shot-v3.mjs`) |
 
 ## Controls
