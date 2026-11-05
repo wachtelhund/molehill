@@ -26,6 +26,25 @@ pub fn grotto_chance(d: f32) -> f32 {
     if d < -20. { 0.2 } else if d < 10. { 0.2 - (d + 20.) / 30. * 0.1 } else if d < 50. { 0.1 - (d - 10.) / 40. * 0.08 } else if d < 60. { 0.02 } else { 0. }
 }
 /// Shell round the hollow: limestone where the host rock is too weak to hold a dome.
+/// The starting burrow's footprint around (window middle, depth 0), in cells: half its width, how far it
+/// reaches up (dome and roof) and down (floor and the dig-out skin). Grottos keep BURROW_MARGIN clear of it.
+const BURROW_HALF_W: i64 = 6 * CPM as i64; const BURROW_TOP: i64 = 5 * CPM as i64; const BURROW_BOTTOM: i64 = 3 * CPM as i64;
+const BURROW_MARGIN: i64 = 2 * CPM as i64;
+/// The start zone: within START_SAFE m of the starting burrow (the window's middle column, depth 0) every
+/// cell can be dug with the Survival Pickaxe (tier 1), so a new holt always has a way out and can reach the
+/// copper just below it. Harder ground (granite, basalt, iron, quartz, crystal) starts beyond it, and its
+/// fluid pockets are water, never lava.
+pub const START_SAFE: f32 = 25.;
+pub fn in_start_zone(w: usize, x: usize, wy: i64) -> bool { near_start(w, x, wy, START_SAFE) }
+/// Within `r` metres of the starting burrow?
+pub fn near_start(w: usize, x: usize, wy: i64, r: f32) -> bool {
+    let (dx, dy) = ((x as f32 - (w / 2) as f32) / CPM as f32, wy as f32 / CPM as f32); dx * dx + dy * dy < r * r
+}
+/// A pickaxe-diggable stand-in for harder ground (strong stone stays strong: granite becomes limestone).
+pub fn soften(m: Mat) -> Mat {
+    if m == Mat::Bedrock || m.p().tier <= 1 { return m; }
+    match m { Mat::Basalt => Mat::Rock, Mat::IronOre => Mat::TinOre, _ if m.kind() == crate::mat::Kind::Solid => Mat::Limestone, _ => m }
+}
 pub const GROTTO_SHELL: usize = 3 * CPM / 2;
 /// Height (cells) a root-tree reaches from its root row `root_wy`, per 1 m column block: 2-3.5 m.
 /// Regrowth uses the same rule, so a cut tree grows back to the height it had.
@@ -75,13 +94,16 @@ impl Gen {
         let (gw, gh) = (GROTTO_W as i64, GROTTO_H as i64); let mid = gy * gh + gh / 2;
         if (h & 0xFFFF) as f32 / 65536. >= grotto_chance(mid as f32 * CELL_M) { return None; }
         let c = CPM as i64;
-        // never on top of the starting burrow (depth 0, the middle of the window)
-        if ((gx * gw + gw / 2) - (w / 2) as i64).abs() < 30 * c && mid.abs() < 20 * c { return None; }
         let r = |k: u32, n: i64| (hash3(h, k, self.seed) as i64).rem_euclid(n.max(1));
         let (rx, ry) = (5 * c + r(1, 3 * c + 1), 3 * c + r(2, 3 * c / 2 + 1));
         let m = GROTTO_SHELL as i64 + c; // room for the shell inside the grotto cell
         let cx = gx * gw + rx + m + r(3, gw - 2 * (rx + m) + 1);
         let cy = gy * gh + ry + m + r(4, gh - 2 * (ry + m) + 1);
+        // never into the starting burrow (depth 0, the window's middle): the grotto's box, shell included,
+        // stays BURROW_MARGIN clear of the burrow's footprint (its dome, walls and floor), so one can open
+        // up within sight of the holt but never breaks into it
+        let sh = GROTTO_SHELL as i64; let (bx, by) = (BURROW_HALF_W + BURROW_MARGIN, (BURROW_TOP + BURROW_MARGIN, BURROW_BOTTOM + BURROW_MARGIN));
+        if (cx - (w / 2) as i64).abs() < rx + sh + bx && cy + ry + sh > -by.0 && cy - ry - sh < by.1 { return None; }
         let floor = ry / 2;
         let pw = 3 * c / 2; let px = r(5, rx) - rx / 2;
         let mut trees = [(0usize, 0usize); 3]; let mut n = 0;
@@ -182,7 +204,7 @@ impl Gen {
         let (n1, n2) = (&self.n1, &self.n2); let mut fl = 0u8;
         let mut m = if dd < -30. { if n2.fbm(fx, fy * 2., 40., 2) > 0.55 { Mat::Clay } else { Mat::Dirt } }
             else if dd < 0. { if n2.fbm(fx, fy * 2., 40., 2) > 0.5 { Mat::Clay } else if n2.fbm(fx + 90., fy, 70., 2) > 0.62 { Mat::Limestone } else { Mat::Dirt } }
-            else if dd < 30. { if self.biome[x] == Biome::Crags { Mat::Granite } else if n2.fbm(fx + 300., fy, 70., 3) > 0.55 { Mat::Rock } else { Mat::Limestone } }
+            else if dd < 30. { if self.biome[x] == Biome::Crags && dd >= 15. { Mat::Granite } else if n2.fbm(fx + 300., fy, 70., 3) > 0.55 { Mat::Rock } else { Mat::Limestone } }
             else if dd < 70. { if n2.fbm(fx + 300., fy, 70., 3) > 0.5 { Mat::Granite } else { Mat::Rock } }
             else if self.biome[x] == Biome::Ashlands || n2.at(fx / 50., fy / 50.) > 0.3 { Mat::Basalt } else { Mat::Granite }; // the deep is mostly basalt
         if dd < 35. { let l = n2.fbm(fx, fy * 3., 50., 3); if l > 0.67 { m = if n1.at(fx / 30., fy / 30.) > 0.5 { Mat::Gravel } else { Mat::Sand }; if l > 0.71 { fl |= F_WET; } } }
@@ -226,6 +248,11 @@ impl Gen {
                 let j = yy * w + xx; if Mat::from_u8(g.mat[j]).p().ignite > 0 { g.mat[j] = Mat::Basalt as u8; }
             } }
         } }
+        // the start zone is all pickaxe ground (see `in_start_zone`), whatever the bands or the lava put there;
+        // and it's cool: a fluid pocket in it is water, not lava (which would crust into basalt)
+        for y in y0..y1 { for x in 0..w { let i = y * w + x; let wy = oy + y as i64;
+            if g.mat[i] == Mat::Lava as u8 && near_start(w, x, wy, START_SAFE + 10.) { g.mat[i] = Mat::Water as u8; } // (10 m spare: no lava can run in while the world settles)
+            else if in_start_zone(w, x, wy) { g.mat[i] = soften(Mat::from_u8(g.mat[i])) as u8; } } }
         // unsupported sand at gen time turns to sandstone
         for y in (y0..y1).rev() { if y + 1 >= g.h { continue; } for x in 1..w - 1 {
             let i = y * w + x; if g.mat[i] != Mat::Sand as u8 { continue; }
@@ -269,11 +296,12 @@ pub fn generate(g: &mut Grid, seed: u32, oy: i64) -> (Gen, GenInfo) {
     for x in (cx0 - 4 * S..cx0).chain(cx1 + 1..=cx1 + 4 * S) { let mut y = cy1 + 4 * S; while y < h - 1 && !st.reach[y * w + x] { g.mat[y * w + x] = Mat::Limestone as u8; g.flags[y * w + x] = 0; y += 1; } } // diggable with claws
     let keep = |x: usize, y: usize| (x >= cx0 && x <= cx1 && y >= cy0 && y <= cy1) || gen.in_grotto_void(x, oy + y as i64);
     for y in cy0 - 6 * S..cy1 + 4 * S { for x in cx0 - 4 * S..=cx1 + 4 * S { g.flags[y * w + x] = 0; } } // built cells are fresh rock, not rubble
-    stabilize_keep(g, &mut st, 0, usize::MAX, &keep);
+    let soft = |x: usize, y: usize| in_start_zone(w, x, oy + y as i64);
+    stabilize_soft(g, &mut st, 0, usize::MAX, &keep, &soft);
     g.wake_all(); for _ in 0..240 { g.step_ca(); }
     // nothing the settling pass let flow in stays inside the burrow
     for y in cy0 - 8 * S..=cy1 { for x in cx0 - 3 * S..=cx1 + 3 * S { let i = y * w + x; if matches!(Mat::from_u8(g.mat[i]), Mat::Water | Mat::Lava | Mat::Steam) { g.mat[i] = if x >= cx0 && x <= cx1 && y >= cy0 && y <= cy1 { 0 } else { Mat::Clay as u8 }; } } }
-    stabilize_keep(g, &mut st, 0, usize::MAX, &keep);
+    stabilize_soft(g, &mut st, 0, usize::MAX, &keep, &soft);
     // the burrow floor stays soil (farms need it), even where the stability pass reinforced it
     for x in cx0..=cx1 { for y in cy1 + 1..=cy1 + S { let i = y * w + x; if matches!(Mat::from_u8(g.mat[i]), Mat::Granite | Mat::Limestone) { g.mat[i] = Mat::Clay as u8; } } }
     // claws can always dig down out of the burrow: no granite just below its floor
@@ -287,7 +315,9 @@ pub fn stabilize(g: &mut Grid, st: &mut Stress) { stabilize_rows(g, st, 0, usize
 /// Like `stabilize`, but only touches failing cells in rows [y0, y1).
 pub fn stabilize_rows(g: &mut Grid, st: &mut Stress, y0: usize, y1: usize) { stabilize_keep(g, st, y0, y1, &|_, _| false) }
 /// `kept(x, y)`: open space that must stay open (the starting burrow, grotto hollows and pools).
-pub fn stabilize_keep(g: &mut Grid, st: &mut Stress, y0: usize, y1: usize, kept: &dyn Fn(usize, usize) -> bool) {
+pub fn stabilize_keep(g: &mut Grid, st: &mut Stress, y0: usize, y1: usize, kept: &dyn Fn(usize, usize) -> bool) { stabilize_soft(g, st, y0, y1, kept, &|_, _| false) }
+/// `stabilize_keep`, patching with limestone instead of granite where `soft(x, y)` (the start zone).
+pub fn stabilize_soft(g: &mut Grid, st: &mut Stress, y0: usize, y1: usize, kept: &dyn Fn(usize, usize) -> bool, soft: &dyn Fn(usize, usize) -> bool) {
     let (w, h) = (g.w, g.h);
     let thr0 = st.thr; st.thr = 0.45; // gen-time safety factor: fresh caves must survive fluids shifting about
     // after one full solve, each round re-solves only around the cells the last round changed (every
@@ -307,9 +337,9 @@ pub fn stabilize_keep(g: &mut Grid, st: &mut Stress, y0: usize, y1: usize, kept:
             if it >= 4 { // still failing: widen the pillar / thicken the roof by filling neighbouring voids,
                 // further out the longer it keeps failing (a one-cell fill barely helps at 8 cells/m)
                 let (x, y) = (i % w, i / w); let r = (1 + (it as i32 - 4) / 3).min(4 * S as i32);
-                for (dx, dy) in (-r..=r).flat_map(|dx| (-r..=r + 1).map(move |dy| (dx, dy))) { let (nx, ny) = (x as i32 + dx, y as i32 + dy); if nx > 1 && ny >= 0 && (nx as usize) < w - 2 && (ny as usize) < h { let j = ny as usize * w + nx as usize; if kept(nx as usize, ny as usize) { continue; } if g.mat[j] == 0 || g.mat[j] == Mat::Water as u8 || g.mat[j] == Mat::Lava as u8 { g.mat[j] = Mat::Granite as u8; changed.push(j); } } }
+                for (dx, dy) in (-r..=r).flat_map(|dx| (-r..=r + 1).map(move |dy| (dx, dy))) { let (nx, ny) = (x as i32 + dx, y as i32 + dy); if nx > 1 && ny >= 0 && (nx as usize) < w - 2 && (ny as usize) < h { let j = ny as usize * w + nx as usize; if kept(nx as usize, ny as usize) { continue; } if g.mat[j] == 0 || g.mat[j] == Mat::Water as u8 || g.mat[j] == Mat::Lava as u8 { g.mat[j] = if soft(nx as usize, ny as usize) { Mat::Limestone } else { Mat::Granite } as u8; changed.push(j); } } }
             }
-            g.mat[i] = if it < 3 && m.p().tensile < Mat::Limestone.p().tensile { Mat::Limestone as u8 } else { Mat::Granite as u8 };
+            g.mat[i] = if (it < 3 && m.p().tensile < Mat::Limestone.p().tensile) || soft(i % w, i / w) { Mat::Limestone as u8 } else { Mat::Granite as u8 };
         }
     }
     st.thr = thr0;

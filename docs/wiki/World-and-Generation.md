@@ -71,7 +71,7 @@ Deep down (below 70 m) the rock is mostly **basalt**, with crystal and quartz on
 
 **Grottos** are rare underground oases where water seeps through the rock (see [Lore](Lore.md#grottos)). They're the Deepholt's wood source.
 
-* **Where:** the world is cut into 40 m × 24 m grotto cells, and a seeded hash decides whether each one holds a grotto. The chance follows the water: 20 % in the wet upper layers (above −20 m), falling to 10 % at 10 m and 2 % by 50 m, and none below 60 m, where lava takes over. None is placed on top of the start burrow. A window usually holds a few (`grottos_follow_the_layers`).
+* **Where:** the world is cut into 40 m × 24 m grotto cells, and a seeded hash decides whether each one holds a grotto. The chance follows the water: 20 % in the wet upper layers (above −20 m), falling to 10 % at 10 m and 2 % by 50 m, and none below 60 m, where lava takes over. A grotto may open up within sight of the start burrow, but its box (shell included) always stays 2 m clear of the burrow's footprint (about 6 m to each side, 5 m up and 3 m down), so it never breaks in (`grottos_near_spawn_never_touch_the_burrow`). Seed 14085 shows one: a root-tree about 12.5 m right of the spawn and 5 m up, on screen at default zoom (the `grottoseed` example finds such seeds). A window usually holds a few (`grottos_follow_the_layers`).
 * **Shape:** a domed hollow 10–16 m wide and 4.5–7 m high with a flat floor. Around it lies a 1.5 m **shell** that is limestone wherever the host rock is too weak to hold a dome, so grottos stand (`generated_grottos_hold`).
 * **Inside:**
   * **Moss** and glowing **mycelium** carpet the floor (both soil a mushroom grows on), and mycelium threads the lower walls.
@@ -100,6 +100,8 @@ water share = clamp((40 − dd) / 60, 0.08, 1) of what is left
 At the start layer pockets are almost all water. By 40 m half of them are lava, and from 70 m on lava dominates. A little water survives at every depth. This is the lore's "cooler and wetter up, hotter and drier down" written as two clamps.
 
 ## The start burrow
+
+**The start zone.** Within 25 m of the burrow (`gen::START_SAFE`) every cell can be dug with the Survival Pickaxe (tier 1): whatever the depth bands put there, granite, quartz and crystal become limestone, basalt becomes rock, and iron ore becomes tin ore, and the stability pass props roofs there with limestone instead of granite. Fluid pockets within 35 m are water, never lava (lava would crust into basalt). Crags make granite only from about 15 m down the depth band, not at the top. A new holt therefore always has a way out, and the Pickaxe can always dig through to copper (`spawn_zone_is_pickaxe_ground_with_a_way_to_copper`, over 30 seeds).
 
 The holt begins in a **domed chamber about 7.75 m wide**, carved at depth 0 in the middle of the window:
 
