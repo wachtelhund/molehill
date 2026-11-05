@@ -349,6 +349,53 @@ fn press(w: &mut World, n: usize, f: impl Fn(&mut Input)) -> (f32, f32) { let (m
     assert!(w.marks.iter().any(|m| m.0 == 1 && m.1 as usize == cx && m.2 as usize == cy), "place mark: {:?}", w.marks);
 }
 
+#[test] fn window_does_not_thrash_near_its_edge() {
+    // a 256-row window used to slide up and straight back down every 30 ticks with the mole at y≈90
+    let mut w = World::new(512, 256, 11); w.disasters.enabled = false;
+    let (x0, y0) = (w.moles[0].x, 90usize);
+    for y in y0 - 8..=y0 + 6 { for x in x0 - 10..=x0 + 10 { let i = w.g.idx(x, y); w.g.set(i, if y > y0 || y < y0 - 4 || x < x0 - 6 || x > x0 + 6 { Mat::Granite } else { Mat::Empty }); w.g.flags[i] = 0; } }
+    w.moles[0].y = y0; w.pl = Default::default(); w.pl.fall_from = y0;
+    let oy = w.oy; let mut shifts = 0; let mut last = oy;
+    for _ in 0..600 { w.step(); if w.oy != last { shifts += 1; last = w.oy; } }
+    assert_eq!(shifts, 0, "window slid {shifts} times (mole y {})", w.moles[0].y);
+}
+
+/// Loading a save where the mole stands far below the burrow must not count as a fall (it used to kill).
+#[test] fn load_deep_does_not_fall_damage() {
+    let (mut w, x0, y0) = arena();
+    // a pocket 60 cells below the arena floor, and move the mole there as if it had dug down
+    let y1 = y0 + 60; for y in y1 - 4..=y1 { for x in x0 - 3..=x0 + 3 { let i = w.g.idx(x, y); w.g.set(i, Mat::Empty); } }
+    for x in x0 - 4..=x0 + 4 { let i = w.g.idx(x, y1 + 1); w.g.set(i, Mat::Granite); }
+    w.moles[0].y = y1; w.pl.sync = None; for _ in 0..5 { w.step(); }
+    assert_eq!(w.moles[0].hp, 100.);
+    let b = molehill_sim::save::save(&w); let mut w2 = molehill_sim::save::load(&b).expect("load");
+    for _ in 0..30 { w2.step(); }
+    assert!(w2.moles[0].hp > 99., "hp after load {}", w2.moles[0].hp);
+}
+/// Copperline and knots: dragging wire over a knot costs nothing, picking up refunds the wire and the device,
+/// and a knot placed on copperline gives that copperline back.
+#[test] fn wire_and_device_pack_accounting() {
+    use molehill_sim::logic::Dev;
+    let (mut w, x0, y0) = arena(); let (x, y) = (x0 + 8, y0 - 2);
+    let cu = |w: &World| w.inv[Item::CopperWire as usize]; let kn = |w: &World| w.inv[Item::Gate as usize];
+    let (c0, k0) = (cu(&w), kn(&w));
+    assert!(w.place_device(Dev::And, x, y).is_ok()); assert_eq!(kn(&w), k0 - 1);
+    for _ in 0..10 { assert!(!w.lay_wire(x, y)); } assert_eq!(cu(&w), c0, "no copperline lost on a knot");
+    assert!(w.lay_wire(x + 4, y)); assert_eq!(cu(&w), c0 - 1); assert!(!w.lay_wire(x + 4, y), "already wired");
+    assert!(w.place_device(Dev::Or, x + 4, y).is_ok()); assert_eq!(cu(&w), c0, "knot on copperline refunds it");
+    w.inv[Item::Lamp as usize] = 1; assert!(w.lay_wire(x + 8, y)); assert!(w.place_device(Dev::Lamp, x + 8, y).is_ok());
+    let c1 = cu(&w); assert_eq!(w.pick_up(x + 8, y), Some(Dev::Lamp)); assert_eq!(cu(&w), c1 + 1, "wire under a device refunded");
+    assert_eq!(w.pick_up(x, y), Some(Dev::And)); assert_eq!(w.pick_up(x + 4, y), Some(Dev::Or)); assert_eq!(kn(&w), k0);
+    assert!(w.place_device(Dev::Lever, x + 60, y).is_err(), "out of reach");
+}
+/// A fuse cord picked up while burning, then put down again, is a fresh unlit cord.
+#[test] fn replaced_fuse_is_not_burning() {
+    use molehill_sim::logic::Dev;
+    let (mut w, x0, y0) = arena(); let (x, y) = (x0 + 8, y0 - 2); let b = w.logic.block_of(x, y);
+    assert!(w.place_device(Dev::Fuse, x, y).is_ok()); assert!(w.use_device(x, y)); w.step(); assert!(w.logic.lit(b));
+    w.pick_up(x, y); assert!(w.place_device(Dev::Fuse, x, y).is_ok()); w.step(); assert!(!w.logic.lit(b));
+}
+
 #[test] fn zoom_is_clamped_both_ways() {
     use molehill_sim::view::*;
     let mut z = ZOOM_DEFAULT;
@@ -387,4 +434,21 @@ fn press(w: &mut World, n: usize, f: impl Fn(&mut Input)) -> (f32, f32) { let (m
         assert!(!d.trim().is_empty() && d.len() <= 110, "{n}: tooltip must be one short line ({d:?})");
         let l = d.to_lowercase(); for b in banned { assert!(!l.contains(b), "{n}: tooltip uses '{b}': {d}"); }
     }
+}
+#[test] fn rock_falls_when_its_support_slumps_away() {
+    // a slab resting on a heap of loose rubble held in by two temporary walls. Pulling the walls
+    // triggers one stress update while the rubble still props the slab; then the rubble slumps out
+    // sideways through CA moves alone. Those moves must tell the solver, or the slab hangs in the air.
+    let (mut w, x0, y0) = arena();
+    let (sx, sy) = (x0 + 8, y0); // rubble: columns sx..=sx+3, rows sy-3..=sy
+    for y in sy - 3..=sy { for x in sx..=sx + 3 { let i = w.g.idx(x, y); w.g.set(i, Mat::Gravel); w.g.set_loose(i); } }
+    let walls: Vec<usize> = (sy - 3..=sy).flat_map(|y| [w.g.idx(sx - 1, y), w.g.idx(sx + 4, y)]).collect();
+    for &i in &walls { w.g.set(i, Mat::Granite); }
+    for x in sx..=sx + 3 { let i = w.g.idx(x, sy - 4); w.g.set(i, Mat::Rock); } // slab, resting only on the rubble
+    let rock = |w: &World| (sx..=sx + 3).filter(|&x| { let i = w.g.idx(x, sy - 4); w.g.m(i) == Mat::Rock && !w.g.loose(i) }).count();
+    for _ in 0..30 { w.step(); } assert_eq!(rock(&w), 4, "slab rests on the rubble");
+    while w.tick % 6 != 5 { w.step(); }
+    for &i in &walls { w.g.set(i, Mat::Empty); } // solved on the very next tick, rubble still in place
+    for _ in 0..240 { w.step(); }
+    assert_eq!(rock(&w), 0, "slab fell once the rubble slumped from under it");
 }

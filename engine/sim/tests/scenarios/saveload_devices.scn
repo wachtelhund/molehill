@@ -1,0 +1,28 @@
+// Save and load keep device state: a lever stays thrown (the lamp on its line stays lit), and a lit TNT
+// fuse keeps burning across the reload and goes off on time.
+map
+##########################################
+#........................................#
+#........................................#
+#........................................#
+#........................................#
+#........................................#
+#.................@......................#
+##########################################
+end
+give Tnt 1
+give Lamp 1
+device 3 -6 -1 Lever
+wire 4 -3 -1
+device 5 1 -1 Lamp
+device 6 14 -1 Tnt
+use 10 -6 -1
+expect 15 on:1,-1 == 1
+use 20 14 -1
+hold 21-60 left
+saveload 60
+expect 62 on:1,-1 == 1
+expect 62 lit:14,-1 == 1
+expect 62 dev:-6,-1,Lever == 1
+expect 105 ev:Explode == 0
+expect 115 ev:Explode == 1

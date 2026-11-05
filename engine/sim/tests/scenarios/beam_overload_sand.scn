@@ -1,0 +1,20 @@
+// A wood beam over a wide gap with a deep sand load on it cracks and breaks into debris.
+map
+###################################
+#..sssssssssssssssssssssssssss....#
+#..sssssssssssssssssssssssssss....#
+#..sssssssssssssssssssssssssss....#
+#..sssssssssssssssssssssssssss....#
+#..sssssssssssssssssssssssssss....#
+#..sssssssssssssssssssssssssss....#
+#..sssssssssssssssssssssssssss....#
+#..sssssssssssssssssssssssssss....#
+#..bbbbbbbbbbbbbbbbbbbbbbbbbbb....#
+#.@#.........................######
+####.........................######
+####.........................######
+###################################
+end
+expect 300 crumbled > 0
+expect 300 static:WoodBeam < 27  // the beam broke
+expect 300 count:WoodBeam > 0    // ...into loose wood debris

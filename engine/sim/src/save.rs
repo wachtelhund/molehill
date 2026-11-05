@@ -67,6 +67,8 @@ pub fn save(w: &World) -> Vec<u8> {
     o.u32(w.opened.len() as u32); for &(x, wy) in &w.opened { o.u32(x as u32); o.u64(wy as u64); }
     o.u32(w.farms.len() as u32); for f in &w.farms { o.u32(f.x as u32); o.u32(f.y as u32); o.f32(f.growth); }
     o.rle(&w.air.to_bytes()); o.u32(w.harvested);
+    // optional trailing sections (older v3 saves end above): burning fuses / lit TNT, the player's deaths
+    let bn: Vec<u8> = w.logic.burn.iter().flat_map(|v| v.to_le_bytes()).collect(); o.rle(&bn); o.u32(w.pl.deaths);
     o.0
 }
 
@@ -113,6 +115,11 @@ pub fn load(b: &[u8]) -> R<World> {
     w.opened.clear(); for _ in 0..r.len(1 << 20)? { let x = r.u32()? as usize; let wy = r.u64()? as i64; w.opened.insert((x, wy)); }
     w.farms.clear(); for _ in 0..r.len(1 << 16)? { let (x, y, g) = (r.u32()? as usize, r.u32()? as usize, r.f32()?); if x < gw && y + 1 < gh { w.farms.push(Farm { x, y, growth: g.clamp(0., 1.), why: 0 }); } }
     let ab = r.rle(w.air.co2.len())?; w.air.from_bytes(&ab); w.harvested = r.u32()?;
+    if r.p < r.b.len() {
+        let bn = r.rle(nb * 2)?; w.logic.burn = bn.chunks(2).map(|c| i16::from_le_bytes([c[0], c[1]]).clamp(0, 600)).collect();
+        for b in 0..nb { if w.logic.dev[b] == 0 { w.logic.burn[b] = 0; } }
+        w.pl.deaths = r.u32()?;
+    }
     let _ = (&w.chests, Chest { x: 0, y: 0, opened: false }); w.refresh_chests();
     let _ = Item::Dirt; let _ = Mat::Empty;
     // derived state

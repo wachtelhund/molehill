@@ -1,0 +1,28 @@
+// Remote detonation through rock: lever -> copperline -> thrummer, knocking through a 2 m granite wall to a
+// listener on the same channel in the next chamber, whose copperline sets off the TNT there. The mole is safe.
+map
+####################################
+#................########..........#
+#................########..........#
+#................########..........#
+#................########..........#
+#................########..........#
+#............@...########..........#
+####################################
+end
+give Tnt 1
+give Thrummer 2
+device 3 -6 -1 Lever
+wire 4 -3 -1
+device 5 1 -1 Tx
+wire 6 13 -1
+device 7 13 -1 Rx
+device 8 17 -1 Tnt
+expect 60 dev:1,-1,Tx == 1
+expect 60 dev:13,-1,Rx == 1
+expect 60 ev:Explode == 0
+use 61 -6 -1
+expect 63 on:1,-1 == 1
+expect 70 ev:Explode == 1
+expect 70 dev:17,-1,Tnt == 0
+expect 90 hp == 100

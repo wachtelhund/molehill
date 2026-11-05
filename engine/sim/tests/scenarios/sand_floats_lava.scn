@@ -1,0 +1,19 @@
+// Sand is lighter than lava (1600 vs 2700 kg/m3): it floats on the surface instead of sinking.
+map
+##############################
+#.........ssssss.............#
+#.........ssssss.............#
+#.........ssssss.............#
+#............................#
+#llllllllllllllllllllllllllll#
+#llllllllllllllllllllllllllll#
+#llllllllllllllllllllllllllll#
+#llllllllllllllllllllllllllll#
+##############################
+#...######################
+#...######################
+#.@.######################
+##########################
+end
+expect 300 is:11,-8,Sand == 1     // resting on the lava surface
+expect 300 is:9,-4,Sand == 0      // none reached the bottom

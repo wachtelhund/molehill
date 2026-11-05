@@ -1,0 +1,23 @@
+// An iron beam bridges an 8-cell gap between two ledges and stays put.
+map
+##############################
+#............................#
+#............................#
+#............................#
+#.@..........................#
+#####........#################
+#####........#################
+#####........#################
+##############################
+end
+give IronBeam 20
+put 2 3 1 IronBeam
+put 3 4 1 IronBeam
+put 4 5 1 IronBeam
+put 5 6 1 IronBeam
+put 6 7 1 IronBeam
+put 7 8 1 IronBeam
+put 8 9 1 IronBeam
+put 9 10 1 IronBeam
+expect 400 count:IronBeam == 8
+expect 400 crumbled == 0

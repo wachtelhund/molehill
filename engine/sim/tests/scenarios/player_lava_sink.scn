@@ -1,0 +1,22 @@
+// Lava is a liquid to the mole, not a floor: running onto a pool flush with the ledge, you sink into
+// it, wade at a crawl and burn fast.
+map
+################################
+#..............................#
+#..............................#
+#..............................#
+#.@............................#
+#####llllllllllllllllllllllll###
+#####llllllllllllllllllllllll###
+#####llllllllllllllllllllllll###
+#####llllllllllllllllllllllll###
+#####llllllllllllllllllllllll###
+################################
+end
+hold 1-200 right
+expect 10 vx >= 14          // still running on the ledge
+expect 60 grounded == 0     // not standing on the lava
+expect 60 dy > 1.5          // sunk into it
+expect 60 vx <= 4           // heavy drag
+expect 60 hp < 60           // strong burn
+expect 150 deaths == 1

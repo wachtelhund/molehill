@@ -1,0 +1,31 @@
+// A lever on copperline opens a door. A door never shuts on the mole: with the power cut while the mole
+// stands in the doorway it waits, and closes once the mole has walked through.
+map
+#........#########.....................#
+#........#########.....................#
+#........#########.....................#
+#........#########.....................#
+#......................................#
+#......................................#
+#......................................#
+#..@.....###############################
+########################################
+end
+device 2 0 -1 Door      // can't put a door down on yourself
+expect 2 dev:0,-1,Door == 0
+device 3 0 -1 Lever
+wire 4 4 -1
+device 5 8 -1 Door
+expect 6 is:9,-2,Door == 1
+use 10 0 -1
+expect 14 is:9,-2,Empty == 1
+hold 20-49 right
+expect 60 dx >= 7
+expect 60 dx <= 11
+use 61 0 -1
+expect 70 is:9,-2,Empty == 1
+expect 70 hp == 100
+hold 80-110 right
+expect 130 dx > 14
+expect 130 is:9,-2,Door == 1
+expect 130 hp == 100
