@@ -93,6 +93,8 @@ bit-identical to before (checked before flipping it).
   sample per tile. Web (M4, Chrome): 57-58 fps steady state, the same as before. During the first
   ~15 s of a fresh holt it's 54-55 fps (p95 33 ms) while the world settles. Before this fix the resize
   gave 26-34 fps.
+* TNT and fuse chaining past the blast radius were still bare cells (+6/+4), so the margin shrank to
+  0.75/0.5 m. They're 1.5 m/1 m again (`tnt_chain`; reported by the wiki session).
 * Tests now take about a minute (the multi-seed stability runs cover 4× the cells).
 
 ## Open issues

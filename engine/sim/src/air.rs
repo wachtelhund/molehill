@@ -5,7 +5,7 @@
 //! * Sinks: vents (strong, around the vent block) and slow seepage into porous soil (dirt/sand/gravel/
 //!   roots/clay faces). Since the surface is sealed, a closed tunnel system slowly goes stale.
 use crate::grid::Grid;
-use crate::mat::{Kind, Mat, S};
+use crate::mat::{Kind, S, POROUS};
 
 pub const AB: usize = 8 * S; // 2 m blocks
 pub const UPDATE_TICKS: u64 = 15;
@@ -34,9 +34,9 @@ impl Air {
             let k = (S * S) as f32;
             for y in (y0..y0 + AB).step_by(S) { for x in (x0..x0 + AB).step_by(S) {
                 let m = g.get(x, y);
-                match m.kind() { Kind::Empty | Kind::Gas => { v += k; if m == Mat::Fire { f += k; } } _ => {} }
-                if m == Mat::Lava { f += k; }
-                if matches!(m, Mat::Dirt | Mat::Sand | Mat::Gravel | Mat::Roots | Mat::Clay | Mat::Fungus) { p += k; }
+                if matches!(m.kind(), Kind::Empty | Kind::Gas) { v += k; }
+                if m.p().heat > 0 { f += k; } // burning or molten
+                if m.has(POROUS) { p += k; }
             } }
             self.vol[b] = v; self.porous[b] = if v > 0. { p.min(v * 2.) } else { 0. };
             self.src[b] += f * FIRE_CO2;

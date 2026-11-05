@@ -4,7 +4,7 @@
 //! and falling-sand CA do the rest). Own RNG, so the world's determinism is unaffected.
 //! Volumes and budgets are fractions of the world's cell count (resolution independent).
 use crate::grid::Grid;
-use crate::mat::{Kind, Mat};
+use crate::mat::{Kind, Mat, BUILT};
 use crate::world::{Event, World};
 
 pub const HZ: u32 = 60;
@@ -98,7 +98,7 @@ impl Disasters {
             let y = (self.y + self.r() as usize % (2 * half)).saturating_sub(half).clamp(1, gh - 3);
             let i = y * gw + x; let m = w.g.m(i);
             // soft = static structural solid that is weak (not rock/anchor/built), with open space below
-            let soft = w.g.is_static(i) && m.p().tensile < 100. && !matches!(m, Mat::Bedrock | Mat::WoodBeam | Mat::StoneBrick | Mat::IronBeam | Mat::Door);
+            let soft = w.g.is_static(i) && m.p().tensile < 100. && m != Mat::Bedrock && !m.has(BUILT);
             if soft && w.g.mat[i + gw] == 0 { w.g.set_loose(i); self.budget -= 1.; let _ = self.rf(); }
         }
     }

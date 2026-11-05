@@ -3,7 +3,7 @@ use crate::craft::*;
 use crate::gen::{self, Gen, GenInfo};
 use crate::grid::{hash3, Grid, F_SEEN, F_WET};
 use crate::light::{self, Light};
-use crate::mat::{Kind, Mat, CELL_M, CPM, NMAT, S, SF};
+use crate::mat::{Kind, Mat, CELL_M, CPM, NMAT, S, SF, BUILT, GRUBS, NOTABLE, OPEN, SOIL};
 use crate::stress::Stress;
 use crate::logic::{Dev, Logic};
 use crate::disasters::Disasters;
@@ -216,7 +216,7 @@ impl World {
         if hi > h - m && lo >= m + SLIDE { self.shift(SLIDE as i64); } else if lo < m && hi + SLIDE <= h - m { self.shift(-(SLIDE as i64)); }
     }
 
-    #[inline] fn passable(&self, x: usize, y: usize) -> bool { let m = self.g.get(x, y); matches!(m, Mat::Empty | Mat::Steam | Mat::Water | Mat::Lava | Mat::Fire) && !self.is_building_cell(x, y, false) }
+    #[inline] fn passable(&self, x: usize, y: usize) -> bool { let m = self.g.get(x, y); m.passable() && !self.is_building_cell(x, y, false) }
     fn is_building_cell(&self, _x: usize, _y: usize, _solid: bool) -> bool { false }
     pub fn standable(&self, x: usize, y: usize) -> bool {
         let g = &self.g; if x < 1 || x + 1 >= g.w || y < MOLE_H || y + 1 >= g.h { return false; }
@@ -326,7 +326,7 @@ impl World {
         if !crumble.is_empty() { self.events.push(Event::Crumble); }
         let mut bulk = vec![];
         for &i in &crumble { let i = i as usize; let was = self.g.m(i); let c = was.p().crumbles_to; self.g.set(i, c); if c.kind() == Kind::Solid { self.g.set_loose(i); } self.crumbled += 1;
-            if !matches!(was, Mat::WoodBeam | Mat::IronBeam | Mat::Door | Mat::StoneBrick | Mat::Glass) && hash3(i as u32, 77, self.tick as u32) % 10 < BULK_IN_10 { bulk.push((i, c)); } }
+            if !was.has(BUILT) && hash3(i as u32, 77, self.tick as u32) % 10 < BULK_IN_10 { bulk.push((i, c)); } }
         // broken ground bulks: rubble takes ~1.3× the room the solid did, so a cave-in fills its own
         // void and chokes off instead of climbing as a chimney through the whole layer. The extra
         // rubble spills to the nearest open cell reachable from the break through loose ground,
@@ -404,7 +404,7 @@ impl World {
         // snap to the floor: climb out of rock or drop through air (up to 1.5 m)
         let mut y = y; for _ in 0..6 * S { if y > 1 && self.g.mat[self.g.idx(x, y)] != 0 { y -= 1; } else if y + 2 < self.g.h && self.g.mat[self.g.idx(x, y + 1)] == 0 { y += 1; } else { break; } }
         if self.g.mat[self.g.idx(x, y)] != 0 { return Err("needs an open cell"); }
-        if !matches!(self.g.get(x, y + 1), Mat::Dirt | Mat::Clay | Mat::Roots | Mat::Gravel | Mat::Fungus | Mat::Grass) || self.g.loose(self.g.idx(x, y + 1)) { return Err("needs a soil floor (dirt, clay, roots)"); }
+        if !self.g.get(x, y + 1).has(SOIL) || self.g.loose(self.g.idx(x, y + 1)) { return Err("needs a soil floor (dirt, clay, roots)"); }
         if self.farms.iter().any(|f| f.x.abs_diff(x) < 3 * S && f.y.abs_diff(y) < 3 * S) { return Err("too close to another mushroom"); }
         self.inv[Item::Spore as usize] -= 1; self.farms.push(Farm { x, y, growth: 0., why: 0 }); self.events.push(Event::Place); Ok(())
     }
@@ -423,7 +423,7 @@ impl World {
         while k < self.farms.len() {
             let (x, y) = (self.farms[k].x, self.farms[k].y);
             let soil = self.g.get(x, y + 1);
-            if self.g.mat[self.g.idx(x, y)] != 0 || !matches!(soil, Mat::Dirt | Mat::Clay | Mat::Roots | Mat::Gravel | Mat::Fungus | Mat::Grass) { self.farms.swap_remove(k); continue; }
+            if self.g.mat[self.g.idx(x, y)] != 0 || !soil.has(SOIL) { self.farms.swap_remove(k); continue; }
             let (bright, dry) = self.farm_conditions(x, y);
             self.farms[k].why = bright as u8 | (dry as u8) << 1;
             // dark + moist: ~60 s to fruit; one condition missing: 4× slower; neither: stalls
@@ -492,7 +492,7 @@ impl World {
         for yy in y0..=y1 { for xx in x0..=x1 {
             let i = yy * w + xx; if before[i] & F_SEEN == 0 && self.g.flags[i] & F_SEEN != 0 {
                 let m = self.g.m(i);
-                if !self.discovered[m as usize] && matches!(m, Mat::Coal | Mat::CopperOre | Mat::TinOre | Mat::IronOre | Mat::Quartz | Mat::Crystal | Mat::Lava | Mat::Water | Mat::Fungus | Mat::Limestone | Mat::Granite | Mat::Basalt | Mat::Clay) {
+                if !self.discovered[m as usize] && m.has(NOTABLE) {
                     self.discovered[m as usize] = true; let d = self.depth_m(xx, yy);
                     self.inv[Item::Torch as usize] += 2; self.events.push(Event::Discover);
                     self.say(format!("Discovery: {} at {:.0} m (+2 torches)", m.p().name, d.max(0.)));
@@ -503,7 +503,7 @@ impl World {
     fn mole_physics(&mut self, k: usize) {
         let (x, y) = (self.moles[k].x, self.moles[k].y);
         let head = self.g.idx(x, y - S); let hm = self.g.m(head);
-        let in_lava = (0..MOLE_H).any(|j| matches!(self.g.get(x, y - j), Mat::Lava | Mat::Fire) && !(k == 0 && self.g.get(x, y - j) == Mat::Lava));
+        let in_lava = (0..MOLE_H).any(|j| self.g.get(x, y - j).p().heat > 0 && !(k == 0 && self.g.get(x, y - j) == Mat::Lava));
         let m = &mut self.moles[k];
         if in_lava { m.hp -= 4.; }
         // needs (rates per second at 60 tps; step_moles runs every 2nd tick → dt = 1/30 s)
@@ -535,7 +535,7 @@ impl World {
     fn dig_cell(&mut self, i: usize, mx: usize, my: usize) {
         let m = self.g.m(i); let wet = self.g.flags[i] & F_WET != 0;
         self.g.set(i, if wet { Mat::Water } else { Mat::Empty }); self.desig[i] = 0; self.events.push(Event::Dig);
-        if matches!(m, Mat::Dirt | Mat::Clay | Mat::Gravel | Mat::Roots | Mat::Grass) && hash3(i as u32, self.tick as u32, 0x6b) % (48 * S * S) as u32 == 0 { self.drop_item(mx, my, Item::Grub, 1); }
+        if m.has(GRUBS) && hash3(i as u32, self.tick as u32, 0x6b) % (48 * S * S) as u32 == 0 { self.drop_item(mx, my, Item::Grub, 1); }
         if m == Mat::Fungus && hash3(i as u32, self.tick as u32, 0x5b) % (2 * S * S) as u32 == 0 { self.drop_item(mx, my, Item::Spore, 1); }
         if let Some(it) = drop_of(m) {
             self.dig_acc[m as usize] += 1;
@@ -565,7 +565,7 @@ impl World {
             let r = 2 * S; for yy in y.saturating_sub(r)..=(y + r).min(h - 1) { for xx in x.saturating_sub(r)..=(x + r).min(w - 1) { if self.g.mat[yy * w + xx] == lava { n += 1; } } }
             // it sets from the bottom up, on solid ground: a crust on top of molten lava would just break up again
             if n - 1 < 10 * S * S && y + 1 < h && self.g.is_static(i + w) { freeze.push(i); } } }
-        for i in freeze { self.g.set(i, Mat::Basalt); }
+        for i in freeze { self.g.set(i, Mat::Lava.p().cools_to); }
     }
     fn check_chests(&mut self) {
         for c in 0..self.chests.len() {
@@ -875,7 +875,7 @@ impl World {
     pub fn place_block_at(&mut self, x: usize, y: usize, it: Item) -> Result<(), &'static str> {
         let d = match it { Item::WoodPillar => D_WOOD, Item::Brick => D_BRICK, Item::IronBeam => D_IRON, _ => return Err("not a block") };
         if x < 1 || y < 1 || x + 1 >= self.g.w || y + 1 >= self.g.h { return Err("out of bounds"); }
-        let i = self.g.idx(x, y); if self.g.mat[i] != 0 && !matches!(self.g.m(i), Mat::Water | Mat::Steam) { return Err("cell is not open"); }
+        let i = self.g.idx(x, y); if self.g.mat[i] != 0 && !self.g.m(i).has(OPEN) { return Err("cell is not open"); }
         if self.moles.iter().any(|m| m.alive && m.x == x && y <= m.y && y + MOLE_H > m.y) { return Err("you are standing there"); }
         if !self.g.n4(x, y).any(|j| self.g.is_solidish(j)) { return Err("needs something to rest on"); }
         if self.place_acc[d as usize] == 0 && self.inv[it as usize] == 0 { return Err("none left"); }
@@ -931,7 +931,7 @@ impl World {
         let ok = |w: &World, nx: i32, ny: i32| -> bool {
             if nx < 1 || ny < 1 || nx as usize + 1 >= w.g.w || ny as usize + 1 >= w.g.h { return false; }
             let (cx, cy) = (nx as usize, ny as usize); let i = w.g.idx(cx, cy);
-            (w.g.mat[i] == 0 || matches!(w.g.m(i), Mat::Water | Mat::Steam)) && w.in_reach(cx, cy)
+            (w.g.mat[i] == 0 || w.g.m(i).has(OPEN)) && w.in_reach(cx, cy)
                 && !w.moles.iter().any(|m| m.alive && m.x == cx && cy <= m.y && cy + MOLE_H > m.y)
         };
         // blocks go down in whole legacy tiles (S×S cells, on the global tile grid): a radius-r brush is

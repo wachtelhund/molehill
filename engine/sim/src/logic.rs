@@ -12,7 +12,7 @@
 //!   `atten`), links ≥ 0 form a graph; TX reaches RX on the same channel directly or via repeaters.
 //! * Lava (≥2 cells) or rubble (≥10 loose cells) in a block destroys its wire/device.
 use crate::grid::Grid;
-use crate::mat::{Kind, Mat, CPM, S};
+use crate::mat::{Kind, Mat, CPM, S, SF};
 
 pub const B: usize = CPM; // one block = 1 m
 /// Cell counts below were set for a 4×4-cell block; A scales them to the block's area.
@@ -115,13 +115,14 @@ impl Logic {
     /// Set a TNT charge off now (current, a blast nearby, a fuse cord burning into it).
     pub fn detonate(&mut self, b: usize) { if self.dev[b] == Dev::Tnt as u8 && !self.booms.contains(&b) { self.booms.push(b); } }
     pub fn lit(&self, b: usize) -> bool { self.burn[b] > 0 }
+    /// A blast of radius r (cells) sets off charges within r + 1.5 m and fuse cords within r + 1 m.
     pub fn on_explosion(&mut self, g: &mut Grid, cx: usize, cy: usize, r: f32) {
         for b in 0..self.wire.len() {
             if self.wire[b] == 0 && self.dev[b] == 0 { continue; }
             let (x, y) = self.centre(b); let d = ((x as f32 - cx as f32).powi(2) + (y as f32 - cy as f32).powi(2)).sqrt();
             let dv = Dev::from_u8(self.dev[b]);
-            if dv == Dev::Tnt && d <= r + 6. { self.detonate(b); continue; }
-            if dv == Dev::Fuse && d <= r + 4. { self.ignite(b); continue; }
+            if dv == Dev::Tnt && d <= r + 6. * SF { self.detonate(b); continue; }
+            if dv == Dev::Fuse && d <= r + 4. * SF { self.ignite(b); continue; }
             if d <= r * 0.8 { self.remove(g, b); }
         }
     }
@@ -174,7 +175,7 @@ impl Logic {
                 Dev::Sensor => { let o = self.count(g, b, |i| g.m(i).kind() == Kind::Liquid) >= 4 * A; self.dev_s[b] = o as u8; o }
                 Dev::Rx => { let o = self.rx_on[b] != 0; self.dev_s[b] = o as u8; o }
                 // heatstone: thermoelement, live while lava touches its block or the blocks around it
-                Dev::Heat => { let o = self.nb(b).iter().filter(|&&c| c != usize::MAX && c != b).map(|&c| self.count(g, c, |i| g.m(i) == Mat::Lava)).sum::<usize>() >= 2 * A; self.dev_s[b] = o as u8; o }
+                Dev::Heat => { let o = self.nb(b).iter().filter(|&&c| c != usize::MAX && c != b).map(|&c| self.count(g, c, |i| g.m(i).p().heat >= 2)).sum::<usize>() >= 2 * A; self.dev_s[b] = o as u8; o }
                 // water wheel: turns while water moves through its block
                 Dev::Wheel => { let o = self.count(g, b, |i| g.m(i) == Mat::Water && g.moved[i] == ((g.tick % 255) + 1) as u8) >= 2 * A; self.dev_s[b] = o as u8; o }
                 _ => false,
@@ -229,7 +230,7 @@ impl Logic {
         for &b in &self.dev_list.clone() {
             let tnt = self.dev[b] == Dev::Tnt as u8;
             if self.dev[b] != Dev::Fuse as u8 && !tnt { continue; }
-            if self.burn[b] == 0 && self.count(g, b, |i| g.mat[i] == Mat::Lava as u8 || g.mat[i] == Mat::Fire as u8) > 0 { self.ignite(b); }
+            if self.burn[b] == 0 && self.count(g, b, |i| g.m(i).p().heat > 0) > 0 { self.ignite(b); }
             if self.burn[b] <= 0 { continue; }
             if self.count(g, b, |i| g.mat[i] == Mat::Water as u8) >= 4 * A { self.burn[b] = 0; self.msgs.push(format!("{} doused", if tnt { "TNT fuse" } else { "Fuse" })); continue; }
             self.burn[b] -= 1;

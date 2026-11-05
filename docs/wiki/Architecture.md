@@ -37,14 +37,14 @@ The rule is simple: **gameplay goes in the sim.** If it changes what happens in 
 
 | module | role |
 |---|---|
-| `mat.rs` | the material table (density, strengths, dig time and tier, blast, light, colour, repose) and the thrumming wave helpers |
-| `grid.rs` | cells and flags; the falling-sand automaton on 64 × 64 chunks with sleeping |
+| `mat.rs` | the material table, the one place material behaviour is defined: density, strengths, dig time and tier, blast, light, colour, repose, heat and ignition, cooling, liquid flow, lifetimes, category flags and the tooltip line; plus the thrumming wave helpers |
+| `grid.rs` | cells and flags; the falling-sand automaton on 8 m chunks (64 × 64 cells) with sleeping |
 | `stress.rs` | the structural solver: overburden, load path, bending, compression, cracking |
 | `gen.rs` | seeded procgen per `(seed, x, absolute row)` and the stability pass |
 | `world.rs` | `World`: the step order, the player (`step_player`, `TUNE`), colony moles, digging, placing, the brush, the endless window, quests and chests |
 | `logic.rs` | copperline nets, devices, knots, fuses, TNT, thrumming |
 | `light.rs` | per-cell RGB light and fog of war |
-| `air.rs` | stale air on an 8 × 8 block grid |
+| `air.rs` | stale air on a 2 m block grid |
 | `craft.rs` | items, stations, recipes, tool tiers, quests |
 | `disasters.rs` | floods, lava surges, quakes |
 | `save.rs` | binary save/load |
