@@ -374,3 +374,20 @@ fn press(w: &mut World, n: usize, f: impl Fn(&mut Input)) -> (f32, f32) { let (m
         let l = d.to_lowercase(); for b in banned { assert!(!l.contains(b), "{n}: tooltip uses '{b}': {d}"); }
     }
 }
+#[test] fn rock_falls_when_its_support_slumps_away() {
+    // a slab resting on a heap of loose rubble held in by two temporary walls. Pulling the walls
+    // triggers one stress update while the rubble still props the slab; then the rubble slumps out
+    // sideways through CA moves alone. Those moves must tell the solver, or the slab hangs in the air.
+    let (mut w, x0, y0) = arena();
+    let (sx, sy) = (x0 + 8, y0); // rubble: columns sx..=sx+3, rows sy-3..=sy
+    for y in sy - 3..=sy { for x in sx..=sx + 3 { let i = w.g.idx(x, y); w.g.set(i, Mat::Gravel); w.g.set_loose(i); } }
+    let walls: Vec<usize> = (sy - 3..=sy).flat_map(|y| [w.g.idx(sx - 1, y), w.g.idx(sx + 4, y)]).collect();
+    for &i in &walls { w.g.set(i, Mat::Granite); }
+    for x in sx..=sx + 3 { let i = w.g.idx(x, sy - 4); w.g.set(i, Mat::Rock); } // slab, resting only on the rubble
+    let rock = |w: &World| (sx..=sx + 3).filter(|&x| { let i = w.g.idx(x, sy - 4); w.g.m(i) == Mat::Rock && !w.g.loose(i) }).count();
+    for _ in 0..30 { w.step(); } assert_eq!(rock(&w), 4, "slab rests on the rubble");
+    while w.tick % 6 != 5 { w.step(); }
+    for &i in &walls { w.g.set(i, Mat::Empty); } // solved on the very next tick, rubble still in place
+    for _ in 0..240 { w.step(); }
+    assert_eq!(rock(&w), 0, "slab fell once the rubble slumped from under it");
+}

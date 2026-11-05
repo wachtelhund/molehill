@@ -40,6 +40,18 @@ Polish only: no new features. Each item has a scenario in `engine/sim/tests/scen
   (`window_does_not_thrash_near_its_edge`)
 * **Overloaded ground crushed all at once.** Compression now applies confinement: only cells at a
   run's free faces see unconfined strength, so overloaded bodies spall at faces.
+* **The mole could walk on lava.** `passable()` treated lava (and fire) as solid. Lava is now a
+  thick liquid for the mole: you sink at 3 cells/s, wade at a quarter speed, can barely claw up,
+  can't wall-cling, and burn at 75 hp/s (the old double burn from the colony-mole code is gone for
+  the player). TUNE: `lava_mul`, `lava_sink`, `lava_up`, `lava_dps`. (`player_lava_sink`)
+* **Solid chunks floated on water.** A clump with no load path now gives way after 8 ticks instead
+  of creaking for 40, and its debris sinks by density (see sand above). Light debris rises: loose
+  wood (600 kg/m³) bobs up through water and floats. Moving grains out from under static rock, or
+  `Grid::set` removing a prop, now asks for a stress re-solve, so slabs don't hang on vanished
+  support. (`chunk_sinks_in_water`, `wood_floats`, `rock_falls_when_its_support_slumps_away`)
+* Merged main's rigid-blocks work: kept its connectivity, stub-aware tributary load and
+  own-material beam debris; kept this branch's roof load, arch cap, moment shape and confinement.
+  Harness: `put T dx dy Item` (one cell, no reach) next to main's brush `place`.
 
 ## Open issues
 * Rubble doesn't bulk (loose volume = solid volume), so a collapse in weak dirt chimneys up

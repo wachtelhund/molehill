@@ -96,6 +96,8 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `roof_unpropped.scn` / `roof_propped.scn` | A wide clay roof caves in; four pillar columns hold it |
 | `water_levels.scn` / `lava_flows.scn` | A heap levels to the right depth (water by tick 120, lava much later), nothing lost, then sleeps |
 | `sand_sinks.scn` / `sand_floats_lava.scn` | Sand sinks through water and piles on the bottom; it floats on lava |
+| `player_lava_sink.scn` | Running onto a lava pool: you sink in, wade slowly, burn and die |
+| `chunk_sinks_in_water.scn` / `wood_floats.scn` | An unsupported rock/ore clump in a pool gives way fast and its debris sinks; wood debris rises and floats |
 | `lava_meets_water.scn` | Lava on water quenches to basalt with steam; the steam clears and the chamber sleeps |
 | `beam_span.scn` / `beam_overload_sand.scn` | An iron beam bridges an 8-cell gap; a sand-loaded wood beam breaks into loose debris |
 | `pillar_holds_roof.scn` | Placed pillars (full height, a short stub, a ledge off a wall) stay rigid |

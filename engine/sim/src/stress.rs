@@ -34,6 +34,7 @@ pub struct Stress {
     pub thr: f32,
 }
 pub const CRACK_TICKS: u8 = 40;
+pub const LOOSE_TICKS: u8 = 8;
 
 impl Stress {
     pub fn new(n: usize) -> Self { Stress { util: vec![0; n], pending: vec![0; n], cracking: vec![], overburden: vec![0.; n], last_fail: 0, reach: vec![], thr: 1.0 } }
@@ -166,7 +167,9 @@ impl Stress {
     /// Start crack timers on failing cells.
     pub fn crack(&mut self, fail: &[u32]) {
         self.last_fail = fail.len();
-        for &i in fail { let i = i as usize; if self.pending[i] == 0 { self.pending[i] = CRACK_TICKS; self.cracking.push(i as u32); } }
+        // cells with no load path at all (a clump left hanging on water or air) give way almost at
+        // once; overloaded ones creak for CRACK_TICKS first so there's time to react
+        for &i in fail { let i = i as usize; if self.pending[i] == 0 { self.pending[i] = if self.reach.get(i) == Some(&false) { LOOSE_TICKS } else { CRACK_TICKS }; self.cracking.push(i as u32); } }
     }
     /// Advance cracks; returns cells that crumble now.
     pub fn tick(&mut self, g: &Grid) -> Vec<u32> {

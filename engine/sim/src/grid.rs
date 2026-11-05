@@ -18,6 +18,8 @@ pub struct Grid {
     /// bounding box of structural changes since last stress solve (x0,y0,x1,y1)
     pub struct_dirty: Option<(usize, usize, usize, usize)>,
     pub reactions: AtomicU8,
+    /// set when a moving cell leaves from under static rock (its support may be gone: re-solve stress)
+    pub undermined: AtomicU8,
 }
 
 #[inline] pub fn hash3(x: u32, y: u32, t: u32) -> u32 {
@@ -36,7 +38,7 @@ impl Grid {
         let n = w * h; let (cx, cy) = (w / CHUNK, h / CHUNK);
         Grid { w, h, cx, cy, mat: vec![0; n], flags: vec![0; n], shade: (0..n).map(|i| (hash3(i as u32, 7, 1) & 255) as u8).collect(),
             life: vec![0; n], moved: vec![0; n], awake: (0..cx * cy).map(|_| AtomicU8::new(1)).collect(), awake_next: (0..cx * cy).map(|_| AtomicU8::new(1)).collect(),
-            tick: 0, struct_dirty: None, reactions: AtomicU8::new(0) }
+            tick: 0, struct_dirty: None, reactions: AtomicU8::new(0), undermined: AtomicU8::new(0) }
     }
     #[inline] pub fn idx(&self, x: usize, y: usize) -> usize { y * self.w + x }
     #[inline] pub fn get(&self, x: usize, y: usize) -> Mat { Mat::from_u8(self.mat[y * self.w + x]) }
@@ -69,7 +71,9 @@ impl Grid {
         self.mat[i] = m as u8; self.flags[i] &= !F_LOOSE;
         self.life[i] = match m { Mat::Steam => 90, Mat::Fire => 70, _ => 0 };
         let (x, y) = (i % self.w, i / self.w);
-        if was.is_structural() || m.is_structural() { self.mark_struct(x, y); }
+        // structural change, or something that held up static rock above just went away
+        let undermines = y > 0 && matches!(was.kind(), Kind::Solid | Kind::Powder) && !matches!(m.kind(), Kind::Solid | Kind::Powder) && self.is_static(i - self.w);
+        if was.is_structural() || m.is_structural() || undermines { self.mark_struct(x, y); }
         self.wake(x, y);
     }
     pub fn set_loose(&mut self, i: usize) { self.flags[i] |= F_LOOSE; let (x, y) = (i % self.w, i / self.w); self.mark_struct(x, y); self.wake(x, y); }
@@ -114,6 +118,9 @@ impl Grid {
     #[inline] fn swap(&mut self, i: usize, j: usize, stamp: u8) {
         self.mat.swap(i, j); self.flags.swap(i, j); self.shade.swap(i, j); self.life.swap(i, j);
         self.moved[i] = stamp; self.moved[j] = stamp;
+        // whatever just moved out from under static rock may have been holding it up
+        // (only grains carry load: water slipping along under a roof changes nothing)
+        let w = self.w; for (a, b) in [(i, j), (j, i)] { if a >= w && self.is_solidish(b) && !self.is_solidish(a) && self.is_static(a - w) { self.undermined.store(1, Relaxed); } }
         let w = self.w; self.wake(i % w, i / w); self.wake(j % w, j / w);
     }
     #[inline] fn rnd(&self, x: usize, y: usize, salt: u32) -> u32 { hash3(x as u32, y as u32 ^ (salt << 20), self.tick as u32) }
@@ -133,6 +140,9 @@ impl Grid {
             let rho = m.p().density;
             let sinks = |j: usize| PROPS[self.mat[j] as usize].kind == Kind::Liquid && PROPS[self.mat[j] as usize].density < rho;
             if kd == Kind::Empty || kd == Kind::Gas { self.swap(i, d, stamp); return; }
+            // ...and bob up through a denser one (wood debris broken loose underwater)
+            if y > 0 { let a = i - w; if PROPS[self.mat[a] as usize].kind == Kind::Liquid && PROPS[self.mat[a] as usize].density > rho {
+                if self.rnd(x, y, 11) & 1 == 0 { self.swap(i, a, stamp); } else { self.wake(x, y); } return; } }
             if sinks(d) { if self.rnd(x, y, 1) & 1 == 0 { self.swap(i, d, stamp); } else { self.wake(x, y); } return; }
             // a grain that can't slide anywhere rests without keeping its chunk awake
             let pass = |j: usize| self.mat[j] == 0 || sinks(j);
