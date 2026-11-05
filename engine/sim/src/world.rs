@@ -192,7 +192,7 @@ impl World {
         } else {
             self.g.mat.copy_within(..w * h - d, d); self.g.flags.copy_within(..w * h - d, d); self.g.shade.copy_within(..w * h - d, d); self.desig.copy_within(..w * h - d, d);
         }
-        self.oy += rows;
+        self.oy += rows; self.st.shift_rows(rows, w);
         for y in en..en + s { for x in 0..w { self.desig[y * w + x] = 0; } }
         // entities and block layers move with the rock; what was in the leaving rows is in its band now
         let dy = |y: usize| -> Option<usize> { let v = y as i64 - rows; if v >= 0 && v < h as i64 { Some(v as usize) } else { None } };
@@ -206,7 +206,7 @@ impl World {
         self.air.shift_rows(rows / air::AB as i64);
         // entering rows: generate the never-visited ones, then unpack the stored bands over them
         let fresh: Vec<usize> = (en..en + s).step_by(BH).filter(|&y0| !self.bands.contains_key(&(self.oy + y0 as i64))).collect();
-        if let (Some(&a), Some(&b)) = (fresh.first(), fresh.last()) { let b = b + BH; self.gen.fill_rows(&mut self.g, self.oy, a, b); let mut st = Stress::new(w * h); gen::stabilize_rows(&mut self.g, &mut st, a.saturating_sub(8), (b + 8).min(h)); }
+        if let (Some(&a), Some(&b)) = (fresh.first(), fresh.last()) { let b = b + BH; self.gen.fill_rows(&mut self.g, self.oy, a, b); gen::stabilize_rows(&mut self.g, &mut self.st, a.saturating_sub(8), (b + 8).min(h)); }
         for y0 in (en..en + s).step_by(BH) {
             if let Some(b) = self.bands.remove(&(self.oy + y0 as i64)) {
                 if band::decode(self, y0, &b.blob, None).is_err() { self.gen.fill_rows(&mut self.g, self.oy, y0, y0 + BH); } // damaged: regenerate
@@ -215,7 +215,13 @@ impl World {
         self.disasters.y = (self.disasters.y as i64 - rows).clamp(8, h as i64 - 8) as usize;
         self.refresh_chests();
         self.g.life.iter_mut().for_each(|v| *v = 0); self.g.wake_all();
-        self.st = Stress::new(w * h); let f = self.st.solve(&self.g); self.st.crack(&f); self.g.clear_struct();
+        // structure: the solver's state moved with the rock, so only the entering rows (plus 16 m into the
+        // old ones: built supports can cross the band edge) and the edge the window left (its anchors and
+        // overburden change) are re-solved
+        let m = 16 * crate::mat::CPM;
+        let (ent, far) = if rows > 0 { ((0, en.saturating_sub(m), w - 1, h - 1), (0, 0, w - 1, m)) } else { ((0, 0, w - 1, (en + s + m).min(h - 1)), (0, h - 1 - m, w - 1, h - 1)) };
+        let mut f = self.st.solve_rect(&self.g, Some(ent)); f.extend(self.st.solve_rect(&self.g, Some(far)));
+        self.st.crack(&f); self.g.clear_struct();
         self.light = Light::new(w, h);
         self.pl.mine = None; if let Some(m) = self.moles.first() { self.pl.fall_from = m.y; }
     }

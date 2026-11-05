@@ -59,6 +59,19 @@ impl Stress {
     /// Full solve. Returns indices with u > 1.
     /// Height of the load-bearing column above any cell (16 m), the pressure-arch height.
     pub fn _arch() -> usize { ARCH }
+    /// The window slid by `rows` (+ = deeper; rows that stay move up by `rows`): carry this solver's state
+    /// with the rock (stored roof rows are row numbers, so they move too); the entering rows start blank.
+    /// Afterwards only the entering rows (and the edge the window left) need a region solve.
+    pub fn shift_rows(&mut self, rows: i64, w: usize) {
+        let n = self.util.len(); if self.reach.len() != n { return; }
+        let s = rows.unsigned_abs() as usize; let d = s * w; if d >= n { *self = Stress::new(n); return; }
+        fn mv<T: Copy>(v: &mut [T], d: usize, up: bool, blank: T) { let n = v.len(); if up { v.copy_within(d.., 0); v[n - d..].fill(blank); } else { v.copy_within(..n - d, d); v[..d].fill(blank); } }
+        let up = rows > 0;
+        mv(&mut self.util, d, up, 0); mv(&mut self.pending, d, up, 0); mv(&mut self.overburden, d, up, 0.); mv(&mut self.reach, d, up, false);
+        mv(&mut self.ctop, d, up, 0); mv(&mut self.vtop, d, up, 0);
+        let s32 = s as u32; for v in self.ctop.iter_mut().chain(self.vtop.iter_mut()) { *v = if up { v.saturating_sub(s32) } else { *v + s32 }; }
+        self.cracking = std::mem::take(&mut self.cracking).into_iter().filter_map(|i| { let i = i as usize; if up { i.checked_sub(d) } else { (i + d < n).then_some(i + d) } }).map(|i| i as u32).collect();
+    }
     pub fn solve(&mut self, g: &Grid) -> Vec<u32> { self.solve_rect(g, None) }
     /// Re-solve around the chunks holding `cells` (each one's 64-cell chunk; nearby chunks cluster into one
     /// region). Exact when nothing else changed since the last solve. Falls back to a full solve when the

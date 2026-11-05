@@ -657,3 +657,18 @@ fn material_table_is_consistent() {
     let (lava, fire) = (Mat::Lava.p().heat, Mat::Fire.p().heat);
     assert!(Mat::Coal.lit_by(lava) && Mat::WoodBeam.lit_by(lava) && Mat::WoodBeam.lit_by(fire) && !Mat::Coal.lit_by(fire) && !Mat::Granite.lit_by(lava));
 }
+
+/// After a slide the stress state moves with the rock and only the entering rows are re-solved: the
+/// result matches a full solve of the new window (both ways, fresh rows and stored ones).
+#[test] fn slide_keeps_stress_state() {
+    let mut w = World::new(512 * S, 256 * S, 9); w.disasters.enabled = false;
+    for _ in 0..60 { w.step(); }
+    for rows in [SLIDE as i64, -(SLIDE as i64)] {
+        w.shift(rows);
+        let mut full = Stress::new(w.g.w * w.g.h); let mut want = full.solve(&w.g); want.sort();
+        let diff = (0..w.g.mat.len()).filter(|&i| w.st.util[i] != full.util[i]).count();
+        let mut have: Vec<u32> = (0..w.g.mat.len() as u32).filter(|&i| w.st.util[i as usize] > 128 && w.g.mat[i as usize] != Mat::Bedrock as u8).collect(); have.sort();
+        assert!(diff * 1000 <= w.g.mat.len(), "slide {rows}: utilisation differs in {diff} cells");
+        assert_eq!(have.len(), want.len(), "slide {rows}: failing cells");
+    }
+}

@@ -100,6 +100,10 @@ bit-identical to before (checked before flipping it).
   last round changed (`Stress::solve_cells`; exact, since every failing cell is changed). Roof rows
   are kept between solves and region solves use an 8 m side margin. Under the same machine load,
   `World::new` on the game window went from 6.6-9.6 s to 2.2 s. (`genbench` example)
+* **Slides:** the stress state moves with the rock (`Stress::shift_rows`). Only the entering rows (plus 16 m)
+  and the edge the window left are re-solved, and fresh-row stabilisation starts from that state.
+  Into fresh rows went from about 1.0 to 0.77 s; back into stored rows from about 110 to 77 ms. It matches
+  a full solve (`slide_keeps_stress_state`). Most of a fresh slide is still stabilisation rounds.
 * Tests now take about a minute (the multi-seed stability runs cover 4× the cells).
 
 ## Open issues

@@ -182,7 +182,9 @@ pub fn stabilize_keep(g: &mut Grid, st: &mut Stress, y0: usize, y1: usize, keep:
     let mut changed: Vec<usize> = vec![];
     for it in 0..100 {
         if it == 40 { st.thr = 1.0; } // out of patience with the margin: just make sure nothing actually fails
-        let all = if it == 0 { st.solve(g) } else { st.solve_cells(g, &changed) };
+        // the first round is a full solve, or with a solver that already knows the rest of the window
+        // (a slide into fresh rows) just those rows
+        let all = if it == 0 { if st.reach.len() == w * h && y1 <= h { st.solve_rect(g, Some((0, y0, w - 1, y1 - 1))) } else { st.solve(g) } } else { st.solve_cells(g, &changed) };
         let fail: Vec<u32> = all.into_iter().filter(|&i| (i as usize / w) >= y0 && (i as usize / w) < y1).collect();
         if fail.is_empty() { break; }
         changed.clear();
