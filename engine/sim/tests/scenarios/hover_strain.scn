@@ -1,0 +1,20 @@
+// The hover tooltip tells you a block is in trouble before it gives way: a wood span under a
+// deep sand pile reads as cracking within a few ticks; the granite floor reads as idle.
+map
+#########################################
+###ssssssssssssssssssssssssssssssssss####
+###ssssssssssssssssssssssssssssssssss####
+###ssssssssssssssssssssssssssssssssss####
+###ssssssssssssssssssssssssssssssssss####
+###ssssssssssssssssssssssssssssssssss####
+###ssssssssssssssssssssssssssssssssss####
+###bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb####
+#..................................######
+#..................................######
+#..................................######
+#..@...............................######
+#########################################
+end
+expect 5 strain:15,-4 == 4           // mid-span: cracking
+expect 5 strain:0,1 == 0             // the floor under the mole carries nothing worth a warning
+expect 300 strain:10,0 == 0          // fallen debris is loose: no strain line

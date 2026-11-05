@@ -64,13 +64,36 @@ Polish only: no new systems, lore names kept. Each entry lists what changed and 
 * `--dump-art=DIR` (with `--shot`) writes every sprite at 8× and the composited world around the mole, so art
   can be checked headlessly.
 
+## Run 2
+
+### Material pixel art (`art::mat_tex`)
+* Solid cells get a per-material pattern in absolute world rows (so it doesn't jump when the window slides):
+  strata bands in rock and limestone (with the odd fossil), salt-and-pepper granite, basalt columns, a 4×2
+  running bond with dark mortar for brick, grain and knots in wood, rivets and plate seams on iron, glints in
+  ore and coal, and quartz/crystal that twinkle. Loose debris stays plain.
+* Edges read as shaped: a bright lip on faces open above plus a softer second row, shadowed undersides and
+  slightly darker side walls.
+
+### Hover explanations (`sim/src/tips.rs`)
+* World hover text moved into the sim (`tips::describe`) so it's tested headless. New: stations say what they
+  make and how to craft there, chests say whether they're empty, mushroom plots give growth % and what holds
+  them back (too bright / too dry), copperline says whether it's carrying current, and standing blocks say how
+  hard they're working (bearing / straining / overloaded / cracking) from the stress solver.
+* Scenario `hover_strain` (new `strain:DX,DY` variable) and test `world_hover_explains_cells`.
+
+### Animation and particles
+* Run dust in the floor's colour, a splash crown when the mole drops into water or lava, and embers drifting up
+  from torches. Particles carry their own gravity.
+* Fix: placement pops shared a sprite-pool kind with torch halos, so a pop with the same index as a torch was
+  never drawn.
+
 ## Open issues
 * `--shot` writes an empty frame on macOS when the game is launched from a background shell (the surface is
   never presented). It needs a visible window, or Linux with Xvfb.
 * Nothing here has been seen in a live window: this machine's shell can't capture or drive one. Sprites and the
   composited world were checked through `--dump-art`; still unchecked by eye are the climb pose's placement against
   a wall, squash/stretch, particles, the halos' strength, tooltip placement near screen edges, and the menu grid.
-* `site/` (the committed web build) was not rebuilt: `wasm-bindgen` and the wasm32 target aren't installed here.
-  Run `cd engine && ./build-web.sh && cd .. && rm -rf site && cp -r dist site` on a machine that has them.
+* The web build crash and the self-scrolling hotbar reported on main are owned by refine/bugs-logic; this run
+  avoided input/hotbar code.
 * Remembered rock is quite dark (light floor 0.22). That's deliberate (Delvers see poorly) but worth a look in play.
 * Stations, chests and mushrooms are snapped from vector art rather than drawn as pixel art from scratch.
