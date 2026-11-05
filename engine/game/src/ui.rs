@@ -54,20 +54,21 @@ pub fn setup(commands: &mut Commands, f: &Handle<Font>) {
     commands.spawn((abs(0., 0.), BackgroundColor(PANEL), Visibility::Hidden, InvBg)).insert(Node { position_type: PositionType::Absolute, border_radius: BorderRadius::all(Val::Px(6.)), ..default() });
     for k in 0..NSLOT {
         commands.spawn((abs(0., 0.), Slot(k), BackgroundColor(Color::srgba(0.08, 0.07, 0.08, 0.5)), BorderColor::all(Color::srgba(1., 1., 1., 0.12)))).insert(Node { position_type: PositionType::Absolute, width: Val::Px(S), height: Val::Px(S), border: UiRect::all(Val::Px(2.)), border_radius: BorderRadius::all(Val::Px(5.)), justify_content: JustifyContent::Center, align_items: AlignItems::Center, ..default() }).with_children(|s| {
-            s.spawn((ImageNode::default(), Node { width: Val::Px(30.), height: Val::Px(30.), ..default() }, SlotIcon(k)));
+            s.spawn((ImageNode::default(), Node { width: Val::Px(32.), height: Val::Px(32.), ..default() }, SlotIcon(k)));
             s.spawn((Text::new(""), tf(f, 13.), TextColor(INK), TextShadow::default(), Node { position_type: PositionType::Absolute, right: Val::Px(3.), bottom: Val::Px(0.), ..default() }, Lbl::Count(k)));
             if k < 10 { s.spawn((Text::new(format!("{}", (k + 1) % 10)), tf(f, 11.), TextColor(INK.with_alpha(0.45)), Node { position_type: PositionType::Absolute, left: Val::Px(3.), top: Val::Px(0.), ..default() })); }
         });
     }
-    commands.spawn((ImageNode::default(), Node { position_type: PositionType::Absolute, width: Val::Px(30.), height: Val::Px(30.), ..default() }, GlobalZIndex(10), Visibility::Hidden, Held));
+    commands.spawn((ImageNode::default(), Node { position_type: PositionType::Absolute, width: Val::Px(32.), height: Val::Px(32.), ..default() }, GlobalZIndex(10), Visibility::Hidden, Held));
     commands.spawn((Text::new(""), tf(f, 14.), TextColor(INK), TextShadow::default(), Node { position_type: PositionType::Absolute, padding: UiRect::axes(Val::Px(6.), Val::Px(3.)), border_radius: BorderRadius::all(Val::Px(4.)), ..default() }, BackgroundColor(PANEL), GlobalZIndex(11), Visibility::Hidden, Lbl::Tip)).with_children(|t| {
         t.spawn((TextSpan::new(""), tf(f, 13.), TextColor(INK.with_alpha(0.62)), TipDesc));
     });
     // help
-    let help = "Move        A / D        Jump        Space / W\nWalls       hold into a wall: W/S climb, Space wall-jump\nDig down    S (on ground)            Zoom        + / -  or  Shift+wheel\nUse item    Left mouse   Interact    Right mouse (levers, thrum channels)\nBrush size  [ / ]  or  Ctrl+wheel  (dig tools and blocks)\nHotbar      1-0 / wheel  Pack        I  (click to pick up and drop items)\nPick up     Ctrl+Right mouse (copperline, devices)\nPause Esc   Save K   Load L   Dev info F3   Close H";
-    commands.spawn((Node { position_type: PositionType::Absolute, left: Val::Percent(50.), top: Val::Percent(50.), margin: UiRect { left: Val::Px(-300.), top: Val::Px(-110.), ..default() }, width: Val::Px(600.), padding: UiRect::all(Val::Px(18.)), border_radius: BorderRadius::all(Val::Px(8.)), flex_direction: FlexDirection::Column, row_gap: Val::Px(10.), ..default() }, BackgroundColor(Color::srgba(0.05, 0.04, 0.05, 0.78)), Visibility::Hidden, GlobalZIndex(5), HelpPanel)).with_children(|p| {
-        p.spawn((Text::new("Controls"), tf(f, 20.), TextColor(INK)));
-        p.spawn((Text::new(help), tf(f, 15.), TextColor(INK.with_alpha(0.85))));
+    commands.spawn((Node { position_type: PositionType::Absolute, width: Val::Percent(100.), height: Val::Percent(100.), justify_content: JustifyContent::Center, align_items: AlignItems::Center, ..default() }, Visibility::Hidden, GlobalZIndex(5), HelpPanel)).with_children(|w| {
+        w.spawn((Node { padding: UiRect::all(Val::Px(18.)), border_radius: BorderRadius::all(Val::Px(8.)), flex_direction: FlexDirection::Column, row_gap: Val::Px(10.), ..default() }, BackgroundColor(Color::srgba(0.05, 0.04, 0.05, 0.78)))).with_children(|p| {
+            p.spawn((Text::new("Controls"), tf(f, 20.), TextColor(INK)));
+            crate::menu::spawn_controls(p, f, 15.);
+        });
     });
     commands.spawn((Text::new(""), tf(f, 13.), TextColor(Color::srgb(0.7, 0.95, 0.7)), TextShadow::default(), Node { position_type: PositionType::Absolute, right: Val::Px(12.), top: Val::Px(12.), max_width: Val::Px(460.), ..default() }, Visibility::Hidden, Lbl::Dev));
     });

@@ -68,7 +68,7 @@ pub fn mushroom(stage: u8) -> Image {
         c.ellipse(x, y, r, r * 0.65, rgb([168, 92, 62], 1.)); c.ellipse(x - r * 0.3, y - r * 0.25, r * 0.35, r * 0.2, [255., 230., 210., 0.45]);
         if stage == 2 { c.ellipse(x + r * 0.35, y - r * 0.1, r * 0.15, r * 0.12, [250., 240., 220., 0.9]); }
     }
-    c.image()
+    c.pixel()
 }
 
 /// Tiny SDF painter for crisp vector-style sprites.
@@ -87,31 +87,28 @@ impl Canvas {
         self.shape(c, |x, y| { let (cx, cy) = ((x0 + x1) / 2., (y0 + y1) / 2.); let (hx, hy) = ((x1 - x0) / 2. - r, (y1 - y0) / 2. - r); let qx = (x - cx).abs() - hx; let qy = (y - cy).abs() - hy; (qx.max(0.).hypot(qy.max(0.))) + qx.max(qy).min(0.) - r });
     }
     pub fn image(&self) -> Image { image(self.w, self.h, self.d.iter().enumerate().map(|(i, v)| if i % 4 == 3 { (v * 255.) as u8 } else { (v.clamp(0., 255.)) as u8 }).collect(), false) }
+    /// Snap to pixel art: hard alpha (soft shadows dropped), a dark outline, nearest sampling.
+    pub fn pixel(&self) -> Image {
+        let mut p = Px::new(self.w as i32, self.h as i32);
+        for i in 0..(self.w * self.h) as usize { let a = self.d[i * 4 + 3]; if a >= 0.5 { p.c[i] = [self.d[i * 4].clamp(0., 255.) as u8, self.d[i * 4 + 1].clamp(0., 255.) as u8, self.d[i * 4 + 2].clamp(0., 255.) as u8, 255]; } }
+        let mut im = p.finish(ICON_LINE).image(); im.sampler = ImageSampler::nearest(); im
+    }
 }
 fn rgb(c: [u8; 3], a: f32) -> [f32; 4] { [c[0] as f32, c[1] as f32, c[2] as f32, a] }
-pub fn mole(frame: u32) -> Image {
-    let mut c = Canvas::new(40, 30); let bob = if frame % 2 == 1 { 1. } else { 0. };
-    c.ellipse(20., 29., 14., 2.2, [0., 0., 0., 0.35]); // shadow
-    c.ellipse(11. + bob, 25., 4., 3., rgb([70, 58, 66], 1.)); c.ellipse(27. - bob, 25., 4., 3., rgb([70, 58, 66], 1.)); // feet
-    c.ellipse(19., 17., 14., 10., rgb([92, 78, 88], 1.)); // body
-    c.ellipse(17., 13., 10., 5., rgb([120, 104, 114], 0.6)); // sheen
-    c.ellipse(31., 18., 6., 5.5, rgb([102, 86, 96], 1.)); // head
-    c.ellipse(37., 19., 2.6, 2.2, rgb([240, 140, 160], 1.)); // nose
-    c.ellipse(32., 16., 1.1, 1.1, rgb([20, 16, 20], 1.)); // eye
-    c.ellipse(33., 25., 3.4, 2., rgb([245, 205, 190], 1.)); // claw/hand
-    c.image()
-}
+fn shade(c: [u8; 3], k: f32) -> [u8; 3] { [(c[0] as f32 * k).min(255.) as u8, (c[1] as f32 * k).min(255.) as u8, (c[2] as f32 * k).min(255.) as u8] }
+const ICON_LINE: [u8; 3] = [28, 20, 26];
+/// 16×16 outlined pixel-art item icon: 0 lump/ore, 1 ingot/brick/beam, 2 gem, 3 torch/lamp, 4 blasting charge.
 pub fn icon(col: [u8; 3], kind: u8) -> Image {
-    let mut c = Canvas::new(24, 24);
-    c.ellipse(12., 21., 9., 2., [0., 0., 0., 0.3]);
-    let dark = [col[0] as f32 * 0.6, col[1] as f32 * 0.6, col[2] as f32 * 0.6, 1.];
+    let mut p = Px::new(16, 16);
     match kind {
-        0 => { c.ellipse(12., 13., 9., 7.5, dark); c.ellipse(12., 12., 7.8, 6.4, rgb(col, 1.)); c.ellipse(9.5, 9.5, 2.5, 1.6, [255., 255., 255., 0.35]); } // nugget/lump
-        1 => { c.rect(3., 7., 21., 17., 2., dark); c.rect(4., 7., 20., 15., 2., rgb(col, 1.)); c.rect(6., 8.5, 14., 10., 1., [255., 255., 255., 0.35]); } // ingot/brick
-        2 => { c.shape(dark, |x, y| ((x - 12.).abs() * 0.8 + (y - 12.).abs() * 0.5 - 7.)); c.shape(rgb(col, 1.), |x, y| ((x - 12.).abs() * 0.8 + (y - 12.).abs() * 0.5 - 6.)); } // gem
-        _ => { c.rect(10., 6., 14., 20., 1.5, rgb([150, 105, 60], 1.)); c.ellipse(12., 6., 3.4, 4.2, rgb(col, 1.)); } // torch-like
+        0 => { p.oval(8., 9., 5.6, 4.6, shade(col, 0.8)); p.oval(7.5, 8.5, 4.4, 3.6, col); p.oval(9.5, 10.5, 1.2, 1., shade(col, 0.6)); p.rect(5, 6, 6, 6, shade(col, 1.45)); }
+        1 => { p.rect(2, 7, 13, 11, shade(col, 0.85)); p.rect(3, 5, 12, 7, col); p.rect(4, 5, 8, 5, shade(col, 1.4)); }
+        2 => { for y in 0..16 { for x in 0..16 { let d = (x as f32 - 7.5).abs() * 0.9 + (y as f32 - 8.).abs() * 0.7; if d < 5.4 { p.set(x, y, if x < 8 && y < 8 { shade(col, 1.3) } else if x >= 8 && y >= 8 { shade(col, 0.75) } else { col }); } } } p.set(6, 5, [255, 255, 255]); }
+        4 => { for (k, x) in [3, 6, 9].into_iter().enumerate() { p.rect(x, 6, x + 2, 14, if k == 1 { shade(col, 1.15) } else { col }); p.rect(x, 6, x + 2, 6, shade(col, 1.4)); } // three bound charges
+               p.rect(3, 10, 11, 10, [90, 70, 50]); for k in 0..4 { p.set(7 + k / 2, 5 - k, [200, 180, 140]); } p.set(9, 1, [255, 200, 80]); } // cord, fuse, spark
+        _ => { p.rect(7, 7, 8, 14, [124, 84, 48]); p.rect(6, 9, 9, 9, [70, 70, 80]); p.oval(7.5, 5., 2.6, 3.2, col); p.oval(7.5, 5.6, 1.4, 1.8, shade(col, 1.3)); }
     }
-    c.image()
+    p.finish(ICON_LINE).image()
 }
 pub fn chest(open: bool) -> Image {
     let mut c = Canvas::new(32, 26);
@@ -119,7 +116,7 @@ pub fn chest(open: bool) -> Image {
     c.rect(3., 10., 29., 24., 2., rgb([110, 70, 40], 1.)); c.rect(3., 15., 29., 17., 0., rgb([200, 160, 60], 1.));
     if open { c.rect(3., 2., 29., 8., 2., rgb([130, 84, 48], 1.)); c.ellipse(16., 11., 9., 3., rgb([255, 220, 90], 1.)); }
     else { c.rect(3., 5., 29., 12., 3., rgb([130, 84, 48], 1.)); c.rect(14., 11., 18., 17., 1., rgb([230, 200, 90], 1.)); }
-    c.image()
+    c.pixel()
 }
 pub fn station(kind: u8, built: bool) -> Image {
     let mut c = Canvas::new(80, 56); let a = if built { 1. } else { 0.45 };
@@ -130,30 +127,20 @@ pub fn station(kind: u8, built: bool) -> Image {
         2 => { c.rect(14., 4., 66., 54., 4., rgb([110, 104, 112], a)); c.rect(20., 30., 60., 50., 3., rgb([30, 24, 24], a)); if built { c.rect(24., 36., 56., 48., 3., rgb([255, 120, 40], 1.)); } c.rect(28., 0., 40., 8., 1., rgb([90, 84, 92], a)); }
         _ => { c.rect(12., 20., 68., 30., 4., rgb([80, 84, 96], a)); c.rect(30., 30., 50., 46., 1., rgb([70, 74, 86], a)); c.rect(20., 46., 60., 54., 2., rgb([60, 64, 76], a)); }
     }
-    c.image()
+    if built { c.pixel() } else { c.image() } // the unbuilt ghost stays translucent
 }
-/// Hotbar icons for the dig tools: 1 pickaxe, 2 drill (copperline-driven), 3 bore (heavy heat-bore).
+/// Hotbar icons for the dig tools, 16×16 pixel art: 1 pickaxe, 2 drill (copperline-driven), 3 bore (heavy heat-bore).
 pub fn tool_icon(tier: u8) -> Image {
-    let mut c = Canvas::new(24, 24);
-    c.ellipse(12., 21., 9., 2., [0., 0., 0., 0.3]);
-    let wood = rgb([150, 105, 60], 1.);
+    let mut p = Px::new(16, 16); let wood = [150, 105, 60];
     match tier {
-        1 => { // diagonal haft + curved stone head
-            c.shape(wood, |x, y| { let d = ((x - y) / 1.414).abs() - 1.4; let t = (x + y) / 1.414; d.max((t - 30.).max(6. - t)) });
-            c.shape(rgb([150, 150, 162], 1.), |x, y| { let (dx, dy) = (x - 8., y - 15.); let r = (dx * dx + dy * dy).sqrt(); (r - 11.).abs() - 1.8_f32.max(0.) + if dx > 0. && dy < 0. { 0. } else { 9. } });
-        }
-        2 => { // copper body, crank, steel cone
-            c.rect(2., 9., 12., 16., 2., rgb([184, 115, 70], 1.)); c.rect(4., 15., 7., 20., 1., wood);
-            c.shape(rgb([170, 176, 190], 1.), |x, y| { let t = (x - 12.) / 10.; if !(0. ..=1.).contains(&t) { 9. } else { (y - 12.5).abs() - 4. * (1. - t) } });
-            c.rect(12., 11.5, 21., 12.5, 0., [80., 80., 90., 0.8]);
-        }
-        _ => { // heavy iron housing, glowing heat-coil, wide cone
-            c.rect(1., 6., 13., 19., 3., rgb([84, 86, 98], 1.)); c.rect(4., 9., 10., 16., 1., rgb([255, 120, 40], 1.));
-            c.shape(rgb([120, 124, 140], 1.), |x, y| { let t = (x - 13.) / 10.; if !(0. ..=1.).contains(&t) { 9. } else { (y - 12.5).abs() - 6.5 * (1. - t) } });
-            c.ellipse(7., 12.5, 2., 2., [255., 220., 140., 1.]);
-        }
+        1 => { for k in 0..10 { p.set(4 + k, 14 - k, wood); p.set(5 + k, 14 - k, shade(wood, 0.8)); } // haft
+               for x in 2..14 { let y = 3 + ((x as f32 - 8.).powi(2) / 9.) as i32; p.set(x, y, [150, 150, 162]); p.set(x, y + 1, [110, 110, 122]); } } // curved stone head
+        2 => { p.rect(1, 6, 6, 10, [184, 115, 70]); p.rect(2, 6, 4, 6, [220, 150, 100]); p.rect(3, 11, 4, 14, wood); // copper body, crank
+               for x in 7..16 { let hw = ((15 - x) as f32 * 0.45) as i32; p.rect(x, 8 - hw, x, 8 + hw, if x % 2 == 0 { [170, 176, 190] } else { [130, 136, 150] }); } } // fluted steel cone
+        _ => { p.rect(0, 4, 6, 12, [84, 86, 98]); p.rect(2, 6, 4, 10, [255, 120, 40]); p.rect(3, 7, 3, 9, [255, 220, 140]); // housing, heat coil
+               for x in 7..16 { let hw = ((15 - x) as f32 * 0.6) as i32; p.rect(x, 8 - hw, x, 8 + hw, if x % 2 == 0 { [120, 124, 140] } else { [96, 100, 116] }); } }
     }
-    c.image()
+    p.finish(ICON_LINE).image()
 }
 /// A soft ring used to preview the mining brush.
 pub fn ring() -> Image {
@@ -161,4 +148,99 @@ pub fn ring() -> Image {
     c.shape([255., 245., 220., 0.55], |x, y| { let r = ((x - 32.).powi(2) + (y - 32.).powi(2)).sqrt(); (r - 30.).abs() - 1.2 });
     c.shape([255., 245., 220., 0.08], |x, y| ((x - 32.).powi(2) + (y - 32.).powi(2)).sqrt() - 29.);
     let mut im = c.image(); im.sampler = bevy::image::ImageSampler::linear(); im
+}
+
+/// Hard-edged pixel grid for pixel-art sprites: shapes fill whole pixels (no anti-aliasing), then
+/// `finish` adds top-lit shading and a dark outline so sprites read at any zoom with nearest sampling.
+pub struct Px { pub w: i32, pub h: i32, pub c: Vec<[u8; 4]> }
+impl Px {
+    pub fn new(w: i32, h: i32) -> Self { Px { w, h, c: vec![[0; 4]; (w * h) as usize] } }
+    pub fn get(&self, x: i32, y: i32) -> [u8; 4] { if x < 0 || y < 0 || x >= self.w || y >= self.h { [0; 4] } else { self.c[(y * self.w + x) as usize] } }
+    pub fn set(&mut self, x: i32, y: i32, c: [u8; 3]) { if x >= 0 && y >= 0 && x < self.w && y < self.h { self.c[(y * self.w + x) as usize] = [c[0], c[1], c[2], 255]; } }
+    /// Filled ellipse centred on (cx, cy) with radii (rx, ry), sampled at pixel centres.
+    pub fn oval(&mut self, cx: f32, cy: f32, rx: f32, ry: f32, c: [u8; 3]) {
+        for y in 0..self.h { for x in 0..self.w { let (dx, dy) = ((x as f32 + 0.5 - cx) / rx, (y as f32 + 0.5 - cy) / ry); if dx * dx + dy * dy <= 1. { self.set(x, y, c); } } }
+    }
+    pub fn rect(&mut self, x0: i32, y0: i32, x1: i32, y1: i32, c: [u8; 3]) { for y in y0..=y1 { for x in x0..=x1 { self.set(x, y, c); } } }
+    /// Shade (lighter where the pixel above is empty, darker where the one below is), then outline.
+    pub fn finish(mut self, outline: [u8; 3]) -> Self {
+        let src = self.c.clone(); let at = |x: i32, y: i32| if x < 0 || y < 0 || x >= self.w || y >= self.h { 0 } else { src[(y * self.w + x) as usize][3] };
+        for y in 0..self.h { for x in 0..self.w { let i = (y * self.w + x) as usize; if src[i][3] == 0 { continue; }
+            let k = if at(x, y - 1) == 0 { 1.22 } else if at(x, y + 1) == 0 || at(x, y + 2) == 0 { 0.78 } else { 1. };
+            for j in 0..3 { self.c[i][j] = (src[i][j] as f32 * k).min(255.) as u8; } } }
+        for y in 0..self.h { for x in 0..self.w { let i = (y * self.w + x) as usize; if src[i][3] != 0 { continue; }
+            if at(x - 1, y) != 0 || at(x + 1, y) != 0 || at(x, y - 1) != 0 || at(x, y + 1) != 0 { self.c[i] = [outline[0], outline[1], outline[2], 255]; } } }
+        self
+    }
+    /// Turn a right-facing sprite so its nose points up (for climbing).
+    pub fn rot_up(&self) -> Px { let mut o = Px::new(self.h, self.w); for y in 0..self.h { for x in 0..self.w { let c = self.get(x, y); o.c[((self.w - 1 - x) * o.w + y) as usize] = c; } } o }
+    pub fn image(&self) -> Image { image(self.w as u32, self.h as u32, self.c.iter().flatten().copied().collect(), true) }
+}
+
+/// Mole animation poses. Frames are indexed by `mole_frame`.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Pose { Idle, Run, Jump, Fall, Climb, Dig }
+/// Frame index into the mole sheet for a pose and a phase counter.
+pub fn mole_frame(p: Pose, ph: u32) -> usize { match p { Pose::Idle => (ph % 2) as usize, Pose::Run => 2 + (ph % 4) as usize, Pose::Jump => 6, Pose::Fall => 7, Pose::Climb => 8 + (ph % 2) as usize, Pose::Dig => 10 + (ph % 3) as usize } }
+/// The Delver, 26×20 pixels facing right (1 pixel = 1 world unit; 4 pixels = 1 cell). Climb frames are
+/// turned nose-up (20×26). Velvet plum fur, pale spade claws, pink star of a nose, a tiny eye.
+pub fn mole_sheet() -> Vec<Image> {
+    const FUR: [u8; 3] = [96, 80, 92]; const BELLY: [u8; 3] = [122, 104, 112]; const CLAW: [u8; 3] = [238, 204, 188]; const NAIL: [u8; 3] = [255, 240, 228];
+    const NOSE: [u8; 3] = [240, 128, 156]; const HIND: [u8; 3] = [178, 140, 136]; const EYE: [u8; 3] = [18, 12, 18]; const LINE: [u8; 3] = [30, 20, 30];
+    // body bob (px down), front claw (dx, dy), hind foot (dx, dy), body stretch (rx+, ry+)
+    let pose = |bob: f32, claw: (f32, f32), hind: (f32, f32), st: (f32, f32), claw2: Option<(f32, f32)>| -> Px {
+        let mut p = Px::new(26, 20); let by = 11. + bob;
+        p.oval(5. + hind.0, 16.5 + hind.1, 2.2, 1.5, HIND); // hind foot (far)
+        p.rect(1, by as i32 - 1, 2, by as i32, FUR); // tail stub
+        p.oval(11.5, by, 8.6 + st.0, 6.2 + st.1, FUR); // body
+        p.oval(12.5, by + 3., 6.5 + st.0, 2.6, BELLY); // belly
+        p.oval(19., by + 0.5, 4.4, 3.9, FUR); // head
+        p.oval(22.5, by + 1., 2.6, 1.9, FUR); // snout
+        p.rect(24, by as i32, 25, by as i32 + 1, NOSE); // nose
+        p.set(20, by as i32 - 1, EYE); // eye
+        p.oval(7.5 + hind.0, 16.5 + hind.1, 2.2, 1.5, HIND); // hind foot (near)
+        if let Some(c) = claw2 { p.oval(17. + c.0, 16. + c.1, 2.4, 1.8, CLAW); } // far claw
+        p.oval(18.5 + claw.0, 16.5 + claw.1, 3.0, 2.0, CLAW); // big spade claw
+        p.set((21. + claw.0) as i32, (16. + claw.1) as i32, NAIL); p.set((21. + claw.0) as i32, (17. + claw.1) as i32, NAIL);
+        p.finish(LINE)
+    };
+    let mut v = vec![
+        pose(0., (0., 0.), (0., 0.), (0., 0.), None),                 // idle 0
+        pose(0.5, (0., 0.), (0., 0.), (0.3, -0.4), None),             // idle 1 (breath)
+        pose(0., (2., -1.), (-2., 0.), (0., 0.), Some((-2., 0.))),    // run 0: reach
+        pose(1., (0., 0.), (0., -1.), (0.3, -0.3), Some((1., -1.))),  // run 1: gather
+        pose(0., (-2., 0.), (2., 0.), (0., 0.), Some((2., -1.))),     // run 2: push
+        pose(1., (0., -1.), (0., 0.), (0.3, -0.3), Some((0., 0.))),   // run 3: gather
+        pose(-1., (3., -4.), (-2., -2.), (-0.6, 0.6), None),          // jump: claws up, feet trailing
+        pose(0., (2., 1.), (1., 1.), (0.4, -0.4), Some((-1., 1.))),   // fall: claws braced
+    ];
+    let climb0 = pose(0., (2., -4.), (-2., 0.), (0., 0.), Some((-1., 0.))).rot_up();
+    let climb1 = pose(0., (-1., 0.), (1., -1.), (0., 0.), Some((2., -4.))).rot_up();
+    v.push(climb0); v.push(climb1);
+    v.push(pose(0., (4., -5.), (0., 0.), (0., 0.), None));            // dig 0: wind up
+    v.push(pose(0.5, (5., -1.), (0., 0.), (0.3, -0.2), Some((2., -3.)))); // dig 1: strike
+    v.push(pose(0., (2., 1.), (0., 0.), (0., 0.), Some((4., -2.))));  // dig 2: scoop
+    v.into_iter().map(|p| p.image()).collect()
+}
+
+/// Wall torch, 8×12 pixels (2×3 cells): a resin-soaked stick in an iron bracket. Three flame frames.
+pub fn torch_frames() -> Vec<Image> {
+    (0..3).map(|f| {
+        let mut p = Px::new(8, 12);
+        p.rect(3, 6, 4, 11, [124, 84, 48]); p.rect(3, 6, 4, 6, [90, 52, 30]); // stick, charred tip
+        p.rect(2, 8, 5, 8, [70, 70, 80]); // bracket
+        let lean = [0, 1, -1][f] as f32 * 0.4; let tall = [0., 0.6, -0.4][f];
+        p.oval(4. + lean * 0.5, 4.2 - tall * 0.5, 2.2, 2.6 + tall, [236, 110, 40]); // outer flame
+        p.oval(4. + lean, 4.6 - tall * 0.3, 1.3, 1.8 + tall * 0.6, [255, 200, 80]); // core
+        p.set(4, 5, [255, 246, 200]);
+        p.finish([34, 22, 18]).image()
+    }).collect()
+}
+/// Soft round glow (linear sampled) drawn around light sources; tinted and faded by the caller.
+pub fn glow() -> Image {
+    let n = 64; let mut d = vec![0u8; n * n * 4];
+    for y in 0..n { for x in 0..n { let (dx, dy) = ((x as f32 + 0.5) / n as f32 * 2. - 1., (y as f32 + 0.5) / n as f32 * 2. - 1.);
+        let r = (dx * dx + dy * dy).sqrt(); let a = (1. - r).max(0.).powf(1.8);
+        let o = (y * n + x) * 4; d[o] = 255; d[o + 1] = 255; d[o + 2] = 255; d[o + 3] = (a * 255.) as u8; } }
+    let mut im = image(n as u32, n as u32, d, false); im.sampler = ImageSampler::linear(); im
 }
