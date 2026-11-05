@@ -46,6 +46,15 @@ Strengths are **rock-mass** values: lab values for intact rock scaled down (abou
 
 Each material also carries a dig time, a blast resistance, a light emission and opacity, a colour, and a **repose** value (0 flows freely, 1 never slides). Dirt is 0.15, clay 0.45 and gravel 0.4.
 
+The rest of a material's behaviour is in the same row (`Props` in `mat.rs`), and the rules read it rather than naming materials:
+
+* **Heat.** `heat` is what it gives off (a flame 1, lava 2): it burns a mole, feeds the air's fire load and lights fuses. `ignite` is the heat needed to set it alight: wood, roots, fungus and doors catch from any flame; coal only from lava. `cools_to` is what it sets into when it loses heat: lava becomes basalt (shattered scoria when water quenches it), and a flame touching water becomes steam.
+* **Flow.** Liquids carry `spread` (how far a cell runs along a surface per tick, in 0.25 m tiles: water 6, lava 2) and `flow_in_10` (on how many ticks in 10 it moves: water 10, lava 3). `life` is how long steam and fire last.
+* **Thrum conduction** is derived from density and compressive strength (see Thrumming below).
+* **Flags** sort materials for the few rules that need a category: `SOIL` (a mushroom plot can grow on it), `POROUS` (lets stale air seep away), `GRUBS` (digging turns up grubs), `BUILT` (placed by moles: breaks into its own debris, never bulks, a quake doesn't loosen it), `NOTABLE` (a discovery note the first time it's seen) and `OPEN` (a placed block displaces it).
+
+A new or retuned material is a single row edit. `material_table_is_consistent` checks that the rows hang together.
+
 ## Falling sand
 
 The grid is a Noita-style cellular automaton on **64 × 64-cell chunks** (8 m):

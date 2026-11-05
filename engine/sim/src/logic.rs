@@ -174,7 +174,7 @@ impl Logic {
                 Dev::Sensor => { let o = self.count(g, b, |i| g.m(i).kind() == Kind::Liquid) >= 4 * A; self.dev_s[b] = o as u8; o }
                 Dev::Rx => { let o = self.rx_on[b] != 0; self.dev_s[b] = o as u8; o }
                 // heatstone: thermoelement, live while lava touches its block or the blocks around it
-                Dev::Heat => { let o = self.nb(b).iter().filter(|&&c| c != usize::MAX && c != b).map(|&c| self.count(g, c, |i| g.m(i) == Mat::Lava)).sum::<usize>() >= 2 * A; self.dev_s[b] = o as u8; o }
+                Dev::Heat => { let o = self.nb(b).iter().filter(|&&c| c != usize::MAX && c != b).map(|&c| self.count(g, c, |i| g.m(i).p().heat >= 2)).sum::<usize>() >= 2 * A; self.dev_s[b] = o as u8; o }
                 // water wheel: turns while water moves through its block
                 Dev::Wheel => { let o = self.count(g, b, |i| g.m(i) == Mat::Water && g.moved[i] == ((g.tick % 255) + 1) as u8) >= 2 * A; self.dev_s[b] = o as u8; o }
                 _ => false,
@@ -229,7 +229,7 @@ impl Logic {
         for &b in &self.dev_list.clone() {
             let tnt = self.dev[b] == Dev::Tnt as u8;
             if self.dev[b] != Dev::Fuse as u8 && !tnt { continue; }
-            if self.burn[b] == 0 && self.count(g, b, |i| g.mat[i] == Mat::Lava as u8 || g.mat[i] == Mat::Fire as u8) > 0 { self.ignite(b); }
+            if self.burn[b] == 0 && self.count(g, b, |i| g.m(i).p().heat > 0) > 0 { self.ignite(b); }
             if self.burn[b] <= 0 { continue; }
             if self.count(g, b, |i| g.mat[i] == Mat::Water as u8) >= 4 * A { self.burn[b] = 0; self.msgs.push(format!("{} doused", if tnt { "TNT fuse" } else { "Fuse" })); continue; }
             self.burn[b] -= 1;

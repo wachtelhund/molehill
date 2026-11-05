@@ -37,7 +37,7 @@ The rule is simple: **gameplay goes in the sim.** If it changes what happens in 
 
 | module | role |
 |---|---|
-| `mat.rs` | the material table (density, strengths, dig time and tier, blast, light, colour, repose) and the thrumming wave helpers |
+| `mat.rs` | the material table, the one place material behaviour is defined: density, strengths, dig time and tier, blast, light, colour, repose, heat and ignition, cooling, liquid flow, lifetimes, category flags and the tooltip line; plus the thrumming wave helpers |
 | `grid.rs` | cells and flags; the falling-sand automaton on 64 × 64 chunks with sleeping |
 | `stress.rs` | the structural solver: overburden, load path, bending, compression, cracking |
 | `gen.rs` | seeded procgen per `(seed, x, absolute row)` and the stability pass |
