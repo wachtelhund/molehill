@@ -103,7 +103,7 @@ The rule is simple: **gameplay goes in the sim.** If it changes what happens in 
 | sim threads | rayon (`parallel` feature) | single-threaded (feature off) |
 | saves | a manifest file and a folder of band files next to the binary | localStorage keys (base64): the manifest and one key per band |
 | sound | silent | procedural WebAudio effects and generative music, starts after the first input |
-| seeds and flags | `--fresh`, `--seed=`, `--shot=`, `--dump-art=`, `--scene=` | `?fresh`, `?seed=` |
+| seeds and flags | `--fresh`, `--seed=`, `--shot=`, `--dump-art=`, `--scene=`, `--shot-zoom=` | `?fresh`, `?seed=` |
 
 On the web, `console_error_panic_hook` is installed, so a panic prints its message and source line in the browser console instead of a bare `unreachable`.
 

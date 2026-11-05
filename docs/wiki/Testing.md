@@ -64,7 +64,8 @@ Feel changes are tested the same way: rise height, `vx` after N ticks, the coyot
 
 Visual checks are optional and come last. `cargo build --release -p molehill`, then:
 
-* `molehill --fresh --seed=4242 --shot=out.bmp [--shot-at=150] [--shot-ui=pause|inv|help|dev] [--shot-walk] [--shot-blast=K]` starts a holt, writes one frame and quits;
+* `molehill --fresh --seed=4242 --shot=out.bmp [--shot-at=150] [--shot-ui=pause|inv|help|dev] [--shot-walk] [--shot-blast=K] [--shot-zoom=0.6]` starts a holt, writes one frame and quits;
+* `--scene=mine|holt|pump|fissure|fossil|crystal|halt|walls` stamps that found place (or a mixed lining room) in host rock next to the burrow so a still can inspect it without hunting a seed; `--scene=water|tnt|lore|decor|wiring` are the older set pieces;
 * `--dump-art=DIR` also writes every sprite at 8× and the composited world around the mole, all CPU-side, so it works even where the window can't be captured.
 
 On macOS the window has to be visible on screen to capture a frame. On headless Linux, use Xvfb with the lavapipe Vulkan driver. One screenshot is enough, and only for visual changes.

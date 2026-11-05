@@ -122,7 +122,7 @@ Seven families of **found places**, not random loot rooms (`sim/src/sites.rs`). 
 | Salt / crystal hall | 16 × 8 m | 36–100 m | quartz columns, crystal clusters, shallow reflecting pools | harvest; crystal glows, the lining does not |
 | Buried cargo halt | 26 × 8 m | 12–84 m | a brick platform, wrecked cart, broken pressure tubes | ride or strip the cart; the tubes point at an Ancient station when one is near |
 
-Stamped sites and their interactions: `all_seven_site_families_stamp_with_purpose`, `site_pumpworks`, `site_mine`, `site_holt`, `site_fissure`, `site_fossil`, `site_crystal`, `site_halt`. Headless tests do not prove the rooms *look* like carved rock.
+Stamped sites and their interactions: `all_seven_site_families_stamp_with_purpose`, `site_pumpworks`, `site_mine`, `site_holt`, `site_fissure`, `site_fossil`, `site_crystal`, `site_halt`. Headless tests do not prove the rooms *look* like carved rock. Native `--scene=mine` (and the other family names, or `walls`) stamps one isolated copy in host rock next to the burrow so a `--shot` can inspect lining, props and layout.
 
 ## Caves
 

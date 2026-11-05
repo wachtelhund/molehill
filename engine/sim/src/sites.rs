@@ -223,7 +223,7 @@ impl Site {
                     let along = dx / c;
                     if along % 5 != 4 && dy < h - c / 2 { Rail } else { Rock }
                 } else if dx < c / 2 || dx >= w - c / 2 { Rock }
-                else if (dx + c / 4) % (4 * c) < c / 2 { WoodBeam }
+                else if (dx + c / 4) % (4 * c) < c { WoodBeam }
                 else if dx >= 6 * c && dx < 8 * c && dy >= h - 3 * c { ore }
                 else if dx >= 16 * c && dx < 18 * c && dy >= h - 3 * c { ore }
                 else if dx >= bay && dx < bay + 2 * c && dy >= h - 3 * c { Gravel }
@@ -269,7 +269,7 @@ impl Site {
                 let spine = dy >= h - 2 * c && dy < h - c && (dx - w / 2).abs() < 8 * c;
                 let rib = (0..8).any(|k| {
                     let px = 2 * c + k * 2 * c;
-                    (dx - px).abs() < c / 3 && dy >= h - 5 * c && dy < h - c
+                    (dx - px).abs() < c / 2 && dy >= h - 5 * c && dy < h - c
                 });
                 let skull = dx >= w - 5 * c && dy >= h - 5 * c && dy < h - c && (dx - (w - 3 * c)).abs() + (dy - (h - 3 * c)).abs() < 2 * c;
                 let roots = dy < 2 * c && (dx / c) % 3 == 1;
@@ -313,7 +313,7 @@ impl Site {
         if self.cell(x, wy).is_none() { return None; }
         let h = hash3(x as u32, wy as u32, self.id);
         Some(match self.kind {
-            Kind::Mine => if (h & 7) == 0 { Wall::Gap } else if (h & 7) == 1 { Wall::Beams } else if (h & 7) == 2 { Wall::Crack } else { Wall::Timber },
+            Kind::Mine => if (h & 7) == 0 { Wall::Gap } else if (h & 7) == 1 { Wall::Beams } else if (h & 7) == 2 { Wall::Crack } else if (h & 7) <= 4 { Wall::Rock } else { Wall::Timber },
             Kind::Holt => if dy > self.h as i64 - 2 * CPM as i64 && (h & 3) == 0 { Wall::Damp } else if (h & 5) == 0 { Wall::Masonry } else { Wall::Timber },
             Kind::Pumpworks => if (h & 7) == 0 { Wall::Pipes } else if (h & 7) == 1 { Wall::Damp } else { Wall::Masonry },
             Kind::Fissure => if dy > self.h as i64 - 3 * CPM as i64 { Wall::Damp } else if (h & 3) == 0 { Wall::Crack } else { Wall::Rock },
