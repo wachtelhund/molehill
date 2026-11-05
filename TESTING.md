@@ -163,8 +163,8 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `wall_jump_away.scn` | Pressing away plus Space, or Space within 0.1 s of letting go, still wall-jumps; later it doesn't |
 | `no_ceiling_climb.scn` | Jumping into a low ceiling while holding sideways and `W` never clings; the mole falls back down |
 | `survival_kit.scn` | Survival's start kit; only owned tools dig (granite holds against a pickaxe); a save keeps the mode |
-| `survival_food.scn` | Hunger drains; the Delver eats grubs then roots below 40; starving hurts; root tangles give roots |
-| `survival_lamp_oil.scn` | The headlamp burns oil, refills from the pack, then presses fungus, then goes dark; a torch needs oil |
+| `survival_food.scn` | Hunger drains; the Delver eats grubs then roots below 40; starving hurts; root tangles give roots; the log says each meal with what's left, and an empty pack once |
+| `survival_lamp_oil.scn` | The headlamp burns oil, refills from the pack, then presses fungus, then goes dark; a torch needs oil; the log says the pressing, the last measure and going dark, each once |
 | `survival_light_fuel_messages.scn` | With no oil spare the headlamp warns once ~30 s before it goes dark, then says it's out and what to gather; a torch refused for lack of oil says "it needs fungus oil to burn" (not "something is in the way"); fungus found relights it with a message; with oil spare it never warns |
 | `survival_death_drop.scn` | Death leaves the whole pack where you fell; you wake in the burrow and walk back for it |
 | `survival_no_hunger.scn` | Hunger off: food never drains or gets eaten, the rest of Survival holds, and the option survives a save |
