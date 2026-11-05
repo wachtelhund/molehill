@@ -92,18 +92,30 @@ mod v3b {
         l.interact(b(2, 5)); for t in 8..12 { l.step(&mut g, &[], t); } assert_eq!(g.m(di), Mat::Empty, "NOT(off)=on -> door open");
     }
     #[test]
-    fn lora_link_budget_and_repeater() {
+    fn thrumming_carries_through_stone_not_air() {
+        // solid granite, two pockets 30 m apart; the knock travels through the rock
         let mut g = open_grid(); let mut l = Logic::new(128, 64);
         let b = |x: usize, y: usize| y * 32 + x;
+        let set = |g: &mut molehill_sim::grid::Grid, m: Mat, x0: usize, x1: usize| for y in 0..64 { for x in x0..x1 { let i = g.idx(x, y); g.mat[i] = m as u8; g.flags[i] = 0; } };
+        set(&mut g, Mat::Granite, 0, 128);
+        for &(bx, by) in &[(1usize, 3usize), (2, 3), (3, 3), (28, 3), (29, 3), (30, 3)] { for y in by * 4..by * 4 + 4 { for x in bx * 4..bx * 4 + 4 { let i = g.idx(x, y); g.mat[i] = 0; } } }
         l.place(&mut g, Dev::Lever, b(1, 3)); l.place_wire(b(2, 3)); l.place(&mut g, Dev::Tx, b(3, 3));
         l.place(&mut g, Dev::Rx, b(28, 3)); l.place_wire(b(29, 3)); l.place(&mut g, Dev::Lamp, b(30, 3));
-        // wall of granite between: 25 m air + 16 cells granite (atten 1.0) -> 40 - 25 - 16 < 0
-        for y in 0..60 { for x in 60..76 { let i = g.idx(x, y); g.mat[i] = Mat::Granite as u8; } }
         l.interact(b(1, 3)); for t in 0..20 { l.step(&mut g, &[], t); }
-        assert_eq!(l.dev_s[b(30, 3)], 0, "blocked by rock");
-        for y in 0..60 { for x in 60..76 { let i = g.idx(x, y); g.mat[i] = 0; } }
+        assert_eq!(l.dev_s[b(30, 3)], 1, "granite carries the thrum");
+        let stone = l.link_budget(&g, b(3, 3), b(28, 3));
+        // an open tunnel across the path reflects the wave (two rock/air boundaries)
+        set(&mut g, Mat::Empty, 60, 64);
         l.invalidate(); for t in 20..40 { l.step(&mut g, &[], t); }
-        assert_eq!(l.dev_s[b(30, 3)], 1, "clear line of sight links");
+        assert_eq!(l.dev_s[b(30, 3)], 0, "air gap blocks");
+        // the same gap packed with loose dirt passes, but weaker than solid stone
+        set(&mut g, Mat::Dirt, 60, 64); for y in 0..64 { for x in 60..64 { let i = g.idx(x, y); g.flags[i] = molehill_sim::grid::F_LOOSE; } }
+        let dirt = l.link_budget(&g, b(3, 3), b(28, 3));
+        assert!(dirt < stone, "dirt muffles: {dirt} vs {stone}");
+        // a 30 m run of loose sand-like dirt muffles it entirely
+        set(&mut g, Mat::Dirt, 16, 112); for y in 0..64 { for x in 16..112 { let i = g.idx(x, y); g.flags[i] = molehill_sim::grid::F_LOOSE; } }
+        for &(bx, by) in &[(28usize, 3usize)] { for y in by * 4..by * 4 + 4 { for x in bx * 4..bx * 4 + 4 { let i = g.idx(x, y); g.mat[i] = 0; } } }
+        assert!(l.link_budget(&g, b(3, 3), b(28, 3)) < 0., "loose dirt damps out");
     }
     #[test]
     fn save_load_roundtrip() {
@@ -136,4 +148,34 @@ mod v3b {
         for _ in 0..(16 * 60) { w.step(); }
         assert!(w.crumbled > 0 || (0..w.g.mat.len()).filter(|&i| w.g.loose(i)).count() > c0);
     }
+}
+#[test] fn endless_world_shifts_deterministically() {
+    let mut w = World::new(256, 256, 5); let oy0 = w.oy;
+    assert!(w.depth_m(0, (-oy0) as usize).abs() < 0.01, "start layer is depth 0");
+    let top: Vec<u8> = w.g.mat[..256 * 8].to_vec();
+    w.shift(128); assert_eq!(w.oy, oy0 + 128);
+    w.shift(256 - 128 - 128 + 128); // deeper still
+    w.shift(-128); w.shift(-128); assert_eq!(w.oy, oy0);
+    assert_eq!(&w.g.mat[..256 * 8], &top[..], "rows restored from cache");
+    // fresh deep rows are generated identically per seed
+    let mut a = World::new(256, 256, 5); let mut b = World::new(256, 256, 5);
+    for _ in 0..4 { a.shift(128); b.shift(128); } assert_eq!(a.g.mat, b.g.mat);
+    assert_eq!(a.g.count(Mat::Bedrock) , b.g.count(Mat::Bedrock));
+    // no surface: no grass or sky anywhere, more lava than water deep down
+    assert_eq!(a.g.count(Mat::Grass), 0);
+}
+#[test] fn mushrooms_grow_in_dark_damp_and_air_goes_stale() {
+    let mut w = World::new(256, 256, 21);
+    w.torches.clear();
+    let (x, y) = (w.moles[0].x + 3, w.moles[0].y);
+    w.plant(x, y).expect("plant");
+    let (bright, _moist) = w.farm_conditions(x, y); assert!(!bright, "no torch nearby");
+    for _ in 0..60 * 60 * 3 { w.step(); }
+    assert!(w.harvested > 0 || w.inv[Item::Mushroom as usize] > 0 || w.farms.iter().any(|f| f.growth > 0.3), "mushrooms grow");
+    // a sealed pocket fills with CO2 from breathing; a vent clears it
+    let mut a = molehill_sim::air::Air::new(64, 64);
+    let mut g = Grid::new(64, 64); for i in 0..64 * 64 { g.mat[i] = Mat::Granite as u8; } for y in 20..40 { for x in 20..40 { let i = g.idx(x, y); g.mat[i] = 0; } }
+    for _ in 0..1000 { a.add(30, 30, 4. * 0.08); a.update(&g, &[]); } // four moles, ~4 min
+    let stale = a.at(30, 30); assert!(stale > 0.45, "sealed tunnel goes stale: {stale}");
+    for _ in 0..100 { a.update(&g, &[(30, 30)]); } assert!(a.at(30, 30) < stale * 0.5, "vent clears");
 }

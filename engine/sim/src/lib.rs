@@ -8,3 +8,4 @@ pub mod world;
 pub mod logic;
 pub mod disasters;
 pub mod save;
+pub mod air;

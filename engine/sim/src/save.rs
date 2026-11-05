@@ -6,10 +6,11 @@
 //! every read is bounds-checked and returns a readable error; values are sanitised.
 use crate::craft::{Item, Station, NITEM, RECIPES, STATIONS};
 use crate::mat::{Mat, NMAT, PROPS};
-use crate::world::{Building, Chest, Drop, Mole, World};
+use crate::world::{Building, Chest, Drop, Farm, Mole, World};
 use std::collections::VecDeque;
 
-pub const VERSION: u32 = 1;
+/// v3: endless Deepholt (window offset, cached rows), farms, stale air. Older (surface-world) saves are refused.
+pub const VERSION: u32 = 3;
 const MAGIC: &[u8; 8] = b"MOLEHILL";
 const ENGINE: &str = "bevy-v3";
 
@@ -61,6 +62,11 @@ pub fn save(w: &World) -> Vec<u8> {
     for d in w.discovered { o.u8(d as u8); }
     o.u64(w.disasters.rng); o.u32(w.disasters.ticks_left.max(60)); o.u8(w.disasters.enabled as u8);
     o.u32(w.log.len() as u32); for (t, s) in &w.log { o.u64(*t); o.str(s); }
+    o.u64(w.oy as u64);
+    o.u32(w.cache.len() as u32); for (wy, (m, f)) in &w.cache { o.u64(*wy as u64); o.rle(m); o.rle(f); }
+    o.u32(w.opened.len() as u32); for &(x, wy) in &w.opened { o.u32(x as u32); o.u64(wy as u64); }
+    o.u32(w.farms.len() as u32); for f in &w.farms { o.u32(f.x as u32); o.u32(f.y as u32); o.f32(f.growth); }
+    o.rle(&w.air.to_bytes()); o.u32(w.harvested);
     o.0
 }
 
@@ -68,6 +74,7 @@ pub fn load(b: &[u8]) -> R<World> {
     let mut r = Rd { b, p: 0 };
     if r.take(8).map_err(|_| "not a Molehill save".to_string())? != MAGIC { return Err("not a Molehill save".into()); }
     let ver = r.u32()?; if ver > VERSION { return Err(format!("save version {ver} is newer than this build ({VERSION})")); }
+    if ver < 3 { return Err("old save from the surface world - start a new holt (N)".into()); }
     let eng = r.str()?; if eng != ENGINE { return Err(format!("save is from engine '{eng}', expected '{ENGINE}'")); }
     let (gw, gh) = (r.len(1 << 14)?, r.len(1 << 14)?); if gw % 64 != 0 || gh % 64 != 0 || gw == 0 || gh == 0 { return Err("bad world dimensions".into()); }
     let seed = r.u32()?; let tick = r.u64()?; let gtick = r.u64()?;
@@ -100,6 +107,12 @@ pub fn load(b: &[u8]) -> R<World> {
     for k in 0..NMAT { w.discovered[k] = r.u8()? != 0; }
     w.disasters.rng = r.u64()? | 1; w.disasters.ticks_left = r.u32()?; w.disasters.enabled = r.u8()? != 0;
     w.log.clear(); for _ in 0..r.len(1000)? { let t = r.u64()?; let s = r.str()?; w.log.push((t, s)); }
+    w.oy = r.u64()? as i64;
+    w.cache.clear(); for _ in 0..r.len(1 << 20)? { let wy = r.u64()? as i64; let mut m = r.rle(gw)?; for v in m.iter_mut() { *v = *remap.get(*v as usize).unwrap_or(&0); } let f = r.rle(gw)?; w.cache.insert(wy, (m, f)); }
+    w.opened.clear(); for _ in 0..r.len(1 << 20)? { let x = r.u32()? as usize; let wy = r.u64()? as i64; w.opened.insert((x, wy)); }
+    w.farms.clear(); for _ in 0..r.len(1 << 16)? { let (x, y, g) = (r.u32()? as usize, r.u32()? as usize, r.f32()?); if x < gw && y + 1 < gh { w.farms.push(Farm { x, y, growth: g.clamp(0., 1.), why: 0 }); } }
+    let ab = r.rle(w.air.co2.len())?; w.air.from_bytes(&ab); w.harvested = r.u32()?;
+    let _ = (&w.chests, Chest { x: 0, y: 0, opened: false }); w.refresh_chests();
     let _ = Item::Dirt; let _ = Mat::Empty;
     // derived state
     w.g.life.iter_mut().for_each(|v| *v = 0); w.g.wake_all(); w.st = crate::stress::Stress::new(n);

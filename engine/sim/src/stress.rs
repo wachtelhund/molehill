@@ -20,6 +20,7 @@
 use crate::grid::Grid;
 use crate::mat::{Kind, Mat, CELL_M, G, PROPS};
 
+const ARCH: usize = 64;
 pub struct Stress {
     pub util: Vec<u8>,      // utilisation ×128 (128 = at capacity, 255 = ≥2× or no load path)
     pub pending: Vec<u8>,   // crack countdown
@@ -34,6 +35,8 @@ impl Stress {
     pub fn new(n: usize) -> Self { Stress { util: vec![0; n], pending: vec![0; n], cracking: vec![], overburden: vec![0.; n], last_fail: 0, reach: vec![] } }
 
     /// Full solve. Returns indices with u > 1.
+    /// Height of the load-bearing column above any cell (16 m), the pressure-arch height.
+    pub fn _arch() -> usize { ARCH }
     pub fn solve(&mut self, g: &Grid) -> Vec<u32> {
         let (w, h) = (g.w, g.h);
         let n = w * h;
@@ -43,13 +46,17 @@ impl Stress {
         let p = &mut self.overburden;
         for x in 0..w {
             let mut acc = 0f32;
-            for y in 0..h { let i = y * w + x; p[i] = acc; let m = g.m(i); if !matches!(m.kind(), Kind::Empty | Kind::Gas) { acc += PROPS[m as usize].density * G * CELL_M / 1000.; } }
+            // Ground arching (Terzaghi): load deeper than ARCH cells above is carried by the rock arch
+            // around the opening, so only a sliding column of ARCH cells bears down on a cell.
+            let cw = |y: usize| { let m = g.m(y * w + x); if matches!(m.kind(), Kind::Empty | Kind::Gas) { 0. } else { PROPS[m as usize].density * G * CELL_M / 1000. } };
+            for y in 0..h { let i = y * w + x; p[i] = acc; acc += cw(y); if y >= ARCH { acc -= cw(y - ARCH); } }
         }
         let p = &self.overburden;
         let mut util = vec![0f32; n];
         // 2. connectivity (BFS from bedrock)
         let mut reach = vec![false; n]; let mut q: Vec<u32> = Vec::with_capacity(n / 4);
-        for i in 0..n { if g.mat[i] == Mat::Bedrock as u8 { reach[i] = true; q.push(i as u32); } }
+        // anchors: bedrock walls, plus the window's top and bottom rows (the Deepholt continues beyond them)
+        for i in 0..n { if g.mat[i] == Mat::Bedrock as u8 || ((i < w || i >= n - w) && st(i)) { reach[i] = true; q.push(i as u32); } }
         let mut head = 0;
         while head < q.len() {
             let i = q[head] as usize; head += 1; let (x, y) = (i % w, i / w);

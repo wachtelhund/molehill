@@ -24,7 +24,7 @@ impl Light {
         let (x0, y0, x1, y1) = (r.0, r.1, r.2.min(g.w - 1), r.3.min(g.h - 1));
         self.rect = (x0, y0, x1, y1);
         let w = self.w;
-        let sky = [1.0 * day + 0.05, 0.97 * day + 0.06, 0.9 * day + 0.10];
+        let sky = if day <= 0. { [0.; 3] } else { [1.0 * day + 0.05, 0.97 * day + 0.06, 0.9 * day + 0.10] };
         // seed
         for x in x0..=x1 {
             // sky transmission down the column from y=0

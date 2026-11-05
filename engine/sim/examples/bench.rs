@@ -2,7 +2,7 @@ use molehill_sim::{grid::Grid, gen, stress::Stress, mat::Mat};
 use std::time::Instant;
 fn main() {
     let mut g = Grid::new(1024, 512);
-    let t = Instant::now(); let info = gen::generate(&mut g, 42); println!("gen {:?} chests {}", t.elapsed(), info.chests.len());
+    let t = Instant::now(); let (_, info) = gen::generate(&mut g, 42, -256); println!("gen {:?} chests {}", t.elapsed(), info.chests.len());
     let mut st = Stress::new(1024 * 512);
     let t = Instant::now(); let f = st.solve(&g); println!("solve {:?} fails {}", t.elapsed(), f.len());
     let mut by = std::collections::BTreeMap::new(); let mut disc = 0; let mut deep=0;

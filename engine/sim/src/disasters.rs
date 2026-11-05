@@ -36,7 +36,7 @@ impl Disasters {
         let (y0, y1) = match kind { Kind2::Flood => (0, gh / 2), Kind2::Lava => (gh * 6 / 10, gh - 6), Kind2::Quake => (gh / 5, gh - 10) };
         let want = match kind { Kind2::Flood => Some(Mat::Water), Kind2::Lava => Some(Mat::Lava), _ => None };
         let ok = |x: usize, y: usize, strict: bool| {
-            let i = y * gw + x; if y <= w.surface(x) + 4 { return false; }
+            let i = y * gw + x; if y < 6 || y + 6 >= gh { return false; } let _ = w;
             match kind { Kind2::Quake => g.is_static(i), _ => { let m = g.m(i); (m.kind() == Kind::Empty || Some(m) == want) && (!strict || Some(m) == want) } }
         };
         for strict in [true, false] { for _ in 0..600 {

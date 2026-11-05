@@ -25,7 +25,7 @@ pub struct Props {
     pub blast: u8,         // explosive power*10 needed
     pub emit: [u8; 3],     // light emission
     pub opacity: u8,       // light lost entering cell (0..255)
-    pub atten: f32,        // LoRa attenuation per cell
+    pub atten: f32,        // (legacy, unused: thrumming uses mat::wave)
     pub color: [u8; 3],
     pub crumbles_to: Mat,  // what a failed cell becomes (as loose powder)
     pub repose: f32,       // 0 = flows freely, 1 = never slides (angle of repose)
@@ -73,4 +73,27 @@ impl Mat {
     pub fn is_structural(self) -> bool { self.kind() == Kind::Solid }
 }
 pub const CELL_M: f32 = 0.25; // metres per cell
+
+/// Thrumming (knock-signal through rock) physics, derived from the material table.
+/// * Stiffness: rock-mass modulus E ≈ 300 × UCS (modulus ratio); liquids use bulk modulus 2.2 GPa;
+///   gases 142 kPa (adiabatic air). Wave speed c = √(E/ρ), impedance Z = ρc.
+/// * Damping: quality factor Q = 5 + 4 × UCS[MPa] for coherent solids (granite ≈ 85, dirt ≈ 6);
+///   loose or powdery ground Q = 4; liquid Q = 20; air Q = 2. Absorption α = π f /(Q c) Np/m at the
+///   knock frequency f = 200 Hz, i.e. 8.686 α dB/m.
+/// * Each boundary between materials transmits T = 4 Z₁Z₂/(Z₁+Z₂)² of the energy (−10 log₁₀ T dB);
+///   rock→air is ≈ −30 dB, so open tunnels reflect the signal away.
+pub const THRUM_HZ: f32 = 200.;
+pub fn wave(m: Mat, loose: bool) -> (f32, f32) {
+    let p = m.p(); let rho = p.density.max(1.);
+    let (e, q) = match p.kind {
+        Kind::Empty | Kind::Gas => (1.42e5, 2.),
+        Kind::Liquid => (2.2e9, 20.),
+        Kind::Powder => (300. * p.compressive * 1000., 4.),
+        Kind::Solid => (300. * p.compressive * 1000., if loose { 4. } else { 5. + 4. * p.compressive / 1000. }),
+    };
+    let c = (e / rho).sqrt();
+    let db_per_m = 8.686 * std::f32::consts::PI * THRUM_HZ / (q * c);
+    (rho * c, db_per_m * CELL_M)
+}
+pub fn interface_db(z1: f32, z2: f32) -> f32 { if (z1 - z2).abs() < 1e-3 * z1.max(z2) { 0. } else { -10. * (4. * z1 * z2 / ((z1 + z2) * (z1 + z2))).log10() } }
 pub const G: f32 = 9.81;
