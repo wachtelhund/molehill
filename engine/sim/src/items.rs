@@ -47,6 +47,7 @@ impl World {
     pub fn throw_item(&mut self, it: Item, aim: (f32, f32), power: f32) -> Result<(), &'static str> {
         if !self.moles.first().map_or(false, |m| m.alive) { return Err("no mole"); }
         if self.inv[it as usize] == 0 { return Err("none left"); }
+        if !it.uses().throw { return Err("that isn't something to throw"); }
         let len = (aim.0 * aim.0 + aim.1 * aim.1).sqrt(); if len < 1e-3 { return Err("no aim"); }
         self.inv[it as usize] -= 1;
         let sp = THROW_MIN + (THROW_MAX - THROW_MIN) * power.clamp(0., 1.);

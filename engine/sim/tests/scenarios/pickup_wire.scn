@@ -1,0 +1,35 @@
+// E takes copperline up one hovered segment at a time (sweep to take a run), back into the pack.
+// A lamp on the line comes up first, then the copperline under it.
+map
+##########################################
+#........................................#
+#........................................#
+#........................................#
+#........................................#
+#........................................#
+#.................@......................#
+##########################################
+end
+give CopperWire 10
+give Lamp 1
+wire 2 -8 -1 8 -1
+expect 3 inv:CopperWire == 5
+expect 3 wire:-4,-1 == 1
+device 4 4 -1 Lamp
+// one segment
+pickup 10 -8 -1
+expect 11 wire:-8,-1 == 0
+expect 11 wire:-4,-1 == 1
+expect 11 inv:CopperWire == 6
+// a sweep across the rest: the lamp first, then its copperline on the next pass
+pickup 12 -4 -1
+pickup 13 0 -1
+pickup 14 4 -1
+pickup 15 8 -1
+expect 16 dev:4,-1,Lamp == 0
+expect 16 inv:Lamp == 1
+expect 16 wire:4,-1 == 1
+pickup 17 4 -1
+expect 18 wire:4,-1 == 0
+expect 18 wire:0,-1 == 0
+expect 18 inv:CopperWire == 10

@@ -1,0 +1,28 @@
+// E picks a charge back up while it is unlit: it goes back in the pack, no digging needed. A lit charge
+// can't be picked up (too late) and goes off on time.
+map
+##########################################
+#........................................#
+#........................................#
+#........................................#
+#........................................#
+#........................................#
+#.................@......................#
+##########################################
+end
+give Tnt 1
+device 5 12 -1 Tnt
+expect 6 inv:Tnt == 0
+pickup 20 12 -1
+expect 21 inv:Tnt == 1
+expect 21 dev:12,-1,Tnt == 0
+// set it down again and light it: now E does nothing
+device 30 12 -1 Tnt
+use 35 12 -1
+expect 36 lit:12,-1 == 1
+pickup 60 12 -1
+expect 61 inv:Tnt == 0
+expect 61 dev:12,-1,Tnt == 1
+expect 61 lit:12,-1 == 1
+hold 62-100 left
+expect 140 ev:Explode == 1

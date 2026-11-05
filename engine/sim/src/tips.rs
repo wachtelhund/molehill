@@ -53,8 +53,9 @@ pub fn describe(w: &World, x: usize, y: usize) -> Option<Tip> {
     }
     let b = w.logic.block_of(x, y);
     let d = Dev::from_u8(w.logic.dev[b]);
-    if d != Dev::None { return tip(d.name().into(), vec![d.desc().into()]); }
-    if w.logic.wire[b] != 0 { return tip("Copperline".into(), vec![Item::CopperWire.desc().into(), if w.logic.net_lit(b) { "Carrying current.".into() } else { "Idle.".into() }]); }
+    if d != Dev::None { return tip(d.name().into(), vec![d.desc().into(), if w.logic.lit(b) { "Burning: too late to pick it up.".into() } else { "E: pick up.".into() }]); }
+    if w.torch_at(x, y).is_some() { return tip("Torch".into(), vec![Item::Torch.desc().into(), "E: pick up.".into()]); }
+    if w.logic.wire[b] != 0 { return tip("Copperline".into(), vec![Item::CopperWire.desc().into(), if w.logic.net_lit(b) { "Carrying current.".into() } else { "Idle.".into() }, "E: take up (hold and sweep for a run).".into()]); }
     let m = w.g.m(i);
     if m == Mat::Empty { return None; }
     let loose = w.g.loose(i) && m.kind() == Kind::Solid;

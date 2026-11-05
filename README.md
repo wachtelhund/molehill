@@ -52,7 +52,9 @@ You play one mole. The controls work like Terraria or Core Keeper.
 | `S` | Dig down (on the ground) |
 | Left mouse | Use the item in hand. A dig tool carves a round bite under the cursor and a block (pillar, brick, beam) places a round brush; the ring shows its size. Other items place a torch, copperline, device, spore, TNT or station. TNT goes down inert |
 | `[` / `]`, `Alt`+wheel | Brush size for the dig tool or block in hand, within that item's range (bigger tools allow bigger bites) |
-| Right mouse | Interact: flip a lever, set a thrum channel, light a TNT charge (1.5 s fuse) or a fuse cord. `Ctrl`+right mouse picks up copperline or a device (a lit charge is defused) |
+| Right mouse | Interact: flip a lever, set a thrum channel, light a TNT charge (1.5 s fuse) or a fuse cord. On an empty spot it sets down the device or TNT in hand (unlit) |
+| `Q` held, then released | Throw the item in hand (only throwable things: loose materials, food, spores, TNT). A thrown TNT charge goes out lit |
+| `E` | Pick up the device, unlit TNT, torch or copperline segment under the cursor; hold and sweep to take up a run of copperline. No digging needed |
 | `1`-`0` / wheel | Select a hotbar slot (also while sprinting) |
 | `I` | Inventory grid. Click a slot to pick its item up, then click another slot to drop or swap it (the hotbar is the bottom row) |
 | `+` / `-`, `Ctrl`/`Cmd`+wheel | Zoom (also in Settings; clamped and saved) |

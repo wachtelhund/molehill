@@ -110,7 +110,7 @@ pub fn update(g: Res<Game>, sp: Res<Sprites>, time: Res<Time>, win: Query<&Windo
     if let Some(c) = cur { if c.distance(still.0) > 3. { *still = (c, now); } }
     let busy = mouse.pressed(MouseButton::Left) || mouse.pressed(MouseButton::Right);
     let tip: Option<(Vec2, String, String)> = match (cur, hov.and_then(|(_, k)| g.slots[k])) {
-        (Some(c), Some(th)) if g.held.is_none() => Some((c, match thing_count(&g, th) { Some(n) => format!("{}  ({})", thing_name(&g, th), n.min(9999)), None => thing_name(&g, th) }, crate::thing_desc(th).to_string())),
+        (Some(c), Some(th)) if g.held.is_none() => Some((c, match thing_count(&g, th) { Some(n) => format!("{}  ({})", thing_name(&g, th), n.min(9999)), None => thing_name(&g, th) }, { let c = crate::thing_controls(th); if c.is_empty() { crate::thing_desc(th).to_string() } else { format!("{}\n{}", crate::thing_desc(th), c) } })),
         (Some(c), None) if hov.is_none() && !busy && now - still.1 > 0.35 && !g.inv_open => g.aim.and_then(|(x, y, _)|
             molehill_sim::tips::describe(w, x, y).map(|t| (c, t.name, t.lines.join("\n")))),
         _ => None,
@@ -131,7 +131,7 @@ pub fn update(g: Res<Game>, sp: Res<Sprites>, time: Res<Time>, win: Query<&Windo
             Lbl::Toast => { let live: Vec<&(String, f32)> = g.toasts.iter().filter(|(_, t0)| now - t0 < 4.).collect();
                 set(&mut t, live.iter().map(|(m, _)| m.as_str()).collect::<Vec<_>>().join("\n"));
                 let age = live.last().map_or(9., |(_, t0)| now - t0); c.0 = INK.with_alpha((4. - age).clamp(0., 1.)); }
-            Lbl::Sel => { set(&mut t, if g.inv_open { String::new() } else { g.slots[g.hot].map(|th| match brush_of(Some(th)) { Some(b) => format!("{}   brush {:.1}", thing_name(&g, th), brush_r(&g, b)), None => thing_name(&g, th) }).unwrap_or_default() }); c.0 = INK.with_alpha(((2.2 - (now - g.sel_t)) * 1.5).clamp(0., 0.85)); }
+            Lbl::Sel => { set(&mut t, if g.inv_open { String::new() } else { g.slots[g.hot].map(|th| match brush_of(Some(th)) { Some(b) => format!("{}   brush {:.1}", thing_name(&g, th), brush_r(&g, b)), None => thing_name(&g, th) } + &{ let c = crate::thing_controls(th); if c.is_empty() { String::new() } else { format!("\n{c}") } }).unwrap_or_default() }); c.0 = INK.with_alpha(((2.2 - (now - g.sel_t)) * 1.5).clamp(0., 0.85)); }
             Lbl::Center => set(&mut t, if !me.alive { "You were lost to the deep.\nCrawling back to the burrow...".to_string() } else { String::new() }),
             Lbl::Dev => { *v = if g.show_dev { Visibility::Inherited } else { Visibility::Hidden };
                 if g.show_dev && g.frame % 10 == 0 {

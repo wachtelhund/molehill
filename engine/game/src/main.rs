@@ -47,6 +47,8 @@ const FAR: usize = 4; // chunk rows drawn beyond each end of the simulated windo
     w_jump: bool,
     /// `Q` held: seconds of throw charge so far, and the aim (cells, from the mole's chest) for the arc preview
     charge: Option<f32>, throw_aim: (f32, f32),
+    /// E closed the pack: it doesn't also pick up until released
+    e_latch: bool,
     /// in-world feedback pops: (kind 0 bite / 1 placed block, x, y, radius in cells, start time s)
     pub pops: Vec<(u8, f32, f32, f32, f32)>,
     /// smoothed camera lookahead (cells)
@@ -62,6 +64,14 @@ pub fn brush_r(g: &Game, b: sw::Brush) -> f32 { sw::brush_radius(b, g.brush[brus
 pub fn thing_name(_g: &Game, t: Thing) -> String { match t { Thing::Pick(n) => ["Pickaxe", "Drill", "Bore"][(n as usize - 1).min(2)].into(), Thing::Item(it) => it.name().into(), Thing::Dev(d) => DEVS[d].name().into(), Thing::Station(s) => STATIONS[s].name().into() } }
 /// Tooltip line for an inventory thing.
 pub fn thing_desc(t: Thing) -> &'static str { match t { Thing::Pick(1) => "Breaks soil and soft stone in a mole-sized bite.", Thing::Pick(2) => "Copperline-driven auger. Cuts granite, basalt and ore.", Thing::Pick(_) => "Heavy heat-bore. The widest bite; cuts the hardest stone.", Thing::Item(it) => it.desc(), Thing::Dev(d) => DEVS[d].desc(), Thing::Station(s) => STATIONS[s].desc() } }
+/// The inputs for a thing in hand, one line (slot tooltip and the hint over the hotbar).
+pub fn thing_controls(t: Thing) -> &'static str { match t {
+    Thing::Pick(_) => "Left mouse: dig · S: dig down",
+    Thing::Item(it) => it.controls(),
+    Thing::Dev(d) if DEVS[d] == Dev::Tnt => Item::Tnt.controls(),
+    Thing::Dev(_) => "Left/right mouse: set down · right mouse on it: use · E: pick up",
+    Thing::Station(_) => "Left mouse: plan it here, then bring the materials",
+} }
 pub fn thing_count(g: &Game, t: Thing) -> Option<u32> { match t { Thing::Item(it) => Some(g.w.inv[it as usize]), Thing::Dev(d) => dev_cost(DEVS[d]).map(|it| g.w.inv[it as usize]), _ => None } }
 fn default_slots() -> Vec<Option<Thing>> {
     let mut v: Vec<Thing> = vec![Thing::Pick(1), Thing::Pick(2), Thing::Pick(3), Thing::Item(Item::WoodPillar), Thing::Item(Item::Brick), Thing::Item(Item::IronBeam), Thing::Item(Item::Torch), Thing::Item(Item::Tnt), Thing::Item(Item::CopperWire), Thing::Dev(DEVS.iter().position(|&d| d == Dev::Lever).unwrap_or(0))];
@@ -284,7 +294,7 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, mut fonts: R
         px: images.add(art::image(1, 1, vec![255; 4], true)),
     };
     commands.insert_resource(sp);
-    let disp = Vec2::new(sx, sy + 1.5 * SF); commands.insert_resource(Game { w, chunks, buf: vec![1; W * H * 4], uploads: 0, acc: 0., paused: true, speed: 1, frame: 0, last_light: 0, msg: String::new(), help: false, ev: vec![], shake_off: Vec2::ZERO, autosave: 0., last_oy: oy0, far, far_done, far_cells: Default::default(), inv_open: false, aim: None, slots: default_slots(), held: None, hot: 0, sel_t: 0., toasts: vec![], log_seen: 0, show_dev: false, disp, seed, brush: [0.; 7], demo_right: false, wheel: Default::default(), mouse_latch: false, jump_tap: false, jump_key: false, w_jump: false, charge: None, throw_aim: (1., -1.), pops: vec![], look: Vec2::ZERO });
+    let disp = Vec2::new(sx, sy + 1.5 * SF); commands.insert_resource(Game { w, chunks, buf: vec![1; W * H * 4], uploads: 0, acc: 0., paused: true, speed: 1, frame: 0, last_light: 0, msg: String::new(), help: false, ev: vec![], shake_off: Vec2::ZERO, autosave: 0., last_oy: oy0, far, far_done, far_cells: Default::default(), inv_open: false, aim: None, slots: default_slots(), held: None, hot: 0, sel_t: 0., toasts: vec![], log_seen: 0, show_dev: false, disp, seed, brush: [0.; 7], demo_right: false, wheel: Default::default(), mouse_latch: false, jump_tap: false, jump_key: false, w_jump: false, charge: None, throw_aim: (1., -1.), e_latch: false, pops: vec![], look: Vec2::ZERO });
 }
 
 pub fn save_now(g: &mut Game) { g.msg = match save_slot("molehill-manual", &g.w) { Ok(()) => "Game saved".into(), Err(e) => format!("Save failed: {e}") }; }
@@ -363,6 +373,8 @@ fn input(mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<Button
     for (k, d) in digits.iter().enumerate() { if keys.just_pressed(*d) { g.hot = k; } }
     if keys.just_pressed(KeyCode::Escape) { g.inv_open = false; g.help = false; }
     if keys.just_pressed(KeyCode::KeyF) { g.speed = if g.speed >= 4 { 1 } else { g.speed * 2 }; }
+    if keys.just_pressed(KeyCode::KeyE) && g.inv_open { g.e_latch = true; }
+    if !keys.pressed(KeyCode::KeyE) { g.e_latch = false; }
     if keys.just_pressed(KeyCode::KeyI) || keys.just_pressed(KeyCode::KeyE) && g.inv_open { g.inv_open = !g.inv_open; }
     if !g.inv_open { if let Some(t) = g.held.take() { if let Some(k) = g.slots.iter().position(|s| s.is_none()) { g.slots[k] = Some(t); } } }
     if keys.just_pressed(KeyCode::KeyH) { g.help = !g.help; }
@@ -397,17 +409,24 @@ fn input(mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<Button
     let reach = g.w.in_reach(cx, cy); g.aim = Some((cx, cy, reach));
     // Q: hold to charge a throw of the item in hand (aimed at the cursor), release to throw it. A TNT
     // charge goes out lit. Charging takes THROW_CHARGE s to full power.
-    if let Some(Thing::Item(it)) = sel {
+    if let Some(Thing::Item(it)) = sel.filter(|t| matches!(t, Thing::Item(i) if i.uses().throw)) {
         let fc = Vec2::new((wp.x + W as f32 * CPX / 2.) / CPX, (H as f32 * CPX / 2. - wp.y) / CPX);
         g.throw_aim = (fc.x - g.w.pl.px, fc.y - (g.w.pl.py - sw::BODY_H * 0.7));
         if keys.pressed(KeyCode::KeyQ) && g.w.inv[it as usize] > 0 { g.charge = Some((g.charge.unwrap_or(0.) + time.delta_secs()).min(THROW_CHARGE)); }
         else if let Some(c) = g.charge.take() { let aim = g.throw_aim; if let Err(e) = g.w.throw_item(it, aim, c / THROW_CHARGE) { g.msg = format!("Can't throw: {e}"); } }
-    } else { g.charge = None; }
+    } else { g.charge = None; if keys.just_pressed(KeyCode::KeyQ) { if let Some(th) = sel { g.msg = format!("{} can't be thrown", thing_name(&g, th)); } } }
     let blk = g.w.logic.block_of(cx, cy);
     if !reach || latched && mouse.pressed(MouseButton::Right) { return; }
-    // right mouse: interact (lever, thrum channel, ticker, light a fuse or TNT); Ctrl+right picks up copperline or a device
-    if mouse.pressed(MouseButton::Right) && ctrl { g.w.pick_up(cx, cy); }
-    else if mouse.just_pressed(MouseButton::Right) { g.w.use_device(cx, cy); }
+    // E (hold and sweep): pick up the device, unlit TNT, torch or copperline under the cursor; no digging needed
+    if keys.pressed(KeyCode::KeyE) && !g.inv_open && !g.e_latch {
+        if g.w.pick_up(cx, cy).is_none() && keys.just_pressed(KeyCode::KeyE) && g.w.logic.lit(blk) { g.msg = "It's burning: too late to pick it up".into(); }
+    }
+    // right mouse: interact (lever, thrum channel, ticker, light a fuse or TNT); on an empty spot it sets down
+    // the device (or TNT, unlit) in hand
+    if mouse.just_pressed(MouseButton::Right) && !g.w.use_device(cx, cy) {
+        let d = match sel { Some(Thing::Dev(d)) => Some(DEVS[d]), Some(Thing::Item(Item::Tnt)) => Some(Dev::Tnt), Some(Thing::Item(Item::Lamp)) => Some(Dev::Lamp), Some(Thing::Item(Item::Vent)) => Some(Dev::Vent), _ => None };
+        if let Some(d) = d { if let Err(e) = g.w.place_device(d, cx, cy) { g.msg = format!("Can't place: {e}"); } }
+    }
     // left mouse: use the item in hand
     let (lp, lj) = (mouse.pressed(MouseButton::Left) && !latched, mouse.just_pressed(MouseButton::Left) && !latched);
     match sel {
