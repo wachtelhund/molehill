@@ -1,0 +1,34 @@
+// A cart carries cargo: loose items thrown or dropped into it are kept in it as it rolls. E on the cart
+// takes the cargo into the pack; E again (empty, nobody in it) picks the cart itself up.
+map
+############################################################
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#.@........................................................#
+#==========================================================#
+############################################################
+end
+give Cart 1
+give Stone 4
+place 2 6 0 Cart
+throw 5 Stone 3 -2 0.3            // a lob into the cart
+throw 25 Stone 3 -2 0.3
+drop 30 Wood 6 -2
+expect 80 cargo == 3
+expect 80 inv:Stone == 2
+expect 80 items:Stone == 0        // none left lying about
+saveload 85                       // carts and their cargo are saved
+expect 86 carts == 1
+expect 86 cargo == 3
+pickup 90 6 0                     // E: unload
+expect 91 cargo == 0
+expect 91 inv:Stone == 4
+expect 91 inv:Wood > 0
+expect 91 carts == 1
+pickup 100 6 0                    // E: the empty cart comes up
+expect 101 carts == 0
+expect 101 inv:Cart == 1

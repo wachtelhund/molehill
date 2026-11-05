@@ -8,7 +8,7 @@
 //! travelled to get there, its peak overpressure and its direction. The sim never reads it back; the
 //! front-end draws the front sweeping along it (slowed to `WAVE_SHOW_MPS` so the eye can follow it) and
 //! raises dust that rides it.
-use crate::mat::{Kind, Mat, CELL_M, CPM, S, SF};
+use crate::mat::{Kind, Mat, CELL_M, CPM, SF};
 use crate::world::{World, TUNE};
 
 /// One flying cell. Position and velocity in cells and cells/s; (ppx, ppy) the position a tick ago.

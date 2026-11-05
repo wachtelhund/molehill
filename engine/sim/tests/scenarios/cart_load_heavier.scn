@@ -1,0 +1,28 @@
+// The same push on a loaded cart: 30 stones (150 kg on an 80 kg cart) dropped in as cargo. The mole leans
+// on it as hard as on the empty cart in cart_push_level, but it takes about three times as long to get going,
+// and it holds the mole back to its own pace.
+map
+############################################################
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#.@........................................................#
+#==========================================================#
+############################################################
+end
+give Cart 1
+place 2 6 0 Cart
+// cargo: three stones dropped in from above, then 27 more loaded
+drop 3 Stone 6 -1
+drop 3 Stone 6 -2
+drop 3 Stone 6 -3
+expect 20 cargo == 3
+load 21 27 Stone
+expect 22 cargo == 30
+hold 25-110 right
+expect 60 cartv < 6               // slower to get going than the empty cart (which is past 6 by now)
+expect 60 cartv > 0
+expect 60 cartgap > 0             // the mole held behind it

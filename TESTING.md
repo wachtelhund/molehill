@@ -78,6 +78,8 @@ grotto 2 6 -5 8 4       // at tick T a grotto's glowmite swarm centred on tile (
 catch 40 6 -5           // at tick T right-mouse the tile (dx,dy): catch the glowmite there, if any
 throw 2 Stone 1 -1 1    // throw one from the pack toward direction (dx,dy), power 0..1 of a full throw (TNT goes out lit)
 drop 1 Wood 26 -12 0 0  // a loose item centred on tile (dx,dy), optionally moving at (vx,vy) tiles/s
+place 2 6 0 Cart        // a transport machine from the pack goes down whole at (dx,dy) (a cart finds the track, else the floor)
+load 21 27 Stone        // (scripted) put that many items into the first cart's cargo
 dump 50                 // print the JSON state after tick T
 ascii 80                // print the map region after tick T
 expect 60 rise >= 4.5   // assertion after tick T: <var> <op> <number>, ops: < <= > >= == !=
@@ -89,7 +91,7 @@ The map is stamped with its top-left so that `@` lands on the world spawn (the m
 
 Every material counts as already discovered in a scenario (a discovery's torch reward would otherwise depend on what the generated world happened to show).
 
-Map legend: `t` roots (a root tangle), `f` fungus, `.` empty, `#` granite, `B` bedrock, `r` rock, `d` dirt, `c` clay, `s` sand, `g` gravel, `w` water, `l` lava, `o` coal, `i` iron ore, `a` basalt, `b` wood beam, `I` iron beam, `k` stone brick, `T` root-tree, `R` root-tree roots, `m` moss, `y` mycelium, `p` planks, `q` polished stone, `x` tiles, `C` carved pillar (`~` steam, `?` other, only in output). The generated world's own grottos are left out of a scenario (`grottos` cleared).
+Map legend: `t` roots (a root tangle), `f` fungus, `.` empty, `#` granite, `B` bedrock, `r` rock, `d` dirt, `c` clay, `s` sand, `g` gravel, `w` water, `l` lava, `o` coal, `i` iron ore, `a` basalt, `b` wood beam, `I` iron beam, `k` stone brick, `T` root-tree, `R` root-tree roots, `m` moss, `y` mycelium, `p` planks, `q` polished stone, `x` tiles, `C` carved pillar, `=` rail (`~` steam, `?` other, only in output). The generated world's own grottos are left out of a scenario (`grottos` cleared).
 
 **Assertion variables:**
 
@@ -111,6 +113,8 @@ Map legend: `t` roots (a root tangle), `f` fungus, `.` empty, `#` granite, `B` b
 | `awake` | CA chunks overlapping the map that are still awake (0 = everything there has settled) |
 | `glowmites` | Glowmites drifting over the map rectangle |
 | `p:DX,DY` | The last blast's peak overpressure (kPa) on that tile |
+| `carts` / `cartx` / `carty` / `cartv` | Carts in the world; the first cart's position (tiles from the map corner) and speed along the track (tiles/s) |
+| `cargo` / `cartrail` / `cartgap` / `riding` | The first cart's cargo (items), whether it is on the rails, how far it is ahead of the mole (tiles), whether the mole rides a cart |
 | `debris` / `debris:Mat` | Cells a blast threw that are still in flight (tiles), all or of one material |
 | `wave:DX,DY` | The path distance (m) the last blast's front ran to reach that tile (-1: it never got there) |
 | `front` / `frontcells` | The last blast's drawn front: its radius now (path m, 22 m/s), and the tiles in it |
@@ -208,6 +212,12 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `blast_soft_rock_tunnel.scn` | One charge on a soft-rock tunnel floor: crater through the 1 m floor and 1.25 m into the roof, rock 3.5 m off whole, 114+ tiles broken (~155), 100+ tiles of rubble thrown 4.5 m and more along the tunnel, all landed |
 | `blast_pocket.scn` / `blast_cave_soaks.scn` | Confinement: tamped into a pocket a round crater ~5 m across (196+ tiles, ~250), on a cave floor ~38 |
 | `blast_granite_chips.scn` / `blast_basalt_holds.scn` | Granite cracks 0.5 m under the charge and scars the roof (10 to 35 tiles); basalt loses only the face under it |
+| `cart_rolls_downhill.scn` | A cart on a 1-in-4 slope rolls off on its own, speeds up, runs out on the level and stops at the end of the track |
+| `cart_push_level.scn` / `cart_load_heavier.scn` | Walking into a cart pushes it to walking pace and it coasts to rest; 30 stones of cargo make the same push about three times slower |
+| `cart_ride.scn` | Right mouse gets in; the mole rides down the slope with the cart; Space jumps out |
+| `cart_cargo.scn` | Items thrown or dropped in are cargo (saved); E unloads into the pack, then picks up the empty cart |
+| `cart_off_rail.scn` | With the track gone under it a cart drops off the rails and won't roll when pushed |
+| `rail_needs_support.scn` | A rail span over a drop breaks and falls; its ends on rock hold |
 | `blast_moves_sand.scn` | A charge by a sand bed throws a third of it into the air at once; the near end is scoured, and it all lands (none lost) |
 | `blast_wave_front.scn` | The front reaches a shaft round a corner by the tunnel (path longer than the straight line), never the rock between; the drawn front sweeps out; `dump` of its state |
 | `grain_in_body.scn` | A sand grain lying inside the mole's body (low tunnel, no wriggle room) is shoved aside instead of wedging it |
@@ -264,7 +274,7 @@ Zoom limits and brush ranges also have unit tests in `sim/tests/sim.rs` (`zoom_i
 
 **Web frame time:** serve `dist/` (`python3 -m http.server`) and measure `requestAnimationFrame` intervals in Chrome after starting a holt. At 8 cells/m on an M4 with the active region: 58 fps (p95 16.8 ms) from a fresh holt's first seconds, 60 fps steady state.
 
-Blast tests in `sim.rs`: `blast_overpressure_curve` (Kinney-Graham values, monotone, deterministic, bounded), `blast_is_heard_by_listeners`, `blast_debris_deterministic_and_conserved`. `--example blastbench` times one charge.
+Blast tests in `sim.rs`: `blast_overpressure_curve` (Kinney-Graham values, monotone, deterministic, bounded), `blast_is_heard_by_listeners`, `blast_debris_deterministic_and_conserved`. Transport tests in `transport.rs`: `transport_is_reachable_in_survival`, `creative_has_transport_freely`. `--example blastbench` times one charge.
 
 Worldgen tests in `sim.rs`: `ore_sits_in_its_depth_bands` (copper just below the holt, iron in the mid granite, basalt below 90 m), `grottos_follow_the_layers` (frequency by depth band over 6 seeds, none in the deep, deterministic), `generated_grottos_hold` (fresh holts' grottos stay open with their trees up), `slides_leave_nothing_failing`, `glowmites_drift_glow_and_get_caught`.
 

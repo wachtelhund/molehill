@@ -19,6 +19,7 @@ You play one Delver: a body about **45 × 73 cm** (1.8 × 2.9 tiles of 0.25 m, i
 | Left mouse | Use the item in hand: dig, place a block brush, torch, copperline, device, spore, TNT or station |
 | `Q` held, then released | Throw the item in hand toward the cursor: hold to charge (0.8 s to full power, dots show the arc), release to throw. Only throwable things fly (see [Tools and Items](Tools-and-Items.md#what-each-item-does)); a TNT charge goes out lit |
 | Right mouse | Interact: flip a lever, step a thrum pattern or ticker beat, light TNT or a fuse cord. On an empty spot it sets down the device or TNT in hand (unlit) |
+| Right mouse on a mine cart | Get in; `Space` jumps out, `A` / `D` lean on it. Walking into a cart pushes it (see [Transport](Transport.md)) |
 | `E` | Pick up what is under the cursor: a device, unlit TNT, a torch, or one copperline segment (the device on a block comes up before the copperline under it). Hold and sweep to take up a run. A lit charge or burning fuse can't be picked up. With the pack open, `E` closes it |
 | `[` / `]`, `Alt` / `Option` + wheel | Brush size for the tool or block in hand, within its range. `[` / `]` count by the character typed, so they work on any layout (Option+8 / Option+9 on a Swedish Mac); Option+digit doesn't pick a hotbar slot |
 | `X` | Grid snap for blocks on/off (see [Tools and Items](Tools-and-Items.md)) |

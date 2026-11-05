@@ -67,6 +67,8 @@ One table (`Item::uses` in `craft.rs`) says whether an item is **set down**, **t
 | Wood pillar, brick, iron beam | left mouse (brush) | no | no (dig it) |
 | Copperline | left mouse (drag) | no | one segment, sweep for a run |
 | Torch | left mouse | no | yes |
+| Rail | left mouse (brush; `X` snaps a straight run) | no | no (dig it) |
+| Mine cart | left mouse, on the track (right mouse: get in) | no | its cargo, then the empty cart |
 | Lamp, vent; levers, knots, thrummers and other devices | left mouse, or right mouse on an empty spot | no | yes |
 | Spore | left mouse (plant on soil) | yes | no |
 | Loose materials, ingots, charcoal, grubs, mushrooms, roots, fungus oil | no | yes | (lying loose: walk over it) |
@@ -159,6 +161,8 @@ Chains are short: nothing is more than two steps from the ground (ore → ingot 
 | | 4 bronze | 3 copper + 1 tin ingot |
 | | 8 copperline | 1 copper ingot |
 | | 4 iron beams | 1 iron ingot |
+| | 8 rail | 1 copper ingot + 1 wood |
+| | mine cart | 2 copper ingots + 4 wood |
 | | lamp | 1 glass + 2 fungus |
 | | Bore | 6 iron ingots + 2 copper ingots + 2 crystal |
 | Workshop | Drill | 3 copper ingots + 2 tin ingots |

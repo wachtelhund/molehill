@@ -1,0 +1,26 @@
+// Pushing a cart along level track: the mole walks into it and leans on it, and it goes ahead at walking
+// pace. Let go and it rolls on, slowed by rolling friction, and stops a few metres on. A loaded cart is
+// heavier: the same push gets it going more slowly (see cart_load_heavier).
+map
+############################################################
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#.@........................................................#
+#==========================================================#
+############################################################
+end
+give Cart 1
+place 2 6 0 Cart                  // on the track 1.5 m ahead of the mole
+expect 3 cartrail == 1
+hold 5-90 right                   // walk into it and keep pushing
+expect 40 cartv > 3               // it is moving (tiles/s)...
+expect 90 cartv > 10              // ...at walking pace (about 3 m/s)
+expect 90 cartgap > 0             // the mole is behind it, not through it
+expect 120 cartv > 0              // let go: it rolls on
+expect 120 cartv < 13
+expect 400 cartv == 0             // and comes to rest by friction alone
+expect 400 cartx < 56             // before the end of the track

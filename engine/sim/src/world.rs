@@ -29,8 +29,10 @@ use std::sync::atomic::Ordering::Relaxed;
 pub const D_DIG: u8 = 1; pub const D_WOOD: u8 = 2; pub const D_BRICK: u8 = 3; pub const D_IRON: u8 = 4;
 /// Decorative blocks: planks, polished stone, tiles, carved pillar.
 pub const D_PLANK: u8 = 5; pub const D_POLISH: u8 = 6; pub const D_TILE: u8 = 7; pub const D_CARVED: u8 = 8;
+/// Transport blocks: rail.
+pub const D_RAIL: u8 = 9;
 /// The build code for a block item (structural or decorative).
-pub fn block_code(it: Item) -> Option<u8> { Some(match it { Item::WoodPillar => D_WOOD, Item::Brick => D_BRICK, Item::IronBeam => D_IRON, Item::Planks => D_PLANK, Item::PolishedStone => D_POLISH, Item::Tiles => D_TILE, Item::CarvedPillar => D_CARVED, _ => return None }) }
+pub fn block_code(it: Item) -> Option<u8> { Some(match it { Item::WoodPillar => D_WOOD, Item::Brick => D_BRICK, Item::IronBeam => D_IRON, Item::Planks => D_PLANK, Item::PolishedStone => D_POLISH, Item::Tiles => D_TILE, Item::CarvedPillar => D_CARVED, Item::Rail => D_RAIL, _ => return None }) }
 pub const MOLE_H: usize = 3 * S;
 const REACH: i32 = 3 * S as i32;
 
@@ -142,7 +144,7 @@ pub struct Building { pub kind: Station, pub x: usize, pub y: usize, pub built: 
 
 pub struct World {
     pub g: Grid, pub st: Stress, pub light: Light, pub info: GenInfo, pub tick: u64,
-    pub inv: [u32; NITEM], dig_acc: [u16; NMAT], place_acc: [u16; 9], pub desig: Vec<u8>,
+    pub inv: [u32; NITEM], dig_acc: [u16; NMAT], place_acc: [u16; 12], pub desig: Vec<u8>,
     pub moles: Vec<Mole>, pub drops: Vec<Drop>, pub stockpile: (usize, usize, usize, usize),
     pub buildings: Vec<Building>, pub torches: Vec<(usize, usize)>, pub chests: Vec<Chest>, pub furniture: Vec<Furniture>, paint_acc: u16,
     pub quest: usize, pub log: Vec<(u64, String)>, pub discovered: [bool; NMAT], pub chests_opened: u32, pub pillars: u32,
@@ -168,6 +170,8 @@ pub struct World {
     pub keep_blast_field: bool, pub blast_field: Vec<f32>,
     /// cells a blast threw, in flight (see `debris.rs`), and the recent blasts' waves (for drawing)
     pub debris: Vec<crate::debris::Debris>, pub waves: Vec<crate::debris::Wave>,
+    /// carts and the rest of transport (see `transport.rs`)
+    pub tr: crate::transport::Transport,
     /// glowmites caught: (grotto id, glowmite) → tick. A grotto's swarm refills: each comes back after GLOWMITE_BACK.
     pub caught: std::collections::HashMap<(u32, u8), u64>,
     /// Survival, Creative, or Plain (the bare rules: tests and scenarios); `rules` is what the mode switches on
@@ -180,7 +184,7 @@ pub struct World {
 /// For audio / UI feedback.
 /// What `World::pick_up` took back into the pack.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum Picked { Dev(Dev), Torch, Wire, Furniture(Item) }
+pub enum Picked { Dev(Dev), Torch, Wire, Furniture(Item), Transport(Item) }
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Event { Dig, Crumble, Crack, Place, Chest, Quest, Explode, Discover, Hurt, Craft, Eat, Death, Warning, Quake, Click, Harvest, Gasp, Lore }
 
@@ -197,10 +201,10 @@ impl World {
     }
     fn shell(g: Grid, w: usize, h: usize, seed: u32, oy: i64, gn: Gen, info: gen::GenInfo) -> World {
         World {
-            st: Stress::new(w * h), light: Light::new(w, h), tick: 0, inv: [0; NITEM], dig_acc: [0; NMAT], place_acc: [0; 9], desig: vec![0; w * h],
+            st: Stress::new(w * h), light: Light::new(w, h), tick: 0, inv: [0; NITEM], dig_acc: [0; NMAT], place_acc: [0; 12], desig: vec![0; w * h],
             moles: vec![], drops: vec![], stockpile: (0, 0, 0, 0), buildings: vec![], torches: vec![], chests: vec![], furniture: vec![], paint_acc: 0,
             quest: 0, log: vec![], discovered: [false; NMAT], chests_opened: 0, pillars: 0, max_depth: 0., craft_queue: vec![], gear: Gear::default(), known: [false; NITEM], mode: Default::default(), rules: Default::default(), lamp_oil: 0., lamp_dry: false, ruins: vec![], ruins_seen: Default::default(), relics: 0, crumbled: 0,
-            light_rect: (0, 0, w - 1, h - 1), events: vec![], marks: vec![], react_pending: false, logic: Logic::new(w, h), disasters: Disasters::new(seed), shake: 0., air: Air::new(w, h), farms: vec![], harvested: 0, input: Input::default(), pl: Player::default(), gen: gn, oy, bands: Default::default(), opened: Default::default(), clues: vec![], found_clues: Default::default(), journal: vec![], grottos: vec![], caught: Default::default(), keep_blast_field: false, blast_field: vec![], debris: vec![], waves: vec![], info, g,
+            light_rect: (0, 0, w - 1, h - 1), events: vec![], marks: vec![], react_pending: false, logic: Logic::new(w, h), disasters: Disasters::new(seed), shake: 0., air: Air::new(w, h), farms: vec![], harvested: 0, input: Input::default(), pl: Player::default(), gen: gn, oy, bands: Default::default(), opened: Default::default(), clues: vec![], found_clues: Default::default(), journal: vec![], grottos: vec![], caught: Default::default(), keep_blast_field: false, blast_field: vec![], debris: vec![], waves: vec![], tr: Default::default(), info, g,
         }
     }
     pub fn new(w: usize, h: usize, seed: u32) -> World {
@@ -288,6 +292,7 @@ impl World {
         let dy = |y: usize| -> Option<usize> { let v = y as i64 - rows; if v >= 0 && v < h as i64 { Some(v as usize) } else { None } };
         for m in self.moles.iter_mut() { if let Some(v) = dy(m.y) { m.y = v; } else { m.alive = false; } m.path.clear(); m.job = None; m.work_cell = None; }
         self.drops = std::mem::take(&mut self.drops).into_iter().filter_map(|mut d| dy(d.y).map(|v| { d.y = v; d.py -= rows as f32; d.ppy -= rows as f32; d })).collect();
+        self.shift_transport(rows, h);
         self.debris = std::mem::take(&mut self.debris).into_iter().filter_map(|mut d| dy(d.py.max(0.) as usize).map(|_| { d.py -= rows as f32; d.ppy -= rows as f32; d })).collect(); self.waves.clear();
         self.torches = std::mem::take(&mut self.torches).into_iter().filter_map(|(x, y)| dy(y).map(|v| (x, v))).collect();
         self.buildings = std::mem::take(&mut self.buildings).into_iter().filter_map(|mut b| dy(b.y).filter(|&v| v >= Station::H).map(|v| { b.y = v; b.claimed = false; b })).collect();
@@ -456,6 +461,7 @@ impl World {
                 }
             } }
         self.step_player();
+        self.step_transport();
         self.step_items();
         self.step_debris(); let now = self.tick; self.waves.retain(|v| v.live(now));
         if self.tick % 2 == 0 { self.step_moles(); }
@@ -839,6 +845,7 @@ impl World {
             self.pl = Player { spawn: self.pl.spawn, deaths: self.pl.deaths, fall_from: y, ..Default::default() };
             self.say("You crawl back into the burrow.".into()); return;
         }
+        if self.ride_step() { return; }
         let inp = self.input.clone();
         let t = TUNE;
         self.pl.flash = (self.pl.flash - dt).max(0.);
@@ -1085,6 +1092,7 @@ impl World {
     }
     pub fn use_device(&mut self, x: usize, y: usize) -> bool {
         if x >= self.g.w || y >= self.g.h || !self.in_reach(x, y) { return false; }
+        if self.use_transport(x, y) { return true; }
         let b = self.logic.block_of(x, y); if self.logic.dev[b] == 0 { return false; }
         self.logic.interact(b); self.events.push(Event::Click); let (cx, cy) = self.logic.centre(b); self.marks.push((1, cx as f32 + 0.5, cy as f32 + 0.5, 0.7 * SF)); true
     }
@@ -1102,6 +1110,7 @@ impl World {
     /// TNT charge or burning fuse cord can't be picked up. Nothing needs digging out.
     pub fn pick_up(&mut self, x: usize, y: usize) -> Option<Picked> {
         if x >= self.g.w || y >= self.g.h || !self.in_reach(x, y) { return None; }
+        if let Some(it) = self.pick_up_transport(x, y) { self.events.push(Event::Click); return Some(Picked::Transport(it)); }
         let b = self.logic.block_of(x, y); let d = Dev::from_u8(self.logic.dev[b]);
         let got = if d != Dev::None {
             if self.logic.lit(b) { return None; }
@@ -1314,5 +1323,5 @@ impl World {
         }
     }
 }
-pub fn build_item(d: u8) -> Item { match d { D_BRICK => Item::Brick, D_IRON => Item::IronBeam, D_PLANK => Item::Planks, D_POLISH => Item::PolishedStone, D_TILE => Item::Tiles, D_CARVED => Item::CarvedPillar, _ => Item::WoodPillar } }
-pub fn build_mat(d: u8) -> Mat { match d { D_BRICK => Mat::StoneBrick, D_IRON => Mat::IronBeam, D_PLANK => Mat::Planks, D_POLISH => Mat::Polished, D_TILE => Mat::Tiles, D_CARVED => Mat::Carved, _ => Mat::WoodBeam } }
+pub fn build_item(d: u8) -> Item { match d { D_BRICK => Item::Brick, D_IRON => Item::IronBeam, D_PLANK => Item::Planks, D_POLISH => Item::PolishedStone, D_TILE => Item::Tiles, D_CARVED => Item::CarvedPillar, D_RAIL => Item::Rail, _ => Item::WoodPillar } }
+pub fn build_mat(d: u8) -> Mat { match d { D_BRICK => Mat::StoneBrick, D_IRON => Mat::IronBeam, D_PLANK => Mat::Planks, D_POLISH => Mat::Polished, D_TILE => Mat::Tiles, D_CARVED => Mat::Carved, D_RAIL => Mat::Rail, _ => Mat::WoodBeam } }

@@ -561,6 +561,7 @@ fn input(mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<Button
         // a pigment paints a brush of blocks, or dyes the rug / banner / nest under the cursor
         Some(Thing::Item(it)) if lp && it.pigment().is_some() => { let r = brush_r(&g, sw::Brush::Place(it)); if let Err(e) = g.w.paint(cx, cy, it, r) { if lj { g.msg = format!("Can't paint: {e}"); } } }
         Some(Thing::Item(it)) if lj && it.furn().is_some() => { if let Err(e) = g.w.place_furniture(it, cx, cy) { g.msg = format!("Can't place: {e}"); } }
+        Some(Thing::Item(it)) if lj && molehill_sim::transport::is_machine(it) => { if let Err(e) = g.w.place_transport(it, cx, cy) { g.msg = format!("Can't place: {e}"); } }
         Some(Thing::Item(Item::Torch)) if lj => { if !g.w.place_torch(cx, cy) { g.msg = "Needs open space".into(); } }
         // TNT goes down inert; right mouse lights it, or wire it to a lever / knot / listener
         Some(Thing::Item(Item::Tnt)) if lj => { if g.w.logic.dev[blk] != 0 { g.w.use_device(cx, cy); } else if let Err(e) = g.w.place_device(Dev::Tnt, cx, cy) { g.msg = format!("Can't place: {e}"); } }
@@ -908,6 +909,22 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
         for k in 0..40 { let dt = 1. / 60.; for _ in 0..3 { vy = (vy + t.gravity * dt).min(t.terminal); x += vx * dt; y += vy * dt; }
             if x < 0. || y < 0. || x as usize >= W || y as usize >= H || w.g.is_solidish(y as usize * W + x as usize) { break; }
             want.push((12, k, cell_to_world(x, y), 6., sp.px.clone(), Vec2::splat(CPX * SF * 0.6), false, Color::srgba(1., 0.95, 0.8, 0.25 + 0.5 * f))); } }
+    // mine carts: a plank box with a bronze rim on two wheels, drawn between their last two sim positions;
+    // its cargo heaped over the rim; the mole riding sits in it (the box is drawn in front of it)
+    for (k, c) in w.tr.carts.iter().enumerate() {
+        let (x, y) = (c.px + (c.x - c.px) * a, c.py + (c.y - c.py) * a); let (cx, cy) = (x as usize, (y as usize).saturating_sub(1));
+        if cx >= W || cy >= H || w.g.flags[cy * W + cx] & F_SEEN == 0 { continue; }
+        let l = lightf(cx, cy).to_srgba(); let lit = |r: f32, gg: f32, b: f32| Color::srgb(r * l.red, gg * l.green, b * l.blue);
+        let (cw, ch) = (molehill_sim::transport::CART_W * CPX + 4., molehill_sim::transport::CART_H * CPX);
+        let z = if w.tr.riding == Some(k) { 5.2 } else { 4.2 };
+        let mid = cell_to_world(x, y) + Vec2::new(0., ch / 2. + 2.);
+        want.push((30, k, mid, z, sp.px.clone(), Vec2::new(cw, ch), false, lit(0.43, 0.31, 0.19)));
+        want.push((31, k, mid + Vec2::new(0., ch / 2. - 1.), z + 0.01, sp.px.clone(), Vec2::new(cw + 1., 2.), false, lit(0.75, 0.55, 0.28)));
+        if let Some(&(it, _)) = c.cargo.first() { let col = it.color(); let n = c.load().min(40) as f32 / 40.;
+            want.push((32, k, mid + Vec2::new(0., ch / 2. + 1. + 2. * n), z - 0.02, sp.px.clone(), Vec2::new(cw - 4., 2. + 4. * n), false, lit(col[0] as f32 / 255., col[1] as f32 / 255., col[2] as f32 / 255.))); }
+        for (j, s) in [-1f32, 1.].into_iter().enumerate() {
+            want.push((33, k * 2 + j, cell_to_world(x, y) + Vec2::new(s * (cw / 2. - 3.), 2.5), z + 0.02, sp.px.clone(), Vec2::splat(5.), false, lit(0.2, 0.18, 0.17))); }
+    }
     for (k, c) in w.chests.iter().enumerate() { if w.g.flags[c.y * W + c.x] & F_SEEN == 0 || w.g.is_solidish(c.y * W + c.x) && !c.opened { continue; } want.push((2, k, cell_to_world(c.x as f32 + 0.5 * SF, c.y as f32 + 1. - 1.1 * SF), 3., sp.chest[c.opened as usize].clone(), Vec2::new(16., 13.), false, lightf(c.x, c.y))); }
     for (k, b) in w.buildings.iter().enumerate() { want.push((3, k, cell_to_world(b.x as f32 + Station::W as f32 / 2., b.y as f32 + 1. - Station::H as f32 / 2.), 2., sp.station[b.kind.art() as usize][b.built as usize].clone(), Vec2::new(Station::W as f32 * CPX, Station::H as f32 * CPX), false, lightf(b.x + 5 * S, b.y - 2 * S))); }
     // torches: flickering flame frames and a small bloom round the flame (the light itself, with its shadows,

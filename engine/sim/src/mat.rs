@@ -14,8 +14,10 @@ pub enum Mat {
     RootTree, TreeRoot, Moss, Mycelium,
     // decorative blocks (furnishing): built with the block brush, structural by their own numbers
     Planks, Polished, Tiles, Carved,
+    // transport (transport.rs): track for mine carts
+    Rail,
 }
-pub const NMAT: usize = 36;
+pub const NMAT: usize = 37;
 
 /// Everything the simulation knows about a material, in one row. Rules read these fields instead of
 /// naming materials, so a new material (or a retuned one) is a single table edit.
@@ -65,6 +67,8 @@ pub const BUILT: u16 = 8;
 pub const NOTABLE: u16 = 16;
 /// Not solid enough to stop a block being placed into it (it's displaced).
 pub const OPEN: u16 = 32;
+/// Track: a mine cart's wheels run along its top (see transport.rs).
+pub const TRACK: u16 = 64;
 const BASE: Props = Props { name: "", desc: "", kind: Kind::Solid, density: 0., tensile: 0., compressive: 0., dig: 0, tier: 0, blast: 0,
     emit: [0, 0, 0], opacity: 0, color: [0, 0, 0], crumbles_to: Mat::Empty, repose: 0., heat: 0, ignite: 0, cools_to: Mat::Empty, life: 0,
     spread: 0, flow_in_10: 10, bounce: 0.35, friction: 0.5, flags: 0 };
@@ -109,6 +113,7 @@ pub static PROPS: [Props; NMAT] = [
     Props { name: "Polished stone", desc: "Dressed and rubbed smooth. As strong as brick.", kind: Solid, density: 2500., tensile: 600., compressive: 15000., dig: 8, tier: 1, blast: 6, opacity: 160, color: [176, 170, 160], crumbles_to: X::Gravel, flags: BUILT, ..BASE },
     Props { name: "Tiles", desc: "Fired clay tiles. Bright, but brittle under a roof.", kind: Solid, density: 2000., tensile: 300., compressive: 9000., dig: 5, blast: 4, opacity: 160, color: [190, 108, 74], crumbles_to: X::Gravel, flags: BUILT, ..BASE },
     Props { name: "Carved pillar", desc: "Fluted stone column. Very strong in compression.", kind: Solid, density: 2600., tensile: 800., compressive: 22000., dig: 9, tier: 1, blast: 7, opacity: 170, color: [164, 158, 148], crumbles_to: X::Gravel, flags: BUILT, ..BASE },
+    Props { name: "Rail", desc: "Copper straps on wooden sleepers. Mine carts run along it.", kind: Solid, density: 1800., tensile: 3000., compressive: 9000., dig: 4, blast: 4, opacity: 150, color: [150, 120, 84], crumbles_to: X::Rail, repose: 0.3, flags: BUILT | TRACK, bounce: 0.3, friction: 0.35, ..BASE },
 ];
 impl Mat {
     #[inline] pub fn from_u8(v: u8) -> Mat { if (v as usize) < NMAT { unsafe { std::mem::transmute(v) } } else { Mat::Empty } }

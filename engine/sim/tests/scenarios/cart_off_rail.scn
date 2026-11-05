@@ -1,0 +1,25 @@
+// Take the track out from under a cart and it comes off the rails: it drops onto the floor and sits there,
+// wheels in the stone, and won't roll however it's pushed; set back on track it runs again.
+map
+############################################################
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#.@........................................................#
+#########========###########################################
+############################################################
+end
+give Cart 1
+place 2 10 0 Cart                 // on the short stretch of track
+expect 3 cartrail == 1
+pour 4 9 1 Granite              // (scripted) the track under it is turned to rock: no rail now
+pour 4 10 1 Granite
+pour 4 11 1 Granite
+pour 4 12 1 Granite
+expect 20 cartrail == 0
+hold 30-120 right                 // walk into it and push
+expect 120 cartv == 0             // it doesn't roll off the rails
+expect 120 cartgap > 0
