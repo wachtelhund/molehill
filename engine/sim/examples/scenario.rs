@@ -8,7 +8,7 @@ fn mat_by_name(s: &str) -> Option<Mat> { (0..NMAT as u8).map(Mat::from_u8).find(
 fn mat_char(c: char) -> Option<Mat> { Some(match c { '.' | '@' => Mat::Empty, '#' => Mat::Granite, 'B' => Mat::Bedrock, 'r' => Mat::Rock, 'd' => Mat::Dirt, 'c' => Mat::Clay, 's' => Mat::Sand, 'g' => Mat::Gravel, 'w' => Mat::Water, 'l' => Mat::Lava, 'o' => Mat::Coal, 'i' => Mat::IronOre, 'b' => Mat::WoodBeam, 'k' => Mat::StoneBrick, 'I' => Mat::IronBeam, _ => return None }) }
 fn ch_of(m: Mat) -> char { match m { Mat::Empty => '.', Mat::Granite => '#', Mat::Bedrock => 'B', Mat::Rock => 'r', Mat::Dirt => 'd', Mat::Clay => 'c', Mat::Sand => 's', Mat::Gravel => 'g', Mat::Water => 'w', Mat::Lava => 'l', Mat::Coal => 'o', Mat::IronOre => 'i', Mat::WoodBeam => 'b', Mat::StoneBrick => 'k', Mat::IronBeam => 'I', Mat::Steam => '~', _ => '?' } }
 
-enum Act { Hold(u64, u64, Vec<String>), Mine(u64, u64, i32, i32), Tool(u64, u8), Explode(u64, i32, i32, f32), Place(u64, i32, i32, String, usize), Dump(u64), Ascii(u64), Expect(u64, String, String, f64, usize) }
+enum Act { Hold(u64, u64, Vec<String>), Mine(u64, u64, i32, i32), Dig(u64, u64, i32, i32), Tool(u64, u8), Explode(u64, i32, i32, f32), Place(u64, i32, i32, String, usize), Dump(u64), Ascii(u64), Expect(u64, String, String, f64, usize) }
 
 struct Run { w: World, ox: usize, oy: usize, mw: usize, mh: usize, ax: usize, ay: usize, sx: f32, sy: f32, top: f32, events: Vec<String> }
 impl Run {
@@ -55,6 +55,7 @@ fn run_file(path: &str, json: bool) -> bool {
             "ticks" => ticks = t[1].parse().unwrap(),
             "hold" => { let (a, b) = rng(t[1]); acts.push(Act::Hold(a, b, t[2..].iter().map(|s| s.to_string()).collect())); }
             "mine" => { let (a, b) = rng(t[1]); acts.push(Act::Mine(a, b, t[2].parse().unwrap(), t[3].parse().unwrap())); }
+            "dig" => { let (a, b) = rng(t[1]); acts.push(Act::Dig(a, b, t[2].parse().unwrap(), t[3].parse().unwrap())); }
             "tool" => acts.push(Act::Tool(t[1].parse().unwrap(), t[2].parse().unwrap())),
             "explode" => acts.push(Act::Explode(t[1].parse().unwrap(), t[2].parse().unwrap(), t[3].parse().unwrap(), t[4].parse().unwrap())),
             "place" => acts.push(Act::Place(t[1].parse().unwrap(), t[2].parse().unwrap(), t[3].parse().unwrap(), t[4].into(), ln + 1)),
@@ -64,7 +65,7 @@ fn run_file(path: &str, json: bool) -> bool {
             o => panic!("{path}:{}: unknown directive {o}", ln + 1),
         }
     }
-    for a in &acts { ticks = ticks.max(match a { Act::Hold(_, b, _) | Act::Mine(_, b, _, _) => *b, Act::Tool(t, _) | Act::Explode(t, ..) | Act::Place(t, ..) | Act::Dump(t) | Act::Ascii(t) | Act::Expect(t, ..) => *t }); }
+    for a in &acts { ticks = ticks.max(match a { Act::Hold(_, b, _) | Act::Mine(_, b, _, _) | Act::Dig(_, b, _, _) => *b, Act::Tool(t, _) | Act::Explode(t, ..) | Act::Place(t, ..) | Act::Dump(t) | Act::Ascii(t) | Act::Expect(t, ..) => *t }); }
     let mut w = World::new(512, 256, seed); w.disasters.enabled = false; w.drops.clear(); w.torches.clear(); w.farms.clear();
     let (sx0, sy0) = (w.moles[0].x, w.moles[0].y);
     let mh = map.len(); let mw = map.iter().map(|l| l.chars().count()).max().unwrap_or(0);
@@ -85,6 +86,7 @@ fn run_file(path: &str, json: bool) -> bool {
             for a in &acts { match a {
                 Act::Hold(a, b, ks) if (*a..=*b).contains(&tick) => for k in ks { match k.as_str() { "left" => inp.left = true, "right" => inp.right = true, "jump" => inp.jump = true, "up" => inp.up = true, "down" => inp.down = true, o => panic!("unknown key {o}") } },
                 Act::Mine(a, b, dx, dy) if (*a..=*b).contains(&tick) => inp.mine = Some(((r.ax as i32 + dx) as usize, (r.ay as i32 + dy) as usize)),
+                Act::Dig(a, b, dx, dy) if (*a..=*b).contains(&tick) => { let m = &r.w.moles[0]; inp.mine = Some(((m.x as i32 + dx) as usize, (m.y as i32 + dy) as usize)); }
                 Act::Tool(t, n) if *t == tick => inp.tool = *n,
                 Act::Explode(t, dx, dy, rr) if *t == tick => { let (x, y) = ((r.ax as i32 + dx) as usize, (r.ay as i32 + dy) as usize); r.w.explode(x, y, *rr, 6); }
                 Act::Place(t, dx, dy, it, ln) if *t == tick => { let (x, y) = ((r.ax as i32 + dx) as usize, (r.ay as i32 + dy) as usize);

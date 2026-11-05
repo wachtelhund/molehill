@@ -18,5 +18,13 @@ Polish only: no new features or concepts. Each entry is one commit.
    `World::swallow_held()` makes a held jump count only after release; the body re-sync (new world,
    respawn, load) does the same. The game ignores mouse buttons held since the menu closed until they're
    released. Test: `jump_held_through_a_menu_does_not_fire`.
+3. **Tight spaces for the 1.8x2.9 body.** A 2-wide shaft left 0.1 cell of slack, so jumping up into one
+   almost always bonked. Corner correction (`TUNE.nudge` 0.6): rising into a corner slides the body round it,
+   and airborne sideways moves snap the feet to the nearest row to slot into a tunnel mouth (it used to take
+   a cling and a slow slide down to line up). Dig aiming: the round bite left a lip at head or toe height
+   next to the body, so pointing ahead with the pickaxe only tunnelled when aimed exactly at mid-body. Now a
+   bite aimed level with the body (or straight up/down) also clears a body-sized passage to the aim point
+   (`World::passage_cells`, at most 6 cells, only cells the tool can dig). Scenarios: `shaft_jump`,
+   `tunnel_mouth`, `dig_tunnel`, `dig_tunnel_high`; harness `dig` directive (aim relative to the mole).
 
 ## Open issues

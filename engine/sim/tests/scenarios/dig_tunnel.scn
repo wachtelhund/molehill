@@ -1,0 +1,17 @@
+// Tunnelling with the pickaxe: walk right while pointing at the rock ahead at foot height. The bite also
+// clears a body-sized passage, so no lip is left at head or toe height and the mole keeps walking in.
+map
+##################################
+#rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr#
+#rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr#
+#rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr#
+#....rrrrrrrrrrrrrrrrrrrrrrrrrrrr#
+#....rrrrrrrrrrrrrrrrrrrrrrrrrrrr#
+#..@.rrrrrrrrrrrrrrrrrrrrrrrrrrrr#
+##################################
+end
+tool 1 1
+hold 1-240 right
+dig 1-240 3 0
+expect 240 dx > 14
+expect 240 grounded == 1

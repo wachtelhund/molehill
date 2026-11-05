@@ -1,0 +1,23 @@
+// Jump sideways at a 3-tall tunnel mouth whose floor is 3 cells up a wall: the mole slips in
+// (mantles over the lip) instead of bonking off the tunnel's edges.
+map
+##################
+#.........########
+#.........########
+#.........########
+#.........########
+#.........########
+#.........########
+#.................
+#.................
+#.................
+#.........########
+#.........########
+#...@.....########
+##################
+end
+hold 1-60 right
+hold 3-14 jump
+expect 30 dy <= -3
+expect 60 dx > 7
+expect 60 dy <= -3

@@ -39,10 +39,11 @@ pub const BODY_HW: f32 = 0.9; pub const BODY_H: f32 = 2.9;
 /// Movement tuning (cells, seconds). One place to tweak the feel.
 #[derive(Clone, Copy, Debug)]
 pub struct Tune { pub run: f32, pub ground_accel: f32, pub ground_decel: f32, pub air_accel: f32, pub gravity: f32, pub fall_mul: f32, pub cut_mul: f32, pub jump_v: f32, pub terminal: f32,
-    pub coyote: f32, pub buffer: f32, pub climb: f32, pub slide: f32, pub wall_jump_x: f32, pub wall_jump_y: f32, pub wall_lock: f32, pub step: f32, pub mantle: f32,
+    pub coyote: f32, pub buffer: f32, pub climb: f32, pub slide: f32, pub wall_jump_x: f32, pub wall_jump_y: f32, pub wall_lock: f32, pub step: f32, pub mantle: f32, /// corner correction (cells): head slides round corners, feet slot into tunnel mouths
+    pub nudge: f32,
     pub swim_mul: f32, pub swim_grav: f32, pub buoyancy: f32, pub swim_up: f32, pub swim_max: f32, pub lava_dps: f32, pub safe_fall: usize }
 pub const TUNE: Tune = Tune { run: 15., ground_accel: 900., ground_decel: 1400., air_accel: 260., gravity: 150., fall_mul: 1.7, cut_mul: 3.0, jump_v: 42., terminal: 60.,
-    coyote: 0.1, buffer: 0.1, climb: 9., slide: 3., wall_jump_x: 17., wall_jump_y: 36., wall_lock: 0.13, step: 2., mantle: 3.,
+    coyote: 0.1, buffer: 0.1, climb: 9., slide: 3., wall_jump_x: 17., wall_jump_y: 36., wall_lock: 0.13, step: 2., mantle: 3., nudge: 0.6,
     swim_mul: 0.55, swim_grav: 0.35, buoyancy: 40., swim_up: 70., swim_max: 11., lava_dps: 60., safe_fall: 20 };
 #[derive(Clone)]
 pub struct Drop { pub x: usize, pub y: usize, pub item: Item, pub n: u32, pub claimed: bool }
@@ -449,6 +450,22 @@ impl World {
             let (nx, ny) = (x as i32 + dx, y as i32 + dy); if self.g.in_bounds(nx, ny) { v.push(self.g.idx(nx as usize, ny as usize)); } } }
         v
     }
+    /// Dig assist for tight spaces: when the aim is level with the body (sideways) or within its columns
+    /// (up/down), the bite also clears a body-sized passage from the body to the aim (at most 6 cells), so a
+    /// tunnel dug by pointing ahead always fits the 1.8x2.9 mole and never leaves a lip at head or toe height.
+    pub fn passage_cells(&self, mx: usize, my: usize) -> Vec<usize> {
+        let (px, py) = (self.pl.px, self.pl.py); let (mx, my) = (mx as i32, my as i32);
+        let (c0, c1) = ((px - BODY_HW).floor() as i32, (px + BODY_HW - 1e-3).floor() as i32);
+        let (r0, r1) = ((py - BODY_H).floor() as i32, (py - 1e-3).floor() as i32);
+        let (xs, ys) = if (r0 - 1..=r1).contains(&my) && (mx > c1 || mx < c0) {
+            (if mx > c1 { (c1 + 1, mx.min(c1 + 6)) } else { (mx.max(c0 - 6), c0 - 1) }, (r0, r1))
+        } else if (c0 - 1..=c1 + 1).contains(&mx) && (my > r1 || my < r0) {
+            ((c0, c1), if my > r1 { (r1 + 1, my.min(r1 + 6)) } else { (my.max(r0 - 6), r0 - 1) })
+        } else { return vec![] };
+        let mut v = vec![];
+        for y in ys.0..=ys.1 { for x in xs.0..=xs.1 { if self.g.in_bounds(x, y) { v.push(self.g.idx(x as usize, y as usize)); } } }
+        v
+    }
     /// Does the body AABB (centre px, feet py) overlap any solid cell?
     pub fn box_hits(&self, px: f32, py: f32) -> bool {
         let (x0, x1) = ((px - BODY_HW).floor() as i32, (px + BODY_HW - 1e-3).floor() as i32);
@@ -474,6 +491,13 @@ impl World {
     }
     /// Keys already held when control returns (a menu closing on Space, a load) must not act: a held
     /// jump only counts again after it is released and pressed anew.
+    /// Rising into a corner: the x within `max` cells of the body that would let it pass (left or right edge
+    /// aligned to the cell boundary), nearest first.
+    fn corner_nudge(&self, ny: f32, max: f32) -> Option<f32> {
+        let px = self.pl.px; let r = (px - BODY_HW).ceil() + BODY_HW; let l = (px + BODY_HW).floor() - BODY_HW;
+        let mut c = [r, l]; if (l - px).abs() < (r - px).abs() { c.swap(0, 1); }
+        c.into_iter().find(|&x| (x - px).abs() <= max && (x - px).abs() > 1e-4 && !self.box_hits(x, ny) && !self.box_hits(x, self.pl.py))
+    }
     pub fn swallow_held(&mut self) { self.pl.jump_was = true; }
     fn step_player(&mut self) {
         if self.moles.is_empty() { return; }
@@ -542,6 +566,8 @@ impl World {
                     let lift = if ground || self.pl.coyote > 0. { t.step } else if self.pl.cling != 0 { t.mantle } else { 0. };
                     let mut k = 1.; let mut ok = false;
                     while k <= lift { let ny = (self.pl.py - k).ceil(); if !self.box_hits(nx, ny) && !self.box_hits(self.pl.px, ny) { self.pl.py = ny; self.pl.px = nx; ok = true; break; } k += 1.; }
+                    // airborne: slot into a tunnel mouth when the feet are within a little of its floor row
+                    if !ok && !ground { let ny = self.pl.py.round(); if (ny - self.pl.py).abs() <= t.nudge && !self.box_hits(nx, ny) && !self.box_hits(self.pl.px, ny) { self.pl.py = ny; self.pl.px = nx; ok = true; } }
                     if !ok && !self.push_powder(nx, self.pl.py, sx.signum() as i32) { self.pl.vx = 0.; }
                     else if !ok { self.pl.vx *= 0.85; }
                 }
@@ -549,6 +575,7 @@ impl World {
             let sy = dy / n as f32; let ny = self.pl.py + sy;
             if sy != 0. {
                 if !self.box_hits(self.pl.px, ny) { self.pl.py = ny; }
+                else if let Some(cx) = (sy < 0.).then(|| self.corner_nudge(ny, t.nudge)).flatten() { self.pl.px = cx; self.pl.py = ny; } // head clipped a corner: slide around it
                 else { if sy > 0. { self.pl.py = ny.floor(); while self.box_hits(self.pl.px, self.pl.py) && self.pl.py > 1. { self.pl.py -= 0.01; } airfall = false; } else { self.pl.py = (self.pl.py - BODY_H).floor() + BODY_H + 0.0; while self.box_hits(self.pl.px, self.pl.py) { self.pl.py += 0.01; if self.pl.py > self.g.h as f32 - 2. { break; } } } self.pl.vy = 0.; }
             }
         }
@@ -567,7 +594,8 @@ impl World {
         // carries over while the cursor drags within 2 cells, so sweeping carves a tunnel smoothly.
         match inp.mine {
             Some((mx, my)) if mx < self.g.w && my < self.g.h && self.in_reach(mx, my) => {
-                let cells = self.bite_cells(mx, my);
+                let mut cells = self.bite_cells(mx, my);
+                for c in self.passage_cells(mx, my) { if !cells.contains(&c) { cells.push(c); } }
                 let need = cells.iter().filter_map(|&i| self.mine_time(i)).max();
                 if let Some(need) = need {
                     let i = self.g.idx(mx, my);

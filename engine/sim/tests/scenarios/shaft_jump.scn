@@ -1,0 +1,16 @@
+// Jump straight up into a 2-wide shaft while standing half a cell off its centre (the body is 1.8 wide,
+// so the shaft leaves 0.1 cell to spare): the head slides around the corner and the mole goes up.
+map
+####..######
+####..######
+####..######
+####..######
+####..######
+#..........#
+#..........#
+#..........#
+#...@......#
+############
+end
+hold 5-30 jump
+expect 30 rise > 4.5

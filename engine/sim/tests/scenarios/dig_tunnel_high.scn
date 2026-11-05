@@ -1,0 +1,15 @@
+// Same, pointing at the rock ahead at head height.
+map
+##################################
+#rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr#
+#rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr#
+#rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr#
+#....rrrrrrrrrrrrrrrrrrrrrrrrrrrr#
+#....rrrrrrrrrrrrrrrrrrrrrrrrrrrr#
+#..@.rrrrrrrrrrrrrrrrrrrrrrrrrrrr#
+##################################
+end
+tool 1 1
+hold 1-240 right
+dig 1-240 3 -2
+expect 240 dx > 14

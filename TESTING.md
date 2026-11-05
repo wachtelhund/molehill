@@ -46,6 +46,7 @@ hold 1-30 right         // hold keys for ticks A-B: left right jump up down (sev
 hold 31-40 right jump
 tool 41 3               // from tick 41 dig with tool tier 0 claws, 1 pickaxe, 2 drill, 3 bore
 mine 41-60 3 0          // hold mine on cell (dx,dy) relative to '@' during ticks A-B
+dig 41-60 3 -1          // same, but (dx,dy) is relative to the mole's current cell (feet row), so it follows the mole
 explode 70 5 -2 3       // TNT-strength blast at (dx,dy) with radius r at tick T
 place 5 3 1 WoodPillar  // place a block item (WoodPillar, Brick, IronBeam) at (dx,dy) at tick T, through the player's
                         // real placement rules; a refused placement prints a NOTE line
@@ -89,6 +90,9 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `beam_spans_gap.scn` | Placed wood beams across an 8-wide pit and an iron stub stay put (rigid, nothing crumbles) |
 | `pillar_in_cave.scn` | A wood pillar stands while half-built and once it reaches the roof of a 40-wide cave |
 | `dirt_roof_falls.scn` / `pillar_holds_roof.scn` | A 20-wide dirt roof falls alone; four placed pillars hold it |
+| `shaft_jump.scn` | Jumping half a cell off-centre under a 2-wide shaft slides round the corner and goes up |
+| `tunnel_mouth.scn` | Jumping at a tunnel mouth 3 cells up a wall slots the mole in on the way up |
+| `dig_tunnel.scn` / `dig_tunnel_high.scn` | Walking right while pointing at the rock ahead (foot / head height) tunnels through |
 | `beam_overload.scn` | A long wood beam under a deep sand heap breaks and the sand pours through |
 
 ### Writing a new scenario (for agents)
