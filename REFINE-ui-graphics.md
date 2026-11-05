@@ -87,13 +87,27 @@ Polish only: no new systems, lore names kept. Each entry lists what changed and 
 * Fix: placement pops shared a sprite-pool kind with torch halos, so a pop with the same index as a torch was
   never drawn.
 
+## Phase 2: light, headlamp, held items, music
+
+* **Light system** (`sim/src/light.rs`): sources (torches, lamps, kilns, the headlamp beam, a torch in the paws) cast rays
+  that stop at rock, so walls throw shadows; point lights fall off as (1 − d/R)², beams as (1 − (d/R)²)²; sources add;
+  a steep bounce pass softens edges; material glow (lava, crystal, fungus) is unchanged; the old sky path is gone.
+  The renderer's own glow around the mole is gone (the sim's lights replace it) and remembered rock is a little darker.
+* **Headlamp**: a brass delving hat with a fungus-oil lamp on every mole frame (lit/out sheets, lens halo). The beam
+  follows the aim and reveals fog along it. `G` or Settings toggles it (saved). `Q` is throwing (refine/materials).
+* **Held items**: pickaxe/drill/bore turned to the aim in 15° steps (the pick swings, the drill and bore shake), blocks
+  and charges thrust on placing, a torch upright with its flame (and its light).
+* **Music**: generative ambient (`game/src/music.rs` + WebAudio in `audio.rs`), its own volume and mute in Settings.
+* Scenarios `light_torch`, `headlamp`, `headlamp_wall`, `held_torch` (directives `lamp`, `aim`, `wield`, `torch`;
+  variable `light:`); composer unit tests.
+
 ## Open issues
 * `--shot` writes an empty frame on macOS when the game is launched from a background shell (the surface is
   never presented). It needs a visible window, or Linux with Xvfb.
 * Nothing here has been seen in a live window: this machine's shell can't capture or drive one. Sprites and the
   composited world were checked through `--dump-art`; still unchecked by eye are the climb pose's placement against
   a wall, squash/stretch, particles, the halos' strength, tooltip placement near screen edges, and the menu grid.
-* The web build crash and the self-scrolling hotbar reported on main are owned by refine/bugs-logic; this run
-  avoided input/hotbar code.
+* Light, the hat, held items and music were checked headlessly (light scenarios, sprite dumps, composer tests),
+  not in a live window or by ear.
 * Remembered rock is quite dark (light floor 0.22). That's deliberate (Delvers see poorly) but worth a look in play.
 * Stations, chests and mushrooms are snapped from vector art rather than drawn as pixel art from scratch.
