@@ -111,6 +111,10 @@ impl Logic {
             if d <= r * 0.8 { self.remove(g, b); }
         }
     }
+    /// A mole's body (feet cell (x, y), 3 tall, about a cell either side) overlaps block b.
+    pub fn occupied(&self, b: usize, moles: &[(usize, usize)]) -> bool {
+        moles.iter().any(|&(x, y)| (x.saturating_sub(1)..=x + 1).any(|xx| (0..3).any(|k| y >= k && self.block_of(xx, y - k) == b)))
+    }
     fn set_door(&self, g: &mut Grid, b: usize, open: bool) {
         let (x0, y0) = ((b % self.bw) * B, (b / self.bw) * B);
         for y in y0..y0 + B { for x in x0..x0 + B {
@@ -182,8 +186,9 @@ impl Logic {
             let d = Dev::from_u8(self.dev[b]); if d == Dev::None { continue; }
             let p = self.is_powered(b); self.powered[b] = p as u8;
             match d {
-                Dev::Door => if (self.dev_s[b] == 1) != p { self.dev_s[b] = p as u8; self.set_door(g, b, p); },
-                Dev::Floodgate => if (self.dev_s[b] == 1) != p { self.dev_s[b] = p as u8; self.set_door(g, b, !p); },
+                // a door never shuts on a mole: it waits until the doorway is clear
+                Dev::Door => if (self.dev_s[b] == 1) != p && (p || !self.occupied(b, moles)) { self.dev_s[b] = p as u8; self.set_door(g, b, p); },
+                Dev::Floodgate => if (self.dev_s[b] == 1) != p && (!p || !self.occupied(b, moles)) { self.dev_s[b] = p as u8; self.set_door(g, b, !p); },
                 Dev::Pump => if p { self.pump(g, b) },
                 Dev::Lamp => self.dev_s[b] = p as u8,
                 Dev::Tnt => if p { self.detonate(b) },

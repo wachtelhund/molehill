@@ -101,6 +101,8 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `tnt_inert.scn` | Placed TNT is inert; right mouse lights a 1.5 s fuse, then it blows |
 | `tnt_lever.scn` / `tnt_thrum.scn` | Remote detonation: a lever on copperline, or a thrummer knocking through 2 m of granite to a listener |
 | `tnt_defuse.scn` / `tnt_douse.scn` | A lit charge picked up is defused (and comes back unlit); water puts a fuse out |
+| `knots.scn` | Truth tables of the both/either/turn/odd/catch knots, swapped in place |
+| `door.scn` | A lever opens a door; it waits for the mole to clear the doorway before shutting; no door on yourself |
 | `saveload_devices.scn` | A thrown lever, a lit lamp and a burning TNT fuse survive save/load |
 | `beam_overload.scn` | A wood beam under a sand heap breaks into wood splinters; the same iron span holds |
 

@@ -1,0 +1,62 @@
+// Knot truth tables. Lever A feeds the knot's west input, lever B its north input, and the knot drives
+// the copperline to its east, which powers a lamp. The knot is swapped in place: both (AND), either (OR),
+// turn (NOT, west only), odd (XOR), catch (latch: west sets, north resets, otherwise it holds).
+map
+##########################################
+#........................................#
+#........................................#
+#........................................#
+#........................................#
+#........................................#
+#........................................#
+#........................................#
+#........................................#
+#........................................#
+#........................................#
+#........................................#
+#..@.....................................#
+##########################################
+end
+give Gate 2
+give Lamp 1
+device 3 0 -1 Lever
+wire 4 4 -1
+device 5 8 -9 Lever
+wire 6 8 -5
+wire 7 12 -1
+device 8 16 -1 Lamp
+device 9 8 -1 And
+expect 20 on:16,-1 == 0
+use 21 0 -1
+expect 25 on:16,-1 == 0
+use 26 8 -9
+expect 30 on:16,-1 == 1
+use 31 0 -1
+expect 35 on:16,-1 == 0
+pickup 40 8 -1
+expect 40 inv:Gate == 2
+device 41 8 -1 Or
+expect 45 on:16,-1 == 1
+use 46 8 -9
+expect 50 on:16,-1 == 0
+pickup 55 8 -1
+device 56 8 -1 Not
+expect 60 on:16,-1 == 1
+use 61 0 -1
+expect 65 on:16,-1 == 0
+pickup 70 8 -1
+device 71 8 -1 Xor
+expect 75 on:16,-1 == 1
+use 76 8 -9
+expect 80 on:16,-1 == 0
+pickup 85 8 -1
+device 86 8 -1 Latch
+expect 90 on:16,-1 == 1
+use 91 0 -1
+expect 95 on:16,-1 == 0
+use 96 8 -9
+expect 100 on:16,-1 == 0
+use 101 0 -1
+expect 105 on:16,-1 == 1
+use 106 0 -1
+expect 110 on:16,-1 == 1

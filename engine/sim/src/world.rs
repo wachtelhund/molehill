@@ -602,6 +602,7 @@ impl World {
         if !self.in_reach(x, y) { return Err("out of reach"); }
         let b = self.logic.block_of(x, y);
         if self.logic.dev[b] != 0 { return Err("something is already there"); }
+        if d == Dev::Door && self.logic.occupied(b, &self.moles.iter().filter(|m| m.alive).map(|m| (m.x, m.y)).collect::<Vec<_>>()) { return Err("you are standing there"); }
         let cost = d.cost(); if let Some(it) = cost { if self.inv[it as usize] == 0 { return Err("none left"); } }
         let had_wire = self.logic.wire[b] != 0;
         if !self.logic.place(&mut self.g, d, b) { return Err("needs open space"); }

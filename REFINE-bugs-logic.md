@@ -11,6 +11,8 @@ Short log of what this run changed, and what is still open.
 * **Pack accounting**: dragging copperline over a knot used to eat a copperline every frame. `Ctrl`+right mouse now refunds the copperline under a device too, and a knot placed on copperline gives the copperline back. Placement goes through `World::place_device / use_device / lay_wire / pick_up`, which also check reach.
 * **Save/load**: burning fuses and lit TNT keep burning after a load, and the death count is kept (optional trailing section, so older v3 saves still load). Loading a save where the mole is far below the burrow no longer counts as a fall: it used to kill the mole on load.
 * Harness: `device`, `use`, `pickup`, `wire`, `saveload` directives; `dev:`, `lit:`, `on:`, `wire:`, `ev:` variables. Action events (clicks, places) are no longer dropped. New scenarios: `tnt_inert`, `tnt_lever`, `tnt_thrum`, `tnt_defuse`, `tnt_douse`, `saveload_devices`. New tests: `load_deep_does_not_fall_damage`, `wire_and_device_pack_accounting`, `replaced_fuse_is_not_burning`.
+* **Doors never shut on the mole**: a door (or floodgate) told to close waits while a mole stands in its block, then closes once it is clear. A door can't be placed on yourself. Scenario `door`.
+* Knots audited with a truth-table scenario (`knots`: both, either, turn, odd, catch). They were correct.
 
 ## Open
 * Placing TNT onto a copperline that is already live sets it off on the next tick. That is consistent (it is powered), but easy to do by accident.
