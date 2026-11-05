@@ -90,8 +90,8 @@ The chain is the design: wood and stone get you a bench; clay and coal get you a
 
 Plant a spore on an open cell standing on soil. A plot grows fastest when it is both:
 
-* **dark:** no torch, lit lamp, kiln or furnace within 10 cells; and
-* **damp:** water, wet soil or clay within 4 cells.
+* **dark:** no torch, lit lamp, kiln or furnace within 10 tiles (2.5 m), or 12 tiles (3 m) for a kiln or furnace; and
+* **damp:** water, wet soil or clay within 4 tiles (1 m).
 
 With only one of the two it grows at ¼ speed, and with neither it doesn't grow. A ripe plot drops 2 mushrooms (with a 1-in-3 chance of a spore) and regrows. Farms breathe a little CO2.
 

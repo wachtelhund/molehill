@@ -638,3 +638,22 @@ mod bands {
         let l = save::load(&save::save(&w)).expect("and saves again as v4"); assert_eq!(l.oy, w.oy);
     }
 }
+/// The material table is the one place material behaviour lives: its rows must hang together.
+#[test]
+fn material_table_is_consistent() {
+    use molehill_sim::mat::{Kind, Mat, NMAT, BUILT, OPEN, SOIL};
+    for v in 0..NMAT as u8 {
+        let m = Mat::from_u8(v); let p = m.p();
+        assert!(!p.name.is_empty() && !p.desc.is_empty(), "{m:?} needs a name and a description");
+        if p.kind == Kind::Liquid { assert!(p.spread > 0 && p.flow_in_10 > 0, "{m:?}: a liquid must flow"); }
+        if p.heat >= 2 { assert!(p.cools_to != Mat::Empty, "{m:?}: something molten must set into something"); }
+        if p.ignite > 0 { assert!(p.kind == Kind::Solid || p.kind == Kind::Powder, "{m:?}: only solid things burn"); }
+        if m.has(BUILT) { assert_eq!(p.kind, Kind::Solid, "{m:?}: built blocks are solid"); }
+        if m.has(SOIL) { assert!(matches!(p.kind, Kind::Solid | Kind::Powder), "{m:?}: soil is ground"); }
+        if m.has(OPEN) { assert!(m.passable(), "{m:?}: a block can only displace something you can pass through"); }
+        if p.kind == Kind::Solid { assert!(matches!(p.crumbles_to.kind(), Kind::Solid | Kind::Powder), "{m:?} must crumble into rubble"); }
+    }
+    // heat rules come from the table: lava lights coal and wood, a flame lights wood but not coal
+    let (lava, fire) = (Mat::Lava.p().heat, Mat::Fire.p().heat);
+    assert!(Mat::Coal.lit_by(lava) && Mat::WoodBeam.lit_by(lava) && Mat::WoodBeam.lit_by(fire) && !Mat::Coal.lit_by(fire) && !Mat::Granite.lit_by(lava));
+}
