@@ -19,11 +19,11 @@ expect 300 log:Headlamp_oil_low == 1     // once, not every tick
 set 400 oil 0.5
 expect 460 lamp == 0
 expect 460 log:out_of_oil == 1
-expect 460 log:Gather_2_fungus == 1
+expect 460 log:2_press_into_a_measure == 1
 placetorch 470 3 -1
 expect 471 inv:Torch == 4
-expect 471 log:No_fungus_oil_to_soak == 1
-expect 471 log:Needs_open_space == 0
+expect 471 log:needs_fungus_oil == 1
+expect 471 log:in_the_way == 0
 drop 480 Fungus 0 -1              // fungus turns up: it's pressed and the lamp relights
 drop 480 Fungus 0 -1
 expect 540 lamp == 1

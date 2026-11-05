@@ -66,13 +66,21 @@ impl World {
     /// Is the headlamp shining? It has to be on, and (in Survival) have oil in it.
     pub fn lamp_lit(&self) -> bool { self.gear.lamp && (!self.rules.fuel || self.lamp_oil > 0.) }
     /// Is there a measure of oil to come: fungus oil in the pack, or fungus enough to press one?
-    pub fn oil_spare(&self) -> bool { self.inv[Item::FungusOil as usize] > 0 || self.inv[Item::Fungus as usize] >= FUNGUS_PER_OIL }
+    pub fn oil_spare(&self) -> bool { self.oil_measures() > 0 }
     /// Take one measure of fungus oil from the pack, pressing fungus into oil if there's none. False if
     /// there's neither.
     pub fn take_oil(&mut self) -> bool {
-        if self.inv[Item::FungusOil as usize] > 0 { self.inv[Item::FungusOil as usize] -= 1; return true; }
-        if self.inv[Item::Fungus as usize] >= FUNGUS_PER_OIL { self.inv[Item::Fungus as usize] -= FUNGUS_PER_OIL; self.say("Pressed fungus into oil".into()); self.events.push(Event::Craft); return true; }
-        false
+        if self.inv[Item::FungusOil as usize] > 0 { self.inv[Item::FungusOil as usize] -= 1; }
+        else if self.inv[Item::Fungus as usize] >= FUNGUS_PER_OIL {
+            self.inv[Item::Fungus as usize] -= FUNGUS_PER_OIL; self.events.push(Event::Craft);
+            self.say(format!("Pressed {FUNGUS_PER_OIL} fungus into a measure of oil ({} fungus left).", self.inv[Item::Fungus as usize]));
+        } else { return false; }
+        // that was the last measure the pack could give: say so while there's still light to gather by
+        if self.oil_measures() == 0 { self.say("The last measure of oil. Gather fungus to press more.".into()); self.events.push(Event::Warning); }
+        true
+    }
+    /// Measures of oil the pack can still give: oil, and fungus to press.
+    pub fn oil_measures(&self) -> u32 { self.inv[Item::FungusOil as usize] + self.inv[Item::Fungus as usize] / FUNGUS_PER_OIL
     }
     /// Once a tick, after the moles: the lamp burns oil; Creative keeps vitals full.
     pub(crate) fn step_survival(&mut self) {
@@ -86,7 +94,7 @@ impl World {
             else if self.lamp_oil > 0. && !self.lamp_low { self.lamp_low = true; self.say(format!("Headlamp oil low: about {:.0} s left and none spare. Gather fungus (2 make a measure).", self.lamp_oil.ceil())); self.events.push(Event::Warning); }
             if self.lamp_oil <= 0. {
                 if self.take_oil() { self.lamp_oil += OIL_SECS; if self.lamp_dry { self.say("Headlamp relit with fresh oil.".into()); } self.lamp_dry = false; }
-                else if !self.lamp_dry { self.lamp_dry = true; self.say("The headlamp is out of oil: it's dark. Gather 2 fungus or find fungus oil and it relights.".into()); self.events.push(Event::Warning); }
+                else if !self.lamp_dry { self.lamp_dry = true; self.say("The headlamp is out of oil. Pick up fungus: 2 press into a measure.".into()); self.events.push(Event::Warning); }
             }
         }
         if self.rules.harmless { for m in self.moles.iter_mut() { m.hp = 100.; m.breath = 100.; m.hunger = 100.; } }

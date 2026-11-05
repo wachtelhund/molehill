@@ -548,7 +548,7 @@ fn input(mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<Button
     // (a glowmite under the cursor goes in a jar first)
     if mouse.just_pressed(MouseButton::Right) && !g.w.catch_glowmite(cx, cy) && !g.w.use_device(cx, cy) {
         let d = match sel { Some(Thing::Dev(d)) => Some(DEVS[d]), Some(Thing::Item(Item::Tnt)) => Some(Dev::Tnt), Some(Thing::Item(Item::Lamp)) => Some(Dev::Lamp), Some(Thing::Item(Item::Vent)) => Some(Dev::Vent), _ => None };
-        if let Some(d) = d { if let Err(e) = g.w.place_device(d, cx, cy) { g.msg = format!("Can't place: {e}"); } }
+        if let Some(d) = d { if let Err(e) = g.w.place_device(d, cx, cy) { g.w.refuse_place(d.name(), e); } }
     }
     // left mouse: use the item in hand
     let (lp, lj) = (mouse.pressed(MouseButton::Left) && !latched, mouse.just_pressed(MouseButton::Left) && !latched);
@@ -557,22 +557,22 @@ fn input(mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<Button
         Some(Thing::Item(it)) if lp && sw::block_code(it).is_some() => {
             let r = if g.sizes.snapping(sw::Brush::Place(it)) { let a = *g.drag.get_or_insert((cx, cy)); let n = g.sizes.snap_cells(); g.w.place_line(a, (cx, cy), n, it) }
                 else { let r = brush_r(&g, sw::Brush::Place(it)); g.w.place_brush(cx, cy, it, r) };
-            if let Err(e) = r { if lj { g.msg = format!("Can't place: {e}"); } } }
+            if let Err(e) = r { if lj { g.w.refuse_place(it.name(), e); } } }
         Some(Thing::Item(Item::CopperWire)) if lp => { g.w.lay_wire(cx, cy); }
         // a pigment paints a brush of blocks, or dyes the rug / banner / nest under the cursor
         Some(Thing::Item(it)) if lp && it.pigment().is_some() => { let r = brush_r(&g, sw::Brush::Place(it)); if let Err(e) = g.w.paint(cx, cy, it, r) { if lj { g.msg = format!("Can't paint: {e}"); } } }
-        Some(Thing::Item(it)) if lj && it.furn().is_some() => { if let Err(e) = g.w.place_furniture(it, cx, cy) { g.msg = format!("Can't place: {e}"); } }
-        Some(Thing::Item(it)) if lj && molehill_sim::transport::is_machine(it) => { if let Err(e) = g.w.place_transport(it, cx, cy) { g.msg = format!("Can't place: {e}"); } }
-        Some(Thing::Item(Item::Torch)) if lj => { if let Err(e) = g.w.try_place_torch(cx, cy) { g.msg = e.into(); } }
+        Some(Thing::Item(it)) if lj && it.furn().is_some() => { if let Err(e) = g.w.place_furniture(it, cx, cy) { g.w.refuse_place(it.name(), e); } }
+        Some(Thing::Item(it)) if lj && molehill_sim::transport::is_machine(it) => { if let Err(e) = g.w.place_transport(it, cx, cy) { g.w.refuse_place(it.name(), e); } }
+        Some(Thing::Item(Item::Torch)) if lj => { if let Err(e) = g.w.try_place_torch(cx, cy) { g.w.refuse_place("torch", e); } }
         // TNT goes down inert; right mouse lights it, or wire it to a lever / knot / listener
-        Some(Thing::Item(Item::Tnt)) if lj => { if g.w.logic.dev[blk] != 0 { g.w.use_device(cx, cy); } else if let Err(e) = g.w.place_device(Dev::Tnt, cx, cy) { g.msg = format!("Can't place: {e}"); } }
+        Some(Thing::Item(Item::Tnt)) if lj => { if g.w.logic.dev[blk] != 0 { g.w.use_device(cx, cy); } else if let Err(e) = g.w.place_device(Dev::Tnt, cx, cy) { g.w.refuse_place("TNT", e); } }
         // pack items that are exactly one device place it (knots and thrummers come in several kinds: use their device slots)
         Some(Thing::Item(it @ (Item::Lamp | Item::Vent))) if lj => { let d = if it == Item::Lamp { Dev::Lamp } else { Dev::Vent };
-            if g.w.logic.dev[blk] != 0 { g.w.use_device(cx, cy); } else if let Err(e) = g.w.place_device(d, cx, cy) { g.msg = format!("Can't place: {e}"); } }
+            if g.w.logic.dev[blk] != 0 { g.w.use_device(cx, cy); } else if let Err(e) = g.w.place_device(d, cx, cy) { g.w.refuse_place(it.name(), e); } }
         Some(Thing::Item(Item::Spore)) if lj => { if let Err(e) = g.w.plant(cx, cy) { g.msg = format!("Can't plant: {e}"); } }
         Some(Thing::Dev(d)) if lj => {
             if g.w.logic.dev[blk] != 0 { g.w.use_device(cx, cy); }
-            else if let Err(e) = g.w.place_device(DEVS[d], cx, cy) { g.msg = format!("Can't place: {e}"); }
+            else if let Err(e) = g.w.place_device(DEVS[d], cx, cy) { g.w.refuse_place(DEVS[d].name(), e); }
         }
         Some(Thing::Station(k)) if lj => { let s = STATIONS[k]; if let Err(e) = g.w.place_building(s, cx.saturating_sub(Station::W / 2), cy) { g.msg = format!("Can't build: {e}"); } }
         _ => {}
