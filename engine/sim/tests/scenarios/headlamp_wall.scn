@@ -1,0 +1,14 @@
+// Rock stops the headlamp's beam: the face of the wall is lit, the room behind it stays dark.
+map
+######################################
+#..........#.........................#
+#..........#.........................#
+#..........#.........................#
+#..@.......#.........................#
+######################################
+end
+lamp 1 on
+aim 1 20 -2
+expect 3 light:6,-2 > 0.6             // lit on the way to the wall
+expect 3 light:8,-2 > 0.1             // the wall face catches it
+expect 3 light:14,-2 < 0.02           // behind the wall: dark

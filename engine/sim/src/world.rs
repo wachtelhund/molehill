@@ -32,6 +32,10 @@ pub struct Mole {
     pub path: VecDeque<(usize, usize)>, pub job: Option<Job>, pub work: u32, pub work_cell: Option<usize>,
     pub carry: Option<(Item, u32)>, pub hunger: f32, pub sleep: f32, pub facing: i8, pub fall: u32, pub idle: u32, pub anim: u32, pub alive: bool,
 }
+/// What the player mole has on: the fungus-oil headlamp (on/off), what's in its paws, and where it's
+/// looking (cell coords of the cursor, if any). The game sets this every frame; it survives pauses.
+#[derive(Clone, Default, Debug)]
+pub struct Gear { pub lamp: bool, pub held: Option<Item>, pub aim: Option<(f32, f32)> }
 /// What the player is pressing this tick (the game fills it in; the sim never reads the keyboard).
 #[derive(Clone, Default, Debug)]
 pub struct Input { pub left: bool, pub right: bool, pub jump: bool, pub up: bool, pub down: bool, /// held: run faster (`TUNE.sprint`), costs a little food
@@ -108,7 +112,7 @@ pub struct World {
     pub moles: Vec<Mole>, pub drops: Vec<Drop>, pub stockpile: (usize, usize, usize, usize),
     pub buildings: Vec<Building>, pub torches: Vec<(usize, usize)>, pub chests: Vec<Chest>,
     pub quest: usize, pub log: Vec<(u64, String)>, pub discovered: [bool; NMAT], pub chests_opened: u32, pub pillars: u32,
-    pub max_depth: f32, pub craft_queue: Vec<usize>, pub day: f32, pub crumbled: u64, pub light_rect: (usize, usize, usize, usize),
+    pub max_depth: f32, pub craft_queue: Vec<usize>, pub gear: Gear, pub crumbled: u64, pub light_rect: (usize, usize, usize, usize),
     pub events: Vec<Event>, pub react_pending: bool,
     /// where this tick's feedback happened, for in-world pops: (kind, x, y, radius in cells); kind 0 = a bite
     /// cleared, 1 = a block placed. Cleared every step like `events`.
@@ -132,7 +136,7 @@ impl World {
         let mut wd = World {
             st: Stress::new(w * h), light: Light::new(w, h), tick: 0, inv: [0; NITEM], dig_acc: [0; NMAT], place_acc: [0; 8], desig: vec![0; w * h],
             moles: vec![], drops: vec![], stockpile: (0, 0, 0, 0), buildings: vec![], torches: vec![], chests: vec![],
-            quest: 0, log: vec![], discovered: [false; NMAT], chests_opened: 0, pillars: 0, max_depth: 0., craft_queue: vec![], day: 0., crumbled: 0,
+            quest: 0, log: vec![], discovered: [false; NMAT], chests_opened: 0, pillars: 0, max_depth: 0., craft_queue: vec![], gear: Gear::default(), crumbled: 0,
             light_rect: (0, 0, w - 1, h - 1), events: vec![], marks: vec![], react_pending: false, logic: Logic::new(w, h), disasters: Disasters::new(seed), shake: 0., air: Air::new(w, h), farms: vec![], harvested: 0, input: Input::default(), pl: Player::default(), gen: gn, oy, cache: Default::default(), opened: Default::default(), info, g,
         };
         wd.refresh_chests();
@@ -361,7 +365,6 @@ impl World {
         if self.tick % 30 == 0 { self.follow_colony(); }
         self.shake *= 0.93;
         if self.tick % 30 == 0 { self.check_quests(); self.check_chests(); }
-        self.day = 0.; // no sky in the Deepholt
     }
     /// Stress re-solve over clusters of dirty chunk boxes (boxes within 16 m of each other merge).
     fn solve_regions(&mut self, mut boxes: Vec<(usize, usize, usize, usize)>) -> Vec<u32> {
@@ -435,13 +438,35 @@ impl World {
             k += 1;
         }
     }
+    /// The player's head (where the headlamp sits) and the beam's direction: toward the aim, or
+    /// ahead and a little down when nothing is aimed at.
+    pub fn headlamp(&self) -> ((f32, f32), (f32, f32)) {
+        let f = self.moles.first().map_or(1, |m| m.facing) as f32;
+        let head = if self.pl.cling != 0 { (self.pl.px - self.pl.cling as f32 * 0.3 * SF, self.pl.py - 2.6 * SF) } else { (self.pl.px + f * 0.6 * SF, self.pl.py - 2.2 * SF) };
+        let dir = match self.gear.aim { Some((ax, ay)) if (ax - head.0).abs() + (ay - head.1).abs() > 1.5 * SF => (ax - head.0, ay - head.1), _ => (f, 0.25) };
+        (head, dir)
+    }
+    /// Every light source that isn't a glowing material.
+    pub fn light_sources(&self) -> Vec<light::Source> {
+        use light::{kinds::*, Source};
+        let c = |x: usize, y: usize| (x as f32 + 0.5, y as f32 + 0.5);
+        let mut v: Vec<Source> = self.torches.iter().map(|&(x, y)| { let (x, y) = c(x, y); Source::point(x, y, TORCH.0, TORCH.1) }).collect();
+        for b in &self.buildings { if b.built && matches!(b.kind, Station::Kiln | Station::Furnace) { let (x, y) = c(b.x + Station::W / 2, b.y - S); v.push(Source::point(x, y, KILN.0, KILN.1)); } }
+        for &b in &self.logic.dev_list { if self.logic.dev[b] == Dev::Lamp as u8 && self.logic.dev_s[b] != 0 { let (x, y) = self.logic.centre(b); let (x, y) = c(x, y); v.push(Source::point(x, y, LAMP.0, LAMP.1)); } }
+        for (k, m) in self.moles.iter().enumerate() { if !m.alive { continue; }
+            if k == 0 {
+                let (head, dir) = self.headlamp();
+                if self.gear.lamp { v.push(Source::beam(head.0, head.1, HEADLAMP.0, HEADLAMP.1, dir.0, dir.1, HEADLAMP_HALF)); v.push(Source::point(head.0, head.1, LAMP_GLOW.0, LAMP_GLOW.1)); }
+                else { v.push(Source::point(self.pl.px, self.pl.py - 1.5 * SF, MOLE_GLOW.0, MOLE_GLOW.1)); }
+                // a torch in the paw lights like a (slightly smaller) torch
+                if self.gear.held == Some(Item::Torch) { let f = m.facing as f32; v.push(Source::point(self.pl.px + f * 1.1 * SF, self.pl.py - 1.6 * SF, HELD_TORCH.0, HELD_TORCH.1)); }
+            } else { let (x, y) = c(m.x, m.y - S); v.push(Source::point(x, y, MOLE_GLOW.0, MOLE_GLOW.1)); }
+        }
+        v
+    }
     pub fn compute_light(&mut self, rect: (usize, usize, usize, usize)) {
-        let mut pts: Vec<(usize, usize, [f32; 3])> = self.torches.iter().map(|&(x, y)| (x, y, [1.6, 1.15, 0.6])).collect();
-        for m in &self.moles { if m.alive { pts.push((m.x, m.y - S, [0.35, 0.30, 0.25])); } }
-        for b in &self.buildings { if b.built && matches!(b.kind, Station::Kiln | Station::Furnace) { pts.push((b.x + Station::W / 2, b.y - S, [1.4, 0.6, 0.2])); } }
-        for &b in &self.logic.dev_list { if self.logic.dev[b] == Dev::Lamp as u8 && self.logic.dev_s[b] != 0 { let (x, y) = self.logic.centre(b); pts.push((x, y, [1.3, 1.25, 0.9])); } }
-        let day = self.day; self.light_rect = rect;
-        self.light.compute(&self.g, rect, day, &pts);
+        let src = self.light_sources(); self.light_rect = rect;
+        self.light.compute(&self.g, rect, &src);
     }
 
     fn step_moles(&mut self) {
@@ -451,7 +476,10 @@ impl World {
             self.moles[k].anim += 1;
             self.mole_physics(k);
             if !self.moles[k].alive { continue; }
-            if (self.tick / 2 + k as u64) % 4 == 0 { let (x, y) = (self.moles[k].x, self.moles[k].y - S); let before = self.g.flags.clone(); light::reveal(&mut self.g, x, y, 28 * S); self.note_discoveries(&before, x, y); }
+            if (self.tick / 2 + k as u64) % 4 == 0 { let (x, y) = (self.moles[k].x, self.moles[k].y - S); let before = self.g.flags.clone(); light::reveal(&mut self.g, x, y, 28 * S);
+                // the headlamp shows the way further ahead, inside its beam
+                if k == 0 && self.gear.lamp { let (h, d) = self.headlamp(); let l = (d.0 * d.0 + d.1 * d.1).sqrt().max(1e-6); light::reveal_cone(&mut self.g, h.0, h.1, light::Cone { dx: d.0 / l, dy: d.1 / l, half: light::kinds::HEADLAMP_HALF }, (light::kinds::HEADLAMP.1 * crate::mat::CPM as f32) as usize); }
+                self.note_discoveries(&before, x, y); }
             let d = self.depth_m(self.moles[k].x, self.moles[k].y); if d > self.max_depth { self.max_depth = d; }
         }
     }

@@ -1,0 +1,17 @@
+// Torchlight is a pool with a soft edge, and solid rock casts a shadow: a torch on the floor lights
+// the room near it, fades out by its radius (7.5 m = 30 tiles), and the far side of a wall stays dark.
+map
+##############################################
+#............................................#
+#............................................#
+#..........................#.................#
+#..@.......................#.................#
+##############################################
+end
+torch 1 6 0
+expect 3 light:6,0 > 1.0              // bright core
+expect 3 light:12,0 > 0.4             // still lit 1.5 m away
+expect 3 light:12,0 < 0.9             // and dimmer than the core
+expect 3 light:22,-3 < 0.3            // soft edge toward the radius
+expect 3 light:26,-3 < 0.16           // keeps fading
+expect 3 light:30,0 < 0.05            // the wall at 24 hides the far side

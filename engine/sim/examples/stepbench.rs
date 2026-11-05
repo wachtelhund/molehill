@@ -19,4 +19,7 @@ fn main() {
     for (c, (t, k)) in cls { println!("  {c}: {:.2} ms avg over {k}", t / k as f64); }
     let t = std::time::Instant::now(); for _ in 0..10 { let _ = w.st.solve(&w.g); } println!("stress solve {:.2} ms", t.elapsed().as_secs_f64() * 100.);
     let t = std::time::Instant::now(); for _ in 0..10 { let r = (900 * S, 400 * S, 1150 * S, 560 * S); w.compute_light(r); } println!("light (view rect) {:.2} ms", t.elapsed().as_secs_f64() * 100.);
+    // the same with the headlamp on and 20 torches in view
+    w.gear.lamp = true; for k in 0..20 { w.torches.push((900 * S + k * 12 * S, 480 * S)); }
+    let t = std::time::Instant::now(); for _ in 0..10 { let r = (900 * S, 400 * S, 1150 * S, 560 * S); w.compute_light(r); } println!("light (view rect, lamp + 20 torches) {:.2} ms", t.elapsed().as_secs_f64() * 100.);
 }

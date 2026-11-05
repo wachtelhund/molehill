@@ -108,7 +108,7 @@ fn main() {
         .insert_resource(ClearColor(Color::srgb(0.04, 0.035, 0.05)))
         .add_systems(Startup, setup)
         .insert_non_send(audio::Audio::new())
-        .add_systems(Update, (dev_shot, menu::update, input, simulate, render_world, dev_dump, sync_sprites, ui::update, sound).chain())
+        .add_systems(Update, (dev_shot, menu::update, input, gear, simulate, render_world, dev_dump, sync_sprites, ui::update, sound).chain())
         .run();
 }
 
@@ -458,7 +458,6 @@ fn render_world(mut gm: ResMut<Game>, bg: Res<Bg>, mut images: ResMut<Assets<Ima
     let g = &*gm;
     let lr = g.w.light_rect;
     let wd = &g.w; let gr = &wd.g;
-    let (pmx, pmy) = wd.moles.first().filter(|m| m.alive).map(|m| (m.x as f32, m.y as f32 - 1.5 * SF)).unwrap_or((-999., -999.));
     // premultiplied linear "over": out = bg·(1-a) + cp
     let over = |(cp, a): ([f32; 3], f32), h: [f32; 3], ha: f32| -> ([f32; 3], f32) { ([cp[0] * (1. - ha) + lin(h[0]) * ha, cp[1] * (1. - ha) + lin(h[1]) * ha, cp[2] * (1. - ha) + lin(h[2]) * ha], 1. - (1. - a) * (1. - ha)) };
     for y in y0..=y1 { for x in x0..=x1 {
@@ -472,10 +471,8 @@ fn render_world(mut gm: ResMut<Game>, bg: Res<Bg>, mut images: ResMut<Assets<Ima
         } else {
             let lit = x >= lr.0 && x <= lr.2 && y >= lr.1 && y <= lr.3;
             let l = if lit { wd.light.at(i) } else { [0.05; 3] };
-            let l = [l[0].max(0.22), l[1].max(0.21), l[2].max(0.24)]; // remembered rock stays faintly visible
-            // the mole's own warm glow (its whiskers' sense of the rock nearby)
-            let dd = ((x as f32 - pmx).powi(2) + (y as f32 - pmy).powi(2)).sqrt(); let gl = (1. - dd / (22. * SF)).max(0.) * 0.75;
-            let l = [l[0].max(gl), l[1].max(gl * 0.92), l[2].max(gl * 0.8)];
+            // remembered rock stays faintly visible (a cool, dim memory); everything else comes from the sim's light
+            let l = [l[0].max(0.15), l[1].max(0.15), l[2].max(0.18)];
             match p.kind {
                 Kind::Empty | Kind::Gas => {
                     // the parallax rock shows through: darkened by the light here (never pure black), with a faint
@@ -701,6 +698,14 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
     for wn in want { if !used.contains(&(wn.0, wn.1)) { commands.spawn((Sprite { image: wn.4, custom_size: Some(wn.5), flip_x: wn.6, color: wn.7, ..default() }, Transform::from_translation(wn.2.extend(wn.3)), Pooled(wn.0, wn.1))); } }
 }
 
+/// What the mole has on: the headlamp (Q or Settings), the item in its paws, and where it looks.
+/// Kept through pauses (the aim only updates while playing), so a menu doesn't flick the light.
+fn gear(mut g: ResMut<Game>, mut menu: ResMut<menu::Menu>, keys: Res<ButtonInput<KeyCode>>) {
+    if !menu.open() && keys.just_pressed(KeyCode::KeyQ) { menu.headlamp = !menu.headlamp; menu.persist(); g.msg = if menu.headlamp { "Headlamp lit".into() } else { "Headlamp out".into() }; }
+    let held = match g.slots[g.hot] { Some(Thing::Item(it)) => Some(it), _ => None };
+    let lamp = menu.headlamp; let aim = g.aim.map(|(x, y, _)| (x as f32 + 0.5, y as f32 + 0.5));
+    let gr = &mut g.w.gear; gr.lamp = lamp; gr.held = held; if !menu.open() { gr.aim = aim; }
+}
 fn sound(mut g: ResMut<Game>, mut au: NonSendMut<audio::Audio>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<ButtonInput<MouseButton>>, menu: Res<menu::Menu>, mut place: Local<(f32, f32)>) {
     if keys.get_just_pressed().next().is_some() || mouse.get_just_pressed().next().is_some() { au.unlock(); }
     au.set_volume(menu.volume); au.set_music(menu.music);

@@ -147,13 +147,36 @@ Placed blocks are judged by the same rules, which is the point: you learn to bui
 
 ## Light
 
-Light is per-cell RGB. It is seeded by emissive materials (lava, crystal, fungus, fire) and point lights (torches, lit lamps, kilns, furnaces, a faint glow around each mole), then spread with a two-sweep 8-neighbour chamfer pass:
+Light is per-cell RGB, and there is no sky light and no day cycle: everything is lit by something down here. Two kinds of light are added together.
+
+**Glow** comes from glowing materials (lava, crystal, fungus, fire). It is seeded in those cells and spread with a two-sweep 8-neighbour chamfer pass:
 
 ```
-L(i) = max(L(i), L(n) · t(i) · d)     t = 0.90 open, 0.80 liquid, ≈ 0.3 into rock;  d = 0.93 on diagonals
+L(i) = max(L(i), L(n) · t(i) · d)     t = 0.90 open, 0.80 liquid, ≈ 0.3 into rock (per 0.25 m);  d = 0.93 on diagonals
 ```
 
-It is computed only over the camera view plus a margin, every second frame. There is no sky light and no day cycle.
+**Sources** (`light::Source`) are torches, lit lamps, kilns and furnaces, the mole's headlamp and a torch in its paws. Each casts rays to its radius:
+
+* A ray stops at the first solid or powder cell. The face it hits takes half the light, so rock throws real shadows.
+* Liquid dims a ray as it passes.
+* Brightness falls off as (1 − d/R)² for a point light (a bright core and a soft pool) and (1 − (d/R)²)² for a beam (which throws further).
+* A beam softens over the outer third of its angle.
+* Within one source the brightest ray through a cell counts; sources add, so their colours mix.
+* A short, steep bounce pass (×0.5 per 0.25 m) lets direct light round an edge a little without filling the shadow behind a pillar.
+
+| source | colour | radius |
+|---|---|---|
+| torch | warm orange | 7.5 m |
+| torch in the paws | warm orange | 6.5 m |
+| lit lamp | pale | 9 m |
+| kiln, furnace | deep orange | 6 m |
+| headlamp beam | warm, faintly green (fungus oil) | 12 m, ±29° |
+| headlamp glow | warm | 3 m |
+| the mole's own glow (lamp out) | faint | 2 m |
+
+The **headlamp** sits on the mole's hard hat and points at the cursor, or ahead and a little down when nothing is aimed at. While it's lit, it also reveals fog of war along its beam. Toggle it with `Q` or in Settings (saved).
+
+Light is computed only over the camera view plus a margin, every second frame: about 3 ms natively for the view, plus about 0.6 ms for the headlamp and 20 torches (`cargo run --release -p molehill-sim --example stepbench`).
 
 ## Stale air
 

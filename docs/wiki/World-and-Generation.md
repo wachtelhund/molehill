@@ -121,5 +121,5 @@ Each one gives a **10 s warning** banner with its depth, lasts **6 s** with came
 ## Fog, light and the background
 
 * **Fog of war:** cells stay hidden until a mole sees them (raycasts every few ticks, 7 m radius) or digs next to them.
-* **Light** comes only from emitters (lava, crystal, fungus, fire) and lights (torches, lamps, kilns, furnaces, the mole's own small glow). See [Physics](Physics.md#light).
+* **Light** comes only from emitters (lava, crystal, fungus, fire) and lights (torches, lamps, kilns, furnaces, the mole's headlamp, a torch in its paws, the mole's own small glow). Rock casts shadows. See [Physics](Physics.md#light).
 * **Parallax:** open cells show three procedural deep-earth layers: far strata with biome tint (factor 0.8), cave silhouettes (0.6) and mineral veins (0.35), rusty near the start and pale quartz or ember deeper down. They follow absolute depth, so they stay continuous when the window slides, and they are drawn as GPU sprites that move smoothly with the camera.

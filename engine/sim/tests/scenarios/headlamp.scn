@@ -1,0 +1,21 @@
+// The fungus-oil headlamp throws a beam where the mole looks and only a small glow around itself;
+// rock stops the beam; out, it leaves only the mole's faint glow. Aiming turns the beam.
+map
+################################################
+#..............................................#
+#..............................................#
+#..............................................#
+#......................@.......................#
+################################################
+end
+lamp 1 on
+aim 1 20 -2
+expect 3 light:12,-2 > 0.6            // 3 m ahead, in the beam
+expect 3 light:-12,-2 < 0.05          // 3 m behind: dark
+expect 3 light:0,-1 > 0.3             // the lamp's own glow round the mole
+aim 4 -20 -2
+expect 6 light:-12,-2 > 0.6           // turned round: the beam follows the aim
+expect 6 light:12,-2 < 0.05
+lamp 8 off
+expect 10 light:-12,-2 < 0.05         // out: dark ahead
+expect 10 light:0,-1 > 0.05           // but the mole still has its faint glow

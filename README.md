@@ -55,6 +55,7 @@ You play one mole. The controls work like Terraria or Core Keeper.
 | `1`-`0` / wheel | Select a hotbar slot (also while sprinting) |
 | `I` | Inventory grid. Click a slot to pick its item up, then click another slot to drop or swap it (the hotbar is the bottom row) |
 | `+` / `-`, `Ctrl`/`Cmd`+wheel | Zoom (also in Settings; clamped and saved) |
+| `Q` | Headlamp lit / out |
 | `H` | Controls overlay |
 | `Esc` | Pause menu (Resume, Restart same seed, New Holt, Save, Load, Settings, Controls, Main Menu), or close a panel |
 | `K` / `L` | Save / load |
@@ -74,7 +75,7 @@ For testing, all three tools and generous stacks of every item start in the pack
 * **Structural stress:** overburden, bending, compression and connectivity. Cracked cells crumble after 40 ticks. With no player action, the start burrow stands and a fresh world collapses only a little in the first 2 minutes (this is tested). Some natural caves may still settle in the fog away from the colony.
 * **Endless Deepholt:** you start in the middle layer of earth (depth 0 m). The 1024×512-cell grid is a sliding window over an infinite column: when the camera or colony nears the top or bottom edge, the window slides by 128 rows. Leaving rows are cached (your digging is kept), and new rows are generated on demand from a pure per-cell function of (seed, x, absolute row), so the world is deterministic per seed. Horizontally it is still bounded by bedrock walls.
 * **Seeded procgen:** biomes, strata by depth, caves, and pockets of water and lava. Water is common in shallow layers and lava deeper down (details below).
-* **Lighting:** unlit tunnels stay dark, and torches and powered lamps give light. There is also fog of war and a deep-earth parallax background. There is no sky light and no day cycle.
+* **Lighting:** unlit tunnels stay dark. Torches, powered lamps, kilns, a torch in the paws and the mole's fungus-oil headlamp (`Q`) cast light with soft falloff and rock shadows; lava, crystal and fungus glow. There is also fog of war and a deep-earth parallax background. There is no sky light and no day cycle.
 * **Moles:**
   * They dig, haul, build and craft.
   * Their needs are hunger, sleep and breath. They eat grubs (+45), mushrooms (+35) and fungus (+25) at the stockpile, and sleep when tired.
@@ -138,7 +139,7 @@ Units: cell edge s = 0.25 m, unit depth b = 1 m, g = 9.81 m/s². Densities are i
 
 ## Light and fog (`sim/src/light.rs`)
 
-* **Light** is per-cell RGB. It is seeded by emissive materials (lava, crystal, fungus, fire) and by point lights (torches, mole headlamps, kilns and furnaces). It spreads with a two-sweep 8-neighbour chamfer pass: L(i) = max(L(i), L(n)·t(i)), with transmittance t = 0.90 per open cell and about 0.3 into rock. It is computed only over the camera view plus a margin.
+* **Light** is per-cell RGB. It is seeded by emissive materials (lava, crystal, fungus, fire) and by light sources (torches, lamps, kilns and furnaces, the mole's headlamp beam and a held torch). Glow spreads with a two-sweep 8-neighbour chamfer pass: L(i) = max(L(i), L(n)·t(i)), with transmittance t = 0.90 per open cell and about 0.3 into rock. Sources cast rays that stop at rock, so they throw shadows (see the wiki's Physics page). It is computed only over the camera view plus a margin.
 * **Fog of war:** cells stay hidden until a mole sees them (raycasts every few ticks, radius 7 m) or digs next to them.
 
 ## Parallax background

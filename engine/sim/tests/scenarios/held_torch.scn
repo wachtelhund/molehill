@@ -1,0 +1,14 @@
+// A torch in the mole's paws lights like a small torch and goes out when put away.
+map
+##############################
+#............................#
+#............................#
+#............................#
+#.............@..............#
+##############################
+end
+wield 1 Torch
+expect 3 light:4,-1 > 0.5
+expect 3 light:-4,-1 > 0.2            // a point light: both sides
+wield 4 none
+expect 6 light:4,-1 < 0.1 

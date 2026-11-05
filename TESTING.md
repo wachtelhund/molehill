@@ -48,6 +48,10 @@ tool 41 3               // from tick 41 dig with tool tier 0 claws, 1 pickaxe, 2
 mine 41-60 3 0          // hold mine on cell (dx,dy) relative to '@' during ticks A-B
 place 12 6 0 WoodPillar // at tick T place a round brush of that block centred at (dx,dy) (WoodPillar, Brick, IronBeam)
 brush 10 2.5            // from tick T the brush radius in cells for digging and placing (0 = item default; clamped per item)
+lamp 1 on               // headlamp on/off from tick T (off by default in scenarios; the game turns it on)
+aim 1 20 -2             // from tick T the mole looks at tile (dx,dy) from @ (the headlamp beam points there); `aim T none`
+wield 1 Torch           // from tick T the mole holds that item (a torch lights); `wield T none`
+torch 1 6 0             // at tick T put a torch on tile (dx,dy)
 dig 41-60 3 -1          // same, but (dx,dy) is relative to the mole's current cell (feet row), so it follows the mole
 explode 70 5 -2 3       // TNT-strength blast at (dx,dy) with radius r at tick T
 place 5 4 0 WoodPillar  // at tick T place a block item (WoodPillar, Brick, IronBeam) at (dx,dy), as a left click; a refusal prints NOTE
@@ -86,6 +90,7 @@ Map legend: `.` empty, `#` granite, `B` bedrock, `r` rock, `d` dirt, `c` clay, `
 | `inv:<Item>` | Inventory count |
 | `static:<Mat>` | Like `count:` but only cells that are fixed in place (not loose debris) |
 | `util:DX,DY` | Stress utilisation of the cell at an offset from `@` (1.0 = at capacity; above that it cracks) |
+| `light:DX,DY` | Brightness (luma) at the tile's centre; light is recomputed over the map every tick. About 1 is fully lit, under 0.05 is dark |
 | `strain:DX,DY` | The hover tooltip's strain level for that cell (`tips::strain_at`): 0 idle, 1 bearing, 2 straining, 3 overloaded, 4 cracking |
 | `dev:DX,DY,<Dev>` | 1 if the 1 m block at that offset holds that device |
 | `lit:DX,DY` / `on:DX,DY` / `wire:DX,DY` | The block's fuse is burning / its device is powered / it has copperline |
@@ -134,6 +139,10 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `dirt_cavein_chokes.scn` | A void under a deep dirt bank caves in but bulking rubble chokes it off (< 600 cells, then sleeps) |
 | `buried_under_rock.scn` / `buried_in_sand.scn` | A mole buried under a rock slab stays put (no popping through rock); under loose sand it wriggles out |
 | `brush_place.scn` | A radius-2 brick brush fills the open part of the disc and uses items 4 cells to one |
+| `light_torch.scn` | A torch lights a pool with a bright core and a soft edge; a wall hides the far side |
+| `headlamp.scn` | The headlamp beam follows the aim, leaves behind the mole dark, keeps a small glow; out, only the faint mole glow |
+| `headlamp_wall.scn` | Rock stops the beam: the wall face is lit, the room behind it dark |
+| `held_torch.scn` | A torch in the paws lights around the mole; put away, it goes out |
 | `hover_strain.scn` | The hover warns of an overloaded wood span (cracking) before it falls; floor and loose debris read idle |
 | `brush_clamp.scn` | Brush radius is clamped per item (iron beam max 2, pillar min 0.5, pickaxe max 3) |
 | `grain_in_body.scn` | A sand grain lying inside the mole's body (low tunnel, no wriggle room) is shoved aside instead of wedging it |
