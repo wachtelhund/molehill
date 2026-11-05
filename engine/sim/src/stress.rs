@@ -1,11 +1,10 @@
 //! Structural solver. Physically-motivated, cheap enough to run on 0.5M cells every few ticks.
 //!
 //! Units: cell edge s = 0.25 m, unit depth b = 1 m, g = 9.81 m/s², ρ in kg/m³, stresses in kPa.
-//! 1. Overburden: P(x,y) = Σ ρ·g·s / 1000 over the unbroken stack of cells resting on (x,y) [kPa].
-//!    A void interrupts it: rock above an opening is carried by the roof (bending, 3.), not by
-//!    whatever stands below the opening. The load *through* a void (T) is kept separately: it is
-//!    the roof load a wall or pillar beside the void takes as tributary load (4.).
-//! 2. Connectivity: static solids not 4-connected to bedrock have no load path → fail.
+//! 1. Overburden: P(x,y) = Σ_{cells above, not empty/gas} ρ·g·s / 1000          [kPa]
+//! 2. Connectivity: static solids not 4-connected to bedrock have no load path → fail. Loose
+//!    ground (powder, loose rubble) passes load straight down: whatever rests on a supported pile
+//!    is supported, so placed pillars and bricks can stand on a sand floor.
 //! 3. Bending (roofs): every maximal horizontal run of static cells with no support directly
 //!    below is a beam of span L = n·s. Its depth h = min static thickness above the run, capped
 //!    at the span (arching / Voussoir effect: only ~L of rock acts as the beam). Superimposed
@@ -16,10 +15,8 @@
 //!      strength along the bottom fibre (the run itself). Wood/iron roof linings raise it.
 //! 4. Compression (walls/pillars): every horizontal run of static cells of width w carries its
 //!    own overburden plus half of the overburden of the voids beside it (tributary area):
-//!      σ_c = (Σ_run P + ½Σ_left void T + ½Σ_right void T) / w, compared with each cell's own
-//!      compressive strength (a weak cell in a wide wall crushes alone). A run only takes a void's
-//!      tributary load if it reaches that void's roof: a half-built pillar or a floor bump carries
-//!      nothing but what rests on it.
+//!      σ_c = (Σ_run P + ½Σ_left void P + ½Σ_right void P) / w, compared with compressive
+//!      each cell's own compressive strength (a weak cell in a wide wall crushes alone).
 //! Utilisation u = σ / strength. u > 1 → the cells crack (visible) and crumble into the
 //! falling-sand sim after a short delay unless the load is relieved (e.g. a pillar is built).
 use crate::grid::Grid;
@@ -31,8 +28,6 @@ pub struct Stress {
     pub pending: Vec<u8>,   // crack countdown
     pub cracking: Vec<u32>, // indices with pending > 0
     pub overburden: Vec<f32>,
-    /// load passing through a cell (not interrupted by voids): roof load used for tributary areas
-    pub through: Vec<f32>,
     pub last_fail: usize,
     pub reach: Vec<bool>,
     /// failure threshold on utilisation (1.0 at runtime; gen uses a safety factor)
@@ -41,7 +36,7 @@ pub struct Stress {
 pub const CRACK_TICKS: u8 = 40;
 
 impl Stress {
-    pub fn new(n: usize) -> Self { Stress { util: vec![0; n], pending: vec![0; n], cracking: vec![], overburden: vec![0.; n], through: vec![0.; n], last_fail: 0, reach: vec![], thr: 1.0 } }
+    pub fn new(n: usize) -> Self { Stress { util: vec![0; n], pending: vec![0; n], cracking: vec![], overburden: vec![0.; n], last_fail: 0, reach: vec![], thr: 1.0 } }
 
     /// Full solve. Returns indices with u > 1.
     /// Height of the load-bearing column above any cell (16 m), the pressure-arch height.
@@ -52,20 +47,26 @@ impl Stress {
         let st = |i: usize| g.is_static(i);
         let supports = |i: usize| { let k = g.m(i).kind(); k == Kind::Powder || (k == Kind::Solid) };
         // 1. overburden
-        let (p, t) = (&mut self.overburden, &mut self.through);
+        let p = &mut self.overburden;
         for x in 0..w {
-            let (mut acc, mut thru, mut top) = (0f32, 0f32, 0usize);
+            let mut acc = 0f32;
             // Ground arching (Terzaghi): load deeper than ARCH cells above is carried by the rock arch
             // around the opening, so only a sliding column of ARCH cells bears down on a cell.
-            let void = |y: usize| matches!(g.m(y * w + x).kind(), Kind::Empty | Kind::Gas);
-            let cw = |y: usize| { let m = g.m(y * w + x); if void(y) { 0. } else { PROPS[m as usize].density * G * CELL_M / 1000. } };
-            for y in 0..h {
-                let i = y * w + x; p[i] = acc; t[i] = thru;
-                if void(y) { acc = 0.; top = y + 1; } else { acc += cw(y); if y >= ARCH && y - ARCH >= top { acc -= cw(y - ARCH); } }
-                thru += cw(y); if y >= ARCH { thru -= cw(y - ARCH); }
-            }
+            let cw = |y: usize| { let m = g.m(y * w + x); if matches!(m.kind(), Kind::Empty | Kind::Gas) { 0. } else { PROPS[m as usize].density * G * CELL_M / 1000. } };
+            for y in 0..h { let i = y * w + x; p[i] = acc; acc += cw(y); if y >= ARCH { acc -= cw(y - ARCH); } }
         }
-        let (p, t) = (&self.overburden, &self.through);
+        let p = &self.overburden;
+        // ctop: top row of the unbroken static column a static cell belongs to (does it reach the roof?);
+        // vtop: for an open cell, the row of the first non-open cell above it (the roof over that void)
+        let open = |i: usize| matches!(g.m(i).kind(), Kind::Empty | Kind::Gas);
+        let mut ctop = vec![0u32; n]; let mut vtop = vec![0u32; n];
+        for y in 0..h { for x in 0..w { let i = y * w + x;
+            if st(i) { ctop[i] = if y > 0 && st(i - w) { ctop[i - w] } else { y as u32 }; }
+            else if open(i) { vtop[i] = if y == 0 { 0 } else if open(i - w) { vtop[i - w] } else { (y - 1) as u32 }; }
+        } }
+        // weight actually resting on a cell: the unbroken non-open column above it (air in between carries nothing)
+        let resting = |i: usize| -> f32 { let (x, mut y) = (i % w, i / w); let mut acc = 0f32; let mut k = 0;
+            while y > 0 && k < ARCH { y -= 1; let m = g.m(y * w + x); if matches!(m.kind(), Kind::Empty | Kind::Gas) { break; } acc += PROPS[m as usize].density * G * CELL_M / 1000.; k += 1; } acc };
         let mut util = vec![0f32; n];
         // 2. connectivity (BFS from bedrock)
         let mut reach = vec![false; n]; let mut q: Vec<u32> = Vec::with_capacity(n / 4);
@@ -74,7 +75,11 @@ impl Stress {
         let mut head = 0;
         while head < q.len() {
             let i = q[head] as usize; head += 1; let (x, y) = (i % w, i / w);
-            for j in g.n4(x, y) { if !reach[j] && st(j) { reach[j] = true; q.push(j as u32); } }
+            // static cells carry each other in all four directions; loose ground (sand, rubble) only
+            // carries what rests directly on top of it, so a pillar built on a sand floor has a load path
+            let carried = g.is_static(i);
+            if carried { for j in g.n4(x, y) { if !reach[j] && st(j) { reach[j] = true; q.push(j as u32); } } }
+            if y > 0 { let j = i - w; if !reach[j] && supports(j) { reach[j] = true; q.push(j as u32); } }
         }
         for i in 0..n { if st(i) && !reach[i] { util[i] = 9.; } }
         // 3. bending of roof runs
@@ -92,7 +97,7 @@ impl Stress {
                 for xx in xa..=xb {
                     let mut k = 0; while k < cap && y >= k && st((y - k) * w + xx) { rho += PROPS[g.mat[(y - k) * w + xx] as usize].density; k += 1; }
                     hmin = hmin.min(k); tmin = tmin.min(PROPS[g.mat[y * w + xx] as usize].tensile);
-                    if k < cap && y + 1 >= k { qtop = qtop.max(p[(y + 1 - k) * w + xx]); } // rubble/water resting on the beam
+                    if k < cap && y + 1 > k { qtop = qtop.max(resting((y + 1 - k) * w + xx) + if open((y - k) * w + xx) { 0. } else { PROPS[g.mat[(y - k) * w + xx] as usize].density * G * CELL_M / 1000. }); } // rubble/water resting on the beam
                 }
                 let cnt: usize = (xa..=xb).map(|xx| { let mut k = 0; while k < cap && y >= k && st((y - k) * w + xx) { k += 1; } k }).sum();
                 rho /= cnt.max(1) as f32;
@@ -112,16 +117,12 @@ impl Stress {
                 if !st(y * w + x) { x += 1; continue; }
                 let xa = x; while x < w && st(y * w + x) { x += 1; } let xb = x - 1;
                 let mut load: f32 = (xa..=xb).map(|xx| p[y * w + xx]).sum();
-                                // left void run
-                // does the run's edge column stay solid from row y up to the roof of the void beside it?
-                let bears = |edge: usize, side: usize| -> bool {
-                    let mut yy = y; while yy > 0 && y - yy < ARCH && !g.is_solidish((yy - 1) * w + side) { yy -= 1; }
-                    (yy.saturating_sub(1)..=y).all(|r| st(r * w + edge))
-                };
-                let mut l = xa; let mut vl = 0f32; let mut nl = 0; while l > 0 && !st(y * w + l - 1) { l -= 1; vl += t[y * w + l]; nl += 1; if nl > 400 { break; } }
-                let mut r = xb; let mut vr = 0f32; let mut nr = 0; while r + 1 < w && !st(y * w + r + 1) { r += 1; vr += t[y * w + r]; nr += 1; if nr > 400 { break; } }
-                if xa > 0 && vl > 0. && !bears(xa, xa - 1) { vl = 0.; }
-                if xb + 1 < w && vr > 0. && !bears(xb, xb + 1) { vr = 0.; }
+                // the voids beside the run hand it half their roof load, but only if the run's static
+                // column actually reaches up to that roof (a free-standing stub carries no roof)
+                let rt = (xa..=xb).map(|xx| ctop[y * w + xx]).min().unwrap_or(0);
+                let trib = |j: usize| if open(j) && rt > vtop[j] { 0. } else { p[j] };
+                let mut l = xa; let mut vl = 0f32; let mut nl = 0; while l > 0 && !st(y * w + l - 1) { l -= 1; vl += trib(y * w + l); nl += 1; if nl > 400 { break; } }
+                let mut r = xb; let mut vr = 0f32; let mut nr = 0; while r + 1 < w && !st(y * w + r + 1) { r += 1; vr += trib(y * w + r); nr += 1; if nr > 400 { break; } }
                 load += 0.5 * (vl + vr);
                 let wid = (xb - xa + 1) as f32;
                 let sigma = load / wid;

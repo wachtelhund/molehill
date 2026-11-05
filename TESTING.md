@@ -46,6 +46,8 @@ hold 1-30 right         // hold keys for ticks A-B: left right jump up down (sev
 hold 31-40 right jump
 tool 41 3               // from tick 41 dig with tool tier 0 claws, 1 pickaxe, 2 drill, 3 bore
 mine 41-60 3 0          // hold mine on cell (dx,dy) relative to '@' during ticks A-B
+place 12 6 0 WoodPillar // at tick T place a round brush of that block centred at (dx,dy) (WoodPillar, Brick, IronBeam)
+brush 10 2.5            // from tick T the brush radius in cells for digging and placing (0 = item default; clamped per item)
 dig 41-60 3 -1          // same, but (dx,dy) is relative to the mole's current cell (feet row), so it follows the mole
 explode 70 5 -2 3       // TNT-strength blast at (dx,dy) with radius r at tick T
 place 5 3 1 WoodPillar  // place a block item (WoodPillar, Brick, IronBeam) at (dx,dy) at tick T, through the player's
@@ -57,7 +59,7 @@ expect 60 rise >= 4.5   // assertion after tick T: <var> <op> <number>, ops: < <
 
 The map is stamped with its top-left so that `@` lands on the world spawn. A 20-cell granite frame is put around it, so the generated world can't leak in. Disasters are off. Rows shorter than the widest row are padded with `#`.
 
-Map legend: `.` empty, `#` granite, `B` bedrock, `r` rock, `d` dirt, `c` clay, `s` sand, `g` gravel, `w` water, `l` lava, `o` coal, `i` iron ore, `b` wood beam, `k` stone brick, `I` iron beam (`~` steam, `?` other, only in output).
+Map legend: `.` empty, `#` granite, `B` bedrock, `r` rock, `d` dirt, `c` clay, `s` sand, `g` gravel, `w` water, `l` lava, `o` coal, `i` iron ore, `b` wood beam, `I` iron beam, `k` stone brick (`~` steam, `?` other, only in output).
 
 **Assertion variables:**
 
@@ -73,6 +75,8 @@ Map legend: `.` empty, `#` granite, `B` bedrock, `r` rock, `d` dirt, `c` clay, `
 | `count:<Mat>` | Cells of that material inside the map rectangle, e.g. `count:Water` |
 | `is:DX,DY,<Mat>` | 1 if the cell at an offset from `@` is that material |
 | `inv:<Item>` | Inventory count |
+| `static:<Mat>` | Like `count:` but only cells that are fixed in place (not loose debris) |
+| `util:DX,DY` | Stress utilisation of the cell at an offset from `@` (1.0 = at capacity; above that it cracks) |
 
 The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of the scenario tick), player state, non-zero inventory, material counts in the map rectangle, and events as `"tick:Event"`.
 
@@ -92,13 +96,19 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `water_flood.scn` | Mining a dirt plug floods the room below |
 | `tnt_collapse.scn` | A blast removes rock, and the sand cap falls |
 | `cave_stability.scn` | A small granite cave shows no crumbling over 600 ticks |
-| `beam_spans_gap.scn` | Placed wood beams across an 8-wide pit and an iron stub stay put (rigid, nothing crumbles) |
+| `pillar_holds_roof.scn` | Placed pillars (full height, a short stub, a ledge off a wall) stay rigid |
+| `pillar_on_rubble.scn` | Pillars, a ledge and bricks built on a sand floor stay rigid; no new sand appears |
+| `beam_spans_gap.scn` | Iron beams placed across a pit stay put, and the mole runs across them |
+| `beam_overload.scn` | A long wood span under deep sand cracks and falls as wooden debris |
+| `brush_place.scn` | A radius-2 brick brush fills the open part of the disc and uses items 4 cells to one |
+| `brush_clamp.scn` | Brush radius is clamped per item (iron beam max 2, pillar min 0.5, pickaxe max 3) |
+| `beams_placed_across_pit.scn` | Wood beams placed one by one across an 8-wide pit, and an iron stub, stay put |
 | `pillar_in_cave.scn` | A wood pillar stands while half-built and once it reaches the roof of a 40-wide cave |
-| `dirt_roof_falls.scn` / `pillar_holds_roof.scn` | A 20-wide dirt roof falls alone; four placed pillars hold it |
+| `clay_roof_falls.scn` / `pillars_hold_clay_roof.scn` | A 20-wide clay roof falls alone; four placed pillars hold it |
+| `beam_overload_wide.scn` | A 30-wide wood beam under a sand heap breaks and the sand pours through |
 | `shaft_jump.scn` | Jumping half a cell off-centre under a 2-wide shaft slides round the corner and goes up |
 | `tunnel_mouth.scn` | Jumping at a tunnel mouth 3 cells up a wall slots the mole in on the way up |
 | `dig_tunnel.scn` / `dig_tunnel_high.scn` | Walking right while pointing at the rock ahead (foot / head height) tunnels through |
-| `beam_overload.scn` | A long wood beam under a deep sand heap breaks and the sand pours through |
 
 ### Writing a new scenario (for agents)
 
@@ -109,6 +119,10 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 
 Tuning constants for movement live in one place: `TUNE` in `sim/src/world.rs`. After changing them, rerun both the tests and the scenarios.
 
+Zoom limits and brush ranges also have unit tests in `sim/tests/sim.rs` (`zoom_is_clamped_both_ways`, `brush_sizes_clamp_per_item`), as do tooltip texts (`every_thing_has_a_lore_safe_tooltip`).
+
 ## 3. Visual check (optional)
 
 `cargo build --release -p molehill`. On a headless Linux box, run it under `Xvfb :99` with `VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.json`, wait about 8 s, and grab one frame with `ffmpeg -f x11grab`. The game opens on the main menu; press Enter to start a New Holt. One screenshot is enough; don't record videos unless asked.
+
+Native builds also take a frame by themselves: `molehill --fresh --seed=4242 --shot=out.bmp [--shot-at=150] [--shot-ui=pause|inv|help|dev] [--shot-walk]` starts a holt, writes one BMP and quits. Add `--dump-art=DIR` to also write every sprite (8×) and the composited world around the mole (`view.bmp`); these are CPU-side, so they work even where the window frame doesn't. On macOS the window must be visible on screen: launched from a background shell the surface reads back empty.

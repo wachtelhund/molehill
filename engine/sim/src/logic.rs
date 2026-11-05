@@ -23,6 +23,18 @@ pub const DEVS: [Dev; 21] = [Dev::Lever, Dev::Plate, Dev::Sensor, Dev::Door, Dev
 impl Dev {
     pub fn from_u8(v: u8) -> Dev { if v == 0 || v as usize > DEVS.len() { Dev::None } else { DEVS[v as usize - 1] } }
     pub fn name(self) -> &'static str { ["", "Lever", "Pressure plate", "Fluid sensor", "Door", "Floodgate", "Pump", "Lamp", "TNT", "Fuse", "Both-knot", "Either-knot", "Turn-knot", "Odd-knot", "Ticker", "Catch-knot", "Thrummer", "Listener", "Relay thrummer", "Vent", "Heatstone", "Water wheel"][self as usize] }
+    /// One plain line for the hover tooltip. Right mouse sets or flips devices that have a setting.
+    pub fn desc(self) -> &'static str {
+        ["", "Flip it with right mouse to send current down the line.", "Sends current while something stands on it.",
+         "Sends current when water or lava rises around it.", "Opens while its line has current.", "Holds back water; opens while its line has current.",
+         "Pushes water along while its line has current.", "Lights while its line has current.", "Blasting charge. Goes off when current or a fuse reaches it.",
+         "Burns along slowly, then sets off the next fuse or charge.", "Both-knot: current out only when both lines in carry it.",
+         "Either-knot: current out when either line in carries it.", "Turn-knot: current out when its line in is quiet.",
+         "Odd-knot: current out when exactly one line in carries it.", "Ticker: pulses on and off. Right mouse changes the beat.",
+         "Catch-knot: one line sets it, the other lets it go.", "Thrummer: knocks its line's state into the rock. Right mouse picks the pattern.",
+         "Listener: hears a thrummer knocking the same pattern.", "Relay thrummer: hears a pattern and knocks it on further.",
+         "Draws stale air out of the tunnels around it.", "Heatstone: makes current while lava touches it.", "Water wheel: makes current while water flows past it."][self as usize]
+    }
     pub fn is_gate(self) -> bool { (Dev::And as u8..=Dev::Latch as u8).contains(&(self as u8)) }
     pub fn is_thrum(self) -> bool { (Dev::Tx as u8..=Dev::Rep as u8).contains(&(self as u8)) }
 }

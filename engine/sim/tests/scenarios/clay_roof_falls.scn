@@ -1,10 +1,10 @@
-// Control for pillar_holds_roof: a 20-wide room under a 4-deep dirt roof, nothing holding it up. The roof falls.
+// Control for pillars_hold_clay_roof: a 20-wide room under a 4-deep clay roof, nothing holding it up. The roof falls.
 map
 ######################
-#dddddddddddddddddddd#
-#dddddddddddddddddddd#
-#dddddddddddddddddddd#
-#dddddddddddddddddddd#
+#cccccccccccccccccccc#
+#cccccccccccccccccccc#
+#cccccccccccccccccccc#
+#cccccccccccccccccccc#
 #....................#
 #....................#
 #....................#

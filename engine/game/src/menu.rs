@@ -9,7 +9,7 @@ use crate::{Game, audio::Audio};
 #[derive(Clone, Copy, PartialEq, Debug)] enum Item { Continue, NewHolt, Seed, Settings, Controls, Quit, Resume, Restart, Save, Load, MainMenu, Volume, Zoom, Fullscreen, Back }
 
 #[derive(Resource)] pub struct Menu { pub screen: Screen, back: Screen, sel: usize, pub seed_text: String, pub volume: f32, pub zoom: f32, pub fullscreen: bool, has_save: bool }
-impl Default for Menu { fn default() -> Self { Menu { screen: Screen::Main, back: Screen::Main, sel: 0, seed_text: String::new(), volume: 0.8, zoom: 0.32, fullscreen: false, has_save: false } } }
+impl Default for Menu { fn default() -> Self { Menu { screen: Screen::Main, back: Screen::Main, sel: 0, seed_text: String::new(), volume: 0.8, zoom: molehill_sim::view::ZOOM_DEFAULT, fullscreen: false, has_save: false } } }
 impl Menu {
     pub fn open(&self) -> bool { self.screen != Screen::Off }
     fn items(&self) -> Vec<Item> {
@@ -27,15 +27,17 @@ impl Menu {
             Item::Seed => format!("Seed  {}", if self.seed_text.is_empty() { "random  (type digits)".into() } else { self.seed_text.clone() + "_" }),
             Item::Settings => "Settings".into(), Item::Controls => "Controls".into(), Item::Quit => "Quit".into(),
             Item::Resume => "Resume".into(), Item::Restart => "Restart (same seed)".into(), Item::Save => "Save".into(), Item::Load => "Load".into(), Item::MainMenu => "Main Menu".into(),
-            Item::Volume => format!("Volume   <  {:>3}%  >", (self.volume * 100.).round()), Item::Zoom => format!("Zoom     <  {:.2}  >", self.zoom),
+            Item::Volume => format!("Volume   <  {:>3}%  >", (self.volume * 100.).round()), Item::Zoom => format!("Zoom     <  {:.1}x  >", molehill_sim::view::zoom_level(self.zoom)),
             Item::Fullscreen => format!("Fullscreen   {}", if self.fullscreen { "on" } else { "off" }), Item::Back => "Back".into(),
         }
     }
-    fn persist(&self) { let _ = crate::storage_put("molehill-settings", format!("{} {} {}", self.volume, self.zoom, self.fullscreen as u8).as_bytes()); }
+    /// Zoom by `steps` notches (positive = closer), clamped, applied to the camera and saved.
+    pub fn zoom_by(&mut self, steps: f32, cam: &mut Transform) { let z = molehill_sim::view::zoom_step(self.zoom, steps); if z != self.zoom { self.zoom = z; self.persist(); } cam.scale = Vec3::splat(self.zoom); }
+    pub fn persist(&self) { let _ = crate::storage_put("molehill-settings", format!("{} {} {}", self.volume, self.zoom, self.fullscreen as u8).as_bytes()); }
     pub fn load() -> Menu {
         let mut m = Menu::default();
         if let Some(b) = crate::storage_get("molehill-settings") { let s = String::from_utf8_lossy(&b).to_string(); let v: Vec<&str> = s.split_whitespace().collect();
-            if v.len() == 3 { m.volume = v[0].parse().unwrap_or(0.8); m.zoom = v[1].parse().unwrap_or(0.32); m.fullscreen = v[2] == "1"; } }
+            if v.len() == 3 { m.volume = v[0].parse().unwrap_or(0.8); m.zoom = molehill_sim::view::clamp_zoom(v[1].parse().unwrap_or(f32::NAN)); m.fullscreen = v[2] == "1"; } }
         m.has_save = crate::storage_get("molehill-manual").is_some() || crate::storage_get("molehill-auto").is_some(); m
     }
     pub fn go(&mut self, s: Screen) { if matches!(s, Screen::Settings | Screen::Controls) { self.back = self.screen; } self.screen = s; self.sel = 0; if s == Screen::Main { self.has_save = crate::storage_get("molehill-manual").is_some() || crate::storage_get("molehill-auto").is_some(); } }
@@ -55,23 +57,38 @@ pub fn setup(commands: &mut Commands, f: &Handle<Font>) {
         BackgroundColor(Color::srgba(0.03, 0.025, 0.035, 0.78)), GlobalZIndex(50), MenuRoot)).with_children(|p| {
         p.spawn((Text::new("Molehill"), tf(56.), TextColor(INK), TextShadow::default(), Node { margin: UiRect::bottom(Val::Px(26.)), ..default() }, MenuTitle));
         for i in 0..ROWS { p.spawn((Text::new(""), tf(22.), TextColor(INK), TextShadow::default(), Interaction::None, Node { padding: UiRect::axes(Val::Px(10.), Val::Px(2.)), ..default() }, MenuRow(i))); }
+        let c = spawn_controls(p, f, 16.); p.commands().entity(c).insert((MenuControls, Visibility::Hidden));
         p.spawn((Text::new(""), tf(14.), TextColor(INK.with_alpha(0.55)), TextLayout { justify: Justify::Center, ..default() }, Node { margin: UiRect::top(Val::Px(24.)), ..default() }, MenuHint));
     });
 }
 
-const CONTROLS: &str = "Move  A / D        Jump  Space (or W)\nWalls  hold into a wall: W / S climb, Space wall-jump\nDig down  S        Use item  Left mouse        Interact  Right mouse\nHotbar  1-0 / wheel        Pack  I        Zoom  + / -  or  Ctrl+wheel\nPause  Esc        Quick save K / load L        Dev info  F3";
+/// Every control, as (action, keys). Shown as a two-column table on the Controls screen and the H overlay.
+pub const CONTROL_ROWS: &[(&str, &str)] = &[
+    ("Move", "A / D"), ("Jump", "Space  (or W off a wall)"), ("Walls", "hold into a wall: W / S climb, Space wall-jump"),
+    ("Dig down", "S"), ("Use item", "Left mouse"), ("Interact", "Right mouse  (levers, thrum patterns)"), ("Pick up", "Ctrl + Right mouse  (copperline, devices)"),
+    ("Brush size", "[ / ]  or  Ctrl + wheel"), ("Hotbar", "1 - 0  or  wheel"), ("Pack", "I"), ("Zoom", "+ / -  or  Shift + wheel"),
+    ("Pause", "Esc"), ("Save / load", "K / L"), ("Controls", "H"), ("Dev info", "F3"),
+];
+/// A two-column table of `CONTROL_ROWS`: actions dim and right-aligned, keys in ink.
+pub fn spawn_controls(p: &mut ChildSpawnerCommands, f: &Handle<Font>, size: f32) -> Entity {
+    let tf = |s: f32| TextFont { font: f.clone().into(), font_size: s.into(), ..default() };
+    p.spawn(Node { display: Display::Grid, grid_template_columns: vec![GridTrack::auto(), GridTrack::auto()], column_gap: Val::Px(18.), row_gap: Val::Px(4.), ..default() }).with_children(|g| {
+        for (a, k) in CONTROL_ROWS { g.spawn((Text::new(*a), tf(size), TextColor(INK.with_alpha(0.5)), Node { justify_self: JustifySelf::End, ..default() })); g.spawn((Text::new(*k), tf(size), TextColor(INK.with_alpha(0.9)))); }
+    }).id()
+}
+#[derive(Component)] pub struct MenuControls;
 
 #[allow(clippy::too_many_arguments)]
 pub fn update(mut m: ResMut<Menu>, mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<ButtonInput<MouseButton>>, mut commands: Commands,
     mut au: NonSendMut<Audio>, mut cam: Query<&mut Transform, With<Camera2d>>, mut win: Query<&mut Window, With<PrimaryWindow>>,
-    mut q: ParamSet<(Query<&mut Visibility, With<MenuRoot>>, Query<(&MenuRow, &mut Text, &mut TextColor, &Interaction, &mut Visibility)>, Query<&mut Text, With<MenuHint>>, Query<&mut Text, With<MenuTitle>>)>,
+    mut ctl: Query<&mut Visibility, (With<MenuControls>, Without<MenuRoot>, Without<MenuRow>)>, mut q: ParamSet<(Query<&mut Visibility, With<MenuRoot>>, Query<(&MenuRow, &mut Text, &mut TextColor, &Interaction, &mut Visibility)>, Query<&mut Text, With<MenuHint>>, Query<&mut Text, With<MenuTitle>>)>,
     mut exit: MessageWriter<AppExit>) {
     if !m.open() {
         if keys.just_pressed(KeyCode::Escape) && !g.inv_open && !g.help { m.go(Screen::Pause); g.paused = true; }
     } else {
         g.paused = true;
         if keys.get_just_pressed().next().is_some() || mouse.get_just_pressed().next().is_some() { au.unlock(); }
-        let items = m.items(); let n = items.len();
+        let items = m.items(); let n = items.len(); let (sel0, scr0) = (m.sel, m.screen);
         if keys.just_pressed(KeyCode::ArrowDown) || keys.just_pressed(KeyCode::KeyS) { m.sel = (m.sel + 1) % n; }
         if keys.just_pressed(KeyCode::ArrowUp) || keys.just_pressed(KeyCode::KeyW) { m.sel = (m.sel + n - 1) % n; }
         let mut act = keys.just_pressed(KeyCode::Enter) || keys.just_pressed(KeyCode::Space) || keys.just_pressed(KeyCode::NumpadEnter);
@@ -87,10 +104,12 @@ pub fn update(mut m: ResMut<Menu>, mut g: ResMut<Game>, keys: Res<ButtonInput<Ke
             for (d, k) in digs.iter().enumerate() { if keys.just_pressed(*k) && m.seed_text.len() < 9 { m.seed_text.push(char::from(b'0' + d as u8)); } }
             if keys.just_pressed(KeyCode::Backspace) { m.seed_text.pop(); }
         }
-        let mut z = |m: &mut Menu, d: f32| { m.zoom = (m.zoom * if d > 0. { 1.15 } else { 1. / 1.15 }).clamp(0.12, 1.5); if let Ok(mut ct) = cam.single_mut() { ct.scale = Vec3::splat(m.zoom); } m.persist(); };
+        // zoom row: A/D or arrows step out/in; a click on the left half zooms out, on the right half in
+        let click_dir = win.single().ok().and_then(|w| w.cursor_position().map(|c| if c.x < w.width() / 2. { -1. } else { 1. })).unwrap_or(1.);
+        let mut z = |m: &mut Menu, d: f32| { if let Ok(mut ct) = cam.single_mut() { m.zoom_by(d, &mut ct); } };
         match it {
             Item::Volume if adj != 0. || act => { m.volume = if adj != 0. { (m.volume + adj * 0.1).clamp(0., 1.) } else if m.volume > 0. { 0. } else { 0.8 }; au.set_volume(m.volume); m.persist(); }
-            Item::Zoom if adj != 0. || act => z(&mut m, if adj != 0. { adj } else { 1. }),
+            Item::Zoom if adj != 0. || act => z(&mut m, if adj != 0. { adj } else if clicked { click_dir } else { 1. }),
             _ if act => match it {
                 Item::Continue => { if crate::load_saved(&mut g, &mut commands) { m.go(Screen::Off); } }
                 Item::NewHolt | Item::Seed => { let seed = m.seed_text.parse().unwrap_or_else(|_| crate::seed_now() % 100000); crate::begin(&mut g, &mut commands, seed); m.seed_text.clear(); m.go(Screen::Off); if let Ok(mut ct) = cam.single_mut() { ct.scale = Vec3::splat(m.zoom); } }
@@ -107,12 +126,15 @@ pub fn update(mut m: ResMut<Menu>, mut g: ResMut<Game>, keys: Res<ButtonInput<Ke
             },
             _ => {}
         }
+        // a soft tick when the choice moves or a screen changes: immediate feedback for every press
+        if m.sel != sel0 || m.screen != scr0 || act && n > 0 { au.play(molehill_sim::world::Event::Click, 0.35); }
         if keys.just_pressed(KeyCode::Escape) { match m.screen { Screen::Pause => m.go(Screen::Off), Screen::Settings | Screen::Controls => { let b = m.back; m.go(b); } _ => {} } }
         if !m.open() { g.paused = false; g.w.swallow_held(); g.mouse_latch = true; } // the key or click that closed the menu doesn't act in the game
     }
     // draw
     let open = m.open();
     for mut v in q.p0().iter_mut() { *v = if open { Visibility::Inherited } else { Visibility::Hidden }; }
+    for mut v in &mut ctl { *v = if m.screen == Screen::Controls { Visibility::Inherited } else { Visibility::Hidden }; }
     if !open { return; }
     let items = m.items(); let sel = m.sel;
     let labels: Vec<String> = items.iter().map(|i| m.label(*i)).collect();
@@ -122,6 +144,6 @@ pub fn update(mut m: ResMut<Menu>, mut g: ResMut<Game>, keys: Res<ButtonInput<Ke
     }
     let title = match m.screen { Screen::Pause => "Paused".to_string(), Screen::Settings => "Settings".into(), Screen::Controls => "Controls".into(), _ => "Molehill".into() };
     for mut t in q.p3().iter_mut() { t.0 = title.clone(); }
-    let hint = match m.screen { Screen::Controls => CONTROLS.to_string(), Screen::Settings => "A / D adjust     Esc back".into(), Screen::Main => format!("W / S choose     Enter select\nholt {}", g.seed), _ => "W / S choose     Enter select     Esc resume".into() };
+    let hint = match m.screen { Screen::Controls => "Esc back".to_string(), Screen::Settings => "A / D adjust     Esc back".into(), Screen::Main => format!("W / S choose     Enter select\nholt {}", g.seed), _ => "W / S choose     Enter select     Esc resume".into() };
     for mut t in q.p2().iter_mut() { t.0 = hint.clone(); }
 }

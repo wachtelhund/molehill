@@ -47,11 +47,12 @@ You play one mole. The controls work like Terraria or Core Keeper.
 | Into a wall in the air | Cling to it. `W` / `S` climb up or down; let go and you slide slowly. `Space` wall-jumps away. At the top you mantle the ledge |
 | Water / lava | `W` / `Space` swim up (water); lava burns |
 | `S` | Dig down (on the ground) |
-| Left mouse | Use the item in hand. A dig tool carves a round, mole-sized bite under the cursor (the ring shows its size). Other items place a pillar, brick, beam, torch, copperline, device, spore, TNT or station |
+| Left mouse | Use the item in hand. A dig tool carves a round bite under the cursor and a block (pillar, brick, beam) places a round brush; the ring shows its size. Other items place a torch, copperline, device, spore, TNT or station |
+| `[` / `]`, `Ctrl`+wheel | Brush size for the dig tool or block in hand, within that item's range (bigger tools allow bigger bites) |
 | Right mouse | Interact: flip a lever, set a thrum channel. `Ctrl`+right mouse picks up copperline or a device |
 | `1`-`0` / wheel | Select a hotbar slot |
 | `I` | Inventory grid. Click a slot to pick its item up, then click another slot to drop or swap it (the hotbar is the bottom row) |
-| `+` / `-`, `Ctrl`+wheel | Zoom |
+| `+` / `-`, `Shift`+wheel | Zoom (also in Settings; clamped and saved) |
 | `H` | Controls overlay |
 | `Esc` | Pause menu (Resume, Restart same seed, New Holt, Save, Load, Settings, Controls, Main Menu), or close a panel |
 | `K` / `L` | Save / load |

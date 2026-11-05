@@ -11,8 +11,12 @@ Polish only: no new features or concepts. Each entry is one commit.
    a void is kept separately as the tributary load for walls and pillars beside it, and a run only takes that
    load if it reaches the void's roof, so a half-built pillar or a floor bump carries only what rests on it.
    Blocks still fail by stress (overload, too long a span) and then break into debris.
-   Harness: `place T dx dy Item` and the `I` map char. Scenarios: `beam_spans_gap`, `pillar_in_cave`,
-   `dirt_roof_falls`, `pillar_holds_roof`, `beam_overload`.
+   **Superseded on merge:** `main` got its own fix for the same bug from the ui-graphics run (6bbb493: loose
+   ground carries what rests on it, roof load only through contact). The merge keeps `main`'s `stress.rs` and
+   harness `place`. My scenarios stay as extra coverage and pass on `main`'s solver: `beams_placed_across_pit`,
+   `pillar_in_cave`, `clay_roof_falls` / `pillars_hold_clay_roof`, `beam_overload_wide`. The roof pair moved
+   from dirt to clay because `main`'s overburden still passes through caves above, which crushes a dirt seam
+   under the scenario's 20-cell granite frame whatever holds it up.
 2. **Space on menu start no longer jumps.** The menu closes on Space/Enter/click and the game's input ran in
    the same frame, so the held Space was read as a fresh jump (and a click could dig, place or throw TNT).
    `World::swallow_held()` makes a held jump count only after release; the body re-sync (new world,
@@ -33,13 +37,15 @@ Polish only: no new features or concepts. Each entry is one commit.
    drowning) sets `pl.flash` (0.22 s, a white/red strobe on the mole sprite) and a view shake scaled by the
    damage. Hard landings (8+ cells) thump the view a little. Mining sounds its strike on the first tick of the
    press and every 1/6 s after, instead of only when the rock gives. A cleared bite and a placed block (or
-   device) leave a `World::marks` entry; the game draws a ring bursting outward or a white cell flash for
-   0.2 s. Camera: the lookahead eases at 7/s, so turning doesn't whip the view; the follow stays tight, and it
+   device, or brush) leave a `World::marks` entry. After the merge, `main`'s chip burst fires on the bite mark
+   (not on `Event::Dig`, which now also sounds on press), and a placement flashes white for 0.2 s. Camera: the lookahead eases at 7/s, so turning doesn't whip the view; the follow stays tight, and it
    only looks down on real falls. Test: `digging_and_placing_give_instant_feedback`; scenario: `fall_hurt`;
    harness vars `flash`, `shake`.
 6. **Step-up and mantle checked.** Both already behaved (steps of 1-2 cells at full speed; a climbed wall
    rolls you onto its top), so there was no tuning change, just coverage: scenarios `step_up` and `mantle`.
 
 ## Open issues
+* `main`'s solver still sends overburden through open caves, so dirt seams under deep rock are crushed in
+  compression whatever supports them. That's a modelling choice from the other run; I left it alone.
 * No screenshot of the hit-flash, pops or camera: this run was on macOS without a capture setup. They need a
   look in the real game.

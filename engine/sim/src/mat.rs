@@ -27,7 +27,7 @@ pub struct Props {
     pub opacity: u8,       // light lost entering cell (0..255)
     pub atten: f32,        // (legacy, unused: thrumming uses mat::wave)
     pub color: [u8; 3],
-    pub crumbles_to: Mat,  // what a failed cell becomes (as loose powder)
+    pub crumbles_to: Mat,  // what a failed cell becomes (as loose powder); built beams break into their own loose debris
     pub repose: f32,       // 0 = flows freely, 1 = never slides (angle of repose)
 }
 const fn p(name: &'static str, kind: Kind, density: f32, tensile: f32, compressive: f32, dig: u16, tier: u8, blast: u8,
@@ -56,10 +56,10 @@ pub static PROPS: [Props; NMAT] = [
     p("Roots", Solid, 700., 60., 300., 2, 0, 2, [0, 0, 0], 100, 0.2, [118, 84, 50], X::Dirt, 0.2),
     p("Fungus", Powder, 400., 4., 50., 1, 0, 1, [40, 110, 60], 70, 0.2, [96, 168, 110], X::Dirt, 1.0),
     p("Grass", Solid, 1500., 20., 250., 2, 0, 2, [0, 0, 0], 110, 0.3, [92, 140, 60], X::Dirt, 0.15),
-    p("Wood beam", Solid, 600., 3000., 8000., 4, 0, 3, [0, 0, 0], 150, 0.2, [196, 150, 90], X::Sand, 0.3),
+    p("Wood beam", Solid, 600., 3000., 8000., 4, 0, 3, [0, 0, 0], 150, 0.2, [196, 150, 90], X::WoodBeam, 0.3),
     p("Stone brick", Solid, 2400., 600., 15000., 8, 1, 6, [0, 0, 0], 160, 0.5, [150, 150, 160], X::Gravel, 0.),
-    p("Iron beam", Solid, 7800., 40000., 120000., 20, 2, 9, [0, 0, 0], 200, 3.0, [170, 176, 190], X::Gravel, 0.),
-    p("Door", Solid, 700., 2000., 5000., 4, 0, 3, [0, 0, 0], 150, 0.4, [140, 104, 64], X::Sand, 0.3),
+    p("Iron beam", Solid, 7800., 40000., 120000., 20, 2, 9, [0, 0, 0], 200, 3.0, [170, 176, 190], X::IronBeam, 0.),
+    p("Door", Solid, 700., 2000., 5000., 4, 0, 3, [0, 0, 0], 150, 0.4, [140, 104, 64], X::WoodBeam, 0.3),
     p("Water", Liquid, 1000., 0., 0., 0, 0, 0, [0, 0, 0], 16, 0.6, [52, 120, 200], X::Water, 0.),
     p("Lava", Liquid, 2700., 0., 0., 0, 0, 0, [255, 110, 30], 30, 2.5, [255, 110, 32], X::Lava, 0.),
     p("Steam", Gas, 0.6, 0., 0., 0, 0, 0, [0, 0, 0], 8, 0., [210, 216, 222], X::Steam, 0.),
@@ -71,6 +71,16 @@ impl Mat {
     #[inline] pub fn p(self) -> &'static Props { &PROPS[self as usize] }
     #[inline] pub fn kind(self) -> Kind { PROPS[self as usize].kind }
     pub fn is_structural(self) -> bool { self.kind() == Kind::Solid }
+    /// One plain line for the hover tooltip.
+    pub fn desc(self) -> &'static str {
+        ["Open tunnel.", "The Deepholt's bones. Nothing digs it.", "Hard grey stone. Needs a drill.", "Soft stone. A pickaxe cuts it.",
+         "Pale, even stone. Strong in a roof.", "Dark, hard stone from cooled lava. Needs a drill.", "Loose earth. Quick to dig, weak under load.",
+         "Stiff earth. Holds water back.", "Flows when nothing holds it.", "Rubble that shifts when disturbed.", "Black seam. Dig it for coal.",
+         "Seam of copper ore.", "Seam of tin ore.", "Seam of iron ore. Needs a drill.", "Clear stone. Light passes through.", "Glowing stone. Lights the dark.",
+         "Tangle of roots. Gives wood.", "Soft glowing growth.", "Mossy earth.", "Wooden prop. Holds up what rests on it.", "Laid brick.",
+         "Iron girder. Spans wide gaps.", "Opens and shuts with current.", "Fills every hollow it can reach.", "Molten rock. Burns, and lights the dark.",
+         "Hot vapour from water meeting lava.", "Burning. Spreads to wood and roots.", "Clear pane."][self as usize]
+    }
 }
 pub const CELL_M: f32 = 0.25; // metres per cell
 
