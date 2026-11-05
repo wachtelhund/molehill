@@ -1,0 +1,64 @@
+// Survival crafting happens at a working station you stand at.
+// * Workbench: always works. The pickaxe (tier 1) is made here, and then the pick digs limestone.
+// * Forge: needs heat. Cold, it refuses; lava run into a pit beside it (within 3 m) lights it.
+// * Workshop: needs power. Unpowered, it refuses; a thrown lever on copperline into it powers it, and the
+//   drill (tier 2) is made here.
+// (bedrock roof: a 70-tile room would cave in otherwise)
+map
+BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+#......................................................................#
+#......................................................................#
+#......................................................................#
+#......................................................................#
+#......................................................................#
+#......................................................................#
+#......................................................................#
+#......................................................................#
+#......................................................................#
+#.............................@........................................#
+##############...#######################################################
+########################################################################
+end
+give Wood 20
+give Stone 30
+give Clay 8
+give IronOre 6
+give Coal 4
+give CopperOre 4
+give CopperWire 16
+mode 1 survival
+expect 2 tier == 0
+craft 3 Pickaxe
+expect 4 inv:Pickaxe == 0             // no workbench yet
+station 5 2 0 Workbench
+expect 6 buildings == 1
+expect 6 inv:Wood == 14
+craft 7 Pickaxe
+expect 8 inv:Pickaxe == 1
+expect 8 tier == 1
+// the forge: cold, then lava in the pit beside it
+station 10 -12 0 Forge
+craft 12 Copper_ingot
+expect 13 inv:CopperIngot == 0
+pour 14 -16 1 Lava
+pour 14 -15 1 Lava
+pour 14 -14 1 Lava
+craft 16 Copper_ingot
+craft 17 Copper_ingot
+expect 18 inv:CopperIngot == 2
+craft 18 Iron_ingot
+craft 19 Iron_ingot
+craft 20 Iron_ingot
+expect 21 inv:IronIngot == 3
+// the workshop, over to the right
+hold 22-60 right
+station 62 14 0 Workshop
+expect 63 buildings == 3
+craft 64 Drill
+expect 65 inv:Drill == 0               // no power yet
+device 66 26 -1 Lever
+wire 67 22 -1 26 -1
+use 70 26 -1
+craft 74 Drill
+expect 75 inv:Drill == 1
+expect 75 tier == 2

@@ -7,7 +7,7 @@ pub enum Item {
     Dirt, Clay, Sand, Gravel, Stone, Coal, CopperOre, TinOre, IronOre, Quartz, Crystal, Wood, Fungus,
     Brick, Glass, Charcoal, CopperIngot, TinIngot, BronzeIngot, IronIngot,
     Torch, WoodPillar, IronBeam, CopperWire, Thrummer, Gate, Tnt, Lamp,
-    StoneTools, BronzeTools, IronTools, Grub, Spore, Mushroom, Vent, Glowmite,
+    Pickaxe, Drill, Bore, Grub, Spore, Mushroom, Vent, Glowmite,
 }
 pub const NITEM: usize = 36;
 /// What an item can do in the world (see `Item::uses`).
@@ -17,7 +17,7 @@ pub const ITEMS: [Item; NITEM] = [
     Item::Dirt, Item::Clay, Item::Sand, Item::Gravel, Item::Stone, Item::Coal, Item::CopperOre, Item::TinOre, Item::IronOre, Item::Quartz, Item::Crystal, Item::Wood, Item::Fungus,
     Item::Brick, Item::Glass, Item::Charcoal, Item::CopperIngot, Item::TinIngot, Item::BronzeIngot, Item::IronIngot,
     Item::Torch, Item::WoodPillar, Item::IronBeam, Item::CopperWire, Item::Thrummer, Item::Gate, Item::Tnt, Item::Lamp,
-    Item::StoneTools, Item::BronzeTools, Item::IronTools, Item::Grub, Item::Spore, Item::Mushroom, Item::Vent, Item::Glowmite,
+    Item::Pickaxe, Item::Drill, Item::Bore, Item::Grub, Item::Spore, Item::Mushroom, Item::Vent, Item::Glowmite,
 ];
 impl Item {
     /// The material a loose item is a lump of, if it is one: its density and burning come from the table.
@@ -37,7 +37,7 @@ impl Item {
         if let Some(m) = self.mat() { return m.p().density; }
         match self {
             Charcoal => 400., CopperIngot => 8900., TinIngot => 7300., BronzeIngot => 8800., CopperWire => 3000., Thrummer | Gate | Vent => 2500.,
-            Tnt => 1500., Lamp => 2000., StoneTools => 2500., BronzeTools => 5000., IronTools => 5500., Grub => 1050., Spore => 300., Mushroom => 600.,
+            Tnt => 1500., Lamp => 2000., Pickaxe => 2500., Drill => 5000., Bore => 5500., Grub => 1050., Spore => 300., Mushroom => 600.,
             _ => 2000.,
         }
     }
@@ -75,7 +75,7 @@ impl Item {
         ["Dirt", "Clay", "Sand", "Gravel", "Stone", "Coal", "Copper ore", "Tin ore", "Iron ore", "Quartz", "Crystal", "Wood", "Fungus",
          "Brick", "Glass", "Charcoal", "Copper ingot", "Tin ingot", "Bronze ingot", "Iron ingot",
          "Torch", "Wood pillar", "Iron beam", "Copperline", "Thrummer", "Knot", "TNT", "Lamp",
-         "Stone tools", "Bronze tools", "Iron tools", "Grub", "Spore", "Mushroom", "Vent", "Glowmite"][self as usize]
+         "Pickaxe", "Drill", "Bore", "Grub", "Spore", "Mushroom", "Vent", "Glowmite"][self as usize]
     }
     /// One plain line for the hover tooltip: what it is and what it's for.
     pub fn desc(self) -> &'static str {
@@ -90,7 +90,7 @@ impl Item {
          "Iron girder. Spans wide gaps and carries heavy roofs.", "Copper wire. Carries current between levers, knots and lamps.",
          "Knocks a pattern into the rock for a listener to hear. Stone carries it; dirt and water muffle it.",
          "Mechanical knot: joins two lines into one answer (both, either, turn, odd, catch).", "Blasting charge. Shatters rock in a wide round.",
-         "Lights when current flows through it.", "Pack tools of stone.", "Pack tools of bronze.", "Pack tools of iron.",
+         "Lights when current flows through it.", "Stone pick: breaks soil and soft stone (limestone, sandstone, coal, copper and tin ore).", "Copperline-driven auger: cuts granite and iron ore.", "Heavy heat-bore: grinds through basalt.",
          "Fat burrowing larva. A good meal.", "Mushroom spore. Plant it on soil to grow food.", "A ripe mushroom. Fills the belly.",
          "Draws stale air out of the tunnels around it.", "A glowmite caught in a jar. Glows softly, needs no fuel."][self as usize]
     }
@@ -102,7 +102,7 @@ impl Item {
             Crystal => [120, 200, 255], Wood => [150, 105, 60], Fungus => [96, 200, 120], Brick => [170, 80, 60], Glass => [190, 230, 240],
             Charcoal => [70, 60, 60], CopperIngot => [230, 140, 80], TinIngot => [210, 215, 225], BronzeIngot => [205, 150, 70], IronIngot => [190, 190, 200],
             Torch => [255, 190, 90], WoodPillar => [180, 130, 80], IronBeam => [120, 130, 150], CopperWire => [240, 150, 90], Thrummer => [150, 120, 255],
-            Gate => [120, 220, 160], Tnt => [220, 60, 50], Lamp => [255, 240, 170], StoneTools => [160, 156, 150], BronzeTools => [205, 150, 70], IronTools => [200, 205, 220], Grub => [235, 215, 170], Spore => [200, 170, 230], Mushroom => [214, 120, 90], Vent => [150, 200, 210], Glowmite => [190, 255, 160],
+            Gate => [120, 220, 160], Tnt => [220, 60, 50], Lamp => [255, 240, 170], Pickaxe => [160, 156, 150], Drill => [205, 150, 70], Bore => [200, 205, 220], Grub => [235, 215, 170], Spore => [200, 170, 230], Mushroom => [214, 120, 90], Vent => [150, 200, 210], Glowmite => [190, 255, 160],
         }
     }
 }
@@ -119,46 +119,59 @@ pub fn drop_of(m: Mat) -> Option<Item> {
     })
 }
 
+/// Stations, not menus: you craft standing at one you have built (see PROGRESSION.md).
+/// * the **workbench** for wood, stone, simple devices and furniture;
+/// * the **forge**, which needs heat (lava or fire within 3 m, or a heatstone fed by lava), for smelting and metalwork;
+/// * the **workshop**, which needs a live copperline touching it, for machines, thrummers and fine parts.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum Station { Workbench, Kiln, Furnace, Anvil }
-pub const STATIONS: [Station; 4] = [Station::Workbench, Station::Kiln, Station::Furnace, Station::Anvil];
+pub enum Station { Workbench, Forge, Workshop }
+pub const STATIONS: [Station; 3] = [Station::Workbench, Station::Forge, Station::Workshop];
 impl Station {
-    pub fn name(self) -> &'static str { ["Workbench", "Kiln", "Furnace", "Anvil"][self as usize] }
-    pub fn desc(self) -> &'static str { ["Saw and bench for wooden things.", "Bakes clay into brick and sand into glass.", "Smelts ore into metal.", "Hammers metal into tools and beams."][self as usize] }
+    pub fn name(self) -> &'static str { ["Workbench", "Forge", "Workshop"][self as usize] }
+    pub fn desc(self) -> &'static str { ["Saw and bench: wood, stone, simple devices and furniture.", "Smelts ore, fires brick and glass, works metal. Needs heat: lava or fire close by, or a heatstone.", "Fine work: knots, thrummers and the drill. Needs a live copperline run to it."][self as usize] }
     pub fn cost(self) -> &'static [(Item, u32)] {
-        match self { Station::Workbench => &[(Item::Wood, 6)], Station::Kiln => &[(Item::Stone, 8), (Item::Clay, 4)], Station::Furnace => &[(Item::Brick, 10)], Station::Anvil => &[(Item::IronIngot, 5)] }
+        match self { Station::Workbench => &[(Item::Wood, 6)], Station::Forge => &[(Item::Stone, 10), (Item::Clay, 4)], Station::Workshop => &[(Item::Wood, 4), (Item::Stone, 4), (Item::CopperWire, 6)] }
     }
+    /// Which station art to draw (the workbench, the furnace for the forge, the anvil bench for the workshop).
+    pub fn art(self) -> u8 { [0, 2, 3][self as usize] }
     /// footprint in cells
     pub const W: usize = 10 * crate::mat::S; pub const H: usize = 7 * crate::mat::S;
 }
 
+/// A recipe: at most two steps from the ground to the thing (ore → ingot → tool), no parts lists.
+/// It appears once you have picked up any of its inputs (`World::recipe_known`).
 pub struct Recipe { pub name: &'static str, pub station: Station, pub inputs: &'static [(Item, u32)], pub out: (Item, u32), pub ticks: u32 }
 pub static RECIPES: &[Recipe] = &[
+    // workbench: tier 1, wood and stone
+    Recipe { name: "Pickaxe", station: Station::Workbench, inputs: &[(Item::Wood, 2), (Item::Stone, 4)], out: (Item::Pickaxe, 1), ticks: 120 },
+    Recipe { name: "Wood pillar x4", station: Station::Workbench, inputs: &[(Item::Wood, 2)], out: (Item::WoodPillar, 4), ticks: 60 },
     Recipe { name: "Torch x4", station: Station::Workbench, inputs: &[(Item::Wood, 1), (Item::Coal, 1)], out: (Item::Torch, 4), ticks: 60 },
     Recipe { name: "Torch x4 (charcoal)", station: Station::Workbench, inputs: &[(Item::Wood, 1), (Item::Charcoal, 1)], out: (Item::Torch, 4), ticks: 60 },
-    Recipe { name: "Wood pillar x4", station: Station::Workbench, inputs: &[(Item::Wood, 2)], out: (Item::WoodPillar, 4), ticks: 60 },
-    Recipe { name: "Stone tools", station: Station::Workbench, inputs: &[(Item::Wood, 2), (Item::Stone, 4)], out: (Item::StoneTools, 1), ticks: 120 },
-    Recipe { name: "Brick x4", station: Station::Kiln, inputs: &[(Item::Clay, 2), (Item::Coal, 1)], out: (Item::Brick, 4), ticks: 120 },
-    Recipe { name: "Glass x2", station: Station::Kiln, inputs: &[(Item::Sand, 2), (Item::Coal, 1)], out: (Item::Glass, 2), ticks: 120 },
-    Recipe { name: "Charcoal x2", station: Station::Kiln, inputs: &[(Item::Wood, 2)], out: (Item::Charcoal, 2), ticks: 90 },
-    Recipe { name: "Copper ingot", station: Station::Furnace, inputs: &[(Item::CopperOre, 2), (Item::Coal, 1)], out: (Item::CopperIngot, 1), ticks: 150 },
-    Recipe { name: "Tin ingot", station: Station::Furnace, inputs: &[(Item::TinOre, 2), (Item::Coal, 1)], out: (Item::TinIngot, 1), ticks: 150 },
-    Recipe { name: "Iron ingot", station: Station::Furnace, inputs: &[(Item::IronOre, 2), (Item::Coal, 2)], out: (Item::IronIngot, 1), ticks: 200 },
-    Recipe { name: "Bronze x4", station: Station::Furnace, inputs: &[(Item::CopperIngot, 3), (Item::TinIngot, 1)], out: (Item::BronzeIngot, 4), ticks: 150 },
-    Recipe { name: "Bronze tools", station: Station::Anvil, inputs: &[(Item::BronzeIngot, 3), (Item::Wood, 1)], out: (Item::BronzeTools, 1), ticks: 200 },
-    Recipe { name: "Iron tools", station: Station::Anvil, inputs: &[(Item::IronIngot, 3), (Item::Wood, 1)], out: (Item::IronTools, 1), ticks: 240 },
-    Recipe { name: "Iron beam x4", station: Station::Anvil, inputs: &[(Item::IronIngot, 1)], out: (Item::IronBeam, 4), ticks: 120 },
-    Recipe { name: "Copperline x8", station: Station::Anvil, inputs: &[(Item::CopperIngot, 1)], out: (Item::CopperWire, 8), ticks: 80 },
-    Recipe { name: "Knot", station: Station::Anvil, inputs: &[(Item::CopperIngot, 1), (Item::Quartz, 1)], out: (Item::Gate, 1), ticks: 100 },
-    Recipe { name: "Thrummer", station: Station::Anvil, inputs: &[(Item::Crystal, 2), (Item::CopperIngot, 2), (Item::Glass, 1)], out: (Item::Thrummer, 1), ticks: 200 },
-    Recipe { name: "Lamp", station: Station::Kiln, inputs: &[(Item::Glass, 1), (Item::Fungus, 2)], out: (Item::Lamp, 1), ticks: 90 },
     Recipe { name: "Vent", station: Station::Workbench, inputs: &[(Item::Wood, 2), (Item::Stone, 2)], out: (Item::Vent, 1), ticks: 90 },
     Recipe { name: "TNT", station: Station::Workbench, inputs: &[(Item::Coal, 2), (Item::Sand, 2)], out: (Item::Tnt, 1), ticks: 90 },
+    // forge: heat. Smelting, firing, metalwork (tier 2 copper, tier 3 iron, and the Bore)
+    Recipe { name: "Brick x4", station: Station::Forge, inputs: &[(Item::Clay, 2)], out: (Item::Brick, 4), ticks: 120 },
+    Recipe { name: "Glass x2", station: Station::Forge, inputs: &[(Item::Sand, 2)], out: (Item::Glass, 2), ticks: 120 },
+    Recipe { name: "Charcoal x2", station: Station::Forge, inputs: &[(Item::Wood, 2)], out: (Item::Charcoal, 2), ticks: 90 },
+    Recipe { name: "Copper ingot", station: Station::Forge, inputs: &[(Item::CopperOre, 2)], out: (Item::CopperIngot, 1), ticks: 150 },
+    Recipe { name: "Tin ingot", station: Station::Forge, inputs: &[(Item::TinOre, 2)], out: (Item::TinIngot, 1), ticks: 150 },
+    Recipe { name: "Iron ingot", station: Station::Forge, inputs: &[(Item::IronOre, 2), (Item::Coal, 1)], out: (Item::IronIngot, 1), ticks: 200 },
+    Recipe { name: "Bronze x4", station: Station::Forge, inputs: &[(Item::CopperIngot, 3), (Item::TinIngot, 1)], out: (Item::BronzeIngot, 4), ticks: 150 },
+    Recipe { name: "Copperline x8", station: Station::Forge, inputs: &[(Item::CopperIngot, 1)], out: (Item::CopperWire, 8), ticks: 80 },
+    Recipe { name: "Iron beam x4", station: Station::Forge, inputs: &[(Item::IronIngot, 1)], out: (Item::IronBeam, 4), ticks: 120 },
+    Recipe { name: "Lamp", station: Station::Forge, inputs: &[(Item::Glass, 1), (Item::Fungus, 2)], out: (Item::Lamp, 1), ticks: 90 },
+    Recipe { name: "Bore", station: Station::Forge, inputs: &[(Item::IronIngot, 6), (Item::CopperIngot, 2), (Item::Crystal, 2)], out: (Item::Bore, 1), ticks: 300 },
+    // workshop: copperline and power. Machines and fine parts
+    Recipe { name: "Drill", station: Station::Workshop, inputs: &[(Item::IronIngot, 3), (Item::CopperIngot, 2)], out: (Item::Drill, 1), ticks: 240 },
+    Recipe { name: "Knot", station: Station::Workshop, inputs: &[(Item::CopperIngot, 1), (Item::Quartz, 1)], out: (Item::Gate, 1), ticks: 100 },
+    Recipe { name: "Thrummer", station: Station::Workshop, inputs: &[(Item::Crystal, 2), (Item::CopperIngot, 2), (Item::Glass, 1)], out: (Item::Thrummer, 1), ticks: 200 },
 ];
+/// The recipe with this name (scenarios, UI).
+pub fn recipe_by_name(n: &str) -> Option<usize> { RECIPES.iter().position(|r| r.name.eq_ignore_ascii_case(n)) }
 
-/// Tool tier 0 claws, 1 stone, 2 bronze, 3 iron. Higher tiers dig faster and unlock harder rock.
+/// Dig tool tier owned: 0 claws, 1 Pickaxe, 2 Drill, 3 Bore. Higher tiers dig faster and open harder rock.
 pub fn tool_tier(inv: &[u32; NITEM]) -> u8 {
-    if inv[Item::IronTools as usize] > 0 { 3 } else if inv[Item::BronzeTools as usize] > 0 { 2 } else if inv[Item::StoneTools as usize] > 0 { 1 } else { 0 }
+    if inv[Item::Bore as usize] > 0 { 3 } else if inv[Item::Drill as usize] > 0 { 2 } else if inv[Item::Pickaxe as usize] > 0 { 1 } else { 0 }
 }
 
 #[derive(Clone, Copy)]
@@ -170,16 +183,16 @@ pub static QUESTS: &[Quest] = &[
     Quest { text: "Build a workbench", goal: Goal::Built(Station::Workbench), reward: &[(Item::Coal, 4)] },
     Quest { text: "Farm mushrooms: gather 4", goal: Goal::Have(Item::Mushroom, 4), reward: &[(Item::Spore, 4), (Item::Vent, 1)] },
     Quest { text: "Prop a tunnel: place 8 pillar cells", goal: Goal::Pillars(8), reward: &[(Item::WoodPillar, 8)] },
-    Quest { text: "Craft stone tools", goal: Goal::Have(Item::StoneTools, 1), reward: &[(Item::Torch, 8)] },
+    Quest { text: "Make a pickaxe", goal: Goal::Have(Item::Pickaxe, 1), reward: &[(Item::Torch, 8)] },
     Quest { text: "Reach 15 m", goal: Goal::Depth(15.), reward: &[(Item::Clay, 6)] },
-    Quest { text: "Build a kiln", goal: Goal::Built(Station::Kiln), reward: &[(Item::Coal, 6)] },
+    Quest { text: "Build a forge (it needs heat)", goal: Goal::Built(Station::Forge), reward: &[(Item::Coal, 6)] },
     Quest { text: "Open a buried chest", goal: Goal::Chests(1), reward: &[(Item::Crystal, 1)] },
     Quest { text: "Fire 10 bricks", goal: Goal::Have(Item::Brick, 10), reward: &[(Item::Coal, 8)] },
-    Quest { text: "Build a furnace", goal: Goal::Built(Station::Furnace), reward: &[(Item::CopperOre, 4)] },
-    Quest { text: "Smelt 4 copper ingots", goal: Goal::Have(Item::CopperIngot, 4), reward: &[(Item::TinOre, 4)] },
+        Quest { text: "Smelt 4 copper ingots", goal: Goal::Have(Item::CopperIngot, 4), reward: &[(Item::TinOre, 4)] },
     Quest { text: "Alloy bronze", goal: Goal::Have(Item::BronzeIngot, 4), reward: &[(Item::Torch, 10)] },
     Quest { text: "Reach 40 m", goal: Goal::Depth(40.), reward: &[(Item::IronOre, 6)] },
-    Quest { text: "Forge an anvil", goal: Goal::Built(Station::Anvil), reward: &[(Item::Quartz, 2)] },
+    Quest { text: "Build a workshop and power it", goal: Goal::Built(Station::Workshop), reward: &[(Item::Quartz, 2)] },
+    Quest { text: "Make a drill", goal: Goal::Have(Item::Drill, 1), reward: &[(Item::Crystal, 2)] },
     Quest { text: "Assemble a thrummer", goal: Goal::Have(Item::Thrummer, 1), reward: &[(Item::CopperWire, 16)] },
     Quest { text: "Reach 80 m - the deep", goal: Goal::Depth(80.), reward: &[(Item::Crystal, 4)] },
     Quest { text: "Open 4 chests", goal: Goal::Chests(4), reward: &[(Item::IronIngot, 4)] },

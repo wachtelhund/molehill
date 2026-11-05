@@ -26,7 +26,7 @@ pub struct Props {
     pub tensile: f32,      // kPa (bottom-fibre bending capacity)
     pub compressive: f32,  // kPa (also sets the thrum stiffness and damping, see `wave`)
     pub dig: u16,          // ticks per cell with bare claws
-    pub tier: u8,          // tool tier needed: 0 claws, 1 stone, 2 bronze, 3 iron
+    pub tier: u8,          // tool tier needed: 0 claws, 1 Pickaxe, 2 Drill, 3 Bore
     pub blast: u8,         // explosive power*10 needed
     pub emit: [u8; 3],     // light emission
     pub opacity: u8,       // light lost entering cell (0..255)
@@ -74,7 +74,7 @@ pub static PROPS: [Props; NMAT] = [
     Props { name: "Granite", desc: "Hard grey stone. Needs a drill.", kind: Solid, density: 2700., tensile: 800., compressive: 20000., dig: 14, tier: 2, blast: 8, opacity: 120, color: [96, 98, 112], crumbles_to: X::Gravel, flags: NOTABLE, ..BASE },
     Props { name: "Sandstone", desc: "Soft stone. A pickaxe cuts it.", kind: Solid, density: 2300., tensile: 300., compressive: 8000., dig: 8, tier: 1, blast: 5, opacity: 120, color: [170, 132, 92], crumbles_to: X::Sand, ..BASE },
     Props { name: "Limestone", desc: "Pale, even stone. Strong in a roof.", kind: Solid, density: 2500., tensile: 400., compressive: 9000., dig: 9, tier: 1, blast: 5, opacity: 120, color: [178, 170, 150], crumbles_to: X::Gravel, flags: NOTABLE, ..BASE },
-    Props { name: "Basalt", desc: "Dark, hard stone from cooled lava. Needs a drill.", kind: Solid, density: 2900., tensile: 700., compressive: 18000., dig: 12, tier: 2, blast: 7, opacity: 120, color: [62, 60, 70], crumbles_to: X::Gravel, flags: NOTABLE, ..BASE },
+    Props { name: "Basalt", desc: "Dark, hard stone from cooled lava. Needs a bore.", kind: Solid, density: 2900., tensile: 700., compressive: 18000., dig: 12, tier: 3, blast: 7, opacity: 120, color: [62, 60, 70], crumbles_to: X::Gravel, flags: NOTABLE, ..BASE },
     Props { name: "Dirt", desc: "Loose earth. Quick to dig, weak under load.", kind: Solid, density: 1600., tensile: 15., compressive: 250., dig: 2, blast: 2, opacity: 110, color: [122, 88, 58], crumbles_to: X::Dirt, repose: 0.15, flags: SOIL | POROUS | GRUBS, bounce: 0.05, friction: 0.9, ..BASE },
     Props { name: "Clay", desc: "Stiff earth. Holds water back.", kind: Solid, density: 1800., tensile: 40., compressive: 400., dig: 3, blast: 3, opacity: 110, color: [168, 104, 78], crumbles_to: X::Clay, repose: 0.45, flags: SOIL | POROUS | GRUBS | NOTABLE, bounce: 0.08, friction: 0.95, ..BASE },
     Props { name: "Sand", desc: "Flows when nothing holds it.", kind: Powder, density: 1600., tensile: 0., compressive: 150., dig: 1, blast: 1, opacity: 110, color: [222, 196, 132], crumbles_to: X::Sand, flags: POROUS, bounce: 0.05, friction: 0.9, ..BASE },

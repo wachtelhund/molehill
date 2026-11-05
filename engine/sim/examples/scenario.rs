@@ -12,7 +12,7 @@ fn mat_by_name(s: &str) -> Option<Mat> { (0..NMAT as u8).map(Mat::from_u8).find(
 fn mat_char(c: char) -> Option<Mat> { Some(match c { '.' | '@' => Mat::Empty, '#' => Mat::Granite, 'B' => Mat::Bedrock, 'r' => Mat::Rock, 'd' => Mat::Dirt, 'c' => Mat::Clay, 's' => Mat::Sand, 'g' => Mat::Gravel, 'w' => Mat::Water, 'l' => Mat::Lava, 'o' => Mat::Coal, 'i' => Mat::IronOre, 'b' => Mat::WoodBeam, 'k' => Mat::StoneBrick, 'I' => Mat::IronBeam, 'a' => Mat::Basalt, 'T' => Mat::RootTree, 'R' => Mat::TreeRoot, 'm' => Mat::Moss, 'y' => Mat::Mycelium, _ => return None }) }
 fn ch_of(m: Mat) -> char { match m { Mat::Empty => '.', Mat::Granite => '#', Mat::Bedrock => 'B', Mat::Rock => 'r', Mat::Dirt => 'd', Mat::Clay => 'c', Mat::Sand => 's', Mat::Gravel => 'g', Mat::Water => 'w', Mat::Lava => 'l', Mat::Coal => 'o', Mat::IronOre => 'i', Mat::WoodBeam => 'b', Mat::StoneBrick => 'k', Mat::IronBeam => 'I', Mat::Basalt => 'a', Mat::Steam => '~', Mat::RootTree => 'T', Mat::TreeRoot => 'R', Mat::Moss => 'm', Mat::Mycelium => 'y', _ => '?' } }
 
-enum Act { Grotto(u64, i32, i32, f32, f32), Catch(u64, i32, i32), Throw(u64, String, f32, f32, f32), Loose(u64, String, i32, i32, f32, f32), Brush(u64, f32), Place(u64, i32, i32, String), Put(u64, i32, i32, String), Hold(u64, u64, Vec<String>), Mine(u64, u64, i32, i32), Dig(u64, u64, i32, i32), Tool(u64, u8), Explode(u64, i32, i32, f32), Dump(u64), Ascii(u64), Device(u64, i32, i32, String), Use(u64, i32, i32), Pickup(u64, i32, i32), Wire(u64, i32, i32, i32, i32), SaveLoad(u64), Lamp(u64, bool), Aim(u64, Option<(i32, i32)>), Wield(u64, String), Torch(u64, i32, i32), Slide(u64), SizeKey(u64, String), SizeWheel(u64, String, i32), Hand(u64, String), Snap(u64, bool), Line(u64, i32, i32, i32, i32, String), Expect(u64, String, String, f64, usize) }
+enum Act { Grotto(u64, i32, i32, f32, f32), Catch(u64, i32, i32), Throw(u64, String, f32, f32, f32), Loose(u64, String, i32, i32, f32, f32), Brush(u64, f32), Place(u64, i32, i32, String), Put(u64, i32, i32, String), Hold(u64, u64, Vec<String>), Mine(u64, u64, i32, i32), Dig(u64, u64, i32, i32), Tool(u64, u8), Explode(u64, i32, i32, f32), Dump(u64), Ascii(u64), Device(u64, i32, i32, String), Use(u64, i32, i32), Pickup(u64, i32, i32), Wire(u64, i32, i32, i32, i32), SaveLoad(u64), Lamp(u64, bool), Aim(u64, Option<(i32, i32)>), Wield(u64, String), Torch(u64, i32, i32), Slide(u64), SizeKey(u64, String), SizeWheel(u64, String, i32), Hand(u64, String), Snap(u64, bool), Line(u64, i32, i32, i32, i32, String), Mode(u64, bool), Pour(u64, i32, i32, String), Craft(u64, String), Station(u64, i32, i32, String), Expect(u64, String, String, f64, usize) }
 
 struct Run { w: World, sizes: molehill_sim::view::BrushSizes, held: molehill_sim::world::Brush, ox: usize, oy: usize, mw: usize, mh: usize, ax: usize, ay: usize, sx: f32, sy: f32, top: f32, events: Vec<String> }
 impl Run {
@@ -23,7 +23,7 @@ impl Run {
             "px" => (p.px - self.ox as f32) as f64 / kf, "py" => (p.py - self.oy as f32) as f64 / kf, "vx" => p.vx as f64 / kf, "vy" => p.vy as f64 / kf,
             "dx" => (p.px - self.sx) as f64 / kf, "dy" => (p.py - self.sy) as f64 / kf, "rise" => (self.sy - self.top) as f64 / kf,
             "grounded" => p.grounded as u8 as f64, "cling" => p.cling as f64, "hp" => m.hp as f64, "breath" => m.breath as f64,
-            "deaths" => p.deaths as f64, "brush" => self.sizes.radius(self.held) as f64 / kf, "snapcells" => self.sizes.snap_cells() as f64 / kf, "torches" => self.w.torches.len() as f64, "awake" => self.awake() as f64, "crumbled" => self.w.crumbled as f64 / (kf * kf), "tick" => self.w.tick as f64,
+            "deaths" => p.deaths as f64, "tier" => self.w.dig_power() as f64, "buildings" => self.w.buildings.len() as f64, "brush" => self.sizes.radius(self.held) as f64 / kf, "snapcells" => self.sizes.snap_cells() as f64 / kf, "torches" => self.w.torches.len() as f64, "awake" => self.awake() as f64, "crumbled" => self.w.crumbled as f64 / (kf * kf), "tick" => self.w.tick as f64,
             "flash" => p.flash as f64, "shake" => self.w.shake as f64,
             // glowmites drifting over the map
             "glowmites" => self.w.glowmites().iter().filter(|g| g.0 >= self.ox as f32 && g.0 < (self.ox + self.mw) as f32 && g.1 >= self.oy as f32 && g.1 < (self.oy + self.mh) as f32).count() as f64,
@@ -40,6 +40,8 @@ impl Run {
             _ if v.starts_with("is:") => { // is:DX,DY,Mat  (relative to @)
                 let a: Vec<&str> = v[3..].split(',').collect(); let (dx, dy): (i32, i32) = (a.get(0)?.parse().ok()?, a.get(1)?.parse().ok()?);
                 let mt = mat_by_name(a.get(2)?)?; (2 * self.tile(dx, dy).filter(|&i| self.w.g.m(i) == mt).count() >= K * K) as u8 as f64 } // most of the tile
+            _ if v.starts_with("known:") => { let i = molehill_sim::craft::ITEMS.iter().position(|it| format!("{it:?}").eq_ignore_ascii_case(&v[6..]))?; self.w.known[i] as u8 as f64 }
+            _ if v.starts_with("recipe:") => { let k = molehill_sim::craft::recipe_by_name(&v[7..].replace('_', " "))?; self.w.recipe_known(k) as u8 as f64 }
             _ if v.starts_with("inv:") => { let i = molehill_sim::craft::ITEMS.iter().position(|it| format!("{it:?}").eq_ignore_ascii_case(&v[4..]))?; self.w.inv[i] as f64 }
             _ if v.starts_with("dev:") || v.starts_with("lit:") || v.starts_with("wire:") || v.starts_with("on:") => { // dev:DX,DY,Name  lit:DX,DY  wire:DX,DY  on:DX,DY (powered)
                 let (k, rest) = v.split_once(':')?; let a: Vec<&str> = rest.split(',').collect(); let (x, y) = self.at(a.get(0)?.parse().ok()?, a.get(1)?.parse().ok()?);
@@ -135,6 +137,12 @@ fn run_file(path: &str, json: bool) -> bool {
             // brush size and grid snap (the game's rules, from view::BrushSizes): `hand T Pickaxe|Drill|Bore|<block item>`,
             // `sizekey T [` or `]` (the typed character), `sizewheel T none|alt|ctrl|cmd|shift N`, `snap T on|off`,
             // `line T DX1 DY1 DX2 DY2 Item` (a grid-snapped drag from one tile to another)
+            // progression: `mode T survival|creative` (survival: the pack is only what `give` lines gave, only tools in it dig, known items relearn from it), `craft T <recipe name>`
+            // (as at the station, "_" for spaces), `station T DX DY Workbench|Forge|Workshop` (built with its bottom-left on that tile)
+            "pour" => acts.push(Act::Pour(t[1].parse().unwrap(), t[2].parse().unwrap(), t[3].parse().unwrap(), t[4].into())), // set a tile's material (lava, fire, ...)
+            "mode" => acts.push(Act::Mode(t[1].parse().unwrap(), t[2] == "creative")),
+            "craft" => acts.push(Act::Craft(t[1].parse().unwrap(), t[2].replace('_', " "))),
+            "station" => acts.push(Act::Station(t[1].parse().unwrap(), t[2].parse().unwrap(), t[3].parse().unwrap(), t[4].into())),
             "hand" => acts.push(Act::Hand(t[1].parse().unwrap(), t[2].into())),
             "sizekey" => acts.push(Act::SizeKey(t[1].parse().unwrap(), t[2].into())),
             "sizewheel" => acts.push(Act::SizeWheel(t[1].parse().unwrap(), t[2].into(), t[3].parse().unwrap())),
@@ -146,7 +154,7 @@ fn run_file(path: &str, json: bool) -> bool {
             o => panic!("{path}:{}: unknown directive {o}", ln + 1),
         }
     }
-    for a in &acts { ticks = ticks.max(match a { Act::Hold(_, b, _) | Act::Mine(_, b, _, _) | Act::Dig(_, b, _, _) => *b, Act::Grotto(t, ..) | Act::Catch(t, ..) | Act::Tool(t, _) | Act::Throw(t, ..) | Act::Loose(t, ..) | Act::Brush(t, _) | Act::Place(t, ..) | Act::Put(t, ..) | Act::Explode(t, ..) | Act::Device(t, ..) | Act::Use(t, ..) | Act::Pickup(t, ..) | Act::Wire(t, ..) | Act::SaveLoad(t) | Act::Lamp(t, _) | Act::Aim(t, _) | Act::Wield(t, _) | Act::Torch(t, ..) | Act::Slide(t) | Act::SizeKey(t, ..) | Act::SizeWheel(t, ..) | Act::Hand(t, ..) | Act::Snap(t, ..) | Act::Line(t, ..) | Act::Dump(t) | Act::Ascii(t) | Act::Expect(t, ..) => *t }); }
+    for a in &acts { ticks = ticks.max(match a { Act::Hold(_, b, _) | Act::Mine(_, b, _, _) | Act::Dig(_, b, _, _) => *b, Act::Grotto(t, ..) | Act::Catch(t, ..) | Act::Tool(t, _) | Act::Throw(t, ..) | Act::Loose(t, ..) | Act::Brush(t, _) | Act::Place(t, ..) | Act::Put(t, ..) | Act::Explode(t, ..) | Act::Device(t, ..) | Act::Use(t, ..) | Act::Pickup(t, ..) | Act::Wire(t, ..) | Act::SaveLoad(t) | Act::Lamp(t, _) | Act::Aim(t, _) | Act::Wield(t, _) | Act::Torch(t, ..) | Act::Slide(t) | Act::SizeKey(t, ..) | Act::SizeWheel(t, ..) | Act::Hand(t, ..) | Act::Snap(t, ..) | Act::Line(t, ..) | Act::Mode(t, _) | Act::Pour(t, ..) | Act::Craft(t, _) | Act::Station(t, ..) | Act::Dump(t) | Act::Ascii(t) | Act::Expect(t, ..) => *t }); }
     let mut w = World::new(512 * K, 256 * K, seed); w.disasters.enabled = false; w.drops.clear(); w.torches.clear(); w.farms.clear(); w.grottos.clear(); // (the generated world's own grottos aren't part of the scenario)
     // tile-aligned spawn tile: the map is laid out in K×K tiles from here
     let (sx0, sy0) = (w.moles[0].x / K, w.moles[0].y / K);
@@ -159,6 +167,7 @@ fn run_file(path: &str, json: bool) -> bool {
     for (y, l) in map.iter().enumerate() { let cs: Vec<char> = l.chars().collect(); for x in 0..mw { let c = *cs.get(x).unwrap_or(&'#');
         let m = mat_char(c).unwrap_or_else(|| panic!("{path}: unknown map char '{c}'"));
         for j in 0..K * K { let i = w.g.idx(ox + x * K + j % K, oy + y * K + j / K); w.g.set(i, m); w.g.flags[i] = 0; } } }
+    let given: Vec<(usize, u32)> = gives.iter().map(|(n, k)| (molehill_sim::craft::ITEMS.iter().position(|it| format!("{it:?}").eq_ignore_ascii_case(n)).unwrap_or_else(|| panic!("unknown item {n}")), *k)).collect();
     for (n, k) in gives { let i = molehill_sim::craft::ITEMS.iter().position(|it| format!("{it:?}").eq_ignore_ascii_case(&n)).unwrap_or_else(|| panic!("unknown item {n}")); w.inv[i] = k; }
     // the mole stands centred on the '@' tile, feet on its bottom edge
     let (ax, ay) = (ox + ax * K, oy + ay * K); // '@' tile's top-left cell
@@ -210,6 +219,14 @@ fn run_file(path: &str, json: bool) -> bool {
                 // into stored bands and return (the mole is carried along, as if it had walked away and back)
                 Act::Slide(t) if *t == tick => { let (m0, p0) = (r.w.moles[0].clone(), r.w.pl.clone()); let bh = molehill_sim::band::BH; let rows = ((r.w.g.h - bh) / bh * bh) as i64;
                     r.w.shift(rows); r.w.shift(-rows); r.w.moles[0] = m0; r.w.pl = p0; }
+                Act::Pour(t, dx, dy, m) if *t == tick => { let mt = mat_by_name(m).unwrap_or_else(|| panic!("{path}: unknown material {m}"));
+                    let cells: Vec<usize> = r.tile(*dx, *dy).collect(); for i in cells { r.w.g.set(i, mt); } }
+                Act::Mode(t, c) if *t == tick => { r.w.creative = *c; if !*c { r.w.inv = [0; molehill_sim::craft::NITEM]; for &(i, k) in &given { r.w.inv[i] = k; } r.w.known = [false; molehill_sim::craft::NITEM]; } }
+                Act::Craft(t, n) if *t == tick => { let k = molehill_sim::craft::recipe_by_name(n).unwrap_or_else(|| panic!("{path}: unknown recipe {n}"));
+                    if let Err(e) = r.w.craft_now(k) { println!("  NOTE {path} tick {tick}: craft {n}: {e}"); } }
+                Act::Station(t, dx, dy, n) if *t == tick => { let kind = *molehill_sim::craft::STATIONS.iter().find(|s| s.name().eq_ignore_ascii_case(n)).unwrap_or_else(|| panic!("{path}: unknown station {n}"));
+                    let (x, y) = r.at(*dx, *dy); let (x, y) = (x - K / 2, y - K / 2 + K - 1); // bottom-left cell of the tile: the station stands on the row below
+                    if let Err(e) = r.w.place_building(kind, x, y) { println!("  NOTE {path} tick {tick}: station {n}: {e}"); } }
                 Act::Hand(t, h) if *t == tick => { use molehill_sim::world::Brush;
                     r.held = match h.as_str() { "Pickaxe" => Brush::Dig(1), "Drill" => Brush::Dig(2), "Bore" => Brush::Dig(3), it => Brush::Place(item_by_name(it).unwrap_or_else(|| panic!("{path}: unknown item {it}"))) };
                     if let Brush::Dig(n) = r.held { inp.tool = n; } inp.brush = r.sizes.radius(r.held); }

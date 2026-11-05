@@ -57,7 +57,7 @@ You play one mole. The controls work like Terraria or Core Keeper.
 | `Q` held, then released | Throw the item in hand (only throwable things: loose materials, food, spores, TNT). A thrown TNT charge goes out lit |
 | `E` | Pick up the device, unlit TNT, torch or copperline segment under the cursor; hold and sweep to take up a run of copperline. No digging needed |
 | `1`-`0` / wheel | Select a hotbar slot (also while sprinting) |
-| `I` | Inventory grid. Click a slot to pick its item up, then click another slot to drop or swap it (the hotbar is the bottom row) |
+| `I` | Inventory grid. Click a slot to pick its item up, then click another slot to drop or swap it (the hotbar is the bottom row). Standing at a station, its recipes are listed on the left: click one to make it |
 | `+` / `-`, `Ctrl`/`Cmd`+wheel | Zoom (also in Settings; clamped and saved) |
 | `G` | Headlamp lit / out |
 | `V` | Wiring view: a bold schematic of copperline (amber when carrying current), devices by role, knot inputs/outputs and names, thrum links and reach; the world dims. `V` again for the normal view |
@@ -80,14 +80,14 @@ For testing, all three tools and generous stacks of every item start in the pack
 * **Structural stress:** overburden, bending, compression and connectivity. Cracked cells crumble after 40 ticks. With no player action, the start burrow stands and a fresh world collapses only a little in the first 2 minutes (this is tested). Some natural caves may still settle in the fog away from the colony.
 * **Endless Deepholt:** you start in the middle layer of earth (depth 0 m). The 1024×512-cell grid is a sliding window over an infinite column: when the camera or colony nears the top or bottom edge, the window slides by 128 rows. Leaving rows are stored as 8 m bands with everything in them (your digging, devices, torches and stations are kept), and new rows are generated on demand from a pure per-cell function of (seed, x, absolute row), so the world is deterministic per seed. Horizontally it is still bounded by bedrock walls.
 * **Seeded procgen:** biomes, strata by depth, caves, and pockets of water and lava. Water is common in shallow layers and lava deeper down (details below).
-* **Lighting:** unlit tunnels stay dark. Torches, powered lamps, kilns, a torch in the paws and the mole's fungus-oil headlamp (`G`) cast light with soft falloff and rock shadows; lava, crystal and fungus glow. There is also fog of war and a deep-earth parallax background. There is no sky light and no day cycle.
+* **Lighting:** unlit tunnels stay dark. Torches, powered lamps, forges, a torch in the paws and the mole's fungus-oil headlamp (`G`) cast light with soft falloff and rock shadows; lava, crystal and fungus glow. There is also fog of war and a deep-earth parallax background. There is no sky light and no day cycle.
 * **Moles:**
   * They dig, haul, build and craft.
   * Their needs are hunger, sleep and breath. They eat grubs (+45), mushrooms (+35) and fungus (+25) at the stockpile, and sleep when tired.
   * In stale air (CO2 above 0.45) their breath drains and then they lose health. Above 0.55 they flee to fresher air.
   * Low needs halve their work speed, and starving hurts them. Digging soil sometimes turns up grubs.
 * **Stale air (`sim/src/air.rs`):** CO2 lives on an 8×8-cell block grid (0 is fresh, 1 is lethal). Breathing moles, torches, fire and lava add CO2. It diffuses conservatively between open neighbouring blocks, seeps slowly into porous soil faces, and is pulled out strongly by **vents** (×0.5 per update in the vent's block, ×0.8 around it). A sealed tunnel system therefore goes stale (tested). Stale air shows as an olive haze, and the HUD shows each mole's breath and air.
-* **Mushroom farms:** plant spores (dug out of fungus, or found on harvest) with `P`. A plot grows fastest when it is **dark** (no torch, lit lamp, kiln or furnace within 10 cells) **and damp** (water, wet soil or clay within 4 cells). It grows at ¼ speed with only one of those and not at all with neither. A ripe plot drops 2 mushrooms (with a 1-in-3 chance of a spore) and regrows.
+* **Mushroom farms:** plant spores (dug out of fungus, or found on harvest) with `P`. A plot grows fastest when it is **dark** (no torch, lit lamp or forge nearby) **and damp** (water, wet soil or clay within 4 cells). It grows at ¼ speed with only one of those and not at all with neither. A ripe plot drops 2 mushrooms (with a 1-in-3 chance of a spore) and regrows.
 * **Crafting, quests and chests:** stations, a recipe queue and a quest chain.
 * **Wiring and logic:**
   * Copperline on a 1 m block layer forms nets. Knots (both = AND, either = OR, turn = NOT, odd = XOR, catch = latch) switch one tick after their inputs change.
@@ -144,7 +144,7 @@ Units: cell edge s = 0.25 m, unit depth b = 1 m, g = 9.81 m/s². Densities are i
 
 ## Light and fog (`sim/src/light.rs`)
 
-* **Light** is per-cell RGB. It is seeded by emissive materials (lava, crystal, fungus, fire) and by light sources (torches, lamps, kilns and furnaces, the mole's headlamp beam and a held torch). Glow spreads with a two-sweep 8-neighbour chamfer pass: L(i) = max(L(i), L(n)·t(i)), with transmittance t = 0.90 per open cell and about 0.3 into rock. Sources cast rays that stop at rock, so they throw shadows (see the wiki's Physics page). It is computed only over the camera view plus a margin.
+* **Light** is per-cell RGB. It is seeded by emissive materials (lava, crystal, fungus, fire) and by light sources (torches, lamps, forges, the mole's headlamp beam and a held torch). Glow spreads with a two-sweep 8-neighbour chamfer pass: L(i) = max(L(i), L(n)·t(i)), with transmittance t = 0.90 per open cell and about 0.3 into rock. Sources cast rays that stop at rock, so they throw shadows (see the wiki's Physics page). It is computed only over the camera view plus a margin.
 * **Fog of war:** cells stay hidden until a mole sees them (raycasts every few ticks, radius 7 m) or digs next to them.
 
 ## Parallax background
@@ -160,24 +160,9 @@ They are sampled per cell at a camera-dependent offset, so they scroll slower th
 ## Crafting, items and quests (`sim/src/craft.rs`, `sim/src/world.rs`)
 
 * **Digging drops items** (one per 6 cells, or per 3 for gems). Moles haul the drops to the stockpile, and only stockpiled items count.
-* **Stations:**
-
-  | station | cost |
-  |---|---|
-  | workbench | 6 wood |
-  | kiln | 8 stone + 4 clay |
-  | furnace | 10 brick |
-  | anvil | 5 iron ingots |
-
-* **Recipes:**
-
-  | station | makes |
-  |---|---|
-  | workbench | torches, wood pillars, stone tools, TNT |
-  | kiln | brick, glass from sand, charcoal, fungus lamps |
-  | furnace | copper, tin and iron ingots; bronze (3 Cu + 1 Sn) |
-  | anvil | bronze and iron tools, iron beams, copperline (1 Cu ingot gives 8), knots (Cu + quartz), thrummers (2 crystal + 2 Cu + glass), vents at the workbench (2 wood + 2 stone) |
-
-* **Tool tiers** (claws, then stone, bronze, iron) speed up digging and gate the harder rock.
-* **Quests:** 17 sequential quests (reach a depth, stockpile, build, craft, open chests) with item rewards.
+* **Modes:** New Holt picks **Survival** (a near-empty pack, tools and recipes earned) or **Creative** (every tool, 999 of everything, free crafting).
+* **Stations** (craft standing at one, pack open): **workbench** (6 wood; always works), **forge** (10 stone + 4 clay; needs lava or fire within 3 m, or a lava-fed heatstone), **workshop** (4 wood + 4 stone + 6 copperline; needs a live copperline to it).
+* **Recipes unlock by touch:** a recipe appears the first time any of its ingredients reaches the pack. Chains are at most two steps (ore → ingot → tool). Full list: [Tools and Items](docs/wiki/Tools-and-Items.md#recipes).
+* **Tool tiers:** claws, then the **Pickaxe** (workbench), **Drill** (workshop: granite, iron ore) and **Bore** (forge: basalt). In Survival you dig with the best tool you own.
+* **Quests:** 18 sequential quests (reach a depth, stockpile, build, craft, open chests) with item rewards.
 * **Discoveries:** the first sighting of each ore, fluid or rock gives a small reward.

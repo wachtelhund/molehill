@@ -414,7 +414,7 @@ fn press(w: &mut World, n: usize, f: impl Fn(&mut Input)) -> (f32, f32) { let (m
         if u.pick_up { assert!(c.contains("E: "), "{it:?}: picked up with E"); }
         if u.place { assert!(c.contains("mouse"), "{it:?}: placed with the mouse"); }
     }
-    for it in [Item::WoodPillar, Item::Brick, Item::IronBeam, Item::CopperWire, Item::Torch, Item::Lamp, Item::Vent, Item::Gate, Item::Thrummer, Item::IronTools] {
+    for it in [Item::WoodPillar, Item::Brick, Item::IronBeam, Item::CopperWire, Item::Torch, Item::Lamp, Item::Vent, Item::Gate, Item::Thrummer, Item::Bore] {
         assert!(!it.uses().throw, "{it:?} is never thrown");
     }
     assert!(Item::Tnt.uses().place && Item::Tnt.uses().throw, "TNT: set down unlit, or thrown lit");
@@ -589,7 +589,7 @@ mod bands {
         let t = w.logic.block_of(x + 40, y); let gg = &mut w.g; assert!(w.logic.place(gg, Dev::Tnt, t)); w.logic.burn[t] = 50;
         let c = w.logic.block_of(x + 20, y); w.logic.wire[c] = 1;
         w.torches.push((x + 60, y)); w.drops.push(Drop::at((x + 70) as f32 + 0.5, (y + 1) as f32 + 0.5, Item::Coal, 3));
-        w.buildings.push(Building { kind: Station::Kiln, x: x + 120, y: 50, built: true, claimed: false });
+        w.buildings.push(Building { kind: Station::Forge, x: x + 120, y: 50, built: true, claimed: false });
         w.farms.push(Farm { x: x + 200, y: 45, growth: 0.5, why: 0 });
         let a = w.air.block(x, y); w.air.co2[a] = 0.7;
         let s = snap(&w); (w, s)
@@ -832,4 +832,42 @@ fn material_table_is_consistent() {
     assert!(behind < 0.05, "behind the wall dark ({behind}), open side {open}");
     // and every light source goes through the same rays: the torch is one of the sources
     assert!(w.light_sources().iter().any(|s| (s.x - (tx as f32 + 0.5)).abs() < 0.01 && (s.y - (ty as f32 + 0.5)).abs() < 0.01));
+}
+
+// ---- progression: stations, recipes unlocked by touch, tool tiers (PROGRESSION.md) ----
+mod progression {
+    use molehill_sim::{world::*, craft::*, save};
+    /// Short chains: nothing is more than two crafting steps from what the ground gives (ore → ingot → tool).
+    #[test] fn recipes_are_short_chains() {
+        fn steps(it: Item, seen: &mut Vec<Item>) -> u32 {
+            if seen.contains(&it) { return 0; }
+            let rs: Vec<&Recipe> = RECIPES.iter().filter(|r| r.out.0 == it).collect();
+            if rs.is_empty() { return 0; }
+            seen.push(it); let s = rs.iter().map(|r| 1 + r.inputs.iter().map(|&(i, _)| steps(i, seen)).max().unwrap_or(0)).min().unwrap(); seen.pop(); s
+        }
+        for r in RECIPES { assert!(steps(r.out.0, &mut vec![]) <= 2, "{} is {} steps from the ground", r.name, steps(r.out.0, &mut vec![])); }
+        for s in STATIONS { assert!(RECIPES.iter().any(|r| r.station == s), "{s:?} makes something"); }
+        // the tool ladder: pickaxe at the workbench (wood and stone, which claws can get), drill at the workshop, bore at the forge
+        let at = |n: &str| RECIPES[recipe_by_name(n).unwrap()].station;
+        assert_eq!((at("Pickaxe"), at("Drill"), at("Bore")), (Station::Workbench, Station::Workshop, Station::Forge));
+        for &(it, _) in RECIPES[recipe_by_name("Pickaxe").unwrap()].inputs { assert!(matches!(it, Item::Wood | Item::Stone)); }
+    }
+    #[test] fn survival_starts_bare_and_learns() {
+        let mut w = World::survival(256 * molehill_sim::mat::S, 128 * molehill_sim::mat::S, 3);
+        assert!(!w.creative && tool_tier(&w.inv) == 0, "no tools at the start");
+        w.input.tool = 3; assert_eq!(w.dig_power(), 0, "a tool in hand you don't own doesn't dig");
+        let pick = recipe_by_name("Pickaxe").unwrap(); let cu = recipe_by_name("Copper ingot").unwrap();
+        assert!(w.recipe_known(pick), "wood in the starting pack shows the pickaxe");
+        assert!(!w.recipe_known(cu));
+        assert!(w.craft_now(cu).is_err(), "an unknown recipe can't be made");
+        w.inv[Item::CopperOre as usize] = 2; w.step(); assert!(w.known[Item::CopperOre as usize] && w.recipe_known(cu));
+        assert!(w.log.iter().any(|(_, l)| l.contains("New recipes") && l.contains("Copper ingot")), "the log says what opened");
+        w.inv[Item::Stone as usize] = 4; assert!(w.craft_now(pick).unwrap_err().contains("workbench"), "survival crafts at a station");
+        // saved and loaded: mode and what you know
+        let l = save::load(&save::save(&w)).unwrap(); assert!(!l.creative); assert_eq!(l.known, w.known);
+        // Creative: free access, anywhere
+        let mut c = World::new(256 * molehill_sim::mat::S, 128 * molehill_sim::mat::S, 3); c.inv[Item::IronIngot as usize] = 3; c.inv[Item::CopperIngot as usize] = 2;
+        assert!(c.craft_now(recipe_by_name("Drill").unwrap()).is_ok() && c.inv[Item::Drill as usize] == 1);
+        c.input.tool = 3; assert_eq!(c.dig_power(), 3);
+    }
 }

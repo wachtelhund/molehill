@@ -2,7 +2,7 @@
 
 > This file is the same as [docs/wiki/Progression.md](docs/wiki/Progression.md). Edit both together.
 
-> **Design, not yet implemented.** This page describes where Molehill is going, not what the game does today. The current build is effectively Creative mode: every tool and 999 of every item in the pack, crafting hidden. The other pages describe what is actually in the code. Everything here must follow [Lore](LORE.md).
+> **Mostly design.** This page describes where Molehill is going. **Built so far:** Survival and Creative modes, the three stations, recipes that unlock by touch, the Pickaxe / Drill / Bore tool ladder (see [Crafting](#crafting)), and grottos. The other pages describe what is actually in the code. Everything here must follow [Lore](LORE.md).
 
 ## The idea in one line
 
@@ -51,6 +51,8 @@ Each tier is gated by a material from a deeper or harder band, and unlocks the n
 The tool ladder matches the rock: the **Pickaxe** for soft ground, the **Drill** (a copperline-driven auger) for granite, and the **Bore** (a heavy heat-bore) for basalt. The digging model already gates material by tool tier (see [Tools and Items](docs/wiki/Tools-and-Items.md)).
 
 ### Crafting
+
+> **Built** (Survival; Creative keeps free access): the three stations below with their heat and power rules, recipes that unlock by touch, short chains, and the tool ladder: Pickaxe at the workbench, Drill at the workshop, Bore at the forge. Details and the recipe list: [Tools and Items](docs/wiki/Tools-and-Items.md#stations). Not yet: the forge's heat from a heatstone carried by pipes, fungus-oil fuel, and emberiron (the Bore uses iron, copper and crystal for now).
 
 * **Stations, not menus.** You craft at a station you have built and stand at:
   * the **workbench** for wood, stone, simple devices and furniture;
@@ -111,8 +113,8 @@ Wood is the first material and must stay precious, so it doesn't come from the e
 
 | mode | what it is |
 |---|---|
-| **Survival** (the main game) | Everything above: start with almost nothing, dig, survive, build up the tiers, furnish the holt and grow the colony. The long goal is the **Lid**: following the old myth upward and through the **Ancients'** facilities, which hint at it. |
-| **Creative** | Everything in the pack, nothing hurts. This is what the current build is. |
+| **Survival** (the main game; built: the default for New Holt, with tools, stations and recipes) | Everything above: start with almost nothing, dig, survive, build up the tiers, furnish the holt and grow the colony. The long goal is the **Lid**: following the old myth upward and through the **Ancients'** facilities, which hint at it. |
+| **Creative** | Everything in the pack, every recipe anywhere. Chosen on New Holt (built; damage is still on). |
 
 ### The Ancients
 
@@ -128,10 +130,10 @@ Everything the Ancients built obeys the same physics as everything else: weight,
 
 | area | today | this design |
 |---|---|---|
-| Mode | Creative-like test build (999 of everything, crafting hidden) | Survival as the main game; Creative kept |
-| Tools | Pickaxe, Drill, Bore with tiers 1–3 | the same three, unlocked by tiers 1, 3 and 5 |
-| Stations | workbench, kiln, furnace, anvil | workbench, forge (needs heat), workshop (needs copperline and power) |
-| Recipes | always listed | unlocked by first pick-up; at most 2 steps |
+| Mode | **built:** Survival (the default for New Holt) and Creative | Survival as the main game; Creative kept |
+| Tools | **built:** Pickaxe (workbench), Drill (workshop), Bore (forge), dig tiers 1–3; in Survival you dig with the best you own | the same three, unlocked by tiers 1, 3 and 5 |
+| Stations | **built:** workbench, forge (needs heat), workshop (needs a live copperline) | workbench, forge (needs heat), workshop (needs copperline and power) |
+| Recipes | **built:** unlocked by first pick-up; at most 2 steps | unlocked by first pick-up; at most 2 steps |
 | Light | torches, lamps and a headlamp, no fuel | fungus-oil fuel for torches and headlamp; glowmite lanterns |
 | Death | respawn in the burrow, pack kept | wake in the holt; carried items stay where you died |
 | Wood | **built:** grottos with regrowing root-trees (see [World and Generation](docs/wiki/World-and-Generation.md#grottos)) | grottos with regrowing root-trees |

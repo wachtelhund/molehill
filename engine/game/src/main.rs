@@ -66,7 +66,7 @@ pub const NSLOT: usize = 70;
 pub fn brush_of(t: Option<Thing>) -> Option<sw::Brush> { match t { Some(Thing::Pick(n)) => Some(sw::Brush::Dig(n)), Some(Thing::Item(it @ (Item::WoodPillar | Item::Brick | Item::IronBeam))) => Some(sw::Brush::Place(it)), _ => None } }
 /// The radius the brush of this thing will actually use (the player's choice, clamped to the item's range).
 pub fn brush_r(g: &Game, b: sw::Brush) -> f32 { g.sizes.radius(b) }
-pub fn thing_name(_g: &Game, t: Thing) -> String { match t { Thing::Pick(n) => ["Pickaxe", "Drill", "Bore"][(n as usize - 1).min(2)].into(), Thing::Item(it) => it.name().into(), Thing::Dev(d) => DEVS[d].name().into(), Thing::Station(s) => STATIONS[s].name().into() } }
+pub fn thing_name(g: &Game, t: Thing) -> String { match t { Thing::Pick(_) if !thing_usable(g, t) => "Claws".into(), Thing::Pick(n) => ["Pickaxe", "Drill", "Bore"][(n as usize - 1).min(2)].into(), Thing::Item(it) => it.name().into(), Thing::Dev(d) => DEVS[d].name().into(), Thing::Station(s) => STATIONS[s].name().into() } }
 /// Tooltip line for an inventory thing.
 pub fn thing_desc(t: Thing) -> &'static str { match t { Thing::Pick(1) => "Breaks soil and soft stone in a mole-sized bite.", Thing::Pick(2) => "Copperline-driven auger. Cuts granite, basalt and ore.", Thing::Pick(_) => "Heavy heat-bore. The widest bite; cuts the hardest stone.", Thing::Item(it) => it.desc(), Thing::Dev(d) => DEVS[d].desc(), Thing::Station(s) => STATIONS[s].desc() } }
 /// The inputs for a thing in hand, one line (slot tooltip and the hint over the hotbar).
@@ -77,13 +77,41 @@ pub fn thing_controls(t: Thing) -> &'static str { match t {
     Thing::Dev(_) => "Left/right mouse: set down · right mouse on it: use · E: pick up",
     Thing::Station(_) => "Left mouse: plan it here, then bring the materials",
 } }
+/// Crafting list (pack open): for each station the mole stands at (Creative: every station, free), a header
+/// with the station's state, then the recipes known so far with their inputs. Clicking a bright row crafts it.
+pub struct CraftRow { pub text: String, pub recipe: Option<usize>, pub ok: bool, pub head: bool }
+pub const CRAFT_ROWS: usize = 30;
+const CRAFT_X: f32 = 18.; const CRAFT_Y: f32 = 96.; const CRAFT_H: f32 = 19.; const CRAFT_W: f32 = 380.;
+pub fn craft_row_pos(k: usize) -> Vec2 { Vec2::new(CRAFT_X, CRAFT_Y + k as f32 * CRAFT_H) }
+pub fn craft_rows(g: &Game) -> Vec<CraftRow> {
+    let w = &g.w; let mut v = vec![]; if !g.inv_open { return v; }
+    for st in STATIONS {
+        let here = w.station_here(st); if !w.creative && here.is_none() { continue; }
+        let ready = if w.creative { Ok(()) } else { here.map_or(Ok(()), |b| w.station_ready(b)) };
+        v.push(CraftRow { text: match ready { Ok(()) => st.name().to_string(), Err(e) => format!("{}: {e}", st.name()) }, recipe: None, ok: ready.is_ok(), head: true });
+        for (r, rec) in RECIPES.iter().enumerate() {
+            if rec.station != st || !w.recipe_known(r) { continue; }
+            let has = rec.inputs.iter().all(|&(it, n)| w.inv[it as usize] >= n);
+            let ins: Vec<String> = rec.inputs.iter().map(|&(it, n)| format!("{n} {}", it.name().to_lowercase())).collect();
+            v.push(CraftRow { text: format!("  {}   {}", rec.name, ins.join(", ")), recipe: Some(r), ok: has && ready.is_ok(), head: false });
+        }
+    }
+    if v.is_empty() { v.push(CraftRow { text: "Stand at a workbench, forge or workshop to craft".into(), recipe: None, ok: false, head: true }); }
+    v.truncate(CRAFT_ROWS); v
+}
+pub fn craft_row_at(g: &Game, c: Vec2) -> Option<usize> {
+    if !g.inv_open || c.x < CRAFT_X || c.x > CRAFT_X + CRAFT_W || c.y < CRAFT_Y { return None; }
+    let k = ((c.y - CRAFT_Y) / CRAFT_H) as usize; (k < craft_rows(g).len()).then_some(k)
+}
+/// In Survival a dig tool is only in the hotbar once you own it (Creative: always).
+pub fn thing_usable(g: &Game, t: Thing) -> bool { match t { Thing::Pick(n) => g.w.creative || g.w.inv[[Item::Pickaxe, Item::Drill, Item::Bore][(n as usize).clamp(1, 3) - 1] as usize] > 0, _ => true } }
 pub fn thing_count(g: &Game, t: Thing) -> Option<u32> { match t { Thing::Item(it) => Some(g.w.inv[it as usize]), Thing::Dev(d) => dev_cost(DEVS[d]).map(|it| g.w.inv[it as usize]), _ => None } }
 fn default_slots() -> Vec<Option<Thing>> {
     let mut v: Vec<Thing> = vec![Thing::Pick(1), Thing::Pick(2), Thing::Pick(3), Thing::Item(Item::WoodPillar), Thing::Item(Item::Brick), Thing::Item(Item::IronBeam), Thing::Item(Item::Torch), Thing::Item(Item::Tnt), Thing::Item(Item::CopperWire), Thing::Dev(DEVS.iter().position(|&d| d == Dev::Lever).unwrap_or(0))];
     v.push(Thing::Item(Item::Spore));
     for d in 0..DEVS.len() { if !v.contains(&Thing::Dev(d)) { v.push(Thing::Dev(d)); } }
-    for k in 0..4 { v.push(Thing::Station(k)); }
-    for &it in ITEMS.iter() { if !v.contains(&Thing::Item(it)) && !matches!(it, Item::StoneTools | Item::BronzeTools | Item::IronTools) { v.push(Thing::Item(it)); } }
+    for k in 0..STATIONS.len() { v.push(Thing::Station(k)); }
+    for &it in ITEMS.iter() { if !v.contains(&Thing::Item(it)) && !matches!(it, Item::Pickaxe | Item::Drill | Item::Bore) { v.push(Thing::Item(it)); } }
     let mut out: Vec<Option<Thing>> = v.into_iter().map(Some).collect(); out.resize(NSLOT, None); out.truncate(NSLOT); out
 }
 /// Parallax background: three deep-earth layers (pixels, parallax factor). They are drawn as GPU sprites
@@ -237,7 +265,12 @@ fn dev_dump(n: Local<u32>, g: Res<Game>, sp: Res<Sprites>, images: Res<Assets<Im
         info!("dumped art to {dir}");
     }
 }
-fn make_world(seed: u32) -> World { let mut w = World::new(W, H, seed); w.disasters.enabled = false; for v in w.inv.iter_mut() { *v = (*v).max(999); } stage_scene(&mut w); w }
+/// A new holt. Creative: every tool and 999 of everything (free access). Survival: a near-empty pack,
+/// tools and recipes earned (see PROGRESSION.md).
+fn make_world(seed: u32, creative: bool) -> World {
+    if !creative { let mut w = World::survival(W, H, seed); w.disasters.enabled = false; return w; }
+    let mut w = World::new(W, H, seed); w.disasters.enabled = false; for v in w.inv.iter_mut() { *v = (*v).max(999); } stage_scene(&mut w); w
+}
 /// --scene=water|tnt (native, for recording): stage a set piece next to the burrow. Play is unchanged.
 fn stage_scene(w: &mut World) {
     #[cfg(not(target_arch = "wasm32"))] {
@@ -290,7 +323,7 @@ fn stage_scene(w: &mut World) {
 
 fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, mut fonts: ResMut<Assets<Font>>) {
     let seed = seed_now() % 100000;
-    let w = make_world(seed);
+    let w = make_world(seed, true); // behind the title menu (and dev shots): New Holt picks the mode
     // The world is split into CH×CH-cell chunk textures; only chunks whose composited pixels changed
     // are touched (Assets::get_mut marks an image for re-upload), so a quiet frame uploads nothing.
     let oy0 = w.oy;
@@ -349,12 +382,12 @@ fn reset_view(g: &mut Game, commands: &mut Commands) {
     g.w.pl.sync = None; g.inv_open = false; g.help = false; g.acc = 0.;
 }
 /// Start a fresh holt (world) from a seed.
-pub fn begin(g: &mut Game, commands: &mut Commands, seed: u32) { g.w = make_world(seed); g.seed = seed; reset_view(g, commands); g.msg = format!("Holt {seed}"); }
+pub fn begin(g: &mut Game, commands: &mut Commands, seed: u32, creative: bool) { g.w = make_world(seed, creative); g.seed = seed; reset_view(g, commands); g.msg = format!("Holt {seed}{}", if creative { " (Creative)" } else { "" }); }
 /// Load the manual save (or the autosave). Returns false if there is none or it failed.
 pub fn load_saved(g: &mut Game, commands: &mut Commands) -> bool {
     match load_slot("molehill-manual").or_else(|| load_slot("molehill-auto")) {
         Some(Ok(w)) if w.g.w != W || w.g.h != H => { g.msg = format!("Load failed: save is {}x{}, this build is {W}x{H}", w.g.w, w.g.h); false }
-        Some(Ok(w)) => { g.w = w; for v in g.w.inv.iter_mut() { *v = (*v).max(999); } reset_view(g, commands); g.msg = "Game loaded".into(); true }
+        Some(Ok(w)) => { g.w = w; if g.w.creative { for v in g.w.inv.iter_mut() { *v = (*v).max(999); } } reset_view(g, commands); g.msg = "Game loaded".into(); true }
         Some(Err(e)) => { g.msg = format!("Load failed: {e}"); false } None => { g.msg = "No save yet".into(); false } }
 }
 fn make_bg(w: &World) -> Bg {
@@ -434,6 +467,11 @@ fn input(mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<Button
     let latched = g.mouse_latch;
     let cur = win.cursor_position();
     let over = cur.and_then(|c| ui::slot_at(c, win.width(), win.height(), g.inv_open));
+    // the crafting list (pack open): a click on a recipe row crafts it
+    if let (Some(c), true) = (cur, mouse.just_pressed(MouseButton::Left) && !latched) { if let Some(k) = craft_row_at(&g, c) {
+        if let Some(r) = craft_rows(&g)[k].recipe { g.msg = match g.w.craft_now(r) { Ok(()) => format!("Made {}", RECIPES[r].name), Err(e) => format!("Can't craft: {e}") }; }
+        g.mouse_latch = true; } }
+    let latched = g.mouse_latch;
     if let Some(k) = over {
     if mouse.just_pressed(MouseButton::Left) && !latched {
             if g.inv_open { let h = g.held.take(); g.held = g.slots[k].take(); g.slots[k] = h; } else { g.hot = k; }
@@ -447,7 +485,7 @@ fn input(mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<Button
     // S: dig straight down (with the pick in hand, else the pickaxe)
     let (mx, my) = (g.w.moles[0].x, g.w.moles[0].y);
     if (keys.pressed(KeyCode::KeyS) || keys.pressed(KeyCode::ArrowDown)) && g.w.pl.grounded { g.w.input.mine = Some((mx, my + 2 * S)); }
-    let on_panel = over.is_some() || g.inv_open && cur.map_or(false, |c| { let a = ui::slot_pos(10, win.width(), win.height()); c.y > a.y - 10. && (c.x - win.width() / 2.).abs() < 5. * (ui::S + ui::GAP) + 10. });
+    let on_panel = over.is_some() || cur.map_or(false, |c| craft_row_at(&g, c).is_some()) || g.inv_open && cur.map_or(false, |c| { let a = ui::slot_pos(10, win.width(), win.height()); c.y > a.y - 10. && (c.x - win.width() / 2.).abs() < 5. * (ui::S + ui::GAP) + 10. });
     let Some(cur) = cur else { g.aim = None; return };
     if on_panel { g.aim = None; return; }
     let wp = Vec2::new(ct.translation.x + (cur.x - win.width() / 2.) * sc, ct.translation.y - (cur.y - win.height() / 2.) * sc);
@@ -799,7 +837,7 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
             if x < 0. || y < 0. || x as usize >= W || y as usize >= H || w.g.is_solidish(y as usize * W + x as usize) { break; }
             want.push((12, k, cell_to_world(x, y), 6., sp.px.clone(), Vec2::splat(CPX * SF * 0.6), false, Color::srgba(1., 0.95, 0.8, 0.25 + 0.5 * f))); } }
     for (k, c) in w.chests.iter().enumerate() { if w.g.flags[c.y * W + c.x] & F_SEEN == 0 || w.g.is_solidish(c.y * W + c.x) && !c.opened { continue; } want.push((2, k, cell_to_world(c.x as f32 + 0.5 * SF, c.y as f32 + 1. - 1.1 * SF), 3., sp.chest[c.opened as usize].clone(), Vec2::new(16., 13.), false, lightf(c.x, c.y))); }
-    for (k, b) in w.buildings.iter().enumerate() { want.push((3, k, cell_to_world(b.x as f32 + Station::W as f32 / 2., b.y as f32 + 1. - Station::H as f32 / 2.), 2., sp.station[b.kind as usize][b.built as usize].clone(), Vec2::new(Station::W as f32 * CPX, Station::H as f32 * CPX), false, lightf(b.x + 5 * S, b.y - 2 * S))); }
+    for (k, b) in w.buildings.iter().enumerate() { want.push((3, k, cell_to_world(b.x as f32 + Station::W as f32 / 2., b.y as f32 + 1. - Station::H as f32 / 2.), 2., sp.station[b.kind.art() as usize][b.built as usize].clone(), Vec2::new(Station::W as f32 * CPX, Station::H as f32 * CPX), false, lightf(b.x + 5 * S, b.y - 2 * S))); }
     // torches: flickering flame frames and a small bloom round the flame (the light itself, with its shadows,
     // is the sim's ray-cast light); lit lamps get a small steady bloom
     for (k, &(x, y)) in w.torches.iter().enumerate() {

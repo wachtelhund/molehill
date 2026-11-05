@@ -6,17 +6,19 @@ use bevy::window::{MonitorSelection, PrimaryWindow, WindowMode};
 use crate::{Game, audio::Audio};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)] pub enum Screen { Off, Main, Pause, Settings, Controls }
-#[derive(Clone, Copy, PartialEq, Debug)] enum Item { Continue, NewHolt, Seed, Settings, Controls, Quit, Resume, Restart, Save, Load, MainMenu, Volume, Music, Zoom, Headlamp, Fullscreen, Back }
+#[derive(Clone, Copy, PartialEq, Debug)] enum Item { Continue, NewHolt, Mode, Seed, Settings, Controls, Quit, Resume, Restart, Save, Load, MainMenu, Volume, Music, Zoom, Headlamp, Fullscreen, Back }
 
-#[derive(Resource)] pub struct Menu { pub screen: Screen, back: Screen, sel: usize, pub seed_text: String, pub volume: f32, pub music: f32, music_on: f32, pub zoom: f32, pub headlamp: bool, pub fullscreen: bool, has_save: bool }
-impl Default for Menu { fn default() -> Self { Menu { screen: Screen::Main, back: Screen::Main, sel: 0, seed_text: String::new(), volume: 0.8, music: MUSIC_DEFAULT, music_on: MUSIC_DEFAULT, zoom: molehill_sim::view::ZOOM_DEFAULT, headlamp: true, fullscreen: false, has_save: false } } }
+#[derive(Resource)] pub struct Menu { pub screen: Screen, back: Screen, sel: usize, pub seed_text: String, pub volume: f32, pub music: f32, music_on: f32, pub zoom: f32,
+    /// New Holt: Survival (the main game) or Creative (everything, free)
+    pub creative: bool, pub headlamp: bool, pub fullscreen: bool, has_save: bool }
+impl Default for Menu { fn default() -> Self { Menu { screen: Screen::Main, back: Screen::Main, sel: 0, seed_text: String::new(), volume: 0.8, music: MUSIC_DEFAULT, music_on: MUSIC_DEFAULT, creative: false, zoom: molehill_sim::view::ZOOM_DEFAULT, headlamp: true, fullscreen: false, has_save: false } } }
 impl Menu {
     pub fn open(&self) -> bool { self.screen != Screen::Off }
     fn items(&self) -> Vec<Item> {
         use Item::*;
         match self.screen {
-            Screen::Main => { let mut v = vec![]; if self.has_save { v.push(Continue); } v.extend([NewHolt, Seed, Settings, Controls]); if cfg!(not(target_arch = "wasm32")) { v.push(Quit); } v }
-            Screen::Pause => vec![Resume, Restart, NewHolt, Save, Load, Settings, Controls, MainMenu],
+            Screen::Main => { let mut v = vec![]; if self.has_save { v.push(Continue); } v.extend([NewHolt, Mode, Seed, Settings, Controls]); if cfg!(not(target_arch = "wasm32")) { v.push(Quit); } v }
+            Screen::Pause => vec![Resume, Restart, NewHolt, Mode, Save, Load, Settings, Controls, MainMenu],
             Screen::Settings => { let mut v = vec![Volume, Music, Zoom, Headlamp]; if cfg!(not(target_arch = "wasm32")) { v.push(Fullscreen); } v.push(Back); v }
             Screen::Controls => vec![Back], Screen::Off => vec![],
         }
@@ -24,6 +26,7 @@ impl Menu {
     fn label(&self, it: Item) -> String {
         match it {
             Item::Continue => "Continue".into(), Item::NewHolt => "New Holt".into(),
+            Item::Mode => format!("Mode   <  {}  >", if self.creative { "Creative" } else { "Survival" }),
             Item::Seed => format!("Seed  {}", if self.seed_text.is_empty() { "random  (type digits)".into() } else { self.seed_text.clone() + "_" }),
             Item::Settings => "Settings".into(), Item::Controls => "Controls".into(), Item::Quit => "Quit".into(),
             Item::Resume => "Resume".into(), Item::Restart => "Restart (same seed)".into(), Item::Save => "Save".into(), Item::Load => "Load".into(), Item::MainMenu => "Main Menu".into(),
@@ -71,7 +74,7 @@ pub fn setup(commands: &mut Commands, f: &Handle<Font>) {
 pub const CONTROL_ROWS: &[(&str, &str)] = &[
     ("Move", "A / D  (Shift: sprint)"), ("Jump", "Space  (or W off a wall)"), ("Walls", "hold into a wall: W / S climb, Space wall-jump"),
     ("Dig down", "S"), ("Use item", "Left mouse"), ("Interact", "Right mouse  (levers, light TNT; on an empty spot: set down a device or TNT)"), ("Throw", "hold Q, release  (TNT goes out lit)"), ("Pick up", "E  (devices, unlit TNT, torches; hold and sweep for copperline)"),
-    ("Brush size", "[ / ]  or  Option/Alt + wheel"), ("Grid snap", "X  (blocks in squares; a drag lays a line)"), ("Hotbar", "1 - 0  or  wheel"), ("Pack", "I"), ("Headlamp", "G"), ("Wiring view", "V"), ("Zoom", "+ / -  or  Ctrl + wheel"),
+    ("Brush size", "[ / ]  or  Option/Alt + wheel"), ("Grid snap", "X  (blocks in squares; a drag lays a line)"), ("Hotbar", "1 - 0  or  wheel"), ("Pack / craft", "I  (at a station: its recipes, click to make)"), ("Headlamp", "G"), ("Wiring view", "V"), ("Zoom", "+ / -  or  Ctrl + wheel"),
     ("Pause", "Esc"), ("Save / load", "K / L"), ("Controls", "H"), ("Dev info", "F3"),
 ];
 /// A two-column table of `CONTROL_ROWS`: actions dim and right-aligned, keys in ink.
@@ -116,11 +119,12 @@ pub fn update(mut m: ResMut<Menu>, mut g: ResMut<Game>, keys: Res<ButtonInput<Ke
             Item::Volume if adj != 0. || act => { m.volume = if adj != 0. { (m.volume + adj * 0.1).clamp(0., 1.) } else if m.volume > 0. { 0. } else { 0.8 }; au.set_volume(m.volume); m.persist(); }
             // music: A/D in 10% steps; Enter or a click mutes, and again brings back the last level
             Item::Music if adj != 0. || act => { if adj != 0. { m.music = (m.music + adj * 0.1).clamp(0., 1.); if m.music > 0. { m.music_on = m.music; } } else { m.music = if m.music > 0. { 0. } else { m.music_on.max(0.1) }; } m.persist(); }
+            Item::Mode if adj != 0. || act => { m.creative = !m.creative; }
             Item::Zoom if adj != 0. || act => z(&mut m, if adj != 0. { adj } else if clicked { click_dir } else { 1. }),
             _ if act => match it {
                 Item::Continue => { if crate::load_saved(&mut g, &mut commands) { m.go(Screen::Off); } }
-                Item::NewHolt | Item::Seed => { let seed = m.seed_text.parse().unwrap_or_else(|_| crate::seed_now() % 100000); crate::begin(&mut g, &mut commands, seed); m.seed_text.clear(); m.go(Screen::Off); if let Ok(mut ct) = cam.single_mut() { ct.scale = Vec3::splat(m.zoom); } }
-                Item::Restart => { let s = g.seed; crate::begin(&mut g, &mut commands, s); m.go(Screen::Off); }
+                Item::NewHolt | Item::Seed => { let seed = m.seed_text.parse().unwrap_or_else(|_| crate::seed_now() % 100000); let c = m.creative; crate::begin(&mut g, &mut commands, seed, c); m.seed_text.clear(); m.go(Screen::Off); if let Ok(mut ct) = cam.single_mut() { ct.scale = Vec3::splat(m.zoom); } }
+                Item::Restart => { let (s, c) = (g.seed, g.w.creative); crate::begin(&mut g, &mut commands, s, c); m.go(Screen::Off); }
                 Item::Resume => m.go(Screen::Off),
                 Item::Save => { crate::save_now(&mut g); m.go(Screen::Off); }
                 Item::Load => { if crate::load_saved(&mut g, &mut commands) { m.go(Screen::Off); } }
