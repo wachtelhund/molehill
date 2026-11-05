@@ -8,11 +8,11 @@ Molehill is a falling-sand platformer and colony sim about moles digging through
 
 ## What makes it Molehill
 
-* **The ground is the game.** About two million 12.5 cm cells are simulated at 60 ticks a second. Sand pours, water levels out, lava creeps, and stone cracks when a span gets too wide.
+* **The ground is the game.** About two million 12.5 cm cells are simulated at 60 ticks a second. Sand pours, water levels out, lava creeps, and stone cracks when a span gets too wide. Even loose things obey it: a dropped stone bounces off granite and dies in dirt, wood floats, and a thrown charge rolls before it goes off.
 * **Structures are judged by real numbers.** Roofs are checked as beams in bending and pillars in compression, using densities and rock-mass strengths in kPa. A 1 m dirt span holds; a 6 m one comes down. See [Physics](Physics.md).
 * **Movement is snappy.** Instant start and stop, coyote time, a jump buffer, wall clinging and corner correction. The target feel is Streets of Rogue: actions fire on press with immediate feedback. See [Player and Controls](Player-and-Controls.md).
 * **Handmade technology.** Copperline carries current from levers, heatstones and water wheels through knots into doors, lamps, pumps and blasting charges. Signals cross solid rock by thrumming. See [Devices and Copperline](Devices-and-Copperline.md).
-* **No sky, ever.** The world keeps going up and down for as long as you dig. See [Lore](Lore.md) and [World and Generation](World-and-Generation.md).
+* **No sky, ever.** The world keeps going up and down for as long as you dig. What you leave behind stays: rows that scroll out of the live window are kept in 8 m bands, devices and all, and saved band by band. See [Lore](Lore.md) and [World and Generation](World-and-Generation.md).
 
 ## Pages
 
