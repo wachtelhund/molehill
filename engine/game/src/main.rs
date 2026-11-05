@@ -1058,7 +1058,7 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
             let f = if matches!(b, sw::Brush::Dig(_)) { w.pl.mine.map_or(0., |(_, a, b)| a as f32 / b.max(1) as f32) } else { 0. };
             // dig: warm white ring that tightens as the bite gives way (a dim cold ring over rock your tools can't
             // dig, so it shows before the click); place: ring in the block's colour
-            let c = if !reach { Color::srgba(1., 0.45, 0.35, 0.35) } else if matches!(b, sw::Brush::Dig(_)) && x < w.g.w && y < w.g.h && w.dig_refusal(w.g.get(x, y)).is_some() { Color::srgba(0.62, 0.66, 0.78, 0.3) } else if let sw::Brush::Place(it) = b { let k = it.color(); Color::srgba(k[0] as f32 / 255. * 1.2, k[1] as f32 / 255. * 1.2, k[2] as f32 / 255. * 1.2, 0.8) } else { Color::srgba(1., 0.97, 0.9, 0.6 + 0.4 * f) };
+            let c = if !reach { Color::srgba(1., 0.45, 0.35, 0.35) } else if matches!(b, sw::Brush::Dig(_)) && x < w.g.w && y < w.g.h && w.dig_refusal(w.g.get(x, y)).is_some() { let [r, gg, bb, a] = hotbar::REFUSE_RING; Color::srgba(r, gg, bb, a) } else if let sw::Brush::Place(it) = b { let k = it.color(); Color::srgba(k[0] as f32 / 255. * 1.2, k[1] as f32 / 255. * 1.2, k[2] as f32 / 255. * 1.2, 0.8) } else { Color::srgba(1., 0.97, 0.9, 0.6 + 0.4 * f) };
             want.push((7, 0, cell_to_world(x as f32 + 0.5, y as f32 + 0.5), 6., sp.ring.clone(), Vec2::splat(d * (1. - 0.15 * f)), false, c)); }
         else { let c = if reach { Color::srgba(1., 1., 0.85, 0.22) } else { Color::srgba(1., 0.4, 0.3, 0.10) }; want.push((7, 0, cell_to_world(x as f32 + 0.5, y as f32 + 0.5), 6., sp.px.clone(), Vec2::splat(CPX), false, c)); }
     }
