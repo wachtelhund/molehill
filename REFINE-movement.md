@@ -44,6 +44,13 @@ Polish only: no new features or concepts. Each entry is one commit.
 6. **Step-up and mantle checked.** Both already behaved (steps of 1-2 cells at full speed; a climbed wall
    rolls you onto its top), so there was no tuning change, just coverage: scenarios `step_up` and `mantle`.
 
+### Run 2
+
+7. **Wall-jump grace.** Clinging and pressing away from the wall plus Space (the natural wall-jump input) let go
+   of the wall first, so the jump found no wall and the mole just dropped. Leaving a cling now keeps a
+   0.1 s grace (`TUNE.coyote`, like ground coyote) in which Space still kicks off that wall. Scenario:
+   `wall_jump_away` (same-tick press, a late press 4 ticks after letting go, none after 8 ticks).
+
 ## Open issues
 * `main`'s solver still sends overburden through open caves, so dirt seams under deep rock are crushed in
   compression whatever supports them. That's a modelling choice from the other run; I left it alone.
