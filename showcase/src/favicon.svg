@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Molehill">
+  <rect width="32" height="32" fill="#120e0b"/>
+  <path fill="#3a2a1c" d="M3 26c3.2-9.2 9-13 13-13s9.8 3.8 13 13H3z"/>
+  <circle cx="16" cy="11" r="2.4" fill="#e4b36a"/>
+</svg>

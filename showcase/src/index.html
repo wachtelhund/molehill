@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Molehill — a falling-sand holt in the Deepholt</title>
+  <meta name="description" content="You are a Delver. Dig and furnish a holt in the endless Deepholt, where sand, water, and stone obey their weight. A development build; downloads come later.">
+  <meta name="theme-color" content="#120e0b">
+  <meta name="color-scheme" content="dark">
+  <link rel="canonical" href="https://molehill.hampusnilsson.dev/">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/img/hud-digging.png">
+  <link rel="manifest" href="/site.webmanifest">
+  <link rel="preload" href="/fonts/fraunces-400.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/fonts/source-sans-400.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/img/concept-holt.webp" as="image" type="image/webp">
+  <link rel="stylesheet" href="/styles.css">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Molehill">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:url" content="https://molehill.hampusnilsson.dev/">
+  <meta property="og:title" content="Molehill — a falling-sand holt in the Deepholt">
+  <meta property="og:description" content="Dig and furnish a holt in an endless body of earth. Sand pours, water finds its level, roofs fail when the span is too wide. No magic. Downloads come later.">
+  <meta property="og:image" content="https://molehill.hampusnilsson.dev/img/hud-digging.png">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1280">
+  <meta property="og:image:height" content="720">
+  <meta property="og:image:alt" content="Development screenshot: a Delver in a dug tunnel, fungus glowing in the dark.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Molehill — a falling-sand holt in the Deepholt">
+  <meta name="twitter:description" content="Dig and furnish a holt in an endless body of earth. A development build; downloads come later.">
+  <meta name="twitter:image" content="https://molehill.hampusnilsson.dev/img/hud-digging.png">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "VideoGame",
+    "name": "Molehill",
+    "description": "A falling-sand platformer and colony sim. You play a Delver who digs and furnishes a holt in the Deepholt, an endless body of earth with no sky and no surface. Sand, water, lava, and stone follow physics. Survival and Creative modes. In development.",
+    "url": "https://molehill.hampusnilsson.dev/",
+    "image": "https://molehill.hampusnilsson.dev/img/hud-digging.png",
+    "genre": ["Simulation", "Sandbox", "Adventure"],
+    "gamePlatform": "PC",
+    "playMode": "SinglePlayer",
+    "creativeWorkStatus": "Incomplete",
+    "author": {
+      "@type": "Person",
+      "name": "H. Nilsson"
+    }
+  }
+  </script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <div class="grain" aria-hidden="true"></div>
+
+  <main id="main">
+  <header class="hero">
+    <div class="hero-art">
+      <picture>
+        <source type="image/webp" srcset="/img/concept-holt-960.webp 960w, /img/concept-holt.webp 1600w" sizes="100vw">
+        <img
+          src="/img/concept-holt.jpg"
+          srcset="/img/concept-holt-960.jpg 960w, /img/concept-holt.jpg 1600w"
+          sizes="100vw"
+          width="1600"
+          height="900"
+          alt="Concept illustration of a Delver with a lamp at a timbered tunnel mouth. This is artwork, not a screenshot of the game."
+          fetchpriority="high">
+      </picture>
+    </div>
+    <div class="hero-copy">
+      <p class="kicker">A development build</p>
+      <h1>Molehill</h1>
+      <p class="lede">Dig a holt in the endless Deepholt.</p>
+      <p class="hero-credit">Concept illustration, not gameplay — not a screenshot of the game.</p>
+    </div>
+  </header>
+
+    <article class="chapter" id="pitch">
+      <p>You play a Delver — a mole who digs, props, and furnishes a home in an infinite body of earth. There is no sky and no surface. Sand pours, water finds its level, and a roof that spans too far comes down. Nothing here is magic. The Lid, an old story about open air far above, has never been confirmed.</p>
+      <p class="note">This page is a look at the work. There is no game to play in the browser, and downloads will come later.</p>
+    </article>
+
+    <article class="chapter" id="dig">
+      <p class="kicker">The ground</p>
+      <h2>Carve a way that will hold</h2>
+      <p>You cut a round bite through dirt and stone, then run, cling, and wall-jump through the tunnels you made. What you leave behind has to carry its own weight. A short span of dirt holds; a wide hall needs pillars. Brick and iron are ordinary cells, judged by the same numbers as the rock.</p>
+      <p>The Deepholt has no top and no bottom. Higher up it is cooler and wetter. Further down it is hotter, harder, and richer. You start in the middle, with a small burrow, and dig.</p>
+    </article>
+
+    <figure class="shot">
+      <img src="/img/hud-digging.png" alt="Development screenshot: a Delver stands in a freshly cut tunnel, pale fungus lighting the dark earth." width="1280" height="720">
+      <figcaption>Development screenshot. A Delver at the edge of a bite, fungus glowing in the rock.</figcaption>
+    </figure>
+
+    <article class="chapter" id="physics">
+      <p class="kicker">Physics</p>
+      <h2>Weight, water, fire</h2>
+      <p>Every cell is a material with density and strength. Sand slides. Water levels out. Lava creeps, and where it meets water it quenches to loose scoria. A charge is a pressure wave: it roars down a tunnel, fades across a cave, and breaks dirt long before granite. When stone cracks, it crumbles into the falling-sand sim, and the next span feels the load.</p>
+    </article>
+
+    <figure class="shot shot--tight">
+      <img src="/img/blast-front.png" alt="Development screenshot: a blast front lighting a cave, pressure fading into the dark." width="640" height="360">
+      <figcaption>Development screenshot. A charge going off in a cave. The wave is pressure, not a special effect.</figcaption>
+    </figure>
+
+    <figure class="shot shot--hud-crop">
+      <img src="/img/water-flood.png" alt="Development screenshot: a Delver swimming through a flooded tunnel, torchlight on the clay floor below." width="1280" height="720">
+      <figcaption>Development screenshot. Water finds its level. A flooded shaft is a place you swim.</figcaption>
+    </figure>
+
+    <article class="chapter" id="holt">
+      <p class="kicker">The holt</p>
+      <h2>Make the dark feel like home</h2>
+      <p>A holt is a colony. You furnish it — tables, nests, rugs, carved pillars, painted stone — and keep it lit with handmade lamps. The work is quiet: dig out, bring things home, prop the roof, light another stretch of wall.</p>
+      <p>New Holt asks how you want to live. <strong>Survival</strong> starts with a small kit. You dig with the tools you own, find food, and burn fungus oil for light. When you fall, the pack stays where you died. <strong>Creative</strong> has every item, and nothing hurts.</p>
+    </article>
+
+    <figure class="shot">
+      <img src="/img/menu-main.png" alt="Development screenshot: the Molehill main menu over a torchlit holt." width="1280" height="720">
+      <figcaption>Development screenshot. The main menu over a living holt. New Holt picks Survival or Creative.</figcaption>
+    </figure>
+
+    <article class="chapter" id="deepholt">
+      <p class="kicker">The Deepholt</p>
+      <h2>No sky, ever</h2>
+      <p>Nobody has found a top or a bottom. You wander, dig, and listen. Older Delvers left marks in the rock that seem to point upward. They prove nothing. The Lid remains a myth, and the game never shows it.</p>
+      <p>There is no day cycle and no sky light. A tunnel stays dark until you bring a lamp, a torch, or the faint glow of fungus and crystal. Delvers see poorly. They rely on light, touch, and vibration.</p>
+    </article>
+
+    <figure class="shot shot--hud-crop">
+      <img src="/img/torch-tunnel.png" alt="Development screenshot: a torchlit tunnel curving through dark earth, a Delver mid-dig." width="1280" height="720">
+      <figcaption>Development screenshot. A line of torches along a tunnel you cut yourself.</figcaption>
+    </figure>
+  </main>
+
+  <footer>
+    <p>Molehill is in development. Downloads will come later.</p>
+    <p class="foot-quiet">A falling-sand holt in the Deepholt.</p>
+  </footer>
+</body>
+</html>
