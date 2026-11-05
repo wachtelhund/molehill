@@ -67,6 +67,32 @@ Making the holt **look like home** is a core goal, not a side feature. A Delver 
 * **Paint and dye** from minerals and fungi: ochre and rust from ores, pale from quartz, greens and blues from fungi and moss.
 * **Delvers move in.** When the holt is comfortable (light, air, food, beds, a bit of beauty), other Delvers come and join it. Comfort is the colony's growth mechanic.
 
+## Transportation
+
+The deeper the holt reaches, the further its Delvers have to haul, so travel climbs the same tier ladder as everything else. Every way of getting about is a machine you build, which runs on weight, water, heat and current.
+
+| tier | transport | how it works |
+|---|---|---|
+| **2–3** | **Rails and mine carts** | Laid track and a cart that carries cargo (ore, stone, wood, a Delver). Push it on the level; on a slope, gravity does the work and it runs downhill on its own. Track needs support like any built block |
+| **2–3** | **Rope ladders** | Cheap vertical access down a shaft. Slow, but needs no power |
+| **3–4** | **Lifts** | A platform on a counterweight. A loaded cage rises when the counterweight is heavier, so loads are balanced by hand at first and driven by power later |
+| **4** | **Powered rails** | Track with copperline laid along it, fed by a water wheel or heatstone. Carts run faster and can climb. A lever or knot can switch them, so a powered line can be automated with the same logic as doors and pumps |
+| **5** | **Pressure tubes** | A sealed tube network that blows capsules along it with air pressure from pumps. Fast and long-distance, and it climbs as easily as it runs flat. Tubes must hold their pressure: a cave-in or a breach stops the line |
+| **6** | **Ancient waygates** | The endgame network: see below |
+
+### Ancient waygates (open decision)
+
+> **Open decision for Hampus:** how far the waygates should go, and whether they should exist at all.
+
+The waygates are the closest Molehill comes to teleporters, and they must stay **physics-based and consistent with the lore**: there is no instant jump from one place to another. The proposal is that the Ancients built long **fast lines**: sealed, pumped-out tubes or high-speed rails that ran between their facilities across distances no holt has crossed since. You find a dead line, then **repair it**: restore its seals, clear its cave-ins, and feed it power. Each repaired line links two facilities you have found. Travel is very fast, but it is still travel. A capsule runs the tube, and a broken stretch stops it.
+
+Options to decide between:
+* **Repair only:** waygates exist only where the Ancients built them. You can restore them but never extend them. This keeps them rare and makes finding a facility matter.
+* **Repair and extend:** late-game relics let you lay new stretches of fast line, so the network can reach your holt.
+* **No waygates:** pressure tubes are the top of the ladder, and the Ancients' lines are only ruins to explore.
+
+Whatever the choice, the name and the workings stay earthy and physical: a waygate is a station on a line, not a portal.
+
 ## Wood: grottos
 
 Wood is the first material and must stay precious, so it doesn't come from the endless rock. It comes from **grottos**: rare, generated underground oases.
@@ -108,5 +134,6 @@ Everything the Ancients built obeys the same physics as everything else: weight,
 | Decor | none | furniture, decorative blocks, back walls, dyes |
 | Colony | one mole | Delvers move in when the holt is comfortable |
 | Late game | none | Ancient facilities, ruins, relics, the Lid myth |
+| Travel | walking, climbing, digging | carts and rails, ladders and lifts, powered rails, pressure tubes; Ancient waygates (open decision) |
 
 Any of these that gets built should move from this page into the page that describes the system, as it lands on `main`.
