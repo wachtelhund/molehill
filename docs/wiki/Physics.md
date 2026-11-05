@@ -176,9 +176,22 @@ A blast (`blast.rs`) is a pressure wave, not a fixed crater. A TNT charge is **0
   * The load then runs on **into** the rock, fading as e^(−d/λ), cracking and shattering what it still beats. λ = 0.6 m × (1 + 2·confinement), where confinement is the rock the wave hit or broke per open cell it filled: about 0.1 in a cave, 0.3 in a tunnel, near 1 in a tamped pocket.
   * What one 0.5 kg charge breaks in soft rock: on a tunnel floor a crater about 2.5 m each way along the tunnel and 1.5 m into the roof, rock 3.5 m off whole, about 80 tiles (`blast_soft_rock_tunnel`). Tamped into a 0.5 m pocket about 100 tiles (`blast_pocket`); on a 6.5 m cave's floor about 30 (`blast_cave_soaks`).
   * Granite only chips 0.5 m deep under the charge (`blast_granite_chips`); basalt loses the one tile it sits on (`blast_basalt_holds`); dirt goes readily (`blast_granite_vs_dirt`).
-* **Throwing.** Loose ground, rubble and liquids in the wave are thrown away from the charge, about a tile per 15 kPa and at most 4 m. Water is driven up out of a pool in a plume that rains back down, and none is lost (`blast_pushes_water`). Loose items fly along the wave, harder the higher the pressure.
+* **Throwing.** Loose ground (sand, gravel, rubble, ash), the rubble the blast cracks and liquids in the wave really fly (`debris.rs`).
+  * The push on a loose face runs on into the bed or pile, fading over 0.5 m; anything still pushed by 12 kPa or more goes.
+  * Each cell leaves the grid as debris at about 1 m/s per 7 kPa, at most 30 m/s. Cracked rubble goes at 0.6 of that, liquids at 0.8.
+  * It flies away from the charge with a little spread. Ground backed by rock (a sand floor, a pool's bed) can't be driven into the rock, so it's thrown back out of its surface: a floor sprays up and out.
+  * In flight it falls under gravity with a little air drag, slides along a floor it lands on, and settles as a cell in the last open cell before what it hits. Nothing is lost, and water splashes down and flows on. A charge a metre from a sand bed has a third of it in the air at once (`blast_moves_sand`). A flooded trough goes up in a plume of spray (`blast_pushes_water`).
+  * Everything is deterministic (the spread comes from a cell hash), and at most 12,000 cells fly at once.
+* **Items** fly along the wave, harder the higher the pressure.
 * **Moles** take (P − 40 kPa) / 3 damage from the overpressure where they stand: a knock under 40 kPa, deadly at about 340. The player is also knocked along the wave.
 * **Feel.** The bang comes with a quake event and a crumble when rock breaks, and the screen shakes by the charge size and by the pressure at the player.
+* **Seeing the wave.** Each blast keeps a record of its wave: every cell the pressure reached, the path distance the front ran to get there, its peak and its direction (`World::waves`). The game draws the front sweeping out along that path, so it runs down tunnels and round corners and never through rock (`blast_wave_front`).
+  * The front is slowed to 22 m/s so the eye can follow it.
+  * It's a bright leading edge with a dark shimmer behind, stronger where the pressure was higher, and fading as it spreads.
+  * Dust the colour of the rock it was knocked off rides out with it, slows and settles, and smoke puffs from the charge. Flying debris is drawn as it moves.
+  * The sim never reads the record back, so the drawing changes nothing.
+
+  ![A charge 5 frames after it goes off in a burrow: the bright front and the thrown spray](images/blast-front.png)
 * **Devices:**
   * 130 kPa on a block sets off a charge in it (charges chain, about 3 m apart in the open), 60 kPa lights a fuse cord, and 400 kPa wrecks copperline and devices.
   * The knock couples into the rock round the charge and reaches listeners like a loud thrum: 60 dB + 20 log₁₀(W / 5 g), so 100 dB for a charge, with the usual spreading, absorption and boundary losses (`blast_is_heard_by_listeners`).

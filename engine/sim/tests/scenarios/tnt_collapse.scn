@@ -1,4 +1,5 @@
-// A blast in a sand-capped rock block: rock near the centre is gone, the sand cap falls into the crater.
+// A blast in a sand-capped rock block: most of the rock is broken and thrown, and the sand cap comes down
+// with it. What's left is a heap of rubble and sand on the floor, not a capped block.
 map
 ##############################
 #............................#
@@ -15,6 +16,7 @@ expect 0 count:Rock == 44
 expect 0 count:Sand == 11
 explode 5 15 -2 0.2
 expect 6 is:15,-2,Rock == 0
-expect 6 count:Rock < 40
-expect 200 is:15,-4,Sand == 0
-ascii 200
+expect 6 count:Rock < 20
+expect 200 is:9,-4,Sand == 0     // the cap's two ends have come down
+expect 200 is:19,-4,Sand == 0
+expect 200 debris == 0           // everything thrown has landed

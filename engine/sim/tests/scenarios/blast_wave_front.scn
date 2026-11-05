@@ -1,0 +1,28 @@
+// The pressure front follows the tunnels: a charge at the end of a tunnel that turns a corner up a shaft.
+// The front reaches a tile up the shaft by running along the tunnel and round the bend (its path is the
+// longer way, not the straight line through the rock), and the drawn front (slowed to 22 m/s so it can be
+// seen) sweeps out over time. `dump` writes the front's state (age, radius, the tiles in it, debris).
+map
+##############################
+#######################......#
+#######################......#
+#######################......#
+#######################......#
+#######################......#
+#######################......#
+#######################......#
+#..........................@.#
+##############################
+end
+explode 5 -23 0 0.5               // at the near end of the tunnel
+expect 5 wave:-13,0 > 2.2         // 2.5 m along the tunnel: 2.5 m of path
+expect 5 wave:-13,0 < 2.7
+expect 5 wave:-3,-6 > 5.9        // up the shaft: straight through the rock it is 5.7 m off,
+expect 5 wave:-3,-6 < 6.6        // but the front got there along the tunnel and round the corner
+expect 5 wave:-13,-4 == -1         // the rock between never felt it
+expect 5 front < 0.5              // the blast tick: the drawn front starts at the charge...
+expect 11 front > 1.8             // ...and 0.1 s later it is 2.2 m out
+expect 11 frontcells > 2
+expect 11 wave:-13,0 > 0
+dump 11
+expect 30 front > 8               // 0.4 s: past the corner and up the shaft

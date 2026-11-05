@@ -910,3 +910,17 @@ mod progression {
     assert_eq!(a.g.mat, b.g.mat); assert_eq!((ra.cells, ra.shattered, ra.cracked), (rb.cells, rb.shattered, rb.cracked));
     assert!(ra.cells < molehill_sim::blast::BLAST_CELLS, "bounded");
 }
+
+/// Thrown ground flies deterministically and every cell lands again: a sand bed blasted in two identical
+/// arenas ends identical, with the same amount of sand as it started with.
+#[test] fn blast_debris_deterministic_and_conserved() {
+    let c = molehill_sim::mat::CPM;
+    let mk = || { let (mut w, x0, y0) = arena(); for y in y0 - c / 2..=y0 { for x in x0 + 2 * c..x0 + 6 * c { let i = w.g.idx(x, y); w.g.set(i, Mat::Sand); } } (w, x0, y0) };
+    let (mut a, x0, y0) = mk(); let (mut b, _, _) = mk();
+    let sand = |w: &World| w.g.mat.iter().filter(|&&m| m == Mat::Sand as u8).count() + w.debris_of(Mat::Sand);
+    let n0 = sand(&a);
+    a.blast(x0 + c, y0, 0.5); b.blast(x0 + c, y0, 0.5);
+    assert!(a.debris_of(Mat::Sand) > 40, "sand flies ({} cells)", a.debris_of(Mat::Sand));
+    for _ in 0..240 { a.step(); b.step(); }
+    assert!(a.debris.is_empty(), "all landed"); assert_eq!(a.g.mat, b.g.mat, "deterministic"); assert_eq!(sand(&a), n0, "none lost");
+}
