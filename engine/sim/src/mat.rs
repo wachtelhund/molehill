@@ -71,6 +71,16 @@ impl Mat {
     #[inline] pub fn p(self) -> &'static Props { &PROPS[self as usize] }
     #[inline] pub fn kind(self) -> Kind { PROPS[self as usize].kind }
     pub fn is_structural(self) -> bool { self.kind() == Kind::Solid }
+    /// One plain line for the hover tooltip.
+    pub fn desc(self) -> &'static str {
+        ["Open tunnel.", "The Deepholt's bones. Nothing digs it.", "Hard grey stone. Needs a drill.", "Soft stone. A pickaxe cuts it.",
+         "Pale, even stone. Strong in a roof.", "Dark, hard stone from cooled lava. Needs a drill.", "Loose earth. Quick to dig, weak under load.",
+         "Stiff earth. Holds water back.", "Flows when nothing holds it.", "Rubble that shifts when disturbed.", "Black seam. Dig it for coal.",
+         "Seam of copper ore.", "Seam of tin ore.", "Seam of iron ore. Needs a drill.", "Clear stone. Light passes through.", "Glowing stone. Lights the dark.",
+         "Tangle of roots. Gives wood.", "Soft glowing growth.", "Mossy earth.", "Wooden prop. Holds up what rests on it.", "Laid brick.",
+         "Iron girder. Spans wide gaps.", "Opens and shuts with current.", "Fills every hollow it can reach.", "Molten rock. Burns, and lights the dark.",
+         "Hot vapour from water meeting lava.", "Burning. Spreads to wood and roots.", "Clear pane."][self as usize]
+    }
 }
 pub const CELL_M: f32 = 0.25; // metres per cell
 

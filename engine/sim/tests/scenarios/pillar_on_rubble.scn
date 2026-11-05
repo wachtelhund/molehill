@@ -15,6 +15,7 @@ map
 end
 give WoodPillar 20
 give Brick 20
+brush 1 0.5             // single cells (the brick brush defaults to a small plus)
 place 2 6 0 WoodPillar
 place 3 6 -1 WoodPillar
 place 4 6 -2 WoodPillar
