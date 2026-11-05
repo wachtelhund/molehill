@@ -1,0 +1,16 @@
+// Control for pillar_holds_roof: the same 6 m dirt roof with no pillar sags and caves in.
+map
+##################################
+#dddddddddddddddddddddddddddddddd#
+#dddddddddddddddddddddddddddddddd#
+#dddddddddddddddddddddddddddddddd#
+#dddddddddddddddddddddddddddddddd#
+#####........................#####
+#####........................#####
+#####........................#####
+#####........................#####
+#####........................#####
+#####...........@............#####
+##################################
+end
+expect 300 crumbled > 10

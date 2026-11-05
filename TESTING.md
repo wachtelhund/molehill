@@ -47,6 +47,7 @@ hold 31-40 right jump
 tool 41 3               // from tick 41 dig with tool tier 0 claws, 1 pickaxe, 2 drill, 3 bore
 mine 41-60 3 0          // hold mine on cell (dx,dy) relative to '@' during ticks A-B
 explode 70 5 -2 3       // TNT-strength blast at (dx,dy) with radius r at tick T
+place 5 4 0 WoodPillar  // at tick T place a block item (WoodPillar, Brick, IronBeam) at (dx,dy), as a left click; a refusal prints NOTE
 dump 50                 // print the JSON state after tick T
 ascii 80                // print the map region after tick T
 expect 60 rise >= 4.5   // assertion after tick T: <var> <op> <number>, ops: < <= > >= == !=
@@ -54,7 +55,7 @@ expect 60 rise >= 4.5   // assertion after tick T: <var> <op> <number>, ops: < <
 
 The map is stamped with its top-left so that `@` lands on the world spawn. A 20-cell granite frame is put around it, so the generated world can't leak in. Disasters are off. Rows shorter than the widest row are padded with `#`.
 
-Map legend: `.` empty, `#` granite, `B` bedrock, `r` rock, `d` dirt, `c` clay, `s` sand, `g` gravel, `w` water, `l` lava, `o` coal, `i` iron ore, `b` wood beam, `k` stone brick (`~` steam, `?` other, only in output).
+Map legend: `.` empty, `#` granite, `B` bedrock, `r` rock, `d` dirt, `c` clay, `s` sand, `g` gravel, `w` water, `l` lava, `o` coal, `i` iron ore, `b` wood beam, `k` stone brick, `I` iron beam (`~` steam, `?` other, only in output).
 
 **Assertion variables:**
 
@@ -84,6 +85,10 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `water_flood.scn` | Mining a dirt plug floods the room below |
 | `tnt_collapse.scn` | A blast removes rock, and the sand cap falls |
 | `cave_stability.scn` | A small granite cave shows no crumbling over 600 ticks |
+| `pillar_holds.scn` | A wood pillar built cell by cell in a granite room stays rigid |
+| `pillar_holds_roof.scn` / `roof_needs_pillar.scn` | Pillars every ~1 m save a 6 m dirt roof that caves in without them |
+| `beam_spans_gap.scn` | A wood beam bridging a 3.5 m gap high in a cave stays put |
+| `beam_overload.scn` | A wood beam under a sand heap breaks into wood splinters; the same iron span holds |
 
 ### Writing a new scenario (for agents)
 

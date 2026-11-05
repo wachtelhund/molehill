@@ -51,7 +51,14 @@ impl Stress {
             // Ground arching (Terzaghi): load deeper than ARCH cells above is carried by the rock arch
             // around the opening, so only a sliding column of ARCH cells bears down on a cell.
             let cw = |y: usize| { let m = g.m(y * w + x); if matches!(m.kind(), Kind::Empty | Kind::Gas) { 0. } else { PROPS[m as usize].density * G * CELL_M / 1000. } };
-            for y in 0..h { let i = y * w + x; p[i] = acc; acc += cw(y); if y >= ARCH { acc -= cw(y - ARCH); } }
+            // Only material resting *contiguously* on a cell loads it: an air gap means everything above is
+            // carried by the roof (and its walls), not by a beam or pillar standing free below it. Void cells
+            // keep the load of the ceiling column above them, which walls take as tributary load (step 4).
+            let mut seg = 0usize; let mut gap = false;
+            for y in 0..h { let i = y * w + x; let c = cw(y);
+                if c == 0. { p[i] = acc; gap = true; continue; }
+                if gap { acc = 0.; seg = y; gap = false; }
+                p[i] = acc; acc += c; if y >= seg + ARCH { acc -= cw(y - ARCH); } }
         }
         let p = &self.overburden;
         let mut util = vec![0f32; n];
@@ -94,15 +101,24 @@ impl Stress {
             }
         }
         // 4. compression of horizontal solid runs (pillars / walls)
+        // A run only takes tributary load from a void beside it if its edge column reaches that void's
+        // ceiling (a wall or a pillar up to the roof). A free-standing post or a beam lying in a cave carries
+        // only what rests on it. top[x]: first row of the static segment at (x, y); ceil[x]: row of the first
+        // static cell above a non-static cell (-1: none).
+        let mut top: Vec<i64> = (0..w).map(|_| 0).collect(); let mut ceil: Vec<i64> = vec![-1; w];
         for y in 1..h {
+            for x in 0..w { let i = y * w + x;
+                if st(i) { if !st(i - w) { top[x] = y as i64; } }
+                else if st(i - w) { ceil[x] = y as i64 - 1; } }
             let mut x = 0;
             while x < w {
                 if !st(y * w + x) { x += 1; continue; }
                 let xa = x; while x < w && st(y * w + x) { x += 1; } let xb = x - 1;
                 let mut load: f32 = (xa..=xb).map(|xx| p[y * w + xx]).sum();
-                                // left void run
-                let mut l = xa; let mut vl = 0f32; let mut nl = 0; while l > 0 && !st(y * w + l - 1) { l -= 1; vl += p[y * w + l]; nl += 1; if nl > 400 { break; } }
-                let mut r = xb; let mut vr = 0f32; let mut nr = 0; while r + 1 < w && !st(y * w + r + 1) { r += 1; vr += p[y * w + r]; nr += 1; if nr > 400 { break; } }
+                let carries = |edge: usize, void: usize| ceil[void] >= 0 && top[edge] <= ceil[void];
+                // left / right void runs
+                let mut l = xa; let mut vl = 0f32; let mut nl = 0; if xa > 0 && carries(xa, xa - 1) { while l > 0 && !st(y * w + l - 1) { l -= 1; vl += p[y * w + l]; nl += 1; if nl > 400 { break; } } }
+                let mut r = xb; let mut vr = 0f32; let mut nr = 0; if xb + 1 < w && carries(xb, xb + 1) { while r + 1 < w && !st(y * w + r + 1) { r += 1; vr += p[y * w + r]; nr += 1; if nr > 400 { break; } } }
                 load += 0.5 * (vl + vr);
                 let wid = (xb - xa + 1) as f32;
                 let sigma = load / wid;

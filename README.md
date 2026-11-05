@@ -121,15 +121,15 @@ Units: cell edge s = 0.25 m, unit depth b = 1 m, g = 9.81 m/s². Densities are i
 | wood beam | 600 | 3000 | 8000 |
 | iron beam | 7800 | 40000 | 120000 |
 
-1. **Overburden:** P(x,y) = Σ ρ·g·s / 1000 [kPa] over the non-empty cells in the 16 m (64 cells) above. This is the pressure-arch height: load from deeper overhead is carried around openings by the ground arch, as in Terzaghi arching. The window's top and bottom rows count as anchors, because the rock continues beyond them.
+1. **Overburden:** P(x,y) = Σ ρ·g·s / 1000 [kPa] over the non-empty cells resting *contiguously* on the cell, up to 16 m (64 cells). An air gap breaks the column: a beam or post standing free in a cave carries only what rests on it, not the roof above the gap. This is the pressure-arch height: load from deeper overhead is carried around openings by the ground arch, as in Terzaghi arching. The window's top and bottom rows count as anchors, because the rock continues beyond them.
 2. **Load path:** static solids that are not 4-connected to bedrock (through static solids) fail. Floating islands fall.
 3. **Roof bending:** every horizontal run of static cells with nothing static under it is a beam with span L = n·s. Its depth h is the static thickness above it, capped at L (arching: only about one span of rock works as the beam). q is the superimposed load on top of that beam, counted only when the static thickness ends inside the cap.
    * M = k·(ρ g h + q)·L², with k = 1/8 when both ends rest on supported cells and k = 1/2 for a cantilever.
    * Z = b·h²/6.
    * σ_t = M/Z, compared with the weakest tensile strength along the run.
    * Example: a 1 m span of 1 m-thick dirt holds, while a 6 m span fails (tested). Wood pillars every 1 m save a wide dirt room (tested).
-4. **Pillar and wall compression:** every horizontal run of static cells of width w carries its own overburden plus half the overburden of the voids on each side (tributary area). σ_c = (Σ_run P + ½Σ_left void P + ½Σ_right void P)/w, compared with each cell's compressive strength.
-5. **Utilisation:** u = σ/strength. When u > 1 the cell cracks (visible), with a 40-tick countdown. If the load is relieved in time (by a pillar or by digging less), the crack heals. Otherwise the cell crumbles into its loose form (dirt, gravel or sand) and joins the falling-sand sim, which can load the next roof and cascade.
+4. **Pillar and wall compression:** every horizontal run of static cells of width w carries its own overburden plus half the overburden of the voids on each side (tributary area), but only from a side where the run reaches up to that void's ceiling (a wall, or a pillar up to the roof). σ_c = (Σ_run P + ½Σ_left void P + ½Σ_right void P)/w, compared with each cell's compressive strength.
+5. **Utilisation:** u = σ/strength. When u > 1 the cell cracks (visible), with a 40-tick countdown. If the load is relieved in time (by a pillar or by digging less), the crack heals. Otherwise the cell crumbles into its loose form (dirt, gravel or sand; placed wood and iron break into loose splinters and scrap you can dig back up) and joins the falling-sand sim, which can load the next roof and cascade.
 6. **When it re-solves:** after structural edits (every 6 ticks while anything is dirty) and after lava/fire reactions (every 24 ticks). A full solve of 512k cells takes about 10 ms natively.
 
 ## Light and fog (`sim/src/light.rs`)

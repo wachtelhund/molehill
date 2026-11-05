@@ -1,0 +1,38 @@
+// A wood beam bridges a 3.5 m gap between two granite ledges high in a tall cave: it stays put.
+map
+##############################
+#............................#
+#............................#
+#............................#
+#............................#
+#............................#
+#............................#
+#............................#
+#............................#
+#######..............#########
+#######..............#########
+#######..............#########
+#............................#
+#............................#
+#............................#
+#..........@.................#
+##############################
+end
+give WoodPillar 40
+place 7 -4 -5 WoodPillar
+place 8 -3 -5 WoodPillar
+place 9 -2 -5 WoodPillar
+place 10 -1 -5 WoodPillar
+place 11 0 -5 WoodPillar
+place 12 1 -5 WoodPillar
+place 13 2 -5 WoodPillar
+place 14 3 -5 WoodPillar
+place 15 4 -5 WoodPillar
+place 16 5 -5 WoodPillar
+place 17 6 -5 WoodPillar
+place 18 7 -5 WoodPillar
+place 19 8 -5 WoodPillar
+place 20 9 -5 WoodPillar
+expect 30 count:WoodBeam == 14
+expect 400 count:WoodBeam == 14
+expect 400 crumbled == 0

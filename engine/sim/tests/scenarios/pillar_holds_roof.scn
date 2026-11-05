@@ -1,0 +1,46 @@
+// Wood pillars built floor-to-roof every ~1 m (placed cell by cell, as the player does) saves a 6 m dirt
+// roof that caves in without it (roof_needs_pillar.scn). The pillars stay rigid: it neither cracks nor flows.
+map
+##################################
+#dddddddddddddddddddddddddddddddd#
+#dddddddddddddddddddddddddddddddd#
+#dddddddddddddddddddddddddddddddd#
+#dddddddddddddddddddddddddddddddd#
+#####........................#####
+#####........................#####
+#####........................#####
+#####........................#####
+#####........................#####
+#####...........@............#####
+##################################
+end
+give WoodPillar 40
+place 2 -7 -0 WoodPillar
+place 2 -2 -0 WoodPillar
+place 2 3 -0 WoodPillar
+place 2 8 -0 WoodPillar
+place 3 -7 -1 WoodPillar
+place 3 -2 -1 WoodPillar
+place 3 3 -1 WoodPillar
+place 3 8 -1 WoodPillar
+place 4 -7 -2 WoodPillar
+place 4 -2 -2 WoodPillar
+place 4 3 -2 WoodPillar
+place 4 8 -2 WoodPillar
+place 5 -7 -3 WoodPillar
+place 5 -2 -3 WoodPillar
+place 5 3 -3 WoodPillar
+place 5 8 -3 WoodPillar
+place 6 -7 -4 WoodPillar
+place 6 -2 -4 WoodPillar
+place 6 3 -4 WoodPillar
+place 6 8 -4 WoodPillar
+place 7 -7 -5 WoodPillar
+place 7 -2 -5 WoodPillar
+place 7 3 -5 WoodPillar
+place 7 8 -5 WoodPillar
+expect 10 count:WoodBeam == 24
+expect 600 count:WoodBeam == 24
+expect 600 is:-7,-5,WoodBeam == 1
+expect 600 is:8,-5,WoodBeam == 1
+expect 600 crumbled == 0

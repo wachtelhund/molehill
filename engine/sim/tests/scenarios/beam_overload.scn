@@ -1,0 +1,33 @@
+// A one-cell wood beam over a 3.5 m gap under a deep sand heap is overloaded: it cracks and breaks
+// into loose splinters (still wood, not sand). The same span in iron holds the heap.
+map
+##################################################
+#................................................#
+####sssssssssssssss#..............#ssssssssssssss#
+####sssssssssssssss#..............#ssssssssssssss#
+####sssssssssssssss#..............#ssssssssssssss#
+####sssssssssssssss#..............#ssssssssssssss#
+####sssssssssssssss#..............#ssssssssssssss#
+####sssssssssssssss#..............#ssssssssssssss#
+####sssssssssssssss#..............#ssssssssssssss#
+####sssssssssssssss#..............#ssssssssssssss#
+####sssssssssssssss#..............#ssssssssssssss#
+####sssssssssssssss#..............#ssssssssssssss#
+####sssssssssssssss#..............#ssssssssssssss#
+####sssssssssssssss#..............#ssssssssssssss#
+####sssssssssssssss#..............#ssssssssssssss#
+####sssssssssssssss#..............#ssssssssssssss#
+####bbbbbbbbbbbbbb#####...........#IIIIIIIIIIIIII#
+####..............#####...........#..............#
+####..............#####...........#..............#
+####..............#####...@.......#..............#
+##################################################
+end
+expect 1 count:WoodBeam == 14
+expect 120 crumbled >= 1
+expect 300 is:-18,-3,WoodBeam == 0
+expect 300 count:IronBeam == 14
+expect 300 count:WoodBeam == 14   // the splinters are still wood
+expect 300 hp > 90
+expect 300 count:Gravel == 0
+ascii 300
