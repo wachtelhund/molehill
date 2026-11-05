@@ -37,16 +37,15 @@ Short log of what this run changed, and what is still open.
 * **Grid snap (`X`)** for blocks: squares of 0.25 / 0.5 / 1 m on a fixed grid, stepped by the size keys, with a square outline. A drag lays a straight row or column (`World::place_line`); the outline shows the whole line. Scenario `place_grid_snap`. Harness: `hand`, `sizekey`, `sizewheel`, `snap`, `line`; variables `brush`, `snapcells`.
 
 ## Survival crafting (PROGRESSION.md)
-* **Modes**: New Holt picks Survival (default: near-empty pack, no tools) or Creative (every tool, 999 of everything, every recipe anywhere). `World::creative`, `World::survival`. Save format 5 keeps the mode and the known items; older saves load as Creative.
+* Built on the Survival mode from `refine/survival` (`survival.rs`: kit, food, fuel, death drop), which landed while this was in progress: its `Mode`/`Rules` gained `crafting` (on in Survival). Creative and Plain craft anything anywhere.
 * **Stations** are the design's three: workbench (always works), forge (needs lava or fire within 3 m, or a lava-fed heatstone), workshop (needs a live copperline into it). Old kilns and furnaces load as forges, anvils as workshops (`band::station_from_code`). Station art reuses the old kinds (`Station::art`). `World::station_ready`.
-* **Recipes unlock by touch**: `World::known` fills from the pack every tick; a recipe is listed once any input is known, and the log names what opened. Chains are at most two steps (`recipes_are_short_chains`).
-* **Tool ladder**: the Pickaxe (workbench), Drill (workshop) and Bore (forge) replace stone/bronze/iron tools; basalt now needs the Bore (tier 3). In Survival `dig_power` is the best tool owned; claws still take soft stone slowly so the first pickaxe can be made.
+* **Recipes unlock by touch**: `World::known` fills from the pack every tick; a recipe is listed once any input is known, and the log names what opened. Save format 6 keeps `known`. Chains are at most two steps (`recipes_are_short_chains`).
+* **Tool ladder**: the Pickaxe (workbench), Drill (workshop) and Bore (forge) replace stone/bronze/iron tools; basalt now needs the Bore (tier 3).
 * **Crafting list**: pack open at a station lists its recipes down the left (bright = can make, dim = missing something; a header says if the station is cold or unpowered); click to craft. Unowned tools are hidden from the hotbar in Survival.
-* Scenarios `craft_unlock_by_touch`, `craft_stations`, `tool_tiers_survival`; tests `recipes_are_short_chains`, `survival_starts_bare_and_learns`. Harness: `mode`, `craft`, `station`, `pour`; variables `known:`, `recipe:`, `tier`, `buildings`.
+* Scenarios `craft_unlock_by_touch`, `craft_stations`, `tool_tiers_survival`; tests `recipes_are_short_chains`, `survival_starts_bare_and_learns`. Harness: `switch`, `craft`, `station`, `pour`; variables `known:`, `recipe:`, `tier`, `buildings`.
 
 ## Open
 * Tin and bronze have no use yet in Survival (the short-chain rule keeps bronze out of tools); the design's emberiron for the Bore doesn't exist, so the Bore takes iron, copper and crystal.
-* Survival starts with 4 wood and a workbench costs 6: the first job is finding roots or a grotto.
 * localStorage holds about 5 MB. A band is 10–40 KB, so a holt explored over a few hundred metres of depth could fill it. Bands the player never changed could be dropped and regenerated (not done: the falling-sand settling after generation would differ).
 * The web crash Hampus saw is not reproduced. Next time it happens, the browser console (View > Developer > JavaScript Console) shows `panicked at <file>:<line>`; that line pins it.
 * Main's stress model still sums overburden through air gaps (a dirt layer under ~16 m of rock with caves in between is crushed even if the caves carry it). Not a placed-block problem; left as is.

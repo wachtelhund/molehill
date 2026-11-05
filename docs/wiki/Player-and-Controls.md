@@ -26,7 +26,7 @@ You play one Delver: a body about **45 × 73 cm** (1.8 × 2.9 tiles of 0.25 m, i
 | `I` | Pack (inventory grid): click a slot to pick it up, click another to drop or swap. The bottom row is the hotbar. At a station, its recipes are listed on the left; click one to make it (see [Tools and Items](Tools-and-Items.md#stations)) |
 | `+` / `-`, `Ctrl` / `Cmd` + wheel (or pinch) | Zoom (clamped to scale 0.12–0.75 and saved) |
 | `V` | Wiring view on / off (see [Devices and Copperline](Devices-and-Copperline.md#wiring-view)) |
-| `G` | Headlamp lit / out (also in Settings; saved). The fungus-oil lamp on the mole's hat throws a beam toward the cursor and reveals the way ahead |
+| `G` | Headlamp lit / out (also in Settings; saved). The fungus-oil lamp on the mole's hat throws a beam toward the cursor and reveals the way ahead. In Survival it burns a measure of fungus oil every 3 minutes and goes dark when there's no oil or fungus left |
 | `H` | Controls overlay |
 | `Esc` | Pause menu, or close a panel |
 | `K` / `L` | Quick save / quick load |
@@ -80,9 +80,9 @@ Change `TUNE`, then rerun the tests and scenarios. The feel scenarios (`run_jump
 The mole has **health**, **food** and **breath**, shown as the three bars in the top-left corner.
 
 * **Falls:** each tile (0.25 m) beyond 20 tiles (5 m) costs 3 hp.
-* **Hunger** drains over time. Below 40 the mole eats from the pack on its own: a grub restores 45, a mushroom 35 and fungus 25. Starving hurts.
+* **Hunger** drains over time. Below 40 the mole eats from the pack on its own: a grub restores 45, a mushroom 35, a root 30 and fungus 25. Starving hurts. A Survival holt can have hunger turned off (New Holt option, or Settings for the current holt): food never drains and the food bar is hidden.
 * **Breath** drains in stale air (CO2 above 0.45), underwater and when buried by falling rock or sand. A mole buried in loose ground wriggles up through it. Under rock it stays put: the collision snap searches at most one cell, so it can never pop out through a slab into the room above (`buried_under_rock`, `buried_in_sand`).
-* **Death:** after 2.5 s you respawn in the burrow with full health and breath (the window slides back to it if needed). The death count is kept in saves.
+* **Death:** after 2.5 s you respawn in the burrow with full health and breath (the window slides back to it if needed). The death count is kept in saves. In **Survival** the whole pack stays where you fell, as loose items to go back for; in **Creative** nothing hurts. See [Progression](Progression.md#survival-mode-today).
 
 ## Digging and reach
 

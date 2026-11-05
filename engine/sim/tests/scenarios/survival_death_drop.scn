@@ -1,0 +1,40 @@
+// Death isn't the end: you wake back in the burrow, but the whole pack stays where you fell, as loose
+// items to go back for. Walk back over the pile and it's yours again.
+map
+BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#...@......................................................#
+############################################################
+end
+mode survival
+// walk 30 tiles out, then die there
+hold 1-120 right
+set 130 hp -1
+expect 135 deaths == 1
+expect 135 inv:Pickaxe == 0
+expect 135 inv:Torch == 0
+expect 135 items:Pickaxe == 1
+expect 135 items:Torch == 4
+expect 135 items:Grub == 3
+// awake in the burrow (back at the start), the pile still lies out where you fell
+expect 300 hp == 100
+expect 300 dx < 1
+expect 310 items:Pickaxe == 1
+expect 310 ix:Pickaxe > 22
+// go back for it
+hold 320-480 right
+expect 480 items:Pickaxe == 0
+expect 480 inv:Pickaxe == 1
+expect 480 inv:Torch == 4

@@ -51,7 +51,7 @@ Food (grubs, mushrooms, fungus) is eaten from the pack automatically when the mo
 
 The pack (`I`) is a grid of 70 slots, and the bottom row is the hotbar (`1`–`0`). Click a slot to pick its item up, then click another to drop or swap. Counts come from one shared inventory. Hovering a slot shows its name, count and a one-line description. Resting the cursor on a seen cell for about 0.35 s explains what's there (`sim/src/tips.rs`): the material (and whether it's loose debris), a device, copperline (carrying current or idle), a station (what it makes; craft by standing at it with the pack open), a chest (opened or not) or a mushroom plot (growth % and whether it's too bright or too dry). A standing block also says how hard it is working, read from the stress solver: bearing weight, straining, overloaded, or cracking, so you can see a span is about to fail before it does.
 
-> **Current build:** for testing, the game starts with all three tools and 999 of every item, and crafting is hidden. The sim's own starting pack (used by the tests) is small: 8 wood, 6 torches, 12 pillars, 12 grubs, 40 copperline, 6 knots, 3 thrummers, 6 spores and a vent.
+> **Modes:** New Holt asks for **Survival** (a small kit: a Pickaxe, 4 torches, 3 grubs, 2 roots, 2 fungus oil; you dig only with tools you own; the headlamp and torches burn fungus oil) or **Creative** (999 of every item). Crafting works at stations (below). **Fungus oil** is pressed from fungus (2 a measure, done by the pack when it runs out); a **root** is food from root tangles. See [Progression](Progression.md#survival-mode-today). The sim's own starting pack (used by the tests) is small: 8 wood, 6 torches, 12 pillars, 12 grubs, 40 copperline, 6 knots, 3 thrummers, 6 spores and a vent.
 
 ## Digging drops
 
@@ -69,32 +69,27 @@ One table (`Item::uses` in `craft.rs`) says whether an item is **set down**, **t
 | Torch | left mouse | no | yes |
 | Lamp, vent; levers, knots, thrummers and other devices | left mouse, or right mouse on an empty spot | no | yes |
 | Spore | left mouse (plant on soil) | yes | no |
-| Loose materials, ingots, charcoal, grubs, mushrooms | no | yes | (lying loose: walk over it) |
+| Loose materials, ingots, charcoal, grubs, mushrooms, roots, fungus oil | no | yes | (lying loose: walk over it) |
 | Tools, glass | no | no | no |
 
 ## Throwing
 
 Hold `Q` to charge a throw of a throwable item in hand and release to throw it at the cursor; 0.8 s of charge is a full throw, which carries about 6 m on the level, and dots show the arc. You can't catch your own throw for half a second. A thrown **TNT** charge goes out lit: it flies, bounces and rolls, and goes off where its 1.5 s fuse runs out, with the same blast as placed TNT. Water puts it out (it lies there as a dud you can pick up again), and lava or fire lights one lying loose. A lit charge can't be picked up. Blocks, copperline, devices, torches and tools aren't thrown: `Q` says so and keeps them. Blasts throw loose items around. In the colony design, moles haul drops to the **stockpile**, and only stockpiled items count. The first sighting of each ore, fluid or rock is a **discovery** with a small reward.
 
-## Modes
+## Modes and crafting
 
-**New Holt** asks for a mode (main menu and pause menu, `Mode  < Survival >`):
-
-* **Survival** (the main game): a near-empty pack (4 wood, 4 torches, 6 grubs, 3 spores) and no tools. You dig with the best tool you own, recipes appear as you find their ingredients, and you craft at a working station.
-* **Creative:** every tool and 999 of everything; every recipe is listed and can be made anywhere.
-
-Saves keep the mode and what you have found (format 5). Saves from before modes load as Creative, which is what those builds were.
+In **Survival** (see [Progression](Progression.md#survival-mode-today)) crafting is earned: recipes appear as you pick up their ingredients and you make things at a working station. In **Creative** every recipe is listed and can be made anywhere. The sim's default (Plain, used by tests and scenarios) crafts freely too. This is `Rules::crafting` in `survival.rs`. Saves keep what you have found (format 6); older saves count what is in the pack as found.
 
 ## Tool tiers
 
 | tier | tool | made at | from | digs |
 |---|---|---|---|---|
 | 0 | claws | (always) | | dirt, clay, sand, gravel; soft stone (sandstone, limestone, coal, copper and tin ore) slowly |
-| 1 | Pickaxe | workbench | 2 wood + 4 stone | the same, faster |
+| 1 | Pickaxe | workbench (Survival starts with one) | 2 wood + 4 stone | the same, faster |
 | 2 | Drill | workshop | 3 iron ingots + 2 copper ingots | granite and iron ore |
 | 3 | Bore | forge | 6 iron ingots + 2 copper ingots + 2 crystal | basalt |
 
-In Survival a dig tool you don't own isn't in the hotbar, and holding a better tool's slot doesn't help: digging uses the best tool in the pack (`World::dig_power`). Claws can always take soft stone, so the first pickaxe's stone can be dug (scenario `tool_tiers_survival`).
+In Survival a dig tool you don't own isn't in the hotbar, and holding a better tool's slot doesn't help: digging uses the best tool in the pack (`World::tool`, scenario `tool_tiers_survival`). Without any tool, claws still take soft stone, slowly.
 
 ## Stations
 

@@ -126,9 +126,6 @@ pub struct World {
     pub buildings: Vec<Building>, pub torches: Vec<(usize, usize)>, pub chests: Vec<Chest>,
     pub quest: usize, pub log: Vec<(u64, String)>, pub discovered: [bool; NMAT], pub chests_opened: u32, pub pillars: u32,
     pub max_depth: f32, pub craft_queue: Vec<usize>, pub gear: Gear,
-    /// Creative (free access: any tool, any recipe anywhere) or Survival (tools you own, recipes you have
-    /// touched, crafted at a working station). `World::new` is Creative; `World::survival` starts a Survival holt.
-    pub creative: bool,
     /// Items that have ever been in the pack: a recipe appears once any of its inputs is known.
     pub known: [bool; NITEM], pub crumbled: u64, pub light_rect: (usize, usize, usize, usize),
     pub events: Vec<Event>, pub react_pending: bool,
@@ -144,8 +141,13 @@ pub struct World {
     pub bands: std::collections::BTreeMap<i64, crate::band::Stored>, pub opened: std::collections::HashSet<(usize, i64)>,
     /// grottos touching the window (from the generator; refreshed with the chests)
     pub grottos: Vec<gen::Grotto>,
+    /// keep the last blast's overpressure field (kPa per cell) in `blast_field` (tests and the harness)
+    pub keep_blast_field: bool, pub blast_field: Vec<f32>,
     /// glowmites caught: (grotto id, glowmite) → tick. A grotto's swarm refills: each comes back after GLOWMITE_BACK.
     pub caught: std::collections::HashMap<(u32, u8), u64>,
+    /// Survival, Creative, or Plain (the bare rules: tests and scenarios); `rules` is what the mode switches on
+    /// (see `survival.rs`). `lamp_oil` = seconds of oil left in the headlamp.
+    pub mode: crate::survival::Mode, pub rules: crate::survival::Rules, pub lamp_oil: f32, pub lamp_dry: bool,
 }
 /// For audio / UI feedback.
 /// What `World::pick_up` took back into the pack.
@@ -169,8 +171,8 @@ impl World {
         World {
             st: Stress::new(w * h), light: Light::new(w, h), tick: 0, inv: [0; NITEM], dig_acc: [0; NMAT], place_acc: [0; 8], desig: vec![0; w * h],
             moles: vec![], drops: vec![], stockpile: (0, 0, 0, 0), buildings: vec![], torches: vec![], chests: vec![],
-            quest: 0, log: vec![], discovered: [false; NMAT], chests_opened: 0, pillars: 0, max_depth: 0., craft_queue: vec![], gear: Gear::default(), creative: true, known: [false; NITEM], crumbled: 0,
-            light_rect: (0, 0, w - 1, h - 1), events: vec![], marks: vec![], react_pending: false, logic: Logic::new(w, h), disasters: Disasters::new(seed), shake: 0., air: Air::new(w, h), farms: vec![], harvested: 0, input: Input::default(), pl: Player::default(), gen: gn, oy, bands: Default::default(), opened: Default::default(), grottos: vec![], caught: Default::default(), info, g,
+            quest: 0, log: vec![], discovered: [false; NMAT], chests_opened: 0, pillars: 0, max_depth: 0., craft_queue: vec![], gear: Gear::default(), known: [false; NITEM], mode: Default::default(), rules: Default::default(), lamp_oil: 0., lamp_dry: false, crumbled: 0,
+            light_rect: (0, 0, w - 1, h - 1), events: vec![], marks: vec![], react_pending: false, logic: Logic::new(w, h), disasters: Disasters::new(seed), shake: 0., air: Air::new(w, h), farms: vec![], harvested: 0, input: Input::default(), pl: Player::default(), gen: gn, oy, bands: Default::default(), opened: Default::default(), grottos: vec![], caught: Default::default(), keep_blast_field: false, blast_field: vec![], info, g,
         }
     }
     pub fn new(w: usize, h: usize, seed: u32) -> World {
@@ -297,11 +299,9 @@ impl World {
         None
     }
     /// Digging power: the tool in hand, else the best pack tools.
-    /// Dig tier in use: the tool in hand (Creative: any), in Survival never above the best tool owned.
-    pub fn dig_power(&self) -> u8 {
-        let own = tool_tier(&self.inv);
-        if self.input.tool > 0 { if self.creative { self.input.tool.min(3) } else { self.input.tool.min(own) } } else { own }
-    }
+    pub fn dig_power(&self) -> u8 { if self.input.tool > 0 { self.tool() } else { tool_tier(&self.inv) } }
+    /// The dig tool in hand (0 claws .. 3 bore); in Survival you can only use tools you own.
+    pub fn tool(&self) -> u8 { let t = self.input.tool.min(3); if self.rules.tools { t.min(tool_tier(&self.inv)) } else { t } }
     fn tier_ok(&self, m: Mat) -> bool { m != Mat::Bedrock && m.p().tier <= self.dig_power().max(1).min(3) + if m.p().tier <= 1 { 1 } else { 0 } }
     fn diggable(&self, i: usize) -> bool { let m = self.g.m(i); matches!(m.kind(), Kind::Solid | Kind::Powder) && m != Mat::Bedrock && self.tier_ok(m) }
     #[allow(dead_code)] fn dig_target_near(&self, x: usize, y: usize) -> Option<usize> {
@@ -340,6 +340,7 @@ impl World {
     }
     pub fn place_torch(&mut self, x: usize, y: usize) -> bool {
         if self.inv[Item::Torch as usize] == 0 || self.g.is_solidish(self.g.idx(x, y)) { return false; }
+        if self.rules.fuel && !self.take_oil() { self.say("A torch needs fungus oil to burn".into()); return false; }
         self.inv[Item::Torch as usize] -= 1; self.torches.push((x, y)); self.events.push(Event::Place); true
     }
     pub fn place_building(&mut self, kind: Station, x: usize, y: usize) -> Result<(), &'static str> {
@@ -351,23 +352,8 @@ impl World {
         self.buildings.push(Building { kind, x, y, built: true, claimed: false }); self.events.push(Event::Place); self.say(format!("Built a {}.", kind.name())); Ok(())
     }
     pub fn queue_craft(&mut self, r: usize) { if self.craft_queue.len() < 12 { self.craft_queue.push(r); } }
-    /// A TNT charge going off at (x, y): the one place its blast radius and power are set.
-    pub fn blast_tnt(&mut self, x: usize, y: usize) { self.explode(x, y, 9. * SF, 6); }
-    pub fn explode(&mut self, cx: usize, cy: usize, r: f32, power: u8) {
-        let ri = r.ceil() as i32;
-        for dy in -ri..=ri { for dx in -ri..=ri {
-            let d = ((dx * dx + dy * dy) as f32).sqrt(); if d > r { continue; }
-            let (x, y) = (cx as i32 + dx, cy as i32 + dy); if !self.g.in_bounds(x, y) { continue; }
-            let i = y as usize * self.g.w + x as usize; let m = self.g.m(i);
-            if m == Mat::Bedrock || m.p().blast > power { continue; }
-            if d < r * 0.6 { self.g.set(i, if hash3(x as u32, y as u32, self.tick as u32) % 9 == 0 { Mat::Fire } else { Mat::Empty }); }
-            else if m.kind() == Kind::Solid { let c = m.p().crumbles_to; self.g.set(i, c); self.g.set_loose(i); }
-        } }
-        for m in self.moles.iter_mut() { let d = ((m.x as f32 - cx as f32).powi(2) + (m.y as f32 - cy as f32).powi(2)).sqrt(); if d < r * 1.5 { m.hp -= 80. * (1. - d / (r * 1.5)); } }
-        self.fling_items(cx as f32 + 0.5, cy as f32 + 0.5, r);
-        self.logic.on_explosion(&mut self.g, cx, cy, r);
-        self.events.push(Event::Explode); self.shake = self.shake.max(r / (3. * SF));
-    }
+    /// A TNT charge going off at (x, y): a pressure wave (see `blast.rs`), the one place its size is set.
+    pub fn blast_tnt(&mut self, x: usize, y: usize) { self.blast(x, y, crate::blast::TNT_KG); }
 
     pub fn step(&mut self) {
         self.tick += 1; self.events.clear(); self.marks.clear();
@@ -413,6 +399,7 @@ impl World {
         self.step_items();
         if self.tick % 2 == 0 { self.step_moles(); }
         // a knock (fall, lava, being buried, drowning) flashes the mole and jolts the view in proportion
+        self.step_survival();
         if let Some(m) = self.moles.first() { let dmg = self.pl.hp_was - m.hp;
             if m.alive && dmg > 0.5 && self.pl.hp_was > 0. { self.pl.flash = 0.22; self.shake = self.shake.max((0.6 + dmg * 0.08).min(2.5)); }
             self.pl.hp_was = m.hp; }
@@ -525,7 +512,7 @@ impl World {
         for (k, m) in self.moles.iter().enumerate() { if !m.alive { continue; }
             if k == 0 {
                 let (head, dir) = self.headlamp();
-                if self.gear.lamp { v.push(Source::beam(head.0, head.1, HEADLAMP.0, HEADLAMP.1, dir.0, dir.1, HEADLAMP_HALF)); v.push(Source::point(head.0, head.1, LAMP_GLOW.0, LAMP_GLOW.1)); }
+                if self.lamp_lit() { v.push(Source::beam(head.0, head.1, HEADLAMP.0, HEADLAMP.1, dir.0, dir.1, HEADLAMP_HALF)); v.push(Source::point(head.0, head.1, LAMP_GLOW.0, LAMP_GLOW.1)); }
                 else { v.push(Source::point(self.pl.px, self.pl.py - 1.5 * SF, MOLE_GLOW.0, MOLE_GLOW.1)); }
                 // a torch in the paw lights like a (slightly smaller) torch
                 if self.gear.held == Some(Item::Torch) { let f = m.facing as f32; v.push(Source::point(self.pl.px + f * 1.6 * SF, self.pl.py - 1.4 * SF, HELD_TORCH.0, HELD_TORCH.1)); }
@@ -548,7 +535,7 @@ impl World {
             if !self.moles[k].alive { continue; }
             if (self.tick / 2 + k as u64) % 4 == 0 { let (x, y) = (self.moles[k].x, self.moles[k].y - S); let before = self.g.flags.clone(); light::reveal(&mut self.g, x, y, 28 * S);
                 // the headlamp shows the way further ahead, inside its beam
-                if k == 0 && self.gear.lamp { let (h, d) = self.headlamp(); let l = (d.0 * d.0 + d.1 * d.1).sqrt().max(1e-6); light::reveal_cone(&mut self.g, h.0, h.1, light::Cone { dx: d.0 / l, dy: d.1 / l, half: light::kinds::HEADLAMP_HALF }, (light::kinds::HEADLAMP.1 * crate::mat::CPM as f32) as usize); }
+                if k == 0 && self.lamp_lit() { let (h, d) = self.headlamp(); let l = (d.0 * d.0 + d.1 * d.1).sqrt().max(1e-6); light::reveal_cone(&mut self.g, h.0, h.1, light::Cone { dx: d.0 / l, dy: d.1 / l, half: light::kinds::HEADLAMP_HALF }, (light::kinds::HEADLAMP.1 * crate::mat::CPM as f32) as usize); }
                 self.note_discoveries(&before, x, y); }
             let d = self.depth_m(self.moles[k].x, self.moles[k].y); if d > self.max_depth { self.max_depth = d; }
         }
@@ -570,12 +557,14 @@ impl World {
         let (x, y) = (self.moles[k].x, self.moles[k].y);
         let head = self.g.idx(x, y - S); let hm = self.g.m(head);
         let in_lava = (0..MOLE_H).any(|j| self.g.get(x, y - j).p().heat > 0 && !(k == 0 && self.g.get(x, y - j) == Mat::Lava));
+        let no_hunger = self.rules.no_hunger;
         let m = &mut self.moles[k];
         if in_lava { m.hp -= 4.; }
         // needs (rates per second at 60 tps; step_moles runs every 2nd tick → dt = 1/30 s)
         let dt = 1. / 30.; let busy = matches!(m.job, Some(Job::Dig) | Some(Job::Build) | Some(Job::Craft(_)) | Some(Job::Station(_)) | Some(Job::Haul(_)) | Some(Job::Deliver));
         let mult = if busy { 1.5 } else { 1. };
-        m.hunger = (m.hunger - 0.33 * mult * dt).max(0.);
+        // (hunger off, a Survival option: the belly stays full)
+        m.hunger = if no_hunger { 100. } else { (m.hunger - 0.33 * mult * dt).max(0.) };
         if m.job == Some(Job::Sleep) { m.sleep = (m.sleep + 2.5 * dt).min(100.); } else { m.sleep = 100.; /* one mole, no bedtime for now */ }
         if m.hunger <= 0. { m.hp -= 1. * dt; }
         if m.hunger > 60. && m.sleep > 50. && m.breath > 80. { m.hp = (m.hp + 0.5 * dt).min(100.); }
@@ -591,8 +580,9 @@ impl World {
             self.moles[k].path.clear();
         }
         // a hungry mole snacks from its pack
-        if self.moles[k].hunger < 40. { for (it, v) in [(Item::Grub, 45.), (Item::Mushroom, 35.), (Item::Fungus, 25.)] { if self.inv[it as usize] > 0 { self.inv[it as usize] -= 1; self.moles[k].hunger = (self.moles[k].hunger + v).min(100.); self.events.push(Event::Eat); break; } } }
-        if self.moles[k].hp <= 0. { self.moles[k].alive = false; self.pl.dead_t = 0; self.pl.deaths += 1; let nm = self.moles[k].name; self.events.push(Event::Death); self.say(format!("{} has died. Back to the burrow...", nm)); }
+        if self.moles[k].hunger < 40. { for (it, v) in [(Item::Grub, 45.), (Item::Mushroom, 35.), (Item::Root, 30.), (Item::Fungus, 25.)] { if self.inv[it as usize] > 0 { self.inv[it as usize] -= 1; self.moles[k].hunger = (self.moles[k].hunger + v).min(100.); self.events.push(Event::Eat); break; } } }
+        if self.rules.harmless { self.moles[k].hp = self.moles[k].hp.max(1.); }
+        if self.moles[k].hp <= 0. { if k == 0 && self.rules.drop_pack { self.drop_pack(); } self.moles[k].alive = false; self.pl.dead_t = 0; self.pl.deaths += 1; let nm = self.moles[k].name; self.events.push(Event::Death); self.say(format!("{} has died. Back to the burrow...", nm)); }
     }
     fn drop_item(&mut self, x: usize, y: usize, item: Item, n: u32) {
         if let Some(d) = self.drops.iter_mut().find(|d| d.item == item && d.asleep() && d.fuse == 0 && d.x.abs_diff(x) <= 3 * S && d.y.abs_diff(y) <= 3 * S && d.n < 20) { d.n += n; return; }
@@ -604,6 +594,7 @@ impl World {
         let m = self.g.m(i); let wet = self.g.flags[i] & F_WET != 0;
         self.g.set(i, if wet { Mat::Water } else { Mat::Empty }); self.desig[i] = 0; self.events.push(Event::Dig);
         if m.has(GRUBS) && hash3(i as u32, self.tick as u32, 0x6b) % (48 * S * S) as u32 == 0 { self.drop_item(mx, my, Item::Grub, 1); }
+        if m == Mat::Roots && hash3(i as u32, self.tick as u32, 0x52) % (8 * S * S) as u32 == 0 { self.drop_item(mx, my, Item::Root, 1); }
         if m == Mat::Fungus && hash3(i as u32, self.tick as u32, 0x5b) % (2 * S * S) as u32 == 0 { self.drop_item(mx, my, Item::Spore, 1); }
         if let Some(it) = drop_of(m) {
             self.dig_acc[m as usize] += 1;
@@ -667,7 +658,7 @@ impl World {
     }
     /// Cells in the mining bite around (x, y): a disc of the tool's brush radius (default BITES[tool]).
     pub fn bite_cells(&self, x: usize, y: usize) -> Vec<usize> {
-        let b = brush_radius(Brush::Dig(self.input.tool.min(3)), self.input.brush);
+        let b = brush_radius(Brush::Dig(self.tool()), self.input.brush);
         disc(b).into_iter().filter_map(|(dx, dy)| { let (nx, ny) = (x as i32 + dx, y as i32 + dy); self.g.in_bounds(nx, ny).then(|| self.g.idx(nx as usize, ny as usize)) }).collect()
     }
     /// Dig assist for tight spaces: when the aim is level with the body (sideways) or within its columns
@@ -921,7 +912,7 @@ impl World {
                     self.moles[0].facing = if mx >= x { 1 } else { -1 };
                     if work % 10 == 1 { self.events.push(Event::Dig); } // the strike is heard on press, then every 1/6 s
                     if work >= need { self.pl.mine = None; for c in cells { if self.mine_time(c).is_some() { self.dig_cell(c, x, y); } }
-                        let b = brush_radius(Brush::Dig(self.input.tool.min(3)), self.input.brush); self.marks.push((0, mx as f32 + 0.5, my as f32 + 0.5, b)); self.shake = self.shake.max(0.3 + 0.1 * self.input.tool as f32); }
+                        let b = brush_radius(Brush::Dig(self.tool()), self.input.brush); self.marks.push((0, mx as f32 + 0.5, my as f32 + 0.5, b)); self.shake = self.shake.max(0.3 + 0.1 * self.tool() as f32); }
                     else { self.pl.mine = Some((i, work, need)); }
                 } else { self.pl.mine = None; }
             }
@@ -1115,24 +1106,18 @@ impl World {
         Ok(n)
     }
     /// Craft one recipe at once; needs the right station built within 16 cells of the mole.
-    /// A Survival holt: the same world, a near-empty pack and no tools (claws only). Recipes unlock by touch.
-    pub fn survival(w: usize, h: usize, seed: u32) -> World {
-        let mut wd = World::new(w, h, seed); wd.creative = false; wd.inv = [0; NITEM];
-        for (it, n) in [(Item::Wood, 4), (Item::Torch, 4), (Item::Grub, 6), (Item::Spore, 3)] { wd.inv[it as usize] = n; }
-        wd.known = [false; NITEM]; wd.learn(); wd
-    }
     /// Note every item now in the pack as known, and say which recipes that opened.
     pub fn learn(&mut self) {
         let fresh: Vec<usize> = (0..NITEM).filter(|&k| self.inv[k] > 0 && !self.known[k]).collect();
         if fresh.is_empty() { return; }
         let before: Vec<bool> = (0..RECIPES.len()).map(|r| self.recipe_known(r)).collect();
         for k in fresh { self.known[k] = true; }
-        if self.creative { return; }
+        if !self.rules.crafting { return; }
         let new: Vec<&str> = (0..RECIPES.len()).filter(|&r| !before[r] && self.recipe_known(r)).map(|r| RECIPES[r].name).collect();
         if !new.is_empty() { self.say(format!("New recipes: {}.", new.join(", "))); }
     }
-    /// Is this recipe listed? Creative: always. Survival: once any of its inputs has been picked up.
-    pub fn recipe_known(&self, r: usize) -> bool { self.creative || RECIPES[r].inputs.iter().any(|&(it, _)| self.known[it as usize]) }
+    /// Is this recipe listed? Creative (and Plain): always. Survival: once any of its inputs has been picked up.
+    pub fn recipe_known(&self, r: usize) -> bool { !self.rules.crafting || RECIPES[r].inputs.iter().any(|&(it, _)| self.known[it as usize]) }
     /// The built station of this kind the mole is standing at (within 4 m across, 2.5 m up or down).
     pub fn station_here(&self, kind: Station) -> Option<&Building> {
         let m = self.moles.first()?;
@@ -1159,10 +1144,10 @@ impl World {
         }
     }
     /// Craft one recipe at once. Survival: the recipe must be known and the mole must stand at a working
-    /// station of its kind. Creative: anywhere (free access), still paid from the pack.
+    /// station of its kind (`rules.crafting`). Creative: anywhere (free access), still paid from the pack.
     pub fn craft_now(&mut self, r: usize) -> Result<(), String> {
         let rec = &RECIPES[r]; if self.moles.is_empty() { return Err("no mole".into()); }
-        if !self.creative {
+        if self.rules.crafting {
             if !self.recipe_known(r) { return Err("you haven't found what that needs yet".into()); }
             let Some(b) = self.station_here(rec.station) else { return Err(format!("stand at a {}", rec.station.name().to_lowercase())) };
             self.station_ready(b)?;

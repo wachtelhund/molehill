@@ -1,7 +1,7 @@
-// Survival: you dig with the best tool you own, whatever is in hand. Claws take dirt and, slowly, soft stone
-// (sandstone, limestone) so the first pickaxe can be made; the Pickaxe (tier 1) digs those faster; the Drill (tier 2) granite and iron ore; the Bore (tier 3) basalt.
-// Each tool is picked up off the floor here, as it would come from a station or a chest. The basalt sits
-// in basalt, so digging round it can't drop it out.
+// Survival: you dig with the best tool you own, whatever is in hand. The kit's Pickaxe (tier 1) takes dirt
+// and soft stone; the Drill (tier 2) granite and iron ore; the Bore (tier 3) basalt. Holding the bore's slot
+// without owning one digs no harder than the pickaxe. Each tool is picked up off the floor here, as it
+// would come from a station or a chest. The basalt sits in basalt, so digging round it can't drop it out.
 map
 BBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
 #............................#
@@ -12,27 +12,23 @@ BBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
 #####################aaa######
 #####################aaa######
 end
-mode 1 survival
+mode survival
 tool 1 3
 brush 1 0.6
-expect 2 tier == 0
+expect 2 tier == 1
 mine 3-60 4 0
 mine 61-120 8 0
-expect 121 is:4,0,Dirt == 0            // claws take dirt
-expect 121 is:8,0,Rock == 0            // and soft stone, slowly (so the first pickaxe's stone can be dug)
-mine 121-160 12 0
-expect 161 is:12,0,Granite == 1        // not granite
-drop 162 Pickaxe 0 -1
-expect 170 tier == 1
-mine 201-260 12 0
-expect 261 is:12,0,Granite == 1        // granite needs the drill
-drop 262 Drill 0 -1
-expect 270 tier == 2
-mine 271-340 12 0
-mine 341-400 16 0
-expect 401 is:12,0,Granite == 0
-expect 401 is:16,0,Basalt == 1         // basalt needs the bore
-drop 402 Bore 0 -1
-expect 410 tier == 3
-mine 411-500 16 0
-expect 501 is:16,0,Basalt == 0
+expect 121 is:4,0,Dirt == 0
+expect 121 is:8,0,Rock == 0            // soft stone
+mine 121-180 12 0
+expect 181 is:12,0,Granite == 1        // granite needs the drill
+drop 182 Drill 0 -1
+expect 190 tier == 2
+mine 191-260 12 0
+mine 261-330 16 0
+expect 331 is:12,0,Granite == 0
+expect 331 is:16,0,Basalt == 1         // basalt needs the bore
+drop 332 Bore 0 -1
+expect 340 tier == 3
+mine 341-430 16 0
+expect 431 is:16,0,Basalt == 0

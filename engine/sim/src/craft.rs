@@ -8,8 +8,9 @@ pub enum Item {
     Brick, Glass, Charcoal, CopperIngot, TinIngot, BronzeIngot, IronIngot,
     Torch, WoodPillar, IronBeam, CopperWire, Thrummer, Gate, Tnt, Lamp,
     Pickaxe, Drill, Bore, Grub, Spore, Mushroom, Vent, Glowmite,
+    FungusOil, Root,
 }
-pub const NITEM: usize = 36;
+pub const NITEM: usize = 38;
 /// What an item can do in the world (see `Item::uses`).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Uses { pub place: bool, pub throw: bool, pub pick_up: bool }
@@ -18,6 +19,7 @@ pub const ITEMS: [Item; NITEM] = [
     Item::Brick, Item::Glass, Item::Charcoal, Item::CopperIngot, Item::TinIngot, Item::BronzeIngot, Item::IronIngot,
     Item::Torch, Item::WoodPillar, Item::IronBeam, Item::CopperWire, Item::Thrummer, Item::Gate, Item::Tnt, Item::Lamp,
     Item::Pickaxe, Item::Drill, Item::Bore, Item::Grub, Item::Spore, Item::Mushroom, Item::Vent, Item::Glowmite,
+    Item::FungusOil, Item::Root,
 ];
 impl Item {
     /// The material a loose item is a lump of, if it is one: its density and burning come from the table.
@@ -37,14 +39,14 @@ impl Item {
         if let Some(m) = self.mat() { return m.p().density; }
         match self {
             Charcoal => 400., CopperIngot => 8900., TinIngot => 7300., BronzeIngot => 8800., CopperWire => 3000., Thrummer | Gate | Vent => 2500.,
-            Tnt => 1500., Lamp => 2000., Pickaxe => 2500., Drill => 5000., Bore => 5500., Grub => 1050., Spore => 300., Mushroom => 600.,
+            Tnt => 1500., Lamp => 2000., Pickaxe => 2500., Drill => 5000., Bore => 5500., Grub => 1050., Spore => 300., Mushroom => 600., FungusOil => 900., Root => 1100.,
             _ => 2000.,
         }
     }
     /// Does heat `h` burn it up (a loose item in lava or fire)? TNT doesn't burn: it lights.
     pub fn burns(self, h: u8) -> bool {
         use Item::*;
-        match self { Tnt => false, Charcoal | Grub | Spore | Mushroom => h >= 1, _ => self.mat().map_or(false, |m| m.lit_by(h)) }
+        match self { Tnt => false, Charcoal | Grub | Spore | Mushroom | FungusOil | Root => h >= 1, _ => self.mat().map_or(false, |m| m.lit_by(h)) }
     }
     /// What the item in hand can do, from one table: set it down in the world, throw it, or neither
     /// (a crafting material). Blocks, copperline, devices, torches and tools are never thrown.
@@ -52,7 +54,7 @@ impl Item {
         use Item::*;
         let place = matches!(self, WoodPillar | Brick | IronBeam | CopperWire | Torch | Tnt | Lamp | Vent | Spore);
         let throw = matches!(self, Dirt | Clay | Sand | Gravel | Stone | Coal | CopperOre | TinOre | IronOre | Quartz | Crystal | Wood | Fungus
-            | Charcoal | CopperIngot | TinIngot | BronzeIngot | IronIngot | Grub | Spore | Mushroom | Tnt);
+            | Charcoal | CopperIngot | TinIngot | BronzeIngot | IronIngot | Grub | Spore | Mushroom | Tnt | FungusOil | Root);
         Uses { place, throw, pick_up: matches!(self, CopperWire | Torch | Tnt | Lamp | Vent) }
     }
     /// One line naming the inputs for the item in hand (hover tooltip and the hint over the hotbar).
@@ -75,7 +77,7 @@ impl Item {
         ["Dirt", "Clay", "Sand", "Gravel", "Stone", "Coal", "Copper ore", "Tin ore", "Iron ore", "Quartz", "Crystal", "Wood", "Fungus",
          "Brick", "Glass", "Charcoal", "Copper ingot", "Tin ingot", "Bronze ingot", "Iron ingot",
          "Torch", "Wood pillar", "Iron beam", "Copperline", "Thrummer", "Knot", "TNT", "Lamp",
-         "Pickaxe", "Drill", "Bore", "Grub", "Spore", "Mushroom", "Vent", "Glowmite"][self as usize]
+         "Pickaxe", "Drill", "Bore", "Grub", "Spore", "Mushroom", "Vent", "Glowmite", "Fungus oil", "Root"][self as usize]
     }
     /// One plain line for the hover tooltip: what it is and what it's for.
     pub fn desc(self) -> &'static str {
@@ -92,7 +94,8 @@ impl Item {
          "Mechanical knot: joins two lines into one answer (both, either, turn, odd, catch).", "Blasting charge. Shatters rock in a wide round.",
          "Lights when current flows through it.", "Stone pick: breaks soil and soft stone (limestone, sandstone, coal, copper and tin ore).", "Copperline-driven auger: cuts granite and iron ore.", "Heavy heat-bore: grinds through basalt.",
          "Fat burrowing larva. A good meal.", "Mushroom spore. Plant it on soil to grow food.", "A ripe mushroom. Fills the belly.",
-         "Draws stale air out of the tunnels around it.", "A glowmite caught in a jar. Glows softly, needs no fuel."][self as usize]
+         "Draws stale air out of the tunnels around it.", "A glowmite caught in a jar. Glows softly, needs no fuel.",
+         "Pressed from fungus. Fuels the headlamp and soaks a torch so it burns.", "A fat, starchy root from a root tangle. A fair meal."][self as usize]
     }
     pub fn color(self) -> [u8; 3] {
         use Item::*;
@@ -102,7 +105,7 @@ impl Item {
             Crystal => [120, 200, 255], Wood => [150, 105, 60], Fungus => [96, 200, 120], Brick => [170, 80, 60], Glass => [190, 230, 240],
             Charcoal => [70, 60, 60], CopperIngot => [230, 140, 80], TinIngot => [210, 215, 225], BronzeIngot => [205, 150, 70], IronIngot => [190, 190, 200],
             Torch => [255, 190, 90], WoodPillar => [180, 130, 80], IronBeam => [120, 130, 150], CopperWire => [240, 150, 90], Thrummer => [150, 120, 255],
-            Gate => [120, 220, 160], Tnt => [220, 60, 50], Lamp => [255, 240, 170], Pickaxe => [160, 156, 150], Drill => [205, 150, 70], Bore => [200, 205, 220], Grub => [235, 215, 170], Spore => [200, 170, 230], Mushroom => [214, 120, 90], Vent => [150, 200, 210], Glowmite => [190, 255, 160],
+            Gate => [120, 220, 160], Tnt => [220, 60, 50], Lamp => [255, 240, 170], Pickaxe => [160, 156, 150], Drill => [205, 150, 70], Bore => [200, 205, 220], Grub => [235, 215, 170], Spore => [200, 170, 230], Mushroom => [214, 120, 90], Vent => [150, 200, 210], Glowmite => [190, 255, 160], FungusOil => [200, 220, 120], Root => [190, 140, 90],
         }
     }
 }

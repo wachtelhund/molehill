@@ -17,11 +17,11 @@ Molehill's design rule is that **nothing happens by decree**. Collapse, flooding
 
 ## Materials
 
-Every cell holds one of 28 materials. Each has a **kind**, which picks how the falling-sand automaton treats it:
+Every cell holds one of 32 materials. Each has a **kind**, which picks how the falling-sand automaton treats it:
 
 | kind | materials | behaviour |
 |---|---|---|
-| Solid | bedrock, granite, rock, limestone, basalt, dirt, clay, gravel, coal and ores, quartz, crystal, roots, grass, glass, wood beam, stone brick, iron beam, door | Static until it cracks or is knocked **loose**; loose solids fall like powder |
+| Solid | bedrock, granite, rock, limestone, basalt, dirt, clay, gravel, coal and ores, quartz, crystal, roots, grass, moss, mycelium, root-tree and its roots, glass, wood beam, stone brick, iron beam, door | Static until it cracks or is knocked **loose**; loose solids fall like powder |
 | Powder | sand, fungus | Always fall and slide by angle of repose |
 | Liquid | water, lava | Fall, then spread sideways to level out |
 | Gas | steam, fire | Rise and fade |
@@ -156,6 +156,29 @@ Placed blocks are judged by the same rules, which is the point: you learn to bui
 * A resting pool can keep a 1-cell step if the lower spot is more than 6 m away.
 * Overburden still passes through caves higher up, which can crush a dirt seam under deep rock whatever supports it.
 
+## Blasts
+
+A blast (`blast.rs`) is a pressure wave, not a fixed crater. A TNT charge is **0.25 kg** of TNT.
+
+* **The wave** runs out from the charge through open air, gas and liquid, shortest path first. Solids stop it. Its peak overpressure follows the **Kinney-Graham** free-air curve, P(Z) with Z = R / W^⅓, except that R is the *equivalent radius of the volume the wave has already filled*: R = (3V / 4π)^⅓.
+  * A tunnel fills slowly, so the pressure holds along it. A cave fills fast and soaks the wave up. 5 m from a charge it's about 370 kPa down a 0.75 m tunnel and 80 kPa across a 6 m cave (`blast_tunnel_vs_cave`).
+  * Water barely yields, so a cell of water counts as a fifth of a cell of air.
+  * In a closed space the hot gas also pushes: P = max(shock, 0.35 × 4184 kJ/kg × W / V). A charge tamped into a tight pocket therefore breaks far more than one in the open.
+* **Shadows.** The wave loses pressure bending round edges. It's divided by 1 + detour / 0.5 m, where the detour is how much longer its path is than the straight line. A straight tunnel loses nothing, while a mole behind a wall is barely touched (`blast_shadow`).
+* **Breaking rock.** Every solid face the wave reaches is loaded with the overpressure there. A material's blast strength is 15 kPa × 2^blast, from the material table's blast resistance:
+
+  | material | dirt | clay | limestone, rock | brick | basalt | granite | bedrock |
+  |---|---|---|---|---|---|---|---|
+  | strength (kPa) | 60 | 120 | 480 | 960 | 1920 | 3840 | never |
+
+  Above 1.5× its strength a face **cracks** into loose rubble; above 3× it **shatters** away, and the wave runs on into the crater it opens (`blast_granite_vs_dirt`).
+* **Throwing.** Loose ground, rubble and liquids in the wave are thrown away from the charge, about a tile per 25 kPa and at most 3 m. Water is driven up out of a pool in a plume that rains back down, and none is lost (`blast_pushes_water`). Loose items fly along the wave.
+* **Moles** take (P − 30 kPa) / 2.5 damage from the overpressure where they stand: a knock under 30 kPa, deadly at about 280. The player is also knocked along the wave.
+* **Devices:**
+  * 60 kPa on a block sets off a charge in it (charges chain), 30 kPa lights a fuse cord, and 400 kPa wrecks copperline and devices.
+  * The knock couples into the rock round the charge and reaches listeners like a loud thrum: 60 dB + 20 log₁₀(W / 5 g), so 94 dB for a charge, with the usual spreading, absorption and boundary losses (`blast_is_heard_by_listeners`).
+* **Cost.** It's deterministic and bounded: the wave stops below 3 kPa or after 400,000 cells. One charge in a burrow takes about 2 ms (`blastbench` example).
+
 ## Light
 
 Light is per-cell RGB, and there is no sky light and no day cycle: everything is lit by something down here. Two kinds of light are added together.
@@ -187,7 +210,7 @@ L(i) = max(L(i), L(n) · t(i) · d)     t = 0.90 open, 0.80 liquid, ≈ 0.3 into
 | glowmite in a jar (held) | cold green-gold | 4 m |
 | the mole's own glow (lamp out) | faint | 2 m |
 
-The **headlamp** sits on the mole's hard hat and points at the cursor, or ahead and a little down when nothing is aimed at. While it's lit, it also reveals fog of war along its beam. Toggle it with `G` or in Settings (saved).
+The **headlamp** sits on the mole's hard hat and points at the cursor, or ahead and a little down when nothing is aimed at. While it's lit, it also reveals fog of war along its beam. Toggle it with `G` or in Settings (saved). In Survival it burns fungus oil (see [Progression](Progression.md#survival-mode-today)).
 
 Light is computed only over the camera view plus a margin, every second frame: about 3.4 ms natively for the view including its glowing surfaces, plus about 0.3 ms for the headlamp and 20 torches. Short lights (6 m or less) cast one ray per rim cell, long ones 1.5. The game draws only a small bloom sprite at a torch's or lamp's flame; the pool of light and its shadows are the sim's (`cargo run --release -p molehill-sim --example stepbench`).
 

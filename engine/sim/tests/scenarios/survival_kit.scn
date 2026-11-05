@@ -1,0 +1,40 @@
+// Survival starts with almost nothing: stone tools (the Pickaxe), 4 torches, a little food and oil.
+// You can only dig with tools you own: the drill in the hotbar still bites like a pickaxe, so granite
+// (needs a drill) won't give, but dirt does. A save keeps the mode and its rules.
+map
+BBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+#.........####......dddd.....#
+#.........####......dddd.....#
+#.........####......dddd.....#
+#.........####......dddd.....#
+#.........####......dddd.....#
+#.........####......dddd.....#
+#.........####......dddd.....#
+#.........####......dddd.....#
+#.........####......dddd.....#
+#.........####......dddd.....#
+#.........####......dddd.....#
+#.........####......dddd.....#
+#.........####......dddd.....#
+#...@.....####......dddd.....#
+##############################
+end
+mode survival
+expect 1 mode == 1
+expect 1 inv:Pickaxe == 1
+expect 1 inv:Torch == 4
+expect 1 inv:Grub == 3
+expect 1 inv:Root == 2
+expect 1 inv:FungusOil == 2
+expect 1 inv:WoodPillar == 0
+expect 1 inv:Tnt == 0
+// the drill selected, but only a pickaxe owned: the granite wall to the right holds
+tool 2 2
+mine 2-80 6 0
+expect 80 is:6,0,Granite == 1
+saveload 90
+expect 91 mode == 1
+expect 91 inv:Pickaxe == 1
+// the pickaxe digs dirt fine
+mine 100-160 16 -1
+expect 160 is:16,-1,Dirt == 0

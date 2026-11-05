@@ -1,0 +1,22 @@
+// A wall shadows a blast: the mole stands behind a granite wall that stops 1 m short of the ceiling, and
+// the wave can only reach it round the top. Out in the open at the same distance it would be hurt badly.
+map
+##################################
+#................................#
+#................................#
+#................................#
+#................................#
+#..............#.................#
+#..............#.................#
+#..............#.................#
+#..............#.................#
+#..............#.................#
+#..............#.................#
+#..............#.................#
+#..............#...@.............#
+##################################
+end
+explode 5 -12 -1 0.25
+expect 6 hp > 90                 // behind the wall: barely touched
+expect 6 p:-8,-1 > 100           // the same distance on the open side (4 tiles from the charge... here 4 m in front of it)
+expect 6 p:0,-1 < 50             // where the mole stands

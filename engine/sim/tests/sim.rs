@@ -853,21 +853,46 @@ mod progression {
         for &(it, _) in RECIPES[recipe_by_name("Pickaxe").unwrap()].inputs { assert!(matches!(it, Item::Wood | Item::Stone)); }
     }
     #[test] fn survival_starts_bare_and_learns() {
-        let mut w = World::survival(256 * molehill_sim::mat::S, 128 * molehill_sim::mat::S, 3);
-        assert!(!w.creative && tool_tier(&w.inv) == 0, "no tools at the start");
-        w.input.tool = 3; assert_eq!(w.dig_power(), 0, "a tool in hand you don't own doesn't dig");
+        use molehill_sim::survival::Mode;
+        let mut w = World::new(256 * molehill_sim::mat::S, 128 * molehill_sim::mat::S, 3); w.set_mode(Mode::Survival); w.step();
+        assert!(w.rules.crafting && tool_tier(&w.inv) == 1, "the kit's pickaxe only");
+        w.input.tool = 3; assert_eq!(w.dig_power(), 1, "a tool in hand you don't own doesn't dig");
         let pick = recipe_by_name("Pickaxe").unwrap(); let cu = recipe_by_name("Copper ingot").unwrap();
-        assert!(w.recipe_known(pick), "wood in the starting pack shows the pickaxe");
-        assert!(!w.recipe_known(cu));
+        assert!(!w.recipe_known(pick) && !w.recipe_known(cu), "nothing in the kit is wood, stone or copper ore");
+        w.inv[Item::Wood as usize] = 2; w.step(); assert!(w.recipe_known(pick), "picking up wood shows the pickaxe");
         assert!(w.craft_now(cu).is_err(), "an unknown recipe can't be made");
         w.inv[Item::CopperOre as usize] = 2; w.step(); assert!(w.known[Item::CopperOre as usize] && w.recipe_known(cu));
         assert!(w.log.iter().any(|(_, l)| l.contains("New recipes") && l.contains("Copper ingot")), "the log says what opened");
         w.inv[Item::Stone as usize] = 4; assert!(w.craft_now(pick).unwrap_err().contains("workbench"), "survival crafts at a station");
         // saved and loaded: mode and what you know
-        let l = save::load(&save::save(&w)).unwrap(); assert!(!l.creative); assert_eq!(l.known, w.known);
+        let l = save::load(&save::save(&w)).unwrap(); assert_eq!(l.mode, Mode::Survival); assert_eq!(l.known, w.known);
         // Creative: free access, anywhere
-        let mut c = World::new(256 * molehill_sim::mat::S, 128 * molehill_sim::mat::S, 3); c.inv[Item::IronIngot as usize] = 3; c.inv[Item::CopperIngot as usize] = 2;
-        assert!(c.craft_now(recipe_by_name("Drill").unwrap()).is_ok() && c.inv[Item::Drill as usize] == 1);
+        let mut c = World::new(256 * molehill_sim::mat::S, 128 * molehill_sim::mat::S, 3); c.set_mode(Mode::Creative); c.inv[Item::IronIngot as usize] = 3; c.inv[Item::CopperIngot as usize] = 2;
+        let d0 = c.inv[Item::Drill as usize]; assert!(c.craft_now(recipe_by_name("Drill").unwrap()).is_ok() && c.inv[Item::Drill as usize] == d0 + 1, "Creative crafts anywhere");
         c.input.tool = 3; assert_eq!(c.dig_power(), 3);
     }
+}
+/// A blast's knock carries through the rock like a thrum: a listener in solid granite hears it (on any
+/// channel) for a moment.
+#[test] fn blast_is_heard_by_listeners() {
+    use molehill_sim::logic::Dev;
+    let (mut w, x0, y0) = arena(); let c = molehill_sim::mat::CPM;
+    // a listener sealed into the granite floor 6 m away; the charge goes off on the floor
+    let (lx, ly) = (x0 + 6 * c, y0 + 2 * c);
+    let b = w.logic.block_of(lx, ly); for y in (b / w.logic.bw) * c..(b / w.logic.bw + 1) * c { for x in (b % w.logic.bw) * c..(b % w.logic.bw + 1) * c { let i = w.g.idx(x, y); w.g.set(i, Mat::Empty); } }
+    w.logic.place(&mut w.g, Dev::Rx, b); w.step(); assert_eq!(w.logic.dev_s[b], 0);
+    assert!(w.logic.dev[b] == Dev::Rx as u8, "listener placed");
+    w.blast(x0 - 4 * c, y0, molehill_sim::blast::TNT_KG); w.step(); w.step(); assert_eq!(w.logic.dev_s[b], 1, "the listener heard the blast");
+    for _ in 0..40 { w.step(); } assert_eq!(w.logic.dev_s[b], 0, "for a moment");
+}
+/// The blast model's numbers: Kinney-Graham falls off with scaled distance, and is deterministic.
+#[test] fn blast_overpressure_curve() {
+    use molehill_sim::blast::overpressure;
+    assert!(overpressure(1.) > 500. && overpressure(1.) < 1500., "Z = 1: about 1 MPa ({})", overpressure(1.));
+    assert!(overpressure(5.) < 40. && overpressure(5.) > 15., "Z = 5: tens of kPa ({})", overpressure(5.));
+    let mut last = f32::MAX; for k in 1..100 { let p = overpressure(k as f32 * 0.2); assert!(p < last); last = p; }
+    let (mut a, x0, y0) = arena(); let (mut b, _, _) = arena(); let c = molehill_sim::mat::CPM;
+    let ra = a.blast(x0 + 3 * c, y0 - c, 0.25); let rb = b.blast(x0 + 3 * c, y0 - c, 0.25);
+    assert_eq!(a.g.mat, b.g.mat); assert_eq!((ra.cells, ra.shattered, ra.cracked), (rb.cells, rb.shattered, rb.cracked));
+    assert!(ra.cells < molehill_sim::blast::BLAST_CELLS, "bounded");
 }

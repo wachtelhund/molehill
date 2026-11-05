@@ -19,6 +19,7 @@ BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
 ##############...#######################################################
 ########################################################################
 end
+mode survival
 give Wood 20
 give Stone 30
 give Clay 8
@@ -26,15 +27,13 @@ give IronOre 6
 give Coal 4
 give CopperOre 4
 give CopperWire 16
-mode 1 survival
-expect 2 tier == 0
 craft 3 Pickaxe
-expect 4 inv:Pickaxe == 0             // no workbench yet
+expect 4 inv:Pickaxe == 1             // the kit's pickaxe only: no workbench yet
 station 5 2 0 Workbench
 expect 6 buildings == 1
 expect 6 inv:Wood == 14
 craft 7 Pickaxe
-expect 8 inv:Pickaxe == 1
+expect 8 inv:Pickaxe == 2
 expect 8 tier == 1
 // the forge: cold, then lava in the pit beside it
 station 10 -12 0 Forge

@@ -13,7 +13,7 @@ map
 end
 expect 0 count:Rock == 44
 expect 0 count:Sand == 11
-explode 5 15 -2 3
+explode 5 15 -2 0.2
 expect 6 is:15,-2,Rock == 0
 expect 6 count:Rock < 40
 expect 200 is:15,-4,Sand == 0
