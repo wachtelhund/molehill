@@ -12,3 +12,30 @@ pub fn zoom_step(scale: f32, steps: f32) -> f32 { clamp_zoom(scale / ZOOM_STEP.p
 pub fn clamp_zoom(scale: f32) -> f32 { if scale.is_finite() && scale > 0. { scale.clamp(ZOOM_MIN, ZOOM_MAX) } else { ZOOM_DEFAULT } }
 /// Zoom as a magnification for the settings label: 1.0 at the default, bigger is closer.
 pub fn zoom_level(scale: f32) -> f32 { ZOOM_DEFAULT / clamp_zoom(scale) }
+
+/// Mouse wheel → discrete notches (hotbar slot, brush size, zoom). Kept here so it is tested headless.
+/// * No scroll is no notch (beware `f32::signum(0.0) == 1.0`).
+/// * Line units (a notched wheel): one notch per frame with any movement.
+/// * Pixel units (trackpads, smooth-scrolling browsers): deltas add up to `WHEEL_PX` for one notch,
+///   then the gesture is spent until the wheel has been quiet for `WHEEL_QUIET` s, so a flick and its
+///   momentum tail move one slot instead of spinning the hotbar.
+#[derive(Clone, Copy, Default, Debug)]
+pub struct Wheel { acc: f32, quiet: f32, spent: bool }
+pub const WHEEL_PX: f32 = 24.;
+pub const WHEEL_QUIET: f32 = 0.12;
+impl Wheel {
+    /// `dy` this frame (positive = up / away), in pixels when `pixels`, else lines. Returns -1, 0 or 1.
+    pub fn feed(&mut self, dy: f32, pixels: bool, dt: f32) -> i32 {
+        if !dy.is_finite() || dy == 0. {
+            self.quiet += dt.max(0.);
+            if self.quiet >= WHEEL_QUIET { self.acc = 0.; self.spent = false; }
+            return 0;
+        }
+        self.quiet = 0.;
+        if !pixels { self.acc = 0.; self.spent = false; return if dy > 0. { 1 } else { -1 }; }
+        if self.acc != 0. && self.acc.signum() != dy.signum() { self.acc = 0.; self.spent = false; } // turned back: a new gesture
+        if self.spent { return 0; }
+        self.acc += dy;
+        if self.acc.abs() >= WHEEL_PX { let n = if self.acc > 0. { 1 } else { -1 }; self.acc = 0.; self.spent = true; n } else { 0 }
+    }
+}

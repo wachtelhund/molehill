@@ -19,7 +19,7 @@ You play one Delver: a body **1.8 cells wide and 2.9 tall** (about 45 × 73 cm) 
 | Right mouse | Interact: flip a lever, step a thrum pattern or ticker beat, light TNT or a fuse cord |
 | `Ctrl` + right mouse | Pick up copperline or a device (a lit charge is defused) |
 | `[` / `]`, `Ctrl` + wheel | Brush size for the tool or block in hand, within its range |
-| `1`–`0`, wheel | Hotbar slot |
+| `1`–`0`, wheel | Hotbar slot (a trackpad flick moves one slot, momentum included) |
 | `I` | Pack (inventory grid): click a slot to pick it up, click another to drop or swap. The bottom row is the hotbar |
 | `+` / `-`, `Shift` + wheel | Zoom (clamped to scale 0.12–0.75 and saved) |
 | `H` | Controls overlay |

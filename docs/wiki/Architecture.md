@@ -48,7 +48,7 @@ The rule is simple: **gameplay goes in the sim.** If it changes what happens in 
 | `craft.rs` | items, stations, recipes, tool tiers, quests |
 | `disasters.rs` | floods, lava surges, quakes |
 | `save.rs` | binary save/load |
-| `view.rs` | zoom rules shared by the settings menu, keys and wheel |
+| `view.rs` | zoom rules shared by the settings menu, keys and wheel; `Wheel` turns wheel and trackpad scroll into notches (idle is still, one flick is one notch) |
 
 ### One tick
 

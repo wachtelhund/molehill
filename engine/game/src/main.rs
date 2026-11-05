@@ -9,7 +9,7 @@ mod menu;
 use molehill_sim::logic::{Dev, DEVS, B as LB};
 use molehill_sim::disasters::{Phase, Kind2};
 use bevy::prelude::*;
-use bevy::input::mouse::AccumulatedMouseScroll;
+use bevy::input::mouse::{AccumulatedMouseScroll, MouseScrollUnit};
 use bevy::window::PrimaryWindow;
 use molehill_sim::craft::{self, Item, Station, ITEMS, NITEM, QUESTS, RECIPES, STATIONS};
 use molehill_sim::grid::{hash3, F_SEEN};
@@ -27,6 +27,8 @@ const FAR: usize = 4; // chunk rows drawn beyond each end of the simulated windo
     pub brush: [f32; 7],
     /// dev only (`--shot-walk`): hold right as if `D` were down
     pub demo_right: bool,
+    /// wheel → notches (see `view::Wheel`: an idle wheel is still, a trackpad flick is one notch)
+    wheel: molehill_sim::view::Wheel,
     /// mouse buttons held since a menu closed: ignored until released (the click that closed the menu must not dig or place)
     pub mouse_latch: bool,
     /// in-world feedback pops: (kind 0 bite / 1 placed block, x, y, radius in cells, start time s)
@@ -89,6 +91,7 @@ fn cell_to_world(x: f32, y: f32) -> Vec2 { Vec2::new(x * CPX - W as f32 * CPX / 
 fn world_to_cell(p: Vec2) -> (i32, i32) { (((p.x + W as f32 * CPX / 2.) / CPX).floor() as i32, ((H as f32 * CPX / 2. - p.y) / CPX).floor() as i32) }
 
 fn main() {
+    #[cfg(target_arch = "wasm32")] std::panic::set_hook(Box::new(console_error_panic_hook::hook));
     App::new()
         .add_plugins(DefaultPlugins.set(WindowPlugin { primary_window: Some(Window { title: "Molehill".into(), canvas: Some("#bevy".into()), fit_canvas_to_parent: true, prevent_default_event_handling: true, ..default() }), ..default() }))
         .insert_resource(ClearColor(Color::srgb(0.04, 0.035, 0.05)))
@@ -236,7 +239,7 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, mut fonts: R
         px: images.add(art::image(1, 1, vec![255; 4], true)),
     };
     commands.insert_resource(sp);
-    let disp = Vec2::new(sx, sy + 1.5); commands.insert_resource(Game { w, chunks, buf: vec![1; W * H * 4], uploads: 0, acc: 0., paused: true, speed: 1, frame: 0, last_light: 0, msg: String::new(), help: false, ev: vec![], shake_off: Vec2::ZERO, autosave: 0., last_oy: oy0, far, far_done, inv_open: false, aim: None, slots: default_slots(), held: None, hot: 0, sel_t: 0., toasts: vec![], log_seen: 0, show_dev: false, disp, seed, brush: [0.; 7], demo_right: false, mouse_latch: false, pops: vec![], look: Vec2::ZERO });
+    let disp = Vec2::new(sx, sy + 1.5); commands.insert_resource(Game { w, chunks, buf: vec![1; W * H * 4], uploads: 0, acc: 0., paused: true, speed: 1, frame: 0, last_light: 0, msg: String::new(), help: false, ev: vec![], shake_off: Vec2::ZERO, autosave: 0., last_oy: oy0, far, far_done, inv_open: false, aim: None, slots: default_slots(), held: None, hot: 0, sel_t: 0., toasts: vec![], log_seen: 0, show_dev: false, disp, seed, brush: [0.; 7], demo_right: false, wheel: Default::default(), mouse_latch: false, pops: vec![], look: Vec2::ZERO });
 }
 
 pub fn save_now(g: &mut Game) { let b = molehill_sim::save::save(&g.w); g.msg = match storage_put("molehill-manual", &b) { Ok(()) => "Game saved".into(), Err(e) => format!("Save failed: {e}") }; }
@@ -250,6 +253,7 @@ pub fn begin(g: &mut Game, commands: &mut Commands, seed: u32) { g.w = make_worl
 /// Load the manual save (or the autosave). Returns false if there is none or it failed.
 pub fn load_saved(g: &mut Game, commands: &mut Commands) -> bool {
     match storage_get("molehill-manual").or_else(|| storage_get("molehill-auto")).map(|b| molehill_sim::save::load(&b)) {
+        Some(Ok(w)) if w.g.w != W || w.g.h != H => { g.msg = format!("Load failed: save is {}x{}, this build is {W}x{H}", w.g.w, w.g.h); false }
         Some(Ok(w)) => { g.w = w; for v in g.w.inv.iter_mut() { *v = (*v).max(999); } reset_view(g, commands); g.msg = "Game loaded".into(); true }
         Some(Err(e)) => { g.msg = format!("Load failed: {e}"); false } None => { g.msg = "No save yet".into(); false } }
 }
@@ -285,7 +289,7 @@ fn input(mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<Button
     // + / - zoom too; [ / ] resize the brush. Zoom is shared with Settings (clamped, saved).
     let shift = keys.pressed(KeyCode::ShiftLeft) || keys.pressed(KeyCode::ShiftRight);
     let held_brush = brush_of(g.slots[g.hot]);
-    let notch = scroll.delta.y.signum();
+    let notch = g.wheel.feed(scroll.delta.y, scroll.unit == MouseScrollUnit::Pixel, dt) as f32;
     let mut resize = if keys.just_pressed(KeyCode::BracketRight) { 1. } else if keys.just_pressed(KeyCode::BracketLeft) { -1. } else { 0. };
     if notch != 0. {
         if ctrl && held_brush.is_some() { resize += notch; }
