@@ -275,6 +275,13 @@ impl World {
             self.events.push(Event::Lore);
         }
     }
+    /// A ruin's carving, read on the first visit, joins the journal beside the clue fragments (once per
+    /// carving: two ruins with the same carving add it once).
+    pub(crate) fn journal_ruin(&mut self, text: &str) {
+        let Some(id) = crate::lore::ruin_entry(text) else { return };
+        if self.journal.contains(&id) { return; }
+        self.journal.push(id); self.say(format!("Journal: {} (J)", crate::lore::entry(id).1));
+    }
     /// Slide the window by `rows` (a multiple of `band::BH`; + = deeper). Rows leaving are packed into
     /// bands with everything in them (devices, torches, drops, stations, plots, air); rows entering are
     /// unpacked from their band, or generated if never visited. Everything with a y coordinate moves.
