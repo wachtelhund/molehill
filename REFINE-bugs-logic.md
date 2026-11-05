@@ -20,7 +20,15 @@ Short log of what this run changed, and what is still open.
 
 * **Scrolling while sprinting zoomed** (found by p3): Shift is sprint, but Shift+wheel was zoom. Now the plain wheel always picks a hotbar slot (Shift changes nothing; a Shift-turned sideways wheel still counts), `Ctrl`/`Cmd`+wheel zooms (a trackpad pinch too), and `Alt`/`Option`+wheel sizes the brush. `view::wheel_use` / `wheel_delta`; test `wheel_modifiers_sprint_does_not_zoom`. Controls screen, README, AGENTS.md and wiki updated.
 
+## Phase 2 (p4): chunked save/load for the endless world
+* **Builds no longer vanish off-window.** Only cells (material and flags) used to survive the window sliding away. Copperline, devices (and lit fuses), air, torches, drops, stations and mushroom plots in those rows were dropped. The off-window world is now stored as 64-row (8 m) **bands** (`sim/src/band.rs`, `World::bands`), each one blob with all of that. Test `bands::things_survive_leaving_the_window`; scenario `band_keeps_devices` (new harness directive `slide`).
+* **Save format 4 = manifest + band blobs.** The manifest holds the globals and the band list (start row, FNV-1a hash, length). `save::save_parts` gives the blobs keyed `b<row>_<hash>`, and the game stores each under its own key (`molehill-auto/b…` in localStorage, or a `molehill-auto/` folder natively). Unchanged bands keep their key, so an autosave writes only the bands that changed (the window, about 0.3 MB, in 3 ms) instead of the whole explored world. Bands go first, the manifest last, then stale keys are removed, so a failed write (storage full) leaves the old save whole; autosave failures now show a message. `save::save`/`load` still give one blob, with the bands inline. Tests `save_keeps_off_window_bands`, `autosave_writes_only_changed_bands`, `missing_or_damaged_bands` (a hole around the mole fails the load; a lost far band is regenerated and logged).
+* **Format 3 saves still load**: their row cache becomes bands. Fixture `tests/data/v3_cpm8.bin`, test `v3_save_still_loads`.
+* **Load is about 50 ms instead of 20 s**: `World::blank` builds the world shell without generating a window the load would overwrite anyway.
+* `examples/bandbench.rs` times slides, autosave, save and load on a game-sized world.
+
 ## Open
+* localStorage holds about 5 MB. A band is 10–40 KB, so a holt explored over a few hundred metres of depth could fill it. Bands the player never changed could be dropped and regenerated (not done: the falling-sand settling after generation would differ).
 * The web crash Hampus saw is not reproduced. Next time it happens, the browser console (View > Developer > JavaScript Console) shows `panicked at <file>:<line>`; that line pins it.
 * Main's stress model still sums overburden through air gaps (a dirt layer under ~16 m of rock with caves in between is crushed even if the caves carry it). Not a placed-block problem; left as is.
 * Placing TNT onto a copperline that is already live sets it off on the next tick. That is consistent (it is powered), but easy to do by accident.

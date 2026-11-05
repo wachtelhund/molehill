@@ -6,7 +6,7 @@ Molehill is a falling-sand mole platformer and colony sim in Rust and Bevy 0.20.
 * `engine/sim` (`molehill-sim`) is the whole simulation, in pure Rust with no Bevy. Put gameplay rules here so they can be tested headless.
   * Resolution is one knob: `mat::CPM` cells per metre (8). Size anything in cells through it: metres × `CPM`, or legacy 0.25 m tiles × `mat::S`. Never write a bare cell count. Scenarios are written in tiles (see TESTING.md).
   * `world.rs`: World, the player mole (`step_player`), mining and placing. `TUNE` holds every movement constant.
-  * `grid.rs` cells; `stress.rs` structure; `gen.rs` procgen; `light.rs`; `logic.rs` devices; `disasters.rs`; `craft.rs`; `save.rs`.
+  * `grid.rs` cells; `stress.rs` structure; `gen.rs` procgen; `light.rs`; `logic.rs` devices; `disasters.rs`; `craft.rs`; `band.rs` (the world off-window, in 64-row bands); `save.rs` (manifest + band blobs).
 * `engine/game` (`molehill`) is the Bevy front-end.
   * `main.rs`: input, the fixed 60 Hz sim step with render interpolation, the camera, rendering, sprites.
   * `ui.rs` HUD; `menu.rs` main and pause menus; `art.rs` sprites and icons; `audio.rs` WebAudio (silent on native).
@@ -21,7 +21,7 @@ Molehill is a falling-sand mole platformer and colony sim in Rust and Bevy 0.20.
 
 ## Rules
 * The only remote is the private `origin` (github.com/wachtelhund/molehill). No GitHub Pages, Vercel or other hosting, and no work accounts. Never force-push.
-* Autosaves (`*.save`) are gitignored. Don't commit them.
+* Autosaves (`*.save`, including the band files in `molehill-auto/`) are gitignored. Don't commit them.
 * The feel target is Streets of Rogue-snappy: instant start and stop, no input latency, and actions that fire on press with immediate feedback. Keep `TUNE` responsive, and test feel changes with scenarios (rise, `vx` after N ticks, coyote).
 * Menus pause the sim (`Game.paused`). The headless harness never touches the game crate.
 * Behaviour-changing merges must update `docs/wiki/` (the wiki: plain markdown on `main`, index `docs/wiki/README.md`, relative links). Change the page that describes the rule, number, control, device or build step in the same merge. The wiki's Lore page must match `LORE.md`, which wins if they disagree.

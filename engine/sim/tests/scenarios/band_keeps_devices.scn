@@ -1,0 +1,36 @@
+// The endless world keeps what you built when it leaves the window: the window slides away until only
+// its bottom band is left, and back. The lever stays thrown (its lamp lit), the copperline stays laid,
+// and a lit TNT fuse keeps burning and goes off on time. They used to vanish with their rows.
+// Then the same again across a save and load taken while the rows are away.
+map
+##########################################
+#........................................#
+#........................................#
+#........................................#
+#........................................#
+#........................................#
+#.................@......................#
+##########################################
+end
+give Tnt 1
+give Lamp 1
+device 3 -6 -1 Lever
+wire 4 -3 -1
+device 5 1 -1 Lamp
+device 6 14 -1 Tnt
+use 10 -6 -1
+expect 15 on:1,-1 == 1
+use 20 14 -1
+hold 21-60 left
+slide 60
+expect 62 on:1,-1 == 1
+expect 62 wire:-3,-1 == 1
+expect 62 lit:14,-1 == 1
+expect 62 dev:-6,-1,Lever == 1
+expect 62 dev:1,-1,Lamp == 1
+saveload 70
+slide 72
+expect 74 on:1,-1 == 1
+expect 74 lit:14,-1 == 1
+expect 105 ev:Explode == 0
+expect 115 ev:Explode == 1
