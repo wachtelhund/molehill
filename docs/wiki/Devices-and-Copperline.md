@@ -6,7 +6,7 @@ Delvers have no aerials and no chips. They have **copper drawn into wire**, **kn
 
 ## The block layer
 
-Copperline and devices don't live in cells. They live on a coarser grid of **1 m blocks (4 × 4 cells)** laid over the world. Each block holds at most one copperline and one device. The spawn cell is block-aligned.
+Copperline and devices don't live in cells. They live on a coarser grid of **1 m blocks (8 × 8 cells, `logic::B = CPM`)** laid over the world. Cell-count thresholds below are in tiles (2 × 2 cells each) and scale with the block's area. Each block holds at most one copperline and one device. The spawn cell is block-aligned.
 
 * **Laying copperline:** hold left mouse with copperline in hand; it is laid one block at a time as you drag.
 * **Placing a device:** left mouse puts it in the block under the cursor (it costs its pack item; levers, plates, sensors, doors, floodgates, pumps and fuses are free). Placing a knot on copperline gives the copperline back.
@@ -74,7 +74,7 @@ TNT goes down **inert**. Nothing explodes where you click. It can be set off in 
 
 **Fuse cords** burn for 24 ticks each, then light the next cord or set off the next charge, so a trail of cords is a slow, visible timer.
 
-**The blast** has a radius of 9 cells (2.25 m) and power 6. Cells in the inner 60 % are destroyed (one in nine turns to fire), and solids in the outer ring crumble loose. It breaks dirt, clay, sand, limestone, soft rock, coal, the ores and brick, but **not granite, basalt, quartz or iron beams**. Moles within 1.5 radii take up to 80 damage. Other TNT within r + 6 cells chains, fuse cords within r + 4 cells catch, and other devices within 0.8 r are destroyed.
+**The blast** has a radius of 2.25 m (9 tiles) and power 6. Cells in the inner 60 % are destroyed (one in nine turns to fire), and solids in the outer ring crumble loose. It breaks dirt, clay, sand, limestone, soft rock, coal, the ores and brick, but **not granite, basalt, quartz or iron beams**. Moles within 1.5 radii take up to 80 damage. Other TNT within r + 6 cells chains, fuse cords within r + 4 cells catch, and other devices within 0.8 r are destroyed.
 
 ## Thrumming
 

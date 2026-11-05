@@ -4,6 +4,7 @@ Molehill is a falling-sand mole platformer and colony sim in Rust and Bevy 0.20.
 
 ## Layout
 * `engine/sim` (`molehill-sim`) is the whole simulation, in pure Rust with no Bevy. Put gameplay rules here so they can be tested headless.
+  * Resolution is one knob: `mat::CPM` cells per metre (8). Size anything in cells through it: metres × `CPM`, or legacy 0.25 m tiles × `mat::S`. Never write a bare cell count. Scenarios are written in tiles (see TESTING.md).
   * `world.rs`: World, the player mole (`step_player`), mining and placing. `TUNE` holds every movement constant.
   * `grid.rs` cells; `stress.rs` structure; `gen.rs` procgen; `light.rs`; `logic.rs` devices; `disasters.rs`; `craft.rs`; `save.rs`.
 * `engine/game` (`molehill`) is the Bevy front-end.

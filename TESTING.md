@@ -5,7 +5,7 @@ Everything below runs headless. `molehill-sim` has no Bevy dependency, so these 
 ## 1. Unit and integration tests
 
 ```bash
-cargo test --release -p molehill-sim          # about 10 s; build the release profile, debug is very slow
+cargo test --release -p molehill-sim          # about 1 min; build the release profile, debug is very slow
 cargo test --release -p molehill-sim --test sim -- jump coyote   # filter by name
 ```
 
@@ -62,7 +62,9 @@ ascii 80                // print the map region after tick T
 expect 60 rise >= 4.5   // assertion after tick T: <var> <op> <number>, ops: < <= > >= == !=
 ```
 
-The map is stamped with its top-left so that `@` lands on the world spawn. A 20-cell granite frame is put around it, so the generated world can't leak in. Disasters are off. Rows shorter than the widest row are padded with `#`.
+**Scenarios are written in tiles of 0.25 m**, the original cell size. Each map character is stamped as a K × K block of cells (K = `mat::S`, 2 at 8 cells/m). Every offset and radius in a directive is in tiles, and positions, speeds, `count:`/`static:`/`crumbled` and the ASCII dump are reported back in tiles. A scenario therefore means the same thing in metres at any resolution. `is:` is true when most of the tile is that material; `util:`/`strain:` take the tile's maximum. `put` fills the whole tile.
+
+The map is stamped with its top-left so that `@` lands on the world spawn (the mole stands centred on the `@` tile, feet on its bottom edge). A 20-tile granite frame is put around it, so the generated world can't leak in. Disasters are off. Rows shorter than the widest row are padded with `#`.
 
 Map legend: `.` empty, `#` granite, `B` bedrock, `r` rock, `d` dirt, `c` clay, `s` sand, `g` gravel, `w` water, `l` lava, `o` coal, `i` iron ore, `a` basalt, `b` wood beam, `I` iron beam, `k` stone brick (`~` steam, `?` other, only in output).
 
@@ -71,14 +73,14 @@ Map legend: `.` empty, `#` granite, `B` bedrock, `r` rock, `d` dirt, `c` clay, `
 | variable | meaning |
 |---|---|
 | `flash` `shake` | Hit-flash time left (s); view-shake strength (decays each tick) |
-| `px` `py` `vx` `vy` | Player body (cells; py is the feet). Velocities are in cells/s; +y is down |
+| `px` `py` `vx` `vy` | Player body in tiles from the map's top-left (py is the feet). Velocities are in tiles/s; +y is down |
 | `dx` `dy` | Offset from the start position (dy < 0 means higher) |
 | `rise` | Highest point reached so far, measured above the start |
 | `grounded` `cling` | 0 or 1; cling is -1 (left wall), 0 or 1 (right wall) |
 | `hp` `breath` `deaths` | Mole vitals |
-| `crumbled` | Cells that have crumbled (world counter) |
+| `crumbled` | Tiles' worth of cells that have crumbled (world counter) |
 | `awake` | CA chunks overlapping the map that are still awake (0 = everything there has settled) |
-| `count:<Mat>` | Cells of that material inside the map rectangle, e.g. `count:Water` |
+| `count:<Mat>` | Tiles' worth of that material inside the map rectangle (cells / K²), e.g. `count:Water` |
 | `is:DX,DY,<Mat>` | 1 if the cell at an offset from `@` is that material |
 | `inv:<Item>` | Inventory count |
 | `static:<Mat>` | Like `count:` but only cells that are fixed in place (not loose debris) |
@@ -129,6 +131,7 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `brush_place.scn` | A radius-2 brick brush fills the open part of the disc and uses items 4 cells to one |
 | `hover_strain.scn` | The hover warns of an overloaded wood span (cracking) before it falls; floor and loose debris read idle |
 | `brush_clamp.scn` | Brush radius is clamped per item (iron beam max 2, pillar min 0.5, pickaxe max 3) |
+| `grain_in_body.scn` | A sand grain lying inside the mole's body (low tunnel, no wriggle room) is shoved aside instead of wedging it |
 | `pillar_built_in_room.scn` | A wood pillar built cell by cell in a granite room stays rigid |
 | `pillars_rock_roof.scn` / `roof_needs_pillar.scn` | Two pillars at the third points save a 12 m rock roof that caves in (bending) without them |
 | `pillar_sand_floor.scn` | A pillar built on a sand floor rests on it |
@@ -162,7 +165,11 @@ Zoom limits and brush ranges also have unit tests in `sim/tests/sim.rs` (`zoom_i
 
 ## 2b. Settling / performance check
 
-`cargo run --release -p molehill-sim --example wakediag [seed]` generates a world, runs 1200 ticks and reports how many CA chunks are still awake and what is still changing. A settled world should be close to 0 awake chunks.
+`cargo run --release -p molehill-sim --example wakediag [seed] [ticks]` generates a world, runs 1200 ticks (or `ticks`) and reports how many CA chunks are still awake and what is still changing. A settled world should be close to 0 awake chunks (at 8 cells/m a fresh world takes about 4800 ticks to settle).
+
+`cargo run --release -p molehill-sim --example stepbench [seed] [ticks]` times `World::step` on the game-sized window from a fresh holt: mean/p50/p95/p99/max per tick, the average per tick class (stress passes every 6 ticks, air every 15), a full stress solve and a light pass. Add `--no-default-features` for single-threaded numbers, which are closer to the web build.
+
+**Web frame time:** serve `dist/` (`python3 -m http.server`) and measure `requestAnimationFrame` intervals in Chrome after starting a holt. At 8 cells/m on an M4: 57-58 fps steady state (p95 16.8 ms, same as the 4 cells/m build), 54-55 fps during the first ~15 s while a fresh world settles.
 
 ## 3. Visual check (optional)
 

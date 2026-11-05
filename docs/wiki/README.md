@@ -8,7 +8,7 @@ Molehill is a falling-sand platformer and colony sim about moles digging through
 
 ## What makes it Molehill
 
-* **The ground is the game.** About half a million cells are simulated at 60 ticks a second. Sand pours, water levels out, lava creeps, and stone cracks when a span gets too wide.
+* **The ground is the game.** About two million 12.5 cm cells are simulated at 60 ticks a second. Sand pours, water levels out, lava creeps, and stone cracks when a span gets too wide.
 * **Structures are judged by real numbers.** Roofs are checked as beams in bending and pillars in compression, using densities and rock-mass strengths in kPa. A 1 m dirt span holds; a 6 m one comes down. See [Physics](Physics.md).
 * **Movement is snappy.** Instant start and stop, coyote time, a jump buffer, wall clinging and corner correction. The target feel is Streets of Rogue: actions fire on press with immediate feedback. See [Player and Controls](Player-and-Controls.md).
 * **Handmade technology.** Copperline carries current from levers, heatstones and water wheels through knots into doors, lamps, pumps and blasting charges. Signals cross solid rock by thrumming. See [Devices and Copperline](Devices-and-Copperline.md).

@@ -2,7 +2,7 @@
 
 > Code: `World::step_player` and `TUNE` in `engine/sim/src/world.rs`; keys in `input` in `engine/game/src/main.rs`; the controls table in `menu::CONTROL_ROWS`.
 
-You play one Delver: a body **1.8 cells wide and 2.9 tall** (about 45 × 73 cm) moving through a world of 25 cm cells. The movement is pure sim code, so every feel change can be tested headless (see [Testing](Testing.md)).
+You play one Delver: a body about **45 × 73 cm** (1.8 × 2.9 tiles of 0.25 m, i.e. 3.6 × 5.8 cells: the mole is about 4 cells wide) moving through a world of 12.5 cm cells. The movement is pure sim code, so every feel change can be tested headless (see [Testing](Testing.md)).
 
 ![Digging with the bore: the ring shows the bite](images/hud-digging.png)
 
@@ -42,11 +42,11 @@ Movement should feel like **Streets of Rogue**: instant start and stop, no input
 
 ## `TUNE`
 
-Every movement constant lives in one place, `TUNE` in `world.rs`. Units are cells and seconds, with +y down.
+Every movement constant lives in one place, `TUNE` in `world.rs`. Values in the table are in tiles (0.25 m) and seconds, with +y down; in code they're multiplied by `S` (cells per tile).
 
 | constant | value | meaning |
 |---|---|---|
-| `run` | 15 | top run speed (cells/s, about 3.75 m/s) |
+| `run` | 15 | top run speed (tiles/s, about 3.75 m/s) |
 | `ground_accel` / `ground_decel` | 900 / 1400 | speeding up / braking on the ground |
 | `air_accel` / `air_decel` | 480 / 60 | steering / drag in the air |
 | `gravity`, `fall_mul`, `cut_mul` | 150, 1.7, 3.0 | gravity; extra on the way down; extra after releasing jump |
@@ -79,4 +79,4 @@ The mole has **health**, **food** and **breath**, shown as the three bars in the
 
 ## Digging and reach
 
-You can act on cells within **18 cells (4.5 m)** of the mole. A dig tool carves a **round bite** under the cursor. A cell takes `dig × 4 / (1 + tier) + 1` ticks (never fewer than 4), and the tool's tier must reach the material's tier. If you aim level with the body (or straight up or down), the bite also clears a body-sized passage to the aim point (at most 6 extra cells, and only cells the tool can dig), so pointing ahead always tunnels through. Tools and the brush are on [Tools and Items](Tools-and-Items.md).
+You can act on cells within **4.5 m** of the mole. A dig tool carves a **round bite** under the cursor. A cell takes `dig × 4 / (1 + tier) + 1` ticks (never fewer than 4), and the tool's tier must reach the material's tier. If you aim level with the body (or straight up or down), the bite also clears a body-sized passage to the aim point (at most 6 extra cells, and only cells the tool can dig), so pointing ahead always tunnels through. Tools and the brush are on [Tools and Items](Tools-and-Items.md).

@@ -26,10 +26,10 @@ Both the tests and the scenarios must pass before every commit.
 
 ## Scenarios
 
-A `.scn` file is a tiny, line-based script. An ASCII map is stamped over a generated world with `@` on the spawn point, a 20-cell granite frame keeps the world out, and disasters are off:
+A `.scn` file is a tiny, line-based script. An ASCII map is stamped over a generated world with `@` on the spawn point, a 5 m granite frame keeps the world out, and disasters are off. Scenarios are written in **tiles of 0.25 m**: each map character is a 2 × 2 block of cells, and offsets, radii, positions, speeds and counts are all in tiles, so a scenario means the same at any resolution:
 
 ```
-// a full jump clears 4.5 cells and lands
+// a full jump clears 4.5 tiles and lands
 map
 ##########
 #........#
@@ -50,7 +50,7 @@ The variables, the map legend and the list of every included scenario are in [`T
 
 ## Writing one (the loop for agents)
 
-1. Copy the closest `.scn` and draw the map. Leave 3 empty cells above `@` for the mole's body.
+1. Copy the closest `.scn` and draw the map. Leave 3 empty tiles above `@` for the mole's body.
 2. Add `dump` / `ascii` lines at the ticks you care about and run that file alone. Read the JSON to choose thresholds, for example the tick where `grounded` flips.
 3. Turn what you saw into `expect` lines and remove the noisy dumps.
 4. Run the whole folder.

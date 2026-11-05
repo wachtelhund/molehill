@@ -69,7 +69,35 @@ Polish only: no new features. Each item has a scenario in `engine/sim/tests/scen
   ground, because a crust on molten lava would just break up again. A spreading sheet crusts from
   its thin front. (`lava_cools`; `lava_flows` now allows for the crust)
 
+## Cell resize (refine/cells, Phase 1)
+Cells are half the size: 8 per metre (`mat::CPM`; `S` = 2 cells per legacy 0.25 m tile). The mole is
+about 4 cells wide. Everything sized in cells goes through the knob, and the code at CPM = 4 is
+bit-identical to before (checked before flipping it).
+* **Scaled through `S`/`CPM`:** TUNE and the body; brushes and reach; stress (arch 16 m, caps); worldgen
+  (noise sampled in tiles, burrow, chest bands, decoration skins); the window (2048 × 1024 = 256 × 128 m)
+  and its slides; device blocks (1 m = 8 cells) and their cell-count thresholds; air blocks (2 m);
+  light transmittance per cell (the tile factor's S-th root); fog rays; items per area dug; the
+  rendering (CPX = 4/S world units per cell, 128-cell texture chunks, tile-sized texture patterns,
+  rims, sprite offsets). Saves are tagged with the resolution; an old save asks for a new holt.
+* **Same in metres:** grains and liquids fall up to S cells a tick, liquids spread 6·S, and a pressed
+  liquid spreads a tile a tick. Placed blocks go down in whole tiles, so building is unchanged.
+* **Harness:** scenarios stay in tiles. Maps are stamped K × K, and values come back in tiles. All 65
+  existing scenarios kept their meaning. Six needed a threshold loosened for finer discretisation:
+  a bite disc within a tile of the old count, a beam's end sliver, water levelling by tick 160
+  instead of 120 (pressure crosses twice the cells), and lava sleeping by about 1500.
+* **Found on the way:** a single sand grain inside the mole's body could wedge it for good (walking
+  only shoves the leading column). Stray grains are now shoved aside. (`grain_in_body`)
+* **Performance:** a full stress solve on the 4× window is about 40 ms. The world now re-solves locally:
+  dirty 8 m chunks cluster, each cluster is solved in a region (exact: it matches a full solve), nearest
+  first within a budget of an eighth of the window per pass. The air survey and the lava-cooling sweep
+  sample per tile. Web (M4, Chrome): 57-58 fps steady state, the same as before. During the first
+  ~15 s of a fresh holt it's 54-55 fps (p95 33 ms) while the world settles. Before this fix the resize
+  gave 26-34 fps.
+* Tests now take about a minute (the multi-seed stability runs cover 4× the cells).
+
 ## Open issues
+* A fresh holt still settles everywhere for its first ~15 s (more chunks dirty than one pass's
+  budget): that's Phase 2's active-region work.
 * No liquid pressure: water held in a column doesn't push through a U-bend under a wall (a full
   column beside a tunnel just stands there). It spreads sideways only when pressed from directly
   above. A first try at it (rise when liquid joined below stands 2+ higher) sloshed forever,

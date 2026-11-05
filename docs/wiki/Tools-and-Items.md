@@ -6,7 +6,7 @@
 
 There are three hand tools on the hotbar. Each tier takes a bigger bite, digs faster and cuts harder rock:
 
-| tool | tier | default bite (radius, cells) | brush range | cuts |
+| tool | tier | default bite (radius, tiles of 0.25 m) | brush range | cuts |
 |---|---|---|---|---|
 | Pickaxe | 1 | 2.5 | 0.5–3 | dirt and sand almost instantly, soft stone (limestone, soft rock, copper and tin ore, brick) in about 0.3 s |
 | Drill | 2 | 3.2 | 0.5–4 | adds granite, basalt, iron ore, quartz and crystal. A copperline-driven auger |
@@ -19,7 +19,7 @@ The colony also knows **pack tools** (stone, bronze and iron), crafted at statio
 Dig tools and building blocks share one idea: a **round brush** centred under the cursor, shown as a ring.
 
 * `[` / `]` or `Ctrl` + wheel resize it within the item's range. The label above the hotbar shows `brush r`.
-* A radius of 0.5 is one cell, and 1.0 is a plus of five.
+* Radii here are in tiles (0.25 m = 2 cells). Digging carves a disc of cells; **blocks go down in whole tiles** on the global tile grid, so a radius of 0.5 places one tile (2 × 2 cells) and 1.0 a plus of five tiles.
 * **Placing grows from support.** Each new cell of a block brush must touch something solid, so a stroke grows out of what it rests on and never floats.
 
 | block | material | brush range | default |
@@ -39,7 +39,7 @@ Placed blocks are ordinary cells, judged by the same structural solver as the ro
 | Device (lever, knot, lamp, vent…) | Placed in the 1 m block under the cursor. See [Devices and Copperline](Devices-and-Copperline.md) |
 | TNT | Placed **inert**. Light it with right mouse (1.5 s fuse) or set it off with current |
 | Spore | Planted on soil to start a mushroom plot |
-| Station | Placed as a 10 × 7-cell building |
+| Station | Placed as a 2.5 × 1.75 m building (10 × 7 tiles) |
 
 Food (grubs, mushrooms, fungus) is eaten from the pack automatically when the mole gets hungry.
 
@@ -51,7 +51,7 @@ The pack (`I`) is a grid of 70 slots, and the bottom row is the hotbar (`1`–`0
 
 ## Digging drops
 
-Digging drops items: one per 6 cells dug, or one per 3 for gems. In the colony design, moles haul drops to the **stockpile**, and only stockpiled items count. The first sighting of each ore, fluid or rock is a **discovery** with a small reward.
+Digging drops items: one per 6 tiles dug, or one per 3 for gems. In the colony design, moles haul drops to the **stockpile**, and only stockpiled items count. The first sighting of each ore, fluid or rock is a **discovery** with a small reward.
 
 ## Stations
 

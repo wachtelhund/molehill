@@ -8,7 +8,8 @@ Molehill's design rule is that **nothing happens by decree**. Collapse, flooding
 
 | quantity | unit |
 |---|---|
-| cell edge `s` | 0.25 m (1 m = 4 cells); depth into the screen `b` = 1 m |
+| cell edge `s` | 0.125 m (1 m = 8 cells, `mat::CPM`); depth into the screen `b` = 1 m |
+| tile | 0.25 m = 2 × 2 cells: the size everything was first tuned at. Lengths below given in *tiles* scale with `mat::S` (cells per tile), so behaviour is the same in metres at any resolution |
 | time | 60 ticks per second, fixed |
 | density ρ | kg/m³ |
 | strength, stress, pressure | kPa |
@@ -47,9 +48,9 @@ Each material also carries a dig time, a blast resistance, a light emission and 
 
 ## Falling sand
 
-The grid is a Noita-style cellular automaton on **64 × 64-cell chunks**:
+The grid is a Noita-style cellular automaton on **64 × 64-cell chunks** (8 m):
 
-* Chunks update in **four checkerboard phases**. Chunks in the same phase are at least 64 cells apart, and no cell moves more than 6 cells a tick, so a phase can run in parallel (rayon on native) and still be deterministic. Randomness is a hash of `(x, y, tick)`, never a shared stream.
+* Chunks update in **four checkerboard phases**. Chunks in the same phase are at least 64 cells apart, and no cell moves more than 6·S cells a tick, so a phase can run in parallel (rayon on native) and still be deterministic. Randomness is a hash of `(x, y, tick)`, never a shared stream.
 * Rows run bottom-up, alternating left-right and right-left each tick to avoid drift.
 * **Sleeping chunks.** A chunk only updates while something in it can move. A grain with nowhere to slide, a pool with a level surface or lava with no real move all rest without waking their chunk. A settled world runs at about 0 awake chunks (`wakediag` checks this), and a settled tick costs about 0.13 ms.
 
@@ -58,7 +59,8 @@ The grid is a Noita-style cellular automaton on **64 × 64-cell chunks**:
 ## Liquids and lava
 
 * A liquid falls first, then tries the lower diagonals.
-* **Sideways flow is purposeful.** A surface cell looks up to 48 cells along its row for a lower spot and moves toward it (water up to 6 cells a tick, lava 2). It also spreads when liquid presses on it from above, so a heap levels out. Otherwise it stays put, so a pool with a part-filled top row doesn't slosh forever.
+* **Free fall** is up to S cells (one tile) a tick for grains and liquids, so things fall as fast in metres at any resolution.
+* **Sideways flow is purposeful.** A surface cell looks up to 48 cells (6 m) along its row for a lower spot and moves toward it (water up to 6 tiles a tick, lava 2). It also spreads when liquid presses on it from above, so a heap levels out. Otherwise it stays put, so a pool with a part-filled top row doesn't slosh forever.
 * **Lava is viscous:** it only moves on about 30 % of ticks. It sets wood, roots, fungus, coal and doors on fire.
 * **Lava meeting water** quenches: the lava cell becomes loose basalt **scoria** that sinks, and the water becomes **steam**. Steam drifts up, fades after about 1.5 s and sometimes condenses back into a drop of water.
 * **Fire** spreads to wood, roots, fungus and doors, rises, burns out, and turns to steam on touching water.
@@ -66,14 +68,14 @@ The grid is a Noita-style cellular automaton on **64 × 64-cell chunks**:
 
 ## Structure and stability
 
-The structural solver (`stress.rs`) is the heart of the game. It runs on the whole window (about 0.5 M cells in roughly 10 ms on native), after structural edits (every 6 ticks while anything is dirty) and after fire and lava reactions (every 24 ticks).
+The structural solver (`stress.rs`) is the heart of the game. A full solve covers the whole window (2 M cells, about 40 ms on native), so after the first one the world re-solves **locally**: every structural change (a cell set, a grain slipping out from under rock, a fire or quench) flags its 8 m chunk; flagged chunks cluster, and each cluster is solved in a region (the cluster plus 32 m to the sides, the 16 m arch height above and 8 m below; roof rows and runs reach past it exactly) and written back for the cluster plus 4 m. Clusters go nearest the mole first, about an eighth of the window per pass; the rest wait 6 ticks. A local re-solve matches a full one (`local_stress_resolve_matches_full_solve`). It runs after structural edits (every 6 ticks while anything is dirty) and after fire and lava reactions (every 24 ticks).
 
 ### 1. Overburden
 
 The pressure on a cell is the weight of the column above it:
 
 ```
-P(x, y) = Σ ρ · g · s / 1000   [kPa]   over non-empty cells in the 64 cells (16 m) above
+P(x, y) = Σ ρ · g · s / 1000   [kPa]   over non-empty cells in the 16 m above
 ```
 
 Only 16 m counts. That is the **pressure-arch height** (Terzaghi arching): load from deeper overhead flows around an opening through the ground arch.
@@ -135,7 +137,7 @@ Placed blocks are judged by the same rules, which is the point: you learn to bui
 ### Known limits
 
 * Rubble doesn't bulk up (loose volume equals solid volume), so a collapse in weak dirt can chimney up through the whole layer instead of choking itself off.
-* Thin roofs are judged by their bottom fibre only: a 1-cell clay skin under granite limits the whole roof.
+* Thin roofs are judged by their bottom fibre only: a one-cell clay skin under granite limits the whole roof.
 * Lava never cools on its own.
 * Overburden still passes through caves higher up, which can crush a dirt seam under deep rock whatever supports it.
 
@@ -151,7 +153,7 @@ It is computed only over the camera view plus a margin, every second frame. Ther
 
 ## Stale air
 
-CO2 lives on an **8 × 8-cell block grid** (0 is fresh, 1 is lethal) and updates every 15 ticks:
+CO2 lives on a **2 m block grid** (16 × 16 cells; 0 is fresh, 1 is lethal) and updates every 15 ticks; the survey reads one cell per tile:
 
 * **Sources:** breathing moles (0.08, half while asleep), torches (0.05), fire and lava (0.03), mushroom farms (0.01).
 * **Exchange:** conservative diffusion between neighbouring open blocks, scaled by the smaller volume.

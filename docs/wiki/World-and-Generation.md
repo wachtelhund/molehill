@@ -4,12 +4,12 @@
 
 ## The shape of the Deepholt
 
-The Deepholt has no top and no bottom, so the game never holds "the world" in memory. It holds a **window**: a grid of **1024 × 512 cells**. One cell is **0.25 m**, so the window is 256 m wide and 128 m tall. Depth 0 is the layer you start in. Positive depth is deeper and negative is shallower, and both run on forever.
+The Deepholt has no top and no bottom, so the game never holds "the world" in memory. It holds a **window**: a grid of **2048 × 1024 cells**. One cell is **0.125 m** (`mat::CPM` = 8 per metre), so the window is 256 m wide and 128 m tall. Depth 0 is the layer you start in. Positive depth is deeper and negative is shallower, and both run on forever.
 
 ```
           … generated on demand …
    ┌──────────────────────────────┐  ← window row 0 = absolute row `oy`
-   │ bedrock │   1024 × 512   │ bedrock │
+   │ bedrock │  2048 × 1024   │ bedrock │
    │  wall   │  live cells     │  wall   │   the sim, stress, light and air run only here
    └──────────────────────────────┘
           … cached rows / not yet generated …
@@ -32,7 +32,7 @@ The biome offset is −4 m for Loamlands, +2 m for Karst caverns, +8 m for Grani
 
 ## Biomes
 
-Biomes vary along x only (a 2-octave fbm at scale 260 cells), so each one is a tall column you can dig straight down through.
+Biomes vary along x only (a 2-octave fbm at scale 65 m). Generation noise is sampled in 0.25 m tiles, so every feature keeps its size in metres at any resolution. so each one is a tall column you can dig straight down through.
 
 | biome | share of noise | character |
 |---|---|---|
@@ -85,13 +85,13 @@ At the start layer pockets are almost all water. By 40 m half of them are lava, 
 
 ## The start burrow
 
-The holt begins in a **domed chamber 31 cells wide**, carved at depth 0 in the middle of the window:
+The holt begins in a **domed chamber about 7.75 m wide**, carved at depth 0 in the middle of the window:
 
-* the roof is limestone and steps down toward the walls (a parabola, 12 cells of drop), so no roof run is long enough to fail in bending;
+* the roof is limestone and steps down toward the walls (a parabola, 3 m of drop), so no roof run is long enough to fail in bending;
 * side walls tie the dome to a clay floor, and if a cavern lies underneath, limestone legs drop down to the next solid ground;
 * water and lava near the burrow are dried to clay, and nothing that flows in during the settling pass stays inside;
 * the floor stays soil, so mushrooms can grow there, and nothing just below it is granite, so even claws can dig out;
-* a **vent** is placed above the burrow and two torches inside it, and the area 60 cells to each side is revealed.
+* a **vent** is placed above the burrow and two torches inside it, and the area 15 m to each side is revealed.
 
 ## The stability pass
 
