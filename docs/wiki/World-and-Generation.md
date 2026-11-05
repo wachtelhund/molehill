@@ -102,6 +102,8 @@ Random noise makes caves that real rock could not hold. After filling, the gener
 3. Other failing cells are reinforced: weak cells become limestone in the first passes, then granite, and after a few rounds neighbouring voids are filled to thicken roofs and widen pillars.
 4. After 40 rounds the margin is dropped to 1.0, so the loop only has to make sure nothing actually fails.
 
+Only the first round is a full solve. Every later round re-solves just the regions around the cells the previous round changed (`Stress::solve_cells`), with an 8 m margin at the sides and the roof rows kept between solves. This is exact, because every failing cell is changed. It makes a new holt about three times faster to generate: `World::new` on the game window takes about 2 s instead of 7–10 s (`genbench` measures it).
+
 Then the world runs **240 falling-sand ticks** so loose material and fluids settle, and the pass runs again. A fresh world therefore stands: with no player action the start burrow holds and only a little collapses in the first two minutes (this is tested). Collapses are caused by you, or by fluid fronts you open up.
 
 ## Disasters
