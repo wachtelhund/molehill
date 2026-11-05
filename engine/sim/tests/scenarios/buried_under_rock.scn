@@ -1,0 +1,16 @@
+// Buried in sand under a solid granite ceiling: the mole must not pop out through the rock into
+// the room above (an unbounded collision snap used to lift it 4 cells through granite).
+map
+#######
+#.....#
+#.....#
+#.....#
+#######
+#sssss#
+#sssss#
+#ss@ss#
+#######
+end
+expect 100 is:0,-3,Granite == 1
+expect 100 py >= 128          // still in the pocket (feet at row 129); it used to end up at 125, above the slab
+expect 100 hp < 60      // suffocating under the sand

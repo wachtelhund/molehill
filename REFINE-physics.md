@@ -53,11 +53,31 @@ Polish only: no new features. Each item has a scenario in `engine/sim/tests/scen
   own-material beam debris; kept this branch's roof load, arch cap, moment shape and confinement.
   Harness: `put T dx dy Item` (one cell, no reach) next to main's brush `place`.
 
+## Run 2
+* **Cave-ins in dirt chimneyed through the whole layer.** Rubble took exactly the room the solid
+  did, so a void just migrated upward forever. Broken ground now bulks: 3 in 10 crumbling cells
+  leave an extra cell of rubble in the nearest open cell reachable through loose ground (never
+  through rock). A 10×4 void under 30 rows of dirt now rises ~7 rows and chokes: 378 cells
+  instead of 830 by tick 1500 and still climbing. Built blocks don't bulk. (`dirt_cavein_chokes`)
+* **A buried mole popped out through rock.** The vertical collision snap searched upward without
+  limit, so a mole wedged in sand under a granite slab came out 4 cells higher, in the room above.
+  The snap now searches at most one cell and otherwise stays put; the "wriggle up" only passes
+  through loose ground. (`buried_under_rock`, `buried_in_sand`)
+* **Lava never cooled.** Thin lava (fewer than 10 lava cells in its 5×5 neighbourhood) resting on
+  solid ground now freezes into basalt: a 1-in-24 chance per 30-tick sweep, so a splash sets in
+  ~10-20 s. Deep pools keep their heat; only their thin edges crust. It freezes only on solid
+  ground, because a crust on molten lava would just break up again. A spreading sheet crusts from
+  its thin front. (`lava_cools`; `lava_flows` now allows for the crust)
+
 ## Open issues
-* Rubble doesn't bulk (loose volume = solid volume), so a collapse in weak dirt chimneys up
-  through the whole layer instead of choking itself off.
+* No liquid pressure: water held in a column doesn't push through a U-bend under a wall (a full
+  column beside a tunnel just stands there). It spreads sideways only when pressed from directly
+  above. A first try at it (rise when liquid joined below stands 2+ higher) sloshed forever,
+  because the risen cell fell back into its own gap. The better fix is to move liquid out of the
+  high column (2 rows above our surface, within 16 cells, so parallel-safe) onto the low surface.
+  Parked for after the cell resize.
+* Resting lava never ignites wood next to it (its chunk sleeps); the lava cooling sweep is the
+  natural place to add a slow heat check.
 * A resting pool can keep a 1-cell step if the lower spot is more than 48 cells away.
-* Lava never cools on its own; dry lava resting on a basalt crust stays lava.
 * Thin roofs are still judged only by their bottom fibre's tensile strength (a 1-cell clay skin
   under granite limits the whole roof).
-* `site/` not rebuilt: the `wasm32-unknown-unknown` target isn't installed here (`rustup target add wasm32-unknown-unknown`, then the AGENTS.md rebuild line).

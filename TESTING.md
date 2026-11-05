@@ -113,16 +113,19 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `pillar_holds.scn` / `pillar_on_sand.scn` | Placed wood pillars stay rigid, also when standing on a sand floor |
 | `pillar_wide_hall.scn` | A lone pillar in a wide, sound hall isn't crushed |
 | `roof_unpropped.scn` / `roof_propped.scn` | A wide clay roof caves in; four pillar columns hold it |
-| `water_levels.scn` / `lava_flows.scn` | A heap levels to the right depth (water by tick 120, lava much later), nothing lost, then sleeps |
+| `water_levels.scn` / `lava_flows.scn` | A heap levels to the right depth (water by tick 120, lava much later; its thin sheet crusts to basalt), then sleeps |
 | `sand_sinks.scn` / `sand_floats_lava.scn` | Sand sinks through water and piles on the bottom; it floats on lava |
 | `player_lava_sink.scn` | Running onto a lava pool: you sink in, wade slowly, burn and die |
 | `chunk_sinks_in_water.scn` / `wood_floats.scn` | An unsupported rock/ore clump in a pool gives way fast and its debris sinks; wood debris rises and floats |
+| `lava_cools.scn` | A lava splash on the floor sets into basalt; a deep pool stays molten |
 | `lava_meets_water.scn` | Lava on water quenches to basalt with steam; the steam clears and the chamber sleeps |
 | `beam_span.scn` / `beam_overload_sand.scn` | An iron beam bridges an 8-cell gap; a sand-loaded wood beam breaks into loose debris |
 | `pillar_holds_roof.scn` | Placed pillars (full height, a short stub, a ledge off a wall) stay rigid |
 | `pillar_on_rubble.scn` | Pillars, a ledge and bricks built on a sand floor stay rigid; no new sand appears |
 | `beam_spans_gap.scn` | Iron beams placed across a pit stay put, and the mole runs across them |
 | `beam_overload.scn` | A long wood span under deep sand cracks and falls as wooden debris |
+| `dirt_cavein_chokes.scn` | A void under a deep dirt bank caves in but bulking rubble chokes it off (< 600 cells, then sleeps) |
+| `buried_under_rock.scn` / `buried_in_sand.scn` | A mole buried under a rock slab stays put (no popping through rock); under loose sand it wriggles out |
 | `brush_place.scn` | A radius-2 brick brush fills the open part of the disc and uses items 4 cells to one |
 | `hover_strain.scn` | The hover warns of an overloaded wood span (cracking) before it falls; floor and loose debris read idle |
 | `brush_clamp.scn` | Brush radius is clamped per item (iron beam max 2, pillar min 0.5, pickaxe max 3) |

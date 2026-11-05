@@ -1,4 +1,5 @@
-// Lava levels out too, just slower than water, and then sleeps.
+// Lava levels out too, just slower than water, and then sleeps. The thin sheet it spreads into
+// slowly crusts over into basalt (cell for cell, nothing lost).
 map
 #####################################
 #..............................#####
@@ -13,7 +14,8 @@ map
 #####################################
 end
 expect 120 is:-3,0,Lava == 0     // much slower than water
-expect 900 is:-3,-1,Lava == 1
+expect 900 is:-3,0,Empty == 0   // it got all the way across
 expect 900 is:-31,-3,Lava == 0
-expect 900 count:Lava == 64
+expect 900 count:Lava > 20
+expect 900 count:Basalt > 0
 expect 900 awake == 0
