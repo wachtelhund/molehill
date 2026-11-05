@@ -101,4 +101,4 @@ In practice:
 
 ## Save and load
 
-Copperline, devices and their state (thrown levers, lit lamps, burning fuses and lit charges, patterns and beats) survive save and load (`saveload_devices.scn`).
+Copperline, devices and their state (thrown levers, lit lamps, burning fuses and lit charges, patterns and beats) survive save and load (`saveload_devices.scn`), and survive the window sliding away from them and back (`band_keeps_devices.scn`).

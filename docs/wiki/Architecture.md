@@ -47,7 +47,8 @@ The rule is simple: **gameplay goes in the sim.** If it changes what happens in 
 | `air.rs` | stale air on a 2 m block grid |
 | `craft.rs` | items, stations, recipes, tool tiers, quests |
 | `disasters.rs` | floods, lava surges, quakes |
-| `save.rs` | binary save/load |
+| `band.rs` | the endless world off-window: 64-row bands holding cells, devices, air and things; the unit of saving |
+| `save.rs` | save/load: a manifest plus band blobs, split into parts (only changed bands are rewritten) or one blob |
 | `view.rs` | zoom rules shared by the settings menu, keys and wheel; `Wheel` turns wheel and trackpad scroll into notches (idle is still, one flick is one notch); `wheel_use` picks what a notch does (Shift/sprint never changes it) |
 
 ### One tick
@@ -83,7 +84,7 @@ The rule is simple: **gameplay goes in the sim.** If it changes what happens in 
 | build | `cargo run --release` (in `engine/`) | `./build-web.sh` → `dist/`, then copy to `site/` |
 | target | Linux / macOS (x11, wayland) | `wasm32-unknown-unknown`, WebGL2, `wasm-bindgen` 0.2.130 |
 | sim threads | rayon (`parallel` feature) | single-threaded (feature off) |
-| saves | files next to the binary | localStorage (base64) |
+| saves | a manifest file and a folder of band files next to the binary | localStorage keys (base64): the manifest and one key per band |
 | sound | silent | procedural WebAudio effects and generative music, starts after the first input |
 | seeds and flags | `--fresh`, `--seed=`, `--shot=`, `--dump-art=`, `--scene=` | `?fresh`, `?seed=` |
 
@@ -99,7 +100,15 @@ cd engine && ./build-web.sh && cd .. && rm -rf site && cp -r dist site
 
 ## Saves
 
-A save starts with the bytes `MOLEHILL`, a format version (3), followed by length-prefixed sections. Cell layers are byte run-length encoded. Materials are stored **by name** with a name table, so the material enum can grow or be reordered. Loading regenerates the world from the seed and then overwrites all mutable state: cells, the window offset and cached rows, moles, the pack, devices and fuses, farms, air and quests. Every read is bounds-checked, so a bad save gives a readable error and never panics (`corrupt_saves_never_panic` loads truncated and bit-flipped saves). A save from a build with a different world size is refused. Newer optional sections (such as burning fuses and the death count) trail at the end, so older v3 saves still load. The game autosaves every 30 s and loads the autosave at start. `K` and `L` use a separate manual slot. Autosaves (`*.save`) are gitignored.
+The world is saved in **bands** (`band.rs`): horizontal strips of 64 rows (8 m). A band blob holds everything in its rows: cells and flags, copperline and devices (with fuse state), air, and the drops, torches, stations and mushroom plots anchored in it. Layers are byte run-length encoded.
+
+A save (format 4) is a small **manifest** plus band blobs. The manifest starts with the bytes `MOLEHILL`, the version and the engine tag (which names the cell resolution). It then holds the globals (seed, ticks, the pack, the mole, quests, the log, the window offset, opened chests, the spawn point) and the list of bands: start row, content hash and length for every band of the window and every band stored off-window. Materials are stored **by name** with a name table, so the material enum can grow or be reordered.
+
+* **Split parts** (`save::save_parts`, the game's slots): each band is stored under its own key, `b<start row>_<hash>`. Unchanged bands keep their key, so an autosave writes only the bands that changed (in practice the window, about 0.3 MB), however far you have dug. Bands are written first and the manifest last, then keys no longer named are removed. A failed write (storage full) therefore leaves the previous save whole. On the web the keys are `molehill-auto/b…` in localStorage (base64); natively they are files in a `molehill-auto/` folder next to `molehill-auto.save`.
+* **One blob** (`save::save` / `save::load`, used by tests and the harness): the manifest followed by every band inline.
+* **Loading** builds an empty world shell for the seed (`World::blank`, no generation, so a load takes about 50 ms) and unpacks the window's bands into it. Each blob is checked against its hash. A missing or damaged band in the window fails the load; one off-window is dropped (the generator makes it again) and the log says so. Every read is bounds-checked, so a bad save gives a readable error and never panics (`corrupt_saves_never_panic`). A save from a build with a different world size is refused. Format 3 saves (one blob with a row cache of cells) still load, and their cached rows become bands.
+
+The game autosaves every 30 s and loads the autosave at start. `K` and `L` use a separate manual slot. Autosaves (`*.save`) are gitignored.
 
 ## Working on the code
 

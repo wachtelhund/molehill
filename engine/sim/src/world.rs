@@ -121,7 +121,9 @@ pub struct World {
     pub air: Air, pub farms: Vec<Farm>, pub harvested: u32,
     /// Endless vertical world: the grid is a window; `oy` = absolute row of window row 0.
     pub input: Input, pub pl: Player,
-    pub gen: Gen, pub oy: i64, pub cache: std::collections::HashMap<i64, (Vec<u8>, Vec<u8>)>, pub opened: std::collections::HashSet<(usize, i64)>,
+    pub gen: Gen, pub oy: i64,
+    /// Bands that left the window, by the world row they start at (see `band.rs`): everything in them, packed.
+    pub bands: std::collections::BTreeMap<i64, crate::band::Stored>, pub opened: std::collections::HashSet<(usize, i64)>,
 }
 /// For audio / UI feedback.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -130,15 +132,26 @@ pub enum Event { Dig, Crumble, Crack, Place, Chest, Quest, Explode, Discover, Hu
 const NAMES: [&str; 8] = ["Mossy", "Pip", "Bramble", "Tuck", "Clover", "Dusty", "Fern", "Nib"];
 
 impl World {
-    pub fn new(w: usize, h: usize, seed: u32) -> World {
-        let mut g = Grid::new(w, h);
-        let oy = -(h as i64 / 2); let (gn, info) = gen::generate(&mut g, seed, oy);
-        let mut wd = World {
+    /// A world shell for a seed: generator and info, one player mole, but no rows generated (all empty).
+    /// `save::load` fills it from bands, which skips the slow generation of a window it would overwrite.
+    pub fn blank(w: usize, h: usize, seed: u32) -> World {
+        let oy = -(h as i64 / 2); let (gn, info) = gen::info_only(seed, w, h);
+        let mut wd = World::shell(Grid::new(w, h), w, h, seed, oy, gn, info);
+        wd.moles.push(Mole { name: NAMES[0], x: w / 2, y: h / 2, hp: 100., breath: 100., path: VecDeque::new(), job: None, work: 0, work_cell: None, carry: None, hunger: 80., sleep: 70., facing: 1, fall: 0, idle: 0, anim: 0, alive: true });
+        wd.pl.spawn = (w / 2, 0); wd
+    }
+    fn shell(g: Grid, w: usize, h: usize, seed: u32, oy: i64, gn: Gen, info: gen::GenInfo) -> World {
+        World {
             st: Stress::new(w * h), light: Light::new(w, h), tick: 0, inv: [0; NITEM], dig_acc: [0; NMAT], place_acc: [0; 8], desig: vec![0; w * h],
             moles: vec![], drops: vec![], stockpile: (0, 0, 0, 0), buildings: vec![], torches: vec![], chests: vec![],
             quest: 0, log: vec![], discovered: [false; NMAT], chests_opened: 0, pillars: 0, max_depth: 0., craft_queue: vec![], gear: Gear::default(), crumbled: 0,
-            light_rect: (0, 0, w - 1, h - 1), events: vec![], marks: vec![], react_pending: false, logic: Logic::new(w, h), disasters: Disasters::new(seed), shake: 0., air: Air::new(w, h), farms: vec![], harvested: 0, input: Input::default(), pl: Player::default(), gen: gn, oy, cache: Default::default(), opened: Default::default(), info, g,
-        };
+            light_rect: (0, 0, w - 1, h - 1), events: vec![], marks: vec![], react_pending: false, logic: Logic::new(w, h), disasters: Disasters::new(seed), shake: 0., air: Air::new(w, h), farms: vec![], harvested: 0, input: Input::default(), pl: Player::default(), gen: gn, oy, bands: Default::default(), opened: Default::default(), info, g,
+        }
+    }
+    pub fn new(w: usize, h: usize, seed: u32) -> World {
+        let mut g = Grid::new(w, h);
+        let oy = -(h as i64 / 2); let (gn, info) = gen::generate(&mut g, seed, oy);
+        let mut wd = World::shell(g, w, h, seed, oy, gn, info);
         wd.refresh_chests();
         let (sx, sy) = (wd.info.start.0 * CPM, wd.info.start.1 * CPM);
         // floor of the start chamber: the first support below
@@ -168,13 +181,15 @@ impl World {
             }
         }
     }
-    /// Slide the window by `rows` (multiple of 64; + = deeper). Rows leaving are cached; rows entering
-    /// come from the cache or the generator. Everything with a y coordinate moves with the world.
+    /// Slide the window by `rows` (a multiple of `band::BH`; + = deeper). Rows leaving are packed into
+    /// bands with everything in them (devices, torches, drops, stations, plots, air); rows entering are
+    /// unpacked from their band, or generated if never visited. Everything with a y coordinate moves.
     pub fn shift(&mut self, rows: i64) {
-        let (w, h) = (self.g.w, self.g.h); let s = rows.unsigned_abs() as usize; if s == 0 || s >= h || s % 64 != 0 { return; }
+        use crate::band::{self, BH};
+        let (w, h) = (self.g.w, self.g.h); let s = rows.unsigned_abs() as usize; if s == 0 || s >= h || s % BH != 0 || h % BH != 0 { return; }
         for c in &self.chests { if c.opened { self.opened.insert((c.x, self.oy + c.y as i64)); } }
-        let leaving: Vec<usize> = if rows > 0 { (0..s).collect() } else { (h - s..h).collect() };
-        for &y in &leaving { self.cache.insert(self.oy + y as i64, (self.g.mat[y * w..(y + 1) * w].to_vec(), self.g.flags[y * w..(y + 1) * w].to_vec())); }
+        let (lv, en) = if rows > 0 { (0, h - s) } else { (h - s, 0) }; // first window row leaving / entering (after the move)
+        for y0 in (lv..lv + s).step_by(BH) { let blob = band::encode(self, y0); self.bands.insert(self.oy + y0 as i64, band::Stored::new(blob)); }
         let d = s * w;
         if rows > 0 {
             self.g.mat.copy_within(d.., 0); self.g.flags.copy_within(d.., 0); self.g.shade.copy_within(d.., 0); self.desig.copy_within(d.., 0);
@@ -182,13 +197,8 @@ impl World {
             self.g.mat.copy_within(..w * h - d, d); self.g.flags.copy_within(..w * h - d, d); self.g.shade.copy_within(..w * h - d, d); self.desig.copy_within(..w * h - d, d);
         }
         self.oy += rows;
-        let entering: Vec<usize> = if rows > 0 { (h - s..h).collect() } else { (0..s).collect() };
-        let (e0, e1) = (entering[0], entering[entering.len() - 1] + 1);
-        for y in e0..e1 { for x in 0..w { self.desig[y * w + x] = 0; } }
-        let fresh: Vec<usize> = entering.iter().copied().filter(|&y| !self.cache.contains_key(&(self.oy + y as i64))).collect();
-        if !fresh.is_empty() { let (a, b) = (fresh[0], fresh[fresh.len() - 1] + 1); self.gen.fill_rows(&mut self.g, self.oy, a, b); let mut st = Stress::new(w * h); gen::stabilize_rows(&mut self.g, &mut st, a.saturating_sub(8), (b + 8).min(h)); }
-        for &y in &entering { if let Some((m, f)) = self.cache.remove(&(self.oy + y as i64)) { self.g.mat[y * w..(y + 1) * w].copy_from_slice(&m); self.g.flags[y * w..(y + 1) * w].copy_from_slice(&f); } }
-        // entities
+        for y in en..en + s { for x in 0..w { self.desig[y * w + x] = 0; } }
+        // entities and block layers move with the rock; what was in the leaving rows is in its band now
         let dy = |y: usize| -> Option<usize> { let v = y as i64 - rows; if v >= 0 && v < h as i64 { Some(v as usize) } else { None } };
         for m in self.moles.iter_mut() { if let Some(v) = dy(m.y) { m.y = v; } else { m.alive = false; } m.path.clear(); m.job = None; m.work_cell = None; }
         self.drops = std::mem::take(&mut self.drops).into_iter().filter_map(|mut d| dy(d.y).map(|v| { d.y = v; d })).collect();
@@ -198,6 +208,14 @@ impl World {
         let sp = self.stockpile; if let (Some(a), Some(b)) = (dy(sp.1), dy(sp.3)) { self.stockpile = (sp.0, a, sp.2, b); }
         self.logic.shift_rows(rows / crate::logic::B as i64);
         self.air.shift_rows(rows / air::AB as i64);
+        // entering rows: generate the never-visited ones, then unpack the stored bands over them
+        let fresh: Vec<usize> = (en..en + s).step_by(BH).filter(|&y0| !self.bands.contains_key(&(self.oy + y0 as i64))).collect();
+        if let (Some(&a), Some(&b)) = (fresh.first(), fresh.last()) { let b = b + BH; self.gen.fill_rows(&mut self.g, self.oy, a, b); let mut st = Stress::new(w * h); gen::stabilize_rows(&mut self.g, &mut st, a.saturating_sub(8), (b + 8).min(h)); }
+        for y0 in (en..en + s).step_by(BH) {
+            if let Some(b) = self.bands.remove(&(self.oy + y0 as i64)) {
+                if band::decode(self, y0, &b.blob, None).is_err() { self.gen.fill_rows(&mut self.g, self.oy, y0, y0 + BH); } // damaged: regenerate
+            }
+        }
         self.disasters.y = (self.disasters.y as i64 - rows).clamp(8, h as i64 - 8) as usize;
         self.refresh_chests();
         self.g.life.iter_mut().for_each(|v| *v = 0); self.g.wake_all();
@@ -205,6 +223,8 @@ impl World {
         self.light = Light::new(w, h);
         self.pl.mine = None; if let Some(m) = self.moles.first() { self.pl.fall_from = m.y; }
     }
+    /// Cells (materials, flags) of the stored band starting at world row `wy0`, for drawing far rows.
+    pub fn stored_cells(&self, wy0: i64) -> Option<(Vec<u8>, Vec<u8>)> { self.bands.get(&wy0).and_then(|b| crate::band::cells(&b.blob, self.g.w)) }
     /// Keep the colony inside the window: slide when living moles crowd the top or bottom.
     fn follow_colony(&mut self) {
         let h = self.g.h; let ys: Vec<usize> = self.moles.iter().filter(|m| m.alive).map(|m| m.y).collect(); if ys.is_empty() { return; }

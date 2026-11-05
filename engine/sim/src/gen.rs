@@ -131,6 +131,11 @@ impl Gen {
 }
 
 /// Starting window: rows centred on the starting layer, a dry burrow carved in, then stabilised.
+/// The generator and world info for a seed without filling any rows (a load overwrites the window anyway).
+pub fn info_only(seed: u32, w: usize, h: usize) -> (Gen, GenInfo) {
+    let gen = Gen::new(seed, w); let biome = gen.biome.clone();
+    (gen, GenInfo { surface: vec![0; w], biome, chests: vec![], start: (w / 2 / CPM, h / 2 / CPM), seed })
+}
 pub fn generate(g: &mut Grid, seed: u32, oy: i64) -> (Gen, GenInfo) {
     let (w, h) = (g.w, g.h);
     let gen = Gen::new(seed, w);

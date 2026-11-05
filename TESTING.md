@@ -60,6 +60,7 @@ use 10 12 -1            // right mouse on the device there: flip a lever, light 
 pickup 40 12 -1         // Ctrl+right mouse: take the device and copperline there back into the pack
 wire 4 1 -1 13 -1       // lay copperline from (dx,dy) to (dx2,dy2), one per 1 m block (a single block if only one point)
 saveload 60             // save the world to bytes and load it back (checks persistence mid-scenario)
+slide 60                // slide the window away until only its bottom band is left, and back (things go into bands and return)
 put 2 8 0 WoodPillar    // put exactly one block cell at (dx,dy) at tick T, no reach check (scripted building)
 dump 50                 // print the JSON state after tick T
 ascii 80                // print the map region after tick T
@@ -158,6 +159,7 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `door.scn` | A lever opens a door; it waits for the mole to clear the doorway before shutting; no door on yourself |
 | `plate.scn` | A pressure plate above the floor powers a lamp while the mole stands on it |
 | `saveload_devices.scn` | A thrown lever, a lit lamp and a burning TNT fuse survive save/load |
+| `band_keeps_devices.scn` | The same build survives its rows leaving the window and coming back, also across a save taken while they are away |
 | `beam_overload_iron.scn` | A wood beam under a sand heap breaks into wood splinters; the same iron span holds |
 | `beams_placed_across_pit.scn` | Wood beams placed one by one across an 8-wide pit, and an iron stub, stay put |
 | `pillar_in_cave.scn` | A wood pillar stands while half-built and once it reaches the roof of a 40-wide cave |
