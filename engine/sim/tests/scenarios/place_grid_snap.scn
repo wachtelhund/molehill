@@ -1,0 +1,44 @@
+// Grid snap (X): building fills whole squares on a fixed grid (0.25, 0.5 or 1 m, stepped by the size keys),
+// and a drag lays a clean straight line along the axis it mostly follows: a row stays one square tall even
+// if the cursor wanders up a little, and a column stays one square wide.
+map
+#############################################
+#...........................................#
+#...........................................#
+#...........................................#
+#...........................................#
+#...........................................#
+#...........................................#
+#...........................................#
+#...........................................#
+#.....@.....................................#
+#############################################
+end
+give Brick 400
+hand 1 Brick
+snap 1 on
+expect 2 snapcells == 1          // a quarter-metre square (one tile)
+sizekey 3 ]
+expect 4 snapcells == 2          // half a metre
+sizekey 5 ]
+sizekey 6 ]
+expect 7 snapcells == 4          // a metre: the largest
+sizekey 8 [
+// a row along the floor: drag from 2 tiles right of the mole to 13, wandering up 1 tile
+line 10 2 0 13 -1 Brick
+expect 11 is:2,0,StoneBrick == 1
+expect 11 is:13,0,StoneBrick == 1
+expect 11 is:7,-1,StoneBrick == 0      // straight: the wander upward didn't thicken it
+expect 11 is:15,0,StoneBrick == 0
+// in mid-air there is nothing to build from
+line 12 2 -4 6 -4 Brick
+expect 13 is:4,-4,StoneBrick == 0
+// a column up from the row, wandering right a little: one square (2 tiles) wide
+line 20 8 -1 9 -6 Brick
+expect 21 is:8,-6,StoneBrick == 1
+expect 21 is:9,-3,StoneBrick == 1
+expect 21 is:10,-3,StoneBrick == 0
+expect 21 is:7,-3,StoneBrick == 0
+// snap off: back to the round brush
+snap 22 off
+expect 23 snapcells == 2

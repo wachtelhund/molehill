@@ -51,7 +51,8 @@ You play one mole. The controls work like Terraria or Core Keeper.
 | Water / lava | `W` / `Space` swim up (water); lava burns |
 | `S` | Dig down (on the ground) |
 | Left mouse | Use the item in hand. A dig tool carves a round bite under the cursor and a block (pillar, brick, beam) places a round brush; the ring shows its size. Other items place a torch, copperline, device, spore, TNT or station. TNT goes down inert |
-| `[` / `]`, `Alt`+wheel | Brush size for the dig tool or block in hand, within that item's range (bigger tools allow bigger bites) |
+| `[` / `]`, `Option`/`Alt`+wheel | Brush size for the dig tool or block in hand, within that item's range (bigger tools allow bigger bites). `[` and `]` work on any layout (Option+8 / Option+9 on a Swedish Mac). The size is written beside the outline, in metres |
+| `X` | Grid snap for blocks: square blocks of 0.25, 0.5 or 1 m on a fixed grid (the size keys step it), and a drag lays a straight row or column |
 | Right mouse | Interact: flip a lever, set a thrum channel, light a TNT charge (1.5 s fuse) or a fuse cord. On an empty spot it sets down the device or TNT in hand (unlit) |
 | `Q` held, then released | Throw the item in hand (only throwable things: loose materials, food, spores, TNT). A thrown TNT charge goes out lit |
 | `E` | Pick up the device, unlit TNT, torch or copperline segment under the cursor; hold and sweep to take up a run of copperline. No digging needed |

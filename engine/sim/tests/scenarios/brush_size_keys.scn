@@ -1,0 +1,52 @@
+// Brush size for every brush item, by keys and wheel, as the game reads them (view::BrushSizes):
+// `]` grows and `[` shrinks by the character typed (so Option+8 / Option+9 on a Swedish Mac work too),
+// Option/Alt + wheel resizes, while Shift (sprint) + wheel and Ctrl/Cmd + wheel (zoom) leave it alone.
+// Sizes clamp to the item's range, and a bigger pickaxe brush digs a bigger bite.
+map
+#########################################
+#.............ddddddddddddddddddddddddd###
+#.............ddddddddddddddddddddddddd###
+#.............ddddddddddddddddddddddddd###
+#.............ddddddddddddddddddddddddd###
+#.............ddddddddddddddddddddddddd###
+#.............ddddddddddddddddddddddddd###
+#.............ddddddddddddddddddddddddd###
+#.....@.......ddddddddddddddddddddddddd###
+#########################################
+end
+hand 1 Pickaxe
+expect 2 brush == 2.5
+sizekey 3 ]
+expect 4 brush == 3
+sizekey 5 ]
+expect 6 brush == 3          // the pickaxe's largest bite
+sizekey 7 [
+sizekey 8 [
+sizekey 9 [
+sizekey 10 [
+sizekey 11 [
+sizekey 12 [
+expect 13 brush == 0.5       // its smallest
+sizewheel 14 alt 2
+expect 15 brush == 1.5
+sizewheel 16 shift 3
+sizewheel 17 ctrl 3
+sizewheel 18 cmd 3
+expect 19 brush == 1.5       // sprint and zoom don't touch the brush
+// a small bite, then a big one: the big one takes much more dirt
+mine 20-40 10 -4
+expect 41 count:Dirt >= 189       // 200 dirt tiles; the small bite takes about 7
+expect 41 count:Dirt <= 196
+sizekey 42 ]
+sizekey 43 ]
+sizekey 44 ]
+expect 45 brush == 3
+mine 46-70 16 -4
+expect 71 count:Dirt <= 176       // the big bite takes about 27 more
+// a block brush has its own size
+hand 72 WoodPillar
+expect 73 brush == 0.5
+sizekey 74 ]
+expect 75 brush == 1
+hand 76 Pickaxe
+expect 77 brush == 3         // the pickaxe kept its own
