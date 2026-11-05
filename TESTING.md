@@ -114,6 +114,7 @@ Map legend: `t` roots (a root tangle), `f` fungus, `.` empty, `#` granite, `B` b
 | `glowmites` | Glowmites drifting over the map rectangle |
 | `p:DX,DY` | The last blast's peak overpressure (kPa) on that tile |
 | `carts` / `cartx` / `carty` / `cartv` | Carts in the world; the first cart's position (tiles from the map corner) and speed along the track (tiles/s) |
+| `cartpow` | Whether the track under the first cart is powered (live copperline in its block) |
 | `cargo` / `cartrail` / `cartgap` / `riding` | The first cart's cargo (items), whether it is on the rails, how far it is ahead of the mole (tiles), whether the mole rides a cart |
 | `debris` / `debris:Mat` | Cells a blast threw that are still in flight (tiles), all or of one material |
 | `wave:DX,DY` | The path distance (m) the last blast's front ran to reach that tile (-1: it never got there) |
@@ -217,6 +218,8 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `cart_ride.scn` | Right mouse gets in; the mole rides down the slope with the cart; Space jumps out |
 | `cart_cargo.scn` | Items thrown or dropped in are cargo (saved); E unloads into the pack, then picks up the empty cart |
 | `cart_off_rail.scn` | With the track gone under it a cart drops off the rails and won't roll when pushed |
+| `powered_rail_climbs.scn` | Copperline on the track drives a cart up a 1-in-3 climb while a lever powers it; the line shuttles between its bumpers; lever off and it coasts to the foot |
+| `rail_too_steep_to_push.scn` | Plain track: the mole can't push even an empty cart up a 1-in-3 (needs ~330 N, it has 320 N) |
 | `rail_needs_support.scn` | A rail span over a drop breaks and falls; its ends on rock hold |
 | `blast_moves_sand.scn` | A charge by a sand bed throws a third of it into the air at once; the near end is scoured, and it all lands (none lost) |
 | `blast_wave_front.scn` | The front reaches a shaft round a corner by the tunnel (path longer than the straight line), never the rock between; the drawn front sweeps out; `dump` of its state |

@@ -1,0 +1,28 @@
+// Plain track: a 1-in-3 climb is too steep to push even an empty cart up. Gravity along the slope and
+// rolling friction come to about 330 N on an 80 kg cart, more than a mole's 320 N push: the run-up carries it a
+// step or two up the climb, and there the mole stalls, holding it. (Powered rail drives it up the same slope: powered_rail_climbs.)
+map
+##################################
+#................................#
+#................................#
+#................................#
+#...........#######..............#
+#................................#
+#........................======###
+#.....................===#########
+#..................===############
+#...............===###############
+#............===##################
+#.@.......===#####################
+#=========########################
+##################################
+##################################
+##################################
+end
+give Cart 1
+place 2 4 0 Cart
+hold 10-300 right                 // keep pushing
+expect 300 cartx < 16             // the run-up carries it onto the foot of the slope...
+expect 300 carty > 9              // ...a step or two up at most (the top is at 5)
+expect 300 cartv < 1              // and there it stalls, the mole holding it against the slope
+expect 300 cartv > -1

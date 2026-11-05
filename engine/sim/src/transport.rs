@@ -11,6 +11,12 @@
 //! * loose items that fall or are thrown into it are its cargo; `E` takes the cargo into the pack, and on
 //!   an empty cart picks the cart up;
 //! * off the rail (rail gone under it, or set down on bare ground) it falls and sits, wheels in the dirt.
+//!
+//! **Powered rails.** Copperline laid along the track (in the same 1 m blocks) with current in it drives a
+//! cart on: toward `POWER_V` the way it is running, with `POWER_ACC` of pull, so it climbs slopes plain
+//! track can't. A lever, knot or listener on that line switches the stretch, so a line can be automated
+//! with the same logic as doors and pumps. At the end of a powered stretch a cart bounces off the bumper
+//! and is driven back the other way: a powered line between two bumpers shuttles.
 use crate::craft::{Item, NITEM};
 use crate::mat::{CPM, S, SF, TRACK};
 use crate::world::{Event, World, BODY_H, BODY_HW, TUNE};
@@ -29,6 +35,9 @@ pub const CART_KG: f32 = 80.; pub const ITEM_KG: f32 = 5.; pub const RIDER_KG: f
 pub const PUSH_N: f32 = 320.;
 /// Top speed on the rails (cells/s), 10 m/s.
 pub const CART_MAX: f32 = 10. * CPM as f32;
+/// Powered rail: the speed its motor drives a cart to (cells/s, 5 m/s) and its pull (m/s²): enough to climb
+/// a 1-in-2 slope (g·sinθ + rolling friction ≈ 5.3 m/s²) at a crawl, and a 1-in-4 at speed.
+pub const POWER_V: f32 = 5. * CPM as f32; pub const POWER_ACC: f32 = 6.;
 /// Cargo a cart holds (items).
 pub const CART_LOAD: u32 = 40;
 
@@ -75,8 +84,20 @@ impl World {
     fn cart_blocked(&self, x: f32, y: f32) -> bool {
         let (x0, x1) = ((x - CART_W / 2.).floor() as i32, (x + CART_W / 2. - 1e-3).floor() as i32);
         let (y0, y1) = ((y - CART_H).floor() as i32, (y - 1. - 1e-3).floor() as i32);
-        // (track never blocks it: its wheels ride over a step in the rail)
-        (y0..=y1).any(|r| (x0..=x1).any(|c| !self.g.in_bounds(c, r) || !self.passable(c as usize, r as usize) && !self.is_rail(c, r)))
+        // (track never blocks it: its wheels ride over a step in the rail; nor do loose grains, which it shoves)
+        (y0..=y1).any(|r| (x0..=x1).any(|c| !self.g.in_bounds(c, r) || !self.passable(c as usize, r as usize) && !self.is_rail(c, r) && !self.shovable(c, r)))
+    }
+    /// Loose ground (sand, gravel, rubble) a cart ploughs through.
+    fn shovable(&self, x: i32, y: i32) -> bool { let i = self.g.idx(x as usize, y as usize); let m = self.g.m(i); m.kind() == crate::mat::Kind::Powder || self.g.loose(i) && !m.has(TRACK) }
+    /// Grains in the cart's body are pushed up over it, to the nearest open cell above (never lost).
+    fn shove_from_cart(&mut self, x: f32, y: f32) {
+        let (x0, x1) = ((x - CART_W / 2.).floor() as i32, (x + CART_W / 2. - 1e-3).floor() as i32);
+        let (y0, y1) = ((y - CART_H).floor() as i32, (y - 1. - 1e-3).floor() as i32);
+        for r in y0..=y1 { for c in x0..=x1 { if !self.g.in_bounds(c, r) || !self.shovable(c, r) || self.passable(c as usize, r as usize) { continue; }
+            let i = self.g.idx(c as usize, r as usize); let (m, f) = (self.g.mat[i], self.g.flags[i]);
+            if let Some(t) = (1..3 * CPM as i32).map(|k| y0 - k).find(|&rr| self.g.in_bounds(c, rr) && self.g.get(c as usize, rr as usize) == crate::mat::Mat::Empty) {
+                let j = self.g.idx(c as usize, t as usize); self.g.set(j, crate::mat::Mat::from_u8(m)); self.g.flags[j] = f; self.g.set(i, crate::mat::Mat::Empty);
+            } } }
     }
     fn on_ground(&self, x: f32, y: f32) -> bool {
         let (x0, x1) = ((x - CART_W / 2. + 1.).floor() as i32, (x + CART_W / 2. - 1.).floor() as i32);
@@ -167,8 +188,9 @@ impl World {
                 for _ in 0..n {
                     let nx = c.x + dx / n as f32;
                     match self.rail_top(nx.floor() as i32, c.y, S as i32) {
-                        Some(ny) if !self.cart_blocked(nx, ny) => { c.x = nx; c.y = ny; }
-                        _ => { if c.v.abs() > 2. * CPM as f32 { self.events.push(Event::Click); self.shake = self.shake.max(0.1); } c.v = -c.v * 0.15; break; } // the bumper
+                        Some(ny) if !self.cart_blocked(nx, ny) => { c.x = nx; c.y = ny; self.shove_from_cart(nx, ny); }
+                        _ => {
+                            if c.v.abs() > 2. * CPM as f32 { self.events.push(Event::Click); self.shake = self.shake.max(0.1); } c.v = -c.v * 0.15; break; } // the bumper
                     }
                 }
             } else {
@@ -225,8 +247,16 @@ impl World {
             let (x, y) = (self.pl.px as usize, (self.pl.py - 0.001) as usize); self.moles[0].x = x; self.moles[0].y = y; self.pl.sync = Some((x, y));
         }
     }
-    /// Extra drive along the track (cells/s²) for a cart on powered rail: none until powered rails land.
-    pub(crate) fn rail_drive(&self, _c: &Cart) -> f32 { 0. }
+    /// Is the track at (x, y) powered: copperline laid along it (in the same 1 m block) that carries current?
+    pub fn rail_powered(&self, x: usize, y: usize) -> bool { x < self.g.w && y < self.g.h && self.logic.net_lit(self.logic.block_of(x, y)) }
+    /// Extra drive along the track (cells/s²) for a cart on powered rail: the motor pulls it toward
+    /// `POWER_V` the way it is running (or last ran), at most `POWER_ACC`. Without current it's plain track.
+    pub(crate) fn rail_drive(&self, c: &Cart) -> f32 {
+        let (x, y) = (c.x.floor().max(0.) as usize, c.y.max(0.) as usize);
+        if !self.rail_powered(x, y) { return 0.; }
+        let want = c.dir as f32 * POWER_V; let k = CPM as f32;
+        ((want - c.v) * 4.).clamp(-POWER_ACC * k, POWER_ACC * k)
+    }
 
     /// Slide everything by `rows` (the window moved deeper by that many rows); what leaves the window is lost.
     pub(crate) fn shift_transport(&mut self, rows: i64, h: usize) {

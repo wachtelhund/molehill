@@ -1,0 +1,74 @@
+// Powered rail: copperline laid along the track drives a cart while it carries current. A cart at the foot
+// of a 1-in-3 climb sits still on plain power-off track; throw the lever and the motor pulls it up the slope
+// (plain track can't: gravity and friction would hold it at the bottom), out along the top, into the
+// bumper, and back down: a powered line between two bumpers shuttles. Lever off while it runs down, and it
+// coasts to the foot and stops there.
+map
+##################################
+#................................#
+#................................#
+#..............@.................#
+#...........#######..............#
+#................................#
+#........................======###
+#.....................===#########
+#..................===############
+#...............===###############
+#............===##################
+#.........===#####################
+#=========########################
+##################################
+##################################
+##################################
+end
+give Cart 1
+give CopperWire 60
+wire 2 -14 9
+wire 2 -13 9
+wire 2 -12 9
+wire 2 -11 9
+wire 2 -10 9
+wire 2 -9 9
+wire 2 -8 9
+wire 2 -7 9
+wire 2 -6 9
+wire 2 -5 9
+wire 2 -5 8
+wire 2 -4 8
+wire 2 -3 8
+wire 2 -2 8
+wire 2 -2 7
+wire 2 -1 7
+wire 2 0 7
+wire 2 1 7
+wire 2 1 6
+wire 2 2 6
+wire 2 3 6
+wire 2 4 6
+wire 2 4 5
+wire 2 5 5
+wire 2 6 5
+wire 2 7 5
+wire 2 7 4
+wire 2 8 4
+wire 2 9 4
+wire 2 10 4
+wire 2 10 3
+wire 2 11 3
+wire 2 12 3
+wire 2 13 3
+wire 2 14 3
+wire 2 15 3
+device 2 -13 5 Lever              // beside the start of the line
+place 3 -12 8 Cart                // at the foot of the climb
+expect 5 cartrail == 1
+expect 60 cartv == 0              // no current: it sits there
+use 70 -13 5                      // lever on
+expect 160 cartx > 18             // pulled up the slope...
+expect 160 carty < 9              // ...climbing (tiles from the map top: smaller is higher)
+expect 200 cartx > 28             // up on the top level, into the bumper
+expect 280 cartx < 12             // and driven back down the other way: the line shuttles
+use 300 -13 5                     // lever off while it runs down
+expect 600 cartv == 0             // it coasts to the foot and stops there
+expect 600 cartx < 9
+expect 600 cartrail == 1

@@ -37,6 +37,7 @@ impl Run {
             "cargo" => self.w.tr.carts.first().map_or(0., |c| c.load() as f64),
             "cartrail" => self.w.tr.carts.first().map_or(0., |c| c.on_rail as u8 as f64),
             "cartgap" => self.w.tr.carts.first().map_or(0., |c| (c.x - self.w.pl.px) as f64 / kf),
+            "cartpow" => self.w.tr.carts.first().map_or(0., |c| self.w.rail_powered(c.x.max(0.) as usize, c.y.max(0.) as usize) as u8 as f64),
             "riding" => self.w.tr.riding.is_some() as u8 as f64,
             "debris" => self.w.debris.len() as f64 / (K * K) as f64,
             "front" => self.w.waves.last().map_or(-1., |v| v.front_m(self.w.tick) as f64),
