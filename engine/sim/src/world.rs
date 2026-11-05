@@ -73,7 +73,9 @@ pub struct Player { pub px: f32, pub py: f32, pub ppx: f32, pub ppy: f32, pub sy
     /// wall-jump grace (s left) after leaving a cling, and the side that wall was on
     pub wall_t: f32, pub wall_side: i8,
     /// rolling over a ledge after a climb (s left; direction = `wall_side`): carried onto the top, no gravity
-    pub mantle: f32 }
+    pub mantle: f32,
+    /// "hungry and nothing to eat" was said: once until the next meal
+    pub hungry_said: bool }
 /// Ticks before the same "too hard" words are said again (the clink still sounds on each press).
 pub const DENY_REPEAT: u64 = 300;
 pub const REACH_CELLS: f32 = 4.5 * CPM as f32; // 4.5 m
@@ -691,7 +693,17 @@ impl World {
             self.moles[k].path.clear();
         }
         // a hungry mole snacks from its pack
-        if self.moles[k].hunger < 40. { for (it, v) in [(Item::Grub, 45.), (Item::Mushroom, 35.), (Item::Root, 30.), (Item::Fungus, 25.)] { if self.inv[it as usize] > 0 { self.inv[it as usize] -= 1; self.moles[k].hunger = (self.moles[k].hunger + v).min(100.); self.events.push(Event::Eat); break; } } }
+        // (the player's mole says what it ate and what's left, or once that there is nothing to eat)
+        if self.moles[k].hunger < 40. && !self.rules.no_hunger {
+            let food = [(Item::Grub, 45.), (Item::Mushroom, 35.), (Item::Root, 30.), (Item::Fungus, 25.)].into_iter().find(|&(it, _)| self.inv[it as usize] > 0);
+            if let Some((it, v)) = food {
+                self.inv[it as usize] -= 1; self.moles[k].hunger = (self.moles[k].hunger + v).min(100.); self.events.push(Event::Eat);
+                if k == 0 { self.pl.hungry_said = false; let left = self.inv[it as usize]; self.say(format!("Ate a {} ({left} left).", it.name().to_lowercase())); }
+            } else if k == 0 && !self.pl.hungry_said {
+                self.pl.hungry_said = true; self.events.push(Event::Warning);
+                self.say("Hungry, and nothing to eat. Dig soil for grubs or root tangles for roots.".into());
+            }
+        }
         if self.rules.harmless { self.moles[k].hp = self.moles[k].hp.max(1.); }
         if self.moles[k].hp <= 0. { if k == 0 && self.rules.drop_pack { self.drop_pack(); } self.moles[k].alive = false; self.pl.dead_t = 0; self.pl.deaths += 1; let nm = self.moles[k].name; self.events.push(Event::Death); self.say(format!("{} has died. Back to the burrow...", nm)); }
     }
