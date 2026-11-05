@@ -1107,13 +1107,16 @@ impl World {
         self.place_cell(i, d); self.marks.push((1, x as f32 + 0.5, y as f32 + 0.5, 0.5 * SF)); Ok(())
     }
     /// Place a device (lever, knot, TNT, ...) in the 1 m block under (x, y), paying its pack item.
-    /// TNT goes down inert: light it (`use_device`), or put current on a copperline beside it.
+    /// TNT goes down inert: light it (`use_device`), or put current on a copperline beside it. It isn't set
+    /// down on or beside a copperline that is already live: it would go off on the next tick, which is easy
+    /// to do by accident (cut the power first; a charge already in place still goes off when the line is powered).
     pub fn place_device(&mut self, d: Dev, x: usize, y: usize) -> Result<(), &'static str> {
         if d == Dev::None { return Err("not a device"); }
         if x >= self.g.w || y >= self.g.h { return Err("out of bounds"); }
         if !self.in_reach(x, y) { return Err("out of reach"); }
         let b = self.logic.block_of(x, y);
         if self.logic.dev[b] != 0 { return Err("something is already there"); }
+        if d == Dev::Tnt && self.logic.live_at(b) { return Err("the copperline is live (cut the power first)"); }
         if d == Dev::Door && self.logic.occupied(b, &self.moles.iter().filter(|m| m.alive).map(|m| (m.x, m.y)).collect::<Vec<_>>()) { return Err("you are standing there"); }
         let cost = d.cost(); if let Some(it) = cost { if self.inv[it as usize] == 0 { return Err("none left"); } }
         let had_wire = self.logic.wire[b] != 0;

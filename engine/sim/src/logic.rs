@@ -176,6 +176,8 @@ impl Logic {
     fn wire_on(&self, b: usize) -> bool { b < self.wire.len() && self.wire[b] != 0 && self.net_id[b] >= 0 && self.net_on.get(self.net_id[b] as usize).is_some_and(|&v| v != 0) }
     fn is_powered(&self, b: usize) -> bool { self.nb(b).iter().any(|&c| self.wire_on(c)) }
     pub fn net_lit(&self, b: usize) -> bool { self.wire_on(b) }
+    /// Would a device in block `b` be powered now: live copperline in it or beside it (what sets TNT off).
+    pub fn live_at(&self, b: usize) -> bool { self.is_powered(b) }
 
     // ---------- per tick ----------
     pub fn step(&mut self, g: &mut Grid, moles: &[(usize, usize)], tick: u64) {

@@ -56,9 +56,11 @@ Short log of what this run changed, and what is still open.
 * Oil: pressing says how much fungus is left; the pack's last measure (oil or fungus to press) is announced while there is still light; the dark message said "Press fungus", but pressing is automatic, so it now says to pick fungus up.
 * Scenarios `survival_food` and `survival_lamp_oil` check the log lines and that the warnings are said once; test `survival_kit_sustains_a_short_explore` runs five minutes lit and fed from the kit (budget: ~12 min food, 9 min oil). No balance change was needed. Hunger stays on by default.
 
+## Polish round 3: TNT onto a live copperline
+* Setting TNT down on or beside a copperline that is already live set it off on the next tick, easy to do by accident. `place_device` now refuses it ("Can't place TNT: the copperline is live (cut the power first).", through `refuse_place`; `Logic::live_at` is the same test that detonates a charge). Charges already in place still go off when their line is powered; thrown TNT is unchanged. The harness's `device` directive now says a refusal in the log as the game does. Scenario `tnt_live_wire_refused`.
+
 ## Open
 * The design's emberiron for the Bore doesn't exist, so the Bore takes iron, copper and crystal.
 * localStorage holds about 5 MB. A band is 10–40 KB, so a holt explored over a few hundred metres of depth could fill it. Bands the player never changed could be dropped and regenerated (not done: the falling-sand settling after generation would differ).
 * The web crash Hampus saw is not reproduced. Next time it happens, the browser console (View > Developer > JavaScript Console) shows `panicked at <file>:<line>`; that line pins it.
 * Main's stress model still sums overburden through air gaps (a dirt layer under ~16 m of rock with caves in between is crushed even if the caves carry it). Not a placed-block problem; left as is.
-* Placing TNT onto a copperline that is already live sets it off on the next tick. That is consistent (it is powered), but easy to do by accident.

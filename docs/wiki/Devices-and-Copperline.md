@@ -67,7 +67,7 @@ A **vent** isn't wired: it draws stale air out of the tunnels around it (see [Ph
 
 ## TNT and fuse cords
 
-TNT has two uses. **Set down** (left mouse, or right mouse on an empty spot) it goes down **inert**: nothing explodes where you click, and `E` picks it back up while it is unlit. **Thrown** (`Q`) it goes out lit (see [Tools and Items](Tools-and-Items.md#throwing)); scenario `tnt_place_vs_throw`. A charge set down can be set off in several ways:
+TNT has two uses. **Set down** (left mouse, or right mouse on an empty spot) it goes down **inert**: nothing explodes where you click, and `E` picks it back up while it is unlit. It isn't set down on or beside a copperline that is already **live**, since it would go off on the next tick: the place is refused with "Can't place TNT: the copperline is live (cut the power first)." Cut the power, set the charge down, then power the line to set it off (scenario `tnt_live_wire_refused`). **Thrown** (`Q`) it goes out lit (see [Tools and Items](Tools-and-Items.md#throwing)); scenario `tnt_place_vs_throw`. A charge set down can be set off in several ways:
 
 * **Lit:** right mouse, fire or lava starts a **1.5 s fuse** (90 ticks; the charge blinks). Water (4 or more cells in the block) puts the fuse out. Once lit, it can't be picked up.
 * **At once:** current on a neighbouring copperline (from a lever, a knot or a listener, which gives remote detonation by thrumming), a blast nearby, or a fuse cord burning into it.
