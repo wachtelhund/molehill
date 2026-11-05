@@ -20,6 +20,8 @@ use molehill_sim::world::{self as sw, World};
 
 // The window is 256 × 128 m at any resolution; a cell is CPX world units (4 per legacy 0.25 m tile), so
 // sprites, zoom and the UI keep their size in metres.
+/// Seconds of holding `Q` for a full-power throw.
+const THROW_CHARGE: f32 = 0.8;
 const W: usize = 1024 * S; const H: usize = 512 * S; const CPX: f32 = 4.0 / SF; // world units per cell
 const PAD: usize = 512 * S;
 const CH: usize = 64 * S; // texture chunk size in cells (16 m)
@@ -42,6 +44,8 @@ const FAR: usize = 4; // chunk rows drawn beyond each end of the simulated windo
     jump_tap: bool, jump_key: bool,
     /// `W` is acting as jump: pressed fresh while not clinging, and still held
     w_jump: bool,
+    /// `Q` held: seconds of throw charge so far, and the aim (cells, from the mole's chest) for the arc preview
+    charge: Option<f32>, throw_aim: (f32, f32),
     /// in-world feedback pops: (kind 0 bite / 1 placed block, x, y, radius in cells, start time s)
     pub pops: Vec<(u8, f32, f32, f32, f32)>,
     /// smoothed camera lookahead (cells)
@@ -251,7 +255,7 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, mut fonts: R
         px: images.add(art::image(1, 1, vec![255; 4], true)),
     };
     commands.insert_resource(sp);
-    let disp = Vec2::new(sx, sy + 1.5 * SF); commands.insert_resource(Game { w, chunks, buf: vec![1; W * H * 4], uploads: 0, acc: 0., paused: true, speed: 1, frame: 0, last_light: 0, msg: String::new(), help: false, ev: vec![], shake_off: Vec2::ZERO, autosave: 0., last_oy: oy0, far, far_done, inv_open: false, aim: None, slots: default_slots(), held: None, hot: 0, sel_t: 0., toasts: vec![], log_seen: 0, show_dev: false, disp, seed, brush: [0.; 7], demo_right: false, wheel: Default::default(), mouse_latch: false, jump_tap: false, jump_key: false, w_jump: false, pops: vec![], look: Vec2::ZERO });
+    let disp = Vec2::new(sx, sy + 1.5 * SF); commands.insert_resource(Game { w, chunks, buf: vec![1; W * H * 4], uploads: 0, acc: 0., paused: true, speed: 1, frame: 0, last_light: 0, msg: String::new(), help: false, ev: vec![], shake_off: Vec2::ZERO, autosave: 0., last_oy: oy0, far, far_done, inv_open: false, aim: None, slots: default_slots(), held: None, hot: 0, sel_t: 0., toasts: vec![], log_seen: 0, show_dev: false, disp, seed, brush: [0.; 7], demo_right: false, wheel: Default::default(), mouse_latch: false, jump_tap: false, jump_key: false, w_jump: false, charge: None, throw_aim: (1., -1.), pops: vec![], look: Vec2::ZERO });
 }
 
 pub fn save_now(g: &mut Game) { let b = molehill_sim::save::save(&g.w); g.msg = match storage_put("molehill-manual", &b) { Ok(()) => "Game saved".into(), Err(e) => format!("Save failed: {e}") }; }
@@ -278,7 +282,7 @@ fn input(mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<Button
          win: Query<&Window, With<PrimaryWindow>>, mut cam: Query<&mut Transform, With<Camera2d>>, time: Res<Time>,
          mut commands: Commands, mut menu: ResMut<menu::Menu>) {
     let Ok(win) = win.single() else { return }; let Ok(mut ct) = cam.single_mut() else { return };
-    if g.paused { g.w.input = Default::default(); g.aim = None; g.jump_tap = false; return; } // a menu is open: no input, no aim ring
+    if g.paused { g.w.input = Default::default(); g.aim = None; g.jump_tap = false; g.charge = None; return; } // a menu is open: no input, no aim ring
     let sc = ct.scale.x; let now = time.elapsed_secs();
     let ctrl = keys.pressed(KeyCode::ControlLeft) || keys.pressed(KeyCode::ControlRight);
     // toasts: short game messages and new world log lines (deduplicated, at most 3 live)
@@ -361,6 +365,14 @@ fn input(mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<Button
     let (cx, cy) = world_to_cell(wp); if cx < 0 || cy < 0 || cx as usize >= W || cy as usize >= H { g.aim = None; return; }
     let (cx, cy) = (cx as usize, cy as usize);
     let reach = g.w.in_reach(cx, cy); g.aim = Some((cx, cy, reach));
+    // Q: hold to charge a throw of the item in hand (aimed at the cursor), release to throw it. A TNT
+    // charge goes out lit. Charging takes THROW_CHARGE s to full power.
+    if let Some(Thing::Item(it)) = sel {
+        let fc = Vec2::new((wp.x + W as f32 * CPX / 2.) / CPX, (H as f32 * CPX / 2. - wp.y) / CPX);
+        g.throw_aim = (fc.x - g.w.pl.px, fc.y - (g.w.pl.py - sw::BODY_H * 0.7));
+        if keys.pressed(KeyCode::KeyQ) && g.w.inv[it as usize] > 0 { g.charge = Some((g.charge.unwrap_or(0.) + time.delta_secs()).min(THROW_CHARGE)); }
+        else if let Some(c) = g.charge.take() { let aim = g.throw_aim; if let Err(e) = g.w.throw_item(it, aim, c / THROW_CHARGE) { g.msg = format!("Can't throw: {e}"); } }
+    } else { g.charge = None; }
     let blk = g.w.logic.block_of(cx, cy);
     if !reach || latched && mouse.pressed(MouseButton::Right) { return; }
     // right mouse: interact (lever, thrum channel, ticker, light a fuse or TNT); Ctrl+right picks up copperline or a device
@@ -596,7 +608,7 @@ fn render_far(gm: &mut Game, ct: &Transform, win: &Window, images: &mut Assets<I
 /// A pixel particle; `g` is its gravity (negative drifts up, like embers).
 struct Part { p: Vec2, v: Vec2, life: f32, max: f32, c: [f32; 3], size: f32, g: f32 }
 fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Res<Time>, mut fx: Local<Fx>, mut q: Query<(Entity, &Pooled, &mut Transform, &mut Sprite, &mut Visibility)>) {
-    // kind 0 moles, 1 drops, 2 chests, 3 stations, 4 torches, 5 mushroom plots, 7 aim, 8 particles, 9 torch halos, 10 lamp halos, 11 placement pops
+    // kind 0 moles, 12 throw arc, 1 drops, 2 chests, 3 stations, 4 torches, 5 mushroom plots, 7 aim, 8 particles, 9 torch halos, 10 lamp halos, 11 placement pops
     let dt = if g.paused { 0. } else { time.delta_secs().min(0.05) }; let now = time.elapsed_secs();
     let w = &g.w;
     let mut want: Vec<(u8, usize, Vec2, f32, Handle<Image>, Vec2, bool, Color)> = vec![];
@@ -662,7 +674,18 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
     for p in fx.parts.iter_mut() { p.life += dt; p.v.y -= p.g * dt; p.p += p.v * dt; }
     fx.parts.retain(|p| p.life < p.max); while fx.parts.len() > 120 { fx.parts.remove(0); }
     for (k, p) in fx.parts.iter().enumerate() { let a = 1. - p.life / p.max; want.push((8, k, p.p, 5.5, sp.px.clone(), Vec2::splat(p.size), false, Color::srgba(p.c[0] / 255., p.c[1] / 255., p.c[2] / 255., a))); }
-    for (k, d) in w.drops.iter().enumerate() { if w.g.flags[d.y * W + d.x] & F_SEEN == 0 { continue; } want.push((1, k, cell_to_world(d.x as f32 + 0.5, d.y as f32 + 0.2 * SF), 4., sp.icons[d.item as usize].clone(), Vec2::splat(8.), false, lightf(d.x, d.y))); }
+    // loose items: drawn between their last two sim positions (they fly now); a lit charge blinks
+    let a = g.acc.clamp(0., 1.);
+    for (k, d) in w.drops.iter().enumerate() { if w.g.flags[d.y * W + d.x] & F_SEEN == 0 { continue; }
+        let c = if d.fuse > 0 && (d.fuse / 6) % 2 == 0 { Color::srgb(2.5, 0.8, 0.5) } else { lightf(d.x, d.y) };
+        want.push((1, k, cell_to_world(d.ppx + (d.px - d.ppx) * a, d.ppy + (d.py - d.ppy) * a), 4., sp.icons[d.item as usize].clone(), Vec2::splat(8.), false, c)); }
+    // charging a throw: dots along the arc it would fly (until it meets rock), brighter with more charge
+    if let (Some(ch), false) = (g.charge, g.paused) { let t = sw::TUNE; let f = ch / THROW_CHARGE;
+        let (ax, ay) = g.throw_aim; let l = (ax * ax + ay * ay).sqrt().max(1e-3); let sp0 = molehill_sim::items::THROW_MIN + (molehill_sim::items::THROW_MAX - molehill_sim::items::THROW_MIN) * f;
+        let (mut x, mut y) = (pl.px, pl.py - sw::BODY_H * 0.7); let (mut vx, mut vy) = (ax / l * sp0 + pl.vx * 0.5, ay / l * sp0 + pl.vy.min(0.) * 0.5);
+        for k in 0..40 { let dt = 1. / 60.; for _ in 0..3 { vy = (vy + t.gravity * dt).min(t.terminal); x += vx * dt; y += vy * dt; }
+            if x < 0. || y < 0. || x as usize >= W || y as usize >= H || w.g.is_solidish(y as usize * W + x as usize) { break; }
+            want.push((12, k, cell_to_world(x, y), 6., sp.px.clone(), Vec2::splat(CPX * SF * 0.6), false, Color::srgba(1., 0.95, 0.8, 0.25 + 0.5 * f))); } }
     for (k, c) in w.chests.iter().enumerate() { if w.g.flags[c.y * W + c.x] & F_SEEN == 0 || w.g.is_solidish(c.y * W + c.x) && !c.opened { continue; } want.push((2, k, cell_to_world(c.x as f32 + 0.5 * SF, c.y as f32 + 1. - 1.1 * SF), 3., sp.chest[c.opened as usize].clone(), Vec2::new(16., 13.), false, lightf(c.x, c.y))); }
     for (k, b) in w.buildings.iter().enumerate() { want.push((3, k, cell_to_world(b.x as f32 + Station::W as f32 / 2., b.y as f32 + 1. - Station::H as f32 / 2.), 2., sp.station[b.kind as usize][b.built as usize].clone(), Vec2::new(Station::W as f32 * CPX, Station::H as f32 * CPX), false, lightf(b.x + 5 * S, b.y - 2 * S))); }
     // torches: flickering flame frames and a warm halo that breathes; lit lamps get a steady pale halo

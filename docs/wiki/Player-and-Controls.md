@@ -17,6 +17,7 @@ You play one Delver: a body about **45 × 73 cm** (1.8 × 2.9 tiles of 0.25 m, i
 | `W` / `Space` in water | Swim up |
 | `S` | Dig down (on the ground) |
 | Left mouse | Use the item in hand: dig, place a block brush, torch, copperline, device, spore, TNT or station |
+| `Q` held, then released | Throw the item in hand toward the cursor: hold to charge (0.8 s to full power, dots show the arc), release to throw. A TNT charge goes out lit |
 | Right mouse | Interact: flip a lever, step a thrum pattern or ticker beat, light TNT or a fuse cord |
 | `Ctrl` + right mouse | Pick up copperline or a device (a lit charge is defused) |
 | `[` / `]`, `Alt` / `Option` + wheel | Brush size for the tool or block in hand, within its range |

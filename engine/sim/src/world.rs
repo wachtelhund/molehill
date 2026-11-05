@@ -92,7 +92,13 @@ pub const TUNE: Tune = Tune { run: 15. * SF, ground_accel: 900. * SF, ground_dec
     swim_mul: 0.55, swim_grav: 0.35, buoyancy: 40. * SF, swim_up: 70. * SF, swim_max: 11. * SF, lava_dps: 75., safe_fall: 20 * S,
     lava_mul: 0.25, lava_sink: 3. * SF, lava_up: 22. * SF }; // lava: thick, you wade and slowly sink, and it burns fast
 #[derive(Clone)]
-pub struct Drop { pub x: usize, pub y: usize, pub item: Item, pub n: u32, pub claimed: bool }
+/// A loose item: a small physics body (see `items.rs`). `x`, `y` = the cell under its centre.
+pub struct Drop { pub x: usize, pub y: usize, pub item: Item, pub n: u32, pub claimed: bool,
+    /// centre (cells), last tick's centre (for render interpolation), velocity (cells/s)
+    pub px: f32, pub py: f32, pub ppx: f32, pub ppy: f32, pub vx: f32, pub vy: f32,
+    /// ticks it has lain still (at `REST_TICKS` it sleeps); ticks before a mole may pick it up; a lit
+    /// charge's fuse (ticks left, 0 = not lit)
+    pub rest: u8, pub hold: u16, pub fuse: i16 }
 /// A mushroom plot: the open cell where the mushroom stands, on soil. `growth` 0..1, `why` = what's
 /// holding it back (bit 1 too bright, bit 2 too dry).
 #[derive(Clone)]
@@ -187,7 +193,7 @@ impl World {
         // entities
         let dy = |y: usize| -> Option<usize> { let v = y as i64 - rows; if v >= 0 && v < h as i64 { Some(v as usize) } else { None } };
         for m in self.moles.iter_mut() { if let Some(v) = dy(m.y) { m.y = v; } else { m.alive = false; } m.path.clear(); m.job = None; m.work_cell = None; }
-        self.drops = std::mem::take(&mut self.drops).into_iter().filter_map(|mut d| dy(d.y).map(|v| { d.y = v; d })).collect();
+        self.drops = std::mem::take(&mut self.drops).into_iter().filter_map(|mut d| dy(d.y).map(|v| { d.y = v; d.py -= rows as f32; d.ppy -= rows as f32; d })).collect();
         self.torches = std::mem::take(&mut self.torches).into_iter().filter_map(|(x, y)| dy(y).map(|v| (x, v))).collect();
         self.buildings = std::mem::take(&mut self.buildings).into_iter().filter_map(|mut b| dy(b.y).filter(|&v| v >= Station::H).map(|v| { b.y = v; b.claimed = false; b })).collect();
         self.farms = std::mem::take(&mut self.farms).into_iter().filter_map(|mut f| dy(f.y).map(|v| { f.y = v; f })).collect();
@@ -212,7 +218,7 @@ impl World {
         if hi > h - m && lo >= m + SLIDE { self.shift(SLIDE as i64); } else if lo < m && hi + SLIDE <= h - m { self.shift(-(SLIDE as i64)); }
     }
 
-    #[inline] fn passable(&self, x: usize, y: usize) -> bool { let m = self.g.get(x, y); m.passable() && !self.is_building_cell(x, y, false) }
+    #[inline] pub(crate) fn passable(&self, x: usize, y: usize) -> bool { let m = self.g.get(x, y); m.passable() && !self.is_building_cell(x, y, false) }
     fn is_building_cell(&self, _x: usize, _y: usize, _solid: bool) -> bool { false }
     pub fn standable(&self, x: usize, y: usize) -> bool {
         let g = &self.g; if x < 1 || x + 1 >= g.w || y < MOLE_H || y + 1 >= g.h { return false; }
@@ -290,6 +296,8 @@ impl World {
         self.buildings.push(Building { kind, x, y, built: true, claimed: false }); self.events.push(Event::Place); self.say(format!("Built a {}.", kind.name())); Ok(())
     }
     pub fn queue_craft(&mut self, r: usize) { if self.craft_queue.len() < 12 { self.craft_queue.push(r); } }
+    /// A TNT charge going off at (x, y): the one place its blast radius and power are set.
+    pub fn blast_tnt(&mut self, x: usize, y: usize) { self.explode(x, y, 9. * SF, 6); }
     pub fn explode(&mut self, cx: usize, cy: usize, r: f32, power: u8) {
         let ri = r.ceil() as i32;
         for dy in -ri..=ri { for dx in -ri..=ri {
@@ -301,6 +309,7 @@ impl World {
             else if m.kind() == Kind::Solid { let c = m.p().crumbles_to; self.g.set(i, c); self.g.set_loose(i); }
         } }
         for m in self.moles.iter_mut() { let d = ((m.x as f32 - cx as f32).powi(2) + (m.y as f32 - cy as f32).powi(2)).sqrt(); if d < r * 1.5 { m.hp -= 80. * (1. - d / (r * 1.5)); } }
+        self.fling_items(cx as f32 + 0.5, cy as f32 + 0.5, r);
         self.logic.on_explosion(&mut self.g, cx, cy, r);
         self.events.push(Event::Explode); self.shake = self.shake.max(r / (3. * SF));
     }
@@ -341,6 +350,7 @@ impl World {
                 }
             } }
         self.step_player();
+        self.step_items();
         if self.tick % 2 == 0 { self.step_moles(); }
         // a knock (fall, lava, being buried, drowning) flashes the mole and jolts the view in proportion
         if let Some(m) = self.moles.first() { let dmg = self.pl.hp_was - m.hp;
@@ -351,7 +361,7 @@ impl World {
         self.logic.step(&mut self.g, &mp, self.tick);
         for s in std::mem::take(&mut self.logic.msgs) { self.say(s); }
         let booms = std::mem::take(&mut self.logic.booms);
-        for b in booms { if self.logic.dev[b] == Dev::Tnt as u8 { self.logic.remove(&mut self.g, b); let (x, y) = self.logic.centre(b); self.explode(x, y, 9. * SF, 6); } }
+        for b in booms { if self.logic.dev[b] == Dev::Tnt as u8 { self.logic.remove(&mut self.g, b); let (x, y) = self.logic.centre(b); self.blast_tnt(x, y); } }
         if self.tick % LAVA_COOL_EVERY == 0 { self.cool_lava(); }
         // disasters
         let mut dz = std::mem::replace(&mut self.disasters, Disasters::new(0));
@@ -497,8 +507,10 @@ impl World {
         if self.moles[k].hp <= 0. { self.moles[k].alive = false; self.pl.dead_t = 0; self.pl.deaths += 1; let nm = self.moles[k].name; self.events.push(Event::Death); self.say(format!("{} has died. Back to the burrow...", nm)); }
     }
     fn drop_item(&mut self, x: usize, y: usize, item: Item, n: u32) {
-        if let Some(d) = self.drops.iter_mut().find(|d| d.item == item && d.x.abs_diff(x) <= 3 * S && d.y.abs_diff(y) <= 3 * S && d.n < 20) { d.n += n; return; }
-        self.drops.push(Drop { x, y, item, n, claimed: false });
+        if let Some(d) = self.drops.iter_mut().find(|d| d.item == item && d.asleep() && d.fuse == 0 && d.x.abs_diff(x) <= 3 * S && d.y.abs_diff(y) <= 3 * S && d.n < 20) { d.n += n; return; }
+        // it pops out of the bite a little (a seeded nudge, so runs stay deterministic)
+        let h = hash3(x as u32, y as u32, self.tick as u32); let mut d = Drop::at(x as f32 + 0.5, y as f32 + 0.5, item, n);
+        d.vx = ((h % 9) as f32 - 4.) * SF; d.vy = -8. * SF; self.drops.push(d);
     }
     fn dig_cell(&mut self, i: usize, mx: usize, my: usize) {
         let m = self.g.m(i); let wet = self.g.flags[i] & F_WET != 0;
@@ -831,7 +843,7 @@ impl World {
         let mut k = 0;
         while k < self.drops.len() {
             let d = &self.drops[k];
-            if d.x.abs_diff(x) <= 3 * S && d.y.abs_diff(y) <= 4 * S { let d = self.drops.swap_remove(k); self.inv[d.item as usize] += d.n; } else { k += 1; }
+            if d.hold == 0 && d.fuse == 0 && d.x.abs_diff(x) <= 3 * S && d.y.abs_diff(y) <= 4 * S { let d = self.drops.swap_remove(k); self.inv[d.item as usize] += d.n; } else { k += 1; }
         }
     }
     /// Place a block item (pillar, brick, beam) into an open cell within reach, touching something solid.

@@ -17,6 +17,32 @@ pub const ITEMS: [Item; NITEM] = [
     Item::StoneTools, Item::BronzeTools, Item::IronTools, Item::Grub, Item::Spore, Item::Mushroom, Item::Vent,
 ];
 impl Item {
+    /// The material a loose item is a lump of, if it is one: its density and burning come from the table.
+    pub fn mat(self) -> Option<Mat> {
+        use Item::*;
+        Some(match self {
+            Dirt => Mat::Dirt, Clay => Mat::Clay, Sand => Mat::Sand, Gravel => Mat::Gravel, Stone => Mat::Rock, Coal => Mat::Coal,
+            CopperOre => Mat::CopperOre, TinOre => Mat::TinOre, IronOre => Mat::IronOre, Quartz => Mat::Quartz, Crystal => Mat::Crystal,
+            Wood | WoodPillar | Torch => Mat::WoodBeam, Fungus => Mat::Fungus, Brick => Mat::StoneBrick, Glass => Mat::Glass,
+            IronBeam | IronIngot => Mat::IronBeam,
+            _ => return None,
+        })
+    }
+    /// kg/m³ of the item lying loose (decides whether it floats or sinks): its material's, else its own.
+    pub fn density(self) -> f32 {
+        use Item::*;
+        if let Some(m) = self.mat() { return m.p().density; }
+        match self {
+            Charcoal => 400., CopperIngot => 8900., TinIngot => 7300., BronzeIngot => 8800., CopperWire => 3000., Thrummer | Gate | Vent => 2500.,
+            Tnt => 1500., Lamp => 2000., StoneTools => 2500., BronzeTools => 5000., IronTools => 5500., Grub => 1050., Spore => 300., Mushroom => 600.,
+            _ => 2000.,
+        }
+    }
+    /// Does heat `h` burn it up (a loose item in lava or fire)? TNT doesn't burn: it lights.
+    pub fn burns(self, h: u8) -> bool {
+        use Item::*;
+        match self { Tnt => false, Charcoal | Grub | Spore | Mushroom => h >= 1, _ => self.mat().map_or(false, |m| m.lit_by(h)) }
+    }
     pub fn name(self) -> &'static str {
         ["Dirt", "Clay", "Sand", "Gravel", "Stone", "Coal", "Copper ore", "Tin ore", "Iron ore", "Quartz", "Crystal", "Wood", "Fungus",
          "Brick", "Glass", "Charcoal", "Copper ingot", "Tin ingot", "Bronze ingot", "Iron ingot",

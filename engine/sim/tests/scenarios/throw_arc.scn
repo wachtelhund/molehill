@@ -1,0 +1,42 @@
+// A full-power throw up and to the right flies a ballistic arc: it rises about 7 tiles (1.8 m), comes
+// down about 25 tiles (6 m) out, bounces, skids a little and falls asleep. The thrower can't catch it.
+map
+BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#...@......................................................#
+############################################################
+end
+give Stone 3
+throw 2 Stone 1 -1 1
+expect 2 inv:Stone == 2
+expect 2 items:Stone == 1
+// rising, then the apex (above 6.5 tiles), then falling
+expect 10 ivy:Stone < 0
+expect 17 iy:Stone < -6.5
+expect 30 ivy:Stone > 0
+// it lands well out, bounces off the stone floor, and comes to rest within a few tiles of the landing
+expect 37 ix:Stone > 23
+expect 37 ivy:Stone < -10
+expect 90 irest:Stone == 1
+expect 90 ix:Stone > 25
+expect 90 ix:Stone < 31
+expect 90 iy:Stone > -0.2
+// a weaker throw falls shorter
+throw 100 Stone 1 -1 0
+expect 190 items:Stone == 2
+// walk over to them: resting items are picked up by walking past (both back in the pack)
+hold 200-330 right
+expect 330 items:Stone == 0
+expect 330 inv:Stone == 3
