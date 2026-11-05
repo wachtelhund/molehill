@@ -12,8 +12,10 @@ pub enum Mat {
     Coal, CopperOre, TinOre, IronOre, Quartz, Crystal, Roots, Fungus, Grass,
     WoodBeam, StoneBrick, IronBeam, Door, Water, Lava, Steam, Fire, Glass,
     RootTree, TreeRoot, Moss, Mycelium,
+    // decorative blocks (furnishing): built with the block brush, structural by their own numbers
+    Planks, Polished, Tiles, Carved,
 }
-pub const NMAT: usize = 32;
+pub const NMAT: usize = 36;
 
 /// Everything the simulation knows about a material, in one row. Rules read these fields instead of
 /// naming materials, so a new material (or a retuned one) is a single table edit.
@@ -103,6 +105,10 @@ pub static PROPS: [Props; NMAT] = [
     Props { name: "Root-tree roots", desc: "A root-tree's roots. While they hold and the seep runs, the tree regrows.", kind: Solid, density: 900., tensile: 80., compressive: 2500., dig: 3, blast: 2, opacity: 110, color: [132, 96, 58], crumbles_to: X::Dirt, repose: 0.2, ignite: 1, flags: SOIL | POROUS | GRUBS, bounce: 0.15, friction: 0.8, ..BASE },
     Props { name: "Moss", desc: "Damp moss on the grotto floor.", kind: Solid, density: 1300., tensile: 40., compressive: 2500., dig: 1, blast: 1, opacity: 110, color: [74, 128, 70], crumbles_to: X::Dirt, repose: 0.15, ignite: 1, flags: SOIL | POROUS, bounce: 0.05, friction: 1.0, ..BASE },
     Props { name: "Mycelium", desc: "Glowing threads through the damp ground.", kind: Solid, density: 1100., tensile: 40., compressive: 2500., dig: 1, blast: 1, emit: [60, 140, 170], opacity: 90, color: [150, 205, 215], crumbles_to: X::Dirt, repose: 0.15, ignite: 1, flags: SOIL | POROUS | NOTABLE, bounce: 0.05, friction: 1.0, ..BASE },
+    Props { name: "Planks", desc: "Sawn boards. Warm underfoot; a light, fair prop.", kind: Solid, density: 550., tensile: 2500., compressive: 6000., dig: 4, blast: 3, opacity: 150, color: [182, 134, 84], crumbles_to: X::Planks, repose: 0.3, ignite: 1, flags: BUILT, bounce: 0.3, friction: 0.55, ..BASE },
+    Props { name: "Polished stone", desc: "Dressed and rubbed smooth. As strong as brick.", kind: Solid, density: 2500., tensile: 600., compressive: 15000., dig: 8, tier: 1, blast: 6, opacity: 160, color: [176, 170, 160], crumbles_to: X::Gravel, flags: BUILT, ..BASE },
+    Props { name: "Tiles", desc: "Fired clay tiles. Bright, but brittle under a roof.", kind: Solid, density: 2000., tensile: 300., compressive: 9000., dig: 5, blast: 4, opacity: 160, color: [190, 108, 74], crumbles_to: X::Gravel, flags: BUILT, ..BASE },
+    Props { name: "Carved pillar", desc: "Fluted stone column. Very strong in compression.", kind: Solid, density: 2600., tensile: 800., compressive: 22000., dig: 9, tier: 1, blast: 7, opacity: 170, color: [164, 158, 148], crumbles_to: X::Gravel, flags: BUILT, ..BASE },
 ];
 impl Mat {
     #[inline] pub fn from_u8(v: u8) -> Mat { if (v as usize) < NMAT { unsafe { std::mem::transmute(v) } } else { Mat::Empty } }

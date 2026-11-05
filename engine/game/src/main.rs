@@ -6,6 +6,7 @@ mod art;
 mod audio;
 mod music;
 mod devart;
+mod decorart;
 mod wiring;
 mod ui;
 mod menu;
@@ -61,9 +62,9 @@ const FAR: usize = 4; // chunk rows drawn beyond each end of the simulated windo
     look: Vec2 }
 /// What an inventory slot holds. Counts come from the shared pack (`World::inv`).
 #[derive(Clone, Copy, PartialEq, Debug)] pub enum Thing { Pick(u8), Item(Item), Dev(usize), Station(usize) }
-pub const NSLOT: usize = 70;
+pub const NSLOT: usize = 90;
 /// The round brush an inventory thing uses, if any (dig tools and placeable blocks).
-pub fn brush_of(t: Option<Thing>) -> Option<sw::Brush> { match t { Some(Thing::Pick(n)) => Some(sw::Brush::Dig(n)), Some(Thing::Item(it @ (Item::WoodPillar | Item::Brick | Item::IronBeam))) => Some(sw::Brush::Place(it)), _ => None } }
+pub fn brush_of(t: Option<Thing>) -> Option<sw::Brush> { match t { Some(Thing::Pick(n)) => Some(sw::Brush::Dig(n)), Some(Thing::Item(it)) if sw::block_code(it).is_some() || it.pigment().is_some() => Some(sw::Brush::Place(it)), _ => None } }
 /// The radius the brush of this thing will actually use (the player's choice, clamped to the item's range).
 pub fn brush_r(g: &Game, b: sw::Brush) -> f32 { g.sizes.radius(b) }
 pub fn thing_name(_g: &Game, t: Thing) -> String { match t { Thing::Pick(n) => ["Pickaxe", "Drill", "Bore"][(n as usize - 1).min(2)].into(), Thing::Item(it) => it.name().into(), Thing::Dev(d) => DEVS[d].name().into(), Thing::Station(s) => STATIONS[s].name().into() } }
@@ -96,7 +97,7 @@ const BG_BASE: [f32; 3] = [44., 34., 30.];
 #[inline] fn srgb(l: f32) -> f32 { l.max(0.).powf(1. / 2.2) * 255. }
 #[derive(Component)] pub struct WorldSprite;
 #[derive(Component)] struct Pooled(u8, usize);
-#[derive(Resource)] pub struct Sprites { pub tools: [Handle<Image>; 3], pub dev: Handle<Image>, pub ring: Handle<Image>, pub mole: Vec<Handle<Image>>, pub mole_out: Vec<Handle<Image>>, pub held: Vec<Handle<Image>>, pub icons: Vec<Handle<Image>>, pub chest: [Handle<Image>; 2], pub station: Vec<[Handle<Image>; 2]>, pub torch: Handle<Image>, pub torch_f: Vec<Handle<Image>>, pub glow: Handle<Image>, pub shroom: [Handle<Image>; 3], pub px: Handle<Image> }
+#[derive(Resource)] pub struct Sprites { pub furn: Vec<Option<(Handle<Image>, Option<Handle<Image>>)>>, pub tools: [Handle<Image>; 3], pub dev: Handle<Image>, pub ring: Handle<Image>, pub mole: Vec<Handle<Image>>, pub mole_out: Vec<Handle<Image>>, pub held: Vec<Handle<Image>>, pub icons: Vec<Handle<Image>>, pub chest: [Handle<Image>; 2], pub station: Vec<[Handle<Image>; 2]>, pub torch: Handle<Image>, pub torch_f: Vec<Handle<Image>>, pub glow: Handle<Image>, pub shroom: [Handle<Image>; 3], pub px: Handle<Image> }
 
 pub fn seed_now() -> u32 {
     // ?seed=N (web) / --seed=N (native) pins the first world
@@ -192,7 +193,7 @@ fn write_bmp(path: &str, im: &Image) {
 }
 /// Dev (native): with `--shot`, `--dump-art=DIR` also writes the composited world around the mole
 /// (`view.bmp`, 4× per cell; sprites are GPU-only so they're not in it) and every sprite (`sprite-*.bmp`, 8×).
-fn dev_dump(n: Local<u32>, g: Res<Game>, sp: Res<Sprites>, images: Res<Assets<Image>>, mut done: Local<bool>, bg: Res<Bg>, cam: Query<&Transform, With<Camera2d>>, wires: Query<(&Transform, &Sprite), With<wiring::WireSpr>>) {
+fn dev_dump(n: Local<u32>, g: Res<Game>, sp: Res<Sprites>, images: Res<Assets<Image>>, mut done: Local<bool>, bg: Res<Bg>, cam: Query<&Transform, With<Camera2d>>, wires: Query<(&Transform, &Sprite), Or<(With<wiring::WireSpr>, With<Pooled>)>>) {
     #[cfg(not(target_arch = "wasm32"))] {
         let _ = &n; if *done { return; }
         let arg = |k: &str| std::env::args().find_map(|a| a.strip_prefix(k).map(|v| v.to_string()));
@@ -228,6 +229,7 @@ fn dev_dump(n: Local<u32>, g: Res<Game>, sp: Res<Sprites>, images: Res<Assets<Im
         for (k, h) in sp.mole.iter().enumerate() { list.push((format!("mole{k}"), h.clone())); }
         for (k, h) in sp.mole_out.iter().enumerate() { list.push((format!("moleout{k}"), h.clone())); }
         for (k, h) in sp.held.iter().enumerate() { list.push((format!("held{k}"), h.clone())); }
+        for (k, f) in sp.furn.iter().enumerate() { if let Some((b, c)) = f { list.push((format!("furn-{:?}", ITEMS[k]), b.clone())); if let Some(c) = c { list.push((format!("cloth-{:?}", ITEMS[k]), c.clone())); } } }
         for (k, h) in sp.tools.iter().enumerate() { list.push((format!("tool{k}"), h.clone())); }
         for (k, h) in sp.icons.iter().enumerate() { list.push((format!("icon-{:?}", ITEMS[k]), h.clone())); }
         for (k, h) in sp.station.iter().enumerate() { list.push((format!("station{k}"), h[1].clone())); }
@@ -256,6 +258,21 @@ fn stage_scene(w: &mut World) {
                 w.inv[Item::Tnt as usize] = 3; w.inv[Item::Torch as usize] = 12;
                 molehill_sim::light::reveal_box(&mut w.g, mx, my - 24 * S, mx + 70 * S, my + 10 * S);
                 for k in 0..4 { w.torches.push((mx + 22 * S + k * 10 * S, my - 2 * S)); }
+            }
+            "decor" => { // a furnished hall east of the burrow: plank floor, tiled and polished walls painted, carved pillars,
+                // a table with stools and a rug, a nest, a shelf, banners and planters
+                let (x0, x1, y0) = (mx + 4 * S, mx + 64 * S, my - 18 * S);
+                for x in x0..x1 { for y in y0..=my { set(w, x, y, Mat::Empty); } for y in my + 1..my + 1 + 2 * S { set(w, x, y, Mat::Planks); } for y in y0 - 2 * S..y0 { set(w, x, y, Mat::Polished); } }
+                for y in y0..=my { for x in x1..x1 + 2 * S { set(w, x, y, Mat::Tiles); } }
+                for &px in &[x0 + 20 * S, x0 + 44 * S] { for y in y0..=my { for x in px..px + 2 * S { set(w, x, y, Mat::Carved); } } }
+                for x in x0..x1 { for y in y0 - 2 * S..y0 { let i = w.g.idx(x, y); w.g.set_paint(i, 6); } } // soot-black ceiling band
+                for y in y0..=my { for x in x1..x1 + 2 * S { let i = w.g.idx(x, y); w.g.set_paint(i, if (y / (4 * S)) % 2 == 0 { 5 } else { 3 }); } } // woad and chalk tiles
+                molehill_sim::light::reveal_box(&mut w.g, mx, y0 - 10 * S, x1 + 10 * S, my + 10 * S);
+                let fl = my; let put = |w: &mut World, it: Item, x: usize, tint: u8| { if let Some(mut f) = w.furniture_spot(it, x, fl - S) { f.tint = tint; w.furniture.push(f); } };
+                put(w, Item::Rug, x0 + 10 * S, 2); put(w, Item::Table, x0 + 10 * S, 0); put(w, Item::Stool, x0 + 4 * S, 0); put(w, Item::Stool, x0 + 16 * S, 0);
+                put(w, Item::Nest, x0 + 30 * S, 4); put(w, Item::Shelf, x0 + 38 * S, 0); put(w, Item::Planter, x0 + 52 * S, 0); put(w, Item::Planter, x0 + 58 * S, 0);
+                for (k, t) in [(26usize, 1u8), (34, 5)] { if let Some(mut f) = w.furniture_spot(Item::Banner, x0 + k * S, y0 + 2 * S) { f.tint = t; w.furniture.push(f); } }
+                for k in 0..3 { w.torches.push((x0 + (6 + k * 20) * S, my - 8 * S)); }
             }
             "wiring" => { // a tall open hall east of the burrow with a little circuit: levers -> both-knot -> lamp,
                 // a ticker, a thrummer and a listener, and one of most devices, on copperline
@@ -331,7 +348,8 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, mut fonts: R
         mole_out: art::mole_sheet(false).into_iter().map(|i| images.add(i)).collect(),
         held: [art::Held::Pick, art::Held::Drill, art::Held::Bore, art::Held::Charge, art::Held::Block(Item::WoodPillar.color()), art::Held::Block(Item::Brick.color()), art::Held::Block(Item::IronBeam.color())]
             .into_iter().map(|h| images.add(art::held_sprite(h))).collect(),
-        icons: ITEMS.iter().map(|it| { let k = match it { Item::Crystal | Item::Quartz => 2, Item::Brick | Item::Glass | Item::CopperIngot | Item::TinIngot | Item::BronzeIngot | Item::IronIngot | Item::WoodPillar | Item::IronBeam => 1, Item::Torch | Item::Lamp => 3, Item::Tnt => 4, _ => 0 }; images.add(art::icon(it.color(), k)) }).collect(),
+        furn: ITEMS.iter().map(|&it| it.furn().map(|_| { let (b, c) = decorart::furniture(it); (images.add(decorart::finish(b)), c.map(|c| images.add(decorart::cloth(c)))) })).collect(),
+        icons: ITEMS.iter().map(|it| { if it.block().is_some() || it.pigment().is_some() || it.furn().is_some() { return images.add(decorart::icon(*it)); } let k = match it { Item::Crystal | Item::Quartz => 2, Item::Brick | Item::Glass | Item::CopperIngot | Item::TinIngot | Item::BronzeIngot | Item::IronIngot | Item::WoodPillar | Item::IronBeam => 1, Item::Torch | Item::Lamp => 3, Item::Tnt => 4, _ => 0 }; images.add(art::icon(it.color(), k)) }).collect(),
         chest: [images.add(art::chest(false)), images.add(art::chest(true))],
         station: (0..4u8).map(|k| [images.add(art::station(k, false)), images.add(art::station(k, true))]).collect(),
         torch: images.add(art::icon([255, 190, 90], 3)), torch_f: art::torch_frames().into_iter().map(|i| images.add(i)).collect(), glow: images.add(art::glow()),
@@ -480,11 +498,14 @@ fn input(mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<Button
     let (lp, lj) = (mouse.pressed(MouseButton::Left) && !latched, mouse.just_pressed(MouseButton::Left) && !latched);
     match sel {
         Some(Thing::Pick(_)) if lp => g.w.input.mine = Some((cx, cy)),
-        Some(Thing::Item(it @ (Item::WoodPillar | Item::Brick | Item::IronBeam))) if lp => {
+        Some(Thing::Item(it)) if lp && sw::block_code(it).is_some() => {
             let r = if g.sizes.snapping(sw::Brush::Place(it)) { let a = *g.drag.get_or_insert((cx, cy)); let n = g.sizes.snap_cells(); g.w.place_line(a, (cx, cy), n, it) }
                 else { let r = brush_r(&g, sw::Brush::Place(it)); g.w.place_brush(cx, cy, it, r) };
             if let Err(e) = r { if lj { g.msg = format!("Can't place: {e}"); } } }
         Some(Thing::Item(Item::CopperWire)) if lp => { g.w.lay_wire(cx, cy); }
+        // a pigment paints a brush of blocks, or dyes the rug / banner / nest under the cursor
+        Some(Thing::Item(it)) if lp && it.pigment().is_some() => { let r = brush_r(&g, sw::Brush::Place(it)); if let Err(e) = g.w.paint(cx, cy, it, r) { if lj { g.msg = format!("Can't paint: {e}"); } } }
+        Some(Thing::Item(it)) if lj && it.furn().is_some() => { if let Err(e) = g.w.place_furniture(it, cx, cy) { g.msg = format!("Can't place: {e}"); } }
         Some(Thing::Item(Item::Torch)) if lj => { if !g.w.place_torch(cx, cy) { g.msg = "Needs open space".into(); } }
         // TNT goes down inert; right mouse lights it, or wire it to a lever / knot / listener
         Some(Thing::Item(Item::Tnt)) if lj => { if g.w.logic.dev[blk] != 0 { g.w.use_device(cx, cy); } else if let Err(e) = g.w.place_device(Dev::Tnt, cx, cy) { g.msg = format!("Can't place: {e}"); } }
@@ -622,7 +643,9 @@ fn render_world(mut gm: ResMut<Game>, bg: Res<Bg>, mut images: ResMut<Assets<Ima
                     if wd.st.pending[i] > 0 && (hash3(x as u32, y as u32, 9) % 3 == 0) { k *= 0.45; }
                     let emit = p.emit; let em = (emit[0] as u16 + emit[1] as u16 + emit[2] as u16) > 0;
                     let lm = |c: f32, li: f32| if em { c * (0.8 + 0.4 * v) } else { c * (li.min(1.25) * 0.94 + 0.06) };
-                    let mut c = [lm(p.color[0] as f32 * k, l[0]), lm(p.color[1] as f32 * k, l[1]), lm(p.color[2] as f32 * k, l[2])];
+                    // paint: the pigment takes over most of the colour; the material's pattern and shading stay
+                    let pn = gr.paint(i); let base = if pn > 0 && p.kind == Kind::Solid { let pc = craft::PIGMENTS[pn as usize]; [0usize, 1, 2].map(|j| p.color[j] as f32 * 0.25 + pc[j] as f32 * 0.75) } else { p.color.map(|v| v as f32) };
+                    let mut c = [lm(base[0] * k, l[0]), lm(base[1] * k, l[1]), lm(base[2] * k, l[2])];
                     let mut alpha = 255.;
                     if m == Mat::Water { c = [lm(40. + 30. * v2, l[0]), lm(90. + 20. * v2, l[1]), lm(170., l[2])]; alpha = 255.; }
                     if m == Mat::Lava { let f = 0.85 + 0.3 * ((x as f32 * 0.3 / SF + y as f32 * 0.2 / SF + wd.tick as f32 * 0.05).sin() * 0.5 + 0.5); c = [255. * f, 110. * f, 30. * f]; }
@@ -688,7 +711,7 @@ struct Part { p: Vec2, v: Vec2, life: f32, max: f32, c: [f32; 3], size: f32, g: 
 /// A held item takes the light where the mole stands, like the mole does.
 fn c_hold(w: &World, m: &molehill_sim::world::Mole) -> Color { let l = w.light.at((m.y.saturating_sub(S)).min(H - 1) * W + m.x.min(W - 1)); let v = (l[0] * 0.3 + l[1] * 0.5 + l[2] * 0.2).clamp(0.5, 1.); Color::srgb(v, v, v) }
 fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Res<Time>, mut fx: Local<Fx>, mut q: Query<(Entity, &Pooled, &mut Transform, &mut Sprite, &mut Visibility)>) {
-    // kind 0 moles, 12 throw arc, 1 drops, 2 chests, 3 stations, 4 torches, 5 mushroom plots, 7 aim, 8 particles, 9 torch halos, 10 lamp halos, 11 placement pops, 14 held item, 15 headlamp lens halo
+    // kind 0 moles, 12 throw arc, 16/17 furniture and its cloth, 18 furniture ghost, 1 drops, 2 chests, 3 stations, 4 torches, 5 mushroom plots, 7 aim, 8 particles, 9 torch halos, 10 lamp halos, 11 placement pops, 14 held item, 15 headlamp lens halo
     let dt = if g.paused { 0. } else { time.delta_secs().min(0.05) }; let now = time.elapsed_secs();
     let w = &g.w;
     let mut want: Vec<(u8, usize, Vec2, f32, Handle<Image>, Vec2, bool, Color)> = vec![];
@@ -819,6 +842,19 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
         if w.logic.dev[b] != Dev::Lamp as u8 || w.logic.dev_s[b] == 0 { continue; } let (x, y) = w.logic.centre(b);
         want.push((10, k, cell_to_world(x as f32 + 0.5, y as f32 + 0.5), 4.4, sp.glow.clone(), Vec2::splat(20.), false, Color::srgba(1., 0.95, 0.75, 0.3)));
     }
+    // furniture: a base sprite and its cloth (dyed, or the undyed colour), lit like everything else; rugs lie behind
+    let furn_px = |fu: &sw::Furniture| { let (x0, y0, x1, y1) = fu.rect(); (cell_to_world((x0 + x1 + 1) as f32 / 2., (y0 + y1 + 1) as f32 / 2.), Vec2::new((x1 + 1 - x0) as f32 * CPX, (y1 + 1 - y0) as f32 * CPX)) };
+    for (k, fu) in w.furniture.iter().enumerate() {
+        let Some((base, cloth)) = sp.furn[fu.item as usize].clone() else { continue }; let (x0, y0, x1, y1) = fu.rect();
+        if w.g.flags[y1.min(H - 1) * W + x0.min(W - 1)] & F_SEEN == 0 { continue; }
+        let (pos, size) = furn_px(fu); let l = lightf((x0 + x1) / 2, (y0 + y1) / 2).to_srgba(); let z = if fu.item == Item::Rug { 2.4 } else { 2.5 };
+        want.push((16, k, pos, z, base, size, false, Color::srgb(l.red, l.green, l.blue)));
+        if let Some(c) = cloth { let t = if fu.tint > 0 { craft::PIGMENTS[fu.tint as usize] } else { decorart::undyed(fu.item) };
+            want.push((17, k, pos, z + 0.01, c, size, false, Color::srgb(t[0] as f32 / 255. * l.red, t[1] as f32 / 255. * l.green, t[2] as f32 / 255. * l.blue))); }
+    }
+    // placing furniture: a pale ghost where it would go
+    if let (Some(Thing::Item(it)), Some((x, y, true))) = (g.slots[g.hot], g.aim) { if it.furn().is_some() { if let Some(fu) = w.furniture_spot(it, x, y) {
+        if let Some((base, _)) = sp.furn[it as usize].clone() { let (pos, size) = furn_px(&fu); want.push((18, 0, pos, 6., base, size, false, Color::srgba(1., 1., 1., 0.45))); } } } }
     for (k, f) in w.farms.iter().enumerate() { let st = if f.growth < 0.3 { 0 } else if f.growth < 0.85 { 1 } else { 2 }; want.push((5, k, cell_to_world(f.x as f32 + 0.5 * SF, f.y as f32 + 1. - 1.9 * SF), 3.5, sp.shroom[st].clone(), Vec2::splat(10.), false, lightf(f.x, f.y))); }
     // aim: a faint outline on the cell under the cursor; mining: the targeted cell brightens and cracks as it gives way
     // aim: with a dig tool, a soft ring shows the brush; otherwise a faint cell outline. Mining: the ring tightens as the bite gives way.

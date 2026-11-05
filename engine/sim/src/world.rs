@@ -27,6 +27,10 @@ pub const LAVA_COOL_EVERY: u64 = 30; pub const LAVA_COOL_1_IN: u32 = 24;
 use std::sync::atomic::Ordering::Relaxed;
 
 pub const D_DIG: u8 = 1; pub const D_WOOD: u8 = 2; pub const D_BRICK: u8 = 3; pub const D_IRON: u8 = 4;
+/// Decorative blocks: planks, polished stone, tiles, carved pillar.
+pub const D_PLANK: u8 = 5; pub const D_POLISH: u8 = 6; pub const D_TILE: u8 = 7; pub const D_CARVED: u8 = 8;
+/// The build code for a block item (structural or decorative).
+pub fn block_code(it: Item) -> Option<u8> { Some(match it { Item::WoodPillar => D_WOOD, Item::Brick => D_BRICK, Item::IronBeam => D_IRON, Item::Planks => D_PLANK, Item::PolishedStone => D_POLISH, Item::Tiles => D_TILE, Item::CarvedPillar => D_CARVED, _ => return None }) }
 pub const MOLE_H: usize = 3 * S;
 const REACH: i32 = 3 * S as i32;
 
@@ -73,6 +77,10 @@ pub fn brush_range(b: Brush) -> Option<(f32, f32, f32)> {
         Brush::Place(Item::WoodPillar) => (0.5 * SF, 3.0 * SF, 0.5 * SF),
         Brush::Place(Item::Brick) => (0.5 * SF, 3.5 * SF, 1.0 * SF),
         Brush::Place(Item::IronBeam) => (0.5 * SF, 2.0 * SF, 0.5 * SF),
+        Brush::Place(Item::Planks | Item::Tiles | Item::PolishedStone) => (0.5 * SF, 3.5 * SF, 1.0 * SF),
+        Brush::Place(Item::CarvedPillar) => (0.5 * SF, 2.0 * SF, 0.5 * SF),
+        // a pigment paints a disc of cells
+        Brush::Place(it) if it.pigment().is_some() => (0.5 * SF, 4.0 * SF, 1.5 * SF),
         _ => return None,
     })
 }
@@ -116,14 +124,23 @@ pub struct Drop { pub x: usize, pub y: usize, pub item: Item, pub n: u32, pub cl
 pub struct Farm { pub x: usize, pub y: usize, pub growth: f32, pub why: u8 }
 #[derive(Clone)]
 pub struct Chest { pub x: usize, pub y: usize, pub opened: bool }
+/// A piece of furniture: its item, the footprint's left column and bottom row (cells), and the pigment
+/// of its cloth (0 = undyed). It isn't solid: the mole walks past it.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Furniture { pub item: Item, pub x: usize, pub y: usize, pub tint: u8 }
+impl Furniture {
+    /// Footprint in cells: (x0, y0, x1, y1) inclusive.
+    pub fn rect(&self) -> (usize, usize, usize, usize) { let f = self.item.furn().unwrap_or(crate::craft::Furn { w: 1, h: 1, hang: false, cloth: false }); (self.x, self.y + 1 - f.h * S, self.x + f.w * S - 1, self.y) }
+    pub fn contains(&self, x: usize, y: usize) -> bool { let (x0, y0, x1, y1) = self.rect(); x >= x0 && x <= x1 && y >= y0 && y <= y1 }
+}
 #[derive(Clone)]
 pub struct Building { pub kind: Station, pub x: usize, pub y: usize, pub built: bool, pub claimed: bool }
 
 pub struct World {
     pub g: Grid, pub st: Stress, pub light: Light, pub info: GenInfo, pub tick: u64,
-    pub inv: [u32; NITEM], dig_acc: [u16; NMAT], place_acc: [u16; 8], pub desig: Vec<u8>,
+    pub inv: [u32; NITEM], dig_acc: [u16; NMAT], place_acc: [u16; 9], pub desig: Vec<u8>,
     pub moles: Vec<Mole>, pub drops: Vec<Drop>, pub stockpile: (usize, usize, usize, usize),
-    pub buildings: Vec<Building>, pub torches: Vec<(usize, usize)>, pub chests: Vec<Chest>,
+    pub buildings: Vec<Building>, pub torches: Vec<(usize, usize)>, pub chests: Vec<Chest>, pub furniture: Vec<Furniture>, paint_acc: u16,
     pub quest: usize, pub log: Vec<(u64, String)>, pub discovered: [bool; NMAT], pub chests_opened: u32, pub pillars: u32,
     pub max_depth: f32, pub craft_queue: Vec<usize>, pub gear: Gear, pub crumbled: u64, pub light_rect: (usize, usize, usize, usize),
     pub events: Vec<Event>, pub react_pending: bool,
@@ -145,7 +162,7 @@ pub struct World {
 /// For audio / UI feedback.
 /// What `World::pick_up` took back into the pack.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum Picked { Dev(Dev), Torch, Wire }
+pub enum Picked { Dev(Dev), Torch, Wire, Furniture(Item) }
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Event { Dig, Crumble, Crack, Place, Chest, Quest, Explode, Discover, Hurt, Craft, Eat, Death, Warning, Quake, Click, Harvest, Gasp }
 
@@ -162,8 +179,8 @@ impl World {
     }
     fn shell(g: Grid, w: usize, h: usize, seed: u32, oy: i64, gn: Gen, info: gen::GenInfo) -> World {
         World {
-            st: Stress::new(w * h), light: Light::new(w, h), tick: 0, inv: [0; NITEM], dig_acc: [0; NMAT], place_acc: [0; 8], desig: vec![0; w * h],
-            moles: vec![], drops: vec![], stockpile: (0, 0, 0, 0), buildings: vec![], torches: vec![], chests: vec![],
+            st: Stress::new(w * h), light: Light::new(w, h), tick: 0, inv: [0; NITEM], dig_acc: [0; NMAT], place_acc: [0; 9], desig: vec![0; w * h],
+            moles: vec![], drops: vec![], stockpile: (0, 0, 0, 0), buildings: vec![], torches: vec![], chests: vec![], furniture: vec![], paint_acc: 0,
             quest: 0, log: vec![], discovered: [false; NMAT], chests_opened: 0, pillars: 0, max_depth: 0., craft_queue: vec![], gear: Gear::default(), crumbled: 0,
             light_rect: (0, 0, w - 1, h - 1), events: vec![], marks: vec![], react_pending: false, logic: Logic::new(w, h), disasters: Disasters::new(seed), shake: 0., air: Air::new(w, h), farms: vec![], harvested: 0, input: Input::default(), pl: Player::default(), gen: gn, oy, bands: Default::default(), opened: Default::default(), grottos: vec![], caught: Default::default(), info, g,
         }
@@ -225,6 +242,7 @@ impl World {
         self.drops = std::mem::take(&mut self.drops).into_iter().filter_map(|mut d| dy(d.y).map(|v| { d.y = v; d.py -= rows as f32; d.ppy -= rows as f32; d })).collect();
         self.torches = std::mem::take(&mut self.torches).into_iter().filter_map(|(x, y)| dy(y).map(|v| (x, v))).collect();
         self.buildings = std::mem::take(&mut self.buildings).into_iter().filter_map(|mut b| dy(b.y).filter(|&v| v >= Station::H).map(|v| { b.y = v; b.claimed = false; b })).collect();
+        self.furniture = std::mem::take(&mut self.furniture).into_iter().filter_map(|mut f| dy(f.y).filter(|&v| v >= 16 * S).map(|v| { f.y = v; f })).collect();
         self.farms = std::mem::take(&mut self.farms).into_iter().filter_map(|mut f| dy(f.y).map(|v| { f.y = v; f })).collect();
         let sp = self.stockpile; if let (Some(a), Some(b)) = (dy(sp.1), dy(sp.3)) { self.stockpile = (sp.0, a, sp.2, b); }
         self.logic.shift_rows(rows / crate::logic::B as i64);
@@ -418,7 +436,7 @@ impl World {
         let mut dz = std::mem::replace(&mut self.disasters, Disasters::new(0));
         dz.step(self); self.disasters = dz;
         if self.tick % air::UPDATE_TICKS == 0 { self.step_air(); }
-        if self.tick % 30 == 0 { self.step_farms(); }
+        if self.tick % 30 == 0 { self.step_farms(); self.check_furniture(); }
         if self.tick % 30 == 0 { self.follow_colony(); }
         self.shake *= 0.93;
         if self.tick % 30 == 0 { self.check_quests(); self.check_chests(); }
@@ -508,6 +526,7 @@ impl World {
         use light::{kinds::*, Source};
         let c = |x: usize, y: usize| (x as f32 + 0.5, y as f32 + 0.5);
         let mut v: Vec<Source> = self.torches.iter().map(|&(x, y)| { let (x, y) = c(x, y); Source::point(x, y, TORCH.0, TORCH.1) }).collect();
+        for f in &self.furniture { if f.item == Item::Planter { let (x0, y0, x1, _) = f.rect(); v.push(Source::point((x0 + x1) as f32 / 2. + 0.5, y0 as f32, PLANTER.0, PLANTER.1)); } }
         for b in &self.buildings { if b.built && matches!(b.kind, Station::Kiln | Station::Furnace) { let (x, y) = c(b.x + Station::W / 2, b.y - S); v.push(Source::point(x, y, KILN.0, KILN.1)); } }
         for &b in &self.logic.dev_list { if self.logic.dev[b] == Dev::Lamp as u8 && self.logic.dev_s[b] != 0 { let (x, y) = self.logic.centre(b); let (x, y) = c(x, y); v.push(Source::point(x, y, LAMP.0, LAMP.1)); } }
         for (x, y, _, _) in self.glowmites() { v.push(Source::point(x, y, GLOWMITE.0, GLOWMITE.1)); }
@@ -931,7 +950,7 @@ impl World {
     }
     /// `place_block` without the reach check (scripted building, scenarios).
     pub fn place_block_at(&mut self, x: usize, y: usize, it: Item) -> Result<(), &'static str> {
-        let d = match it { Item::WoodPillar => D_WOOD, Item::Brick => D_BRICK, Item::IronBeam => D_IRON, _ => return Err("not a block") };
+        let Some(d) = block_code(it) else { return Err("not a block") };
         if x < 1 || y < 1 || x + 1 >= self.g.w || y + 1 >= self.g.h { return Err("out of bounds"); }
         let i = self.g.idx(x, y); if self.g.mat[i] != 0 && !self.g.m(i).has(OPEN) { return Err("cell is not open"); }
         if self.moles.iter().any(|m| m.alive && m.x == x && y <= m.y && y + MOLE_H > m.y) { return Err("you are standing there"); }
@@ -1035,10 +1054,74 @@ impl World {
             if let Some(it) = d.cost() { self.inv[it as usize] += 1; } Picked::Dev(d)
         } else if let Some(k) = self.torch_at(x, y) {
             self.torches.swap_remove(k); self.inv[Item::Torch as usize] += 1; Picked::Torch
+        } else if let Some(k) = self.furniture_at(x, y) {
+            let fu = self.furniture.swap_remove(k); self.inv[fu.item as usize] += 1; Picked::Furniture(fu.item)
         } else if self.logic.wire[b] != 0 {
             self.logic.wire[b] = 0; self.logic.invalidate(); self.inv[Item::CopperWire as usize] += 1; Picked::Wire
         } else { return None };
         self.events.push(Event::Click); Some(got)
+    }
+    // ---------- furnishing ----------
+    /// Paint with a pigment: a disc of radius `want` (0 = default, clamped like a brush) around (x, y).
+    /// Standing solid cells in reach take the colour; a dyeable piece of furniture (rug, banner, nest) under
+    /// the cursor takes it too. One pigment paints 16 tiles' worth of cells. Returns how many cells changed.
+    pub fn paint(&mut self, x: usize, y: usize, it: Item, want: f32) -> Result<usize, &'static str> {
+        let Some(p) = it.pigment() else { return Err("not a pigment") };
+        if !self.in_reach(x, y) { return Err("out of reach"); }
+        if let Some(k) = self.furniture_at(x, y) { if self.furniture[k].item.furn().is_some_and(|f| f.cloth) && self.furniture[k].tint != p {
+            if !self.pay_paint(it, 4 * (S * S) as u16) { return Err("none left"); } self.furniture[k].tint = p; self.events.push(Event::Place); return Ok(1); } }
+        let r = brush_radius(Brush::Place(it), want); let mut n = 0;
+        for (dx, dy) in disc(r) { let (cx, cy) = (x as i32 + dx, y as i32 + dy); if !self.g.in_bounds(cx, cy) || !self.in_reach(cx as usize, cy as usize) { continue; }
+            let i = cy as usize * self.g.w + cx as usize; if self.g.m(i).kind() != Kind::Solid || self.g.paint(i) == p { continue; }
+            if !self.pay_paint(it, 1) { break; } self.g.set_paint(i, p); n += 1; }
+        if n == 0 { return Err("nothing here takes paint"); }
+        self.marks.push((1, x as f32 + 0.5, y as f32 + 0.5, r)); self.events.push(Event::Place); Ok(n)
+    }
+    /// Spend `cells` cells' worth of a pigment (one pigment covers 16 tiles).
+    fn pay_paint(&mut self, it: Item, cells: u16) -> bool {
+        let per = 16 * (S * S) as u16;
+        for _ in 0..cells { if self.paint_acc == 0 { if self.inv[it as usize] == 0 { return false; } self.inv[it as usize] -= 1; self.paint_acc = per; } self.paint_acc -= 1; }
+        true
+    }
+    /// Where a piece of furniture would go for a cursor at (x, y): centred on x, standing on the first floor
+    /// at or below y (or hanging from the first ceiling at or above it). `None` if there's no floor/ceiling near.
+    pub fn furniture_spot(&self, it: Item, x: usize, y: usize) -> Option<Furniture> {
+        let f = it.furn()?; let (w, h) = (f.w * S, f.h * S); let x0 = x.checked_sub(w / 2)?; if x0 + w >= self.g.w { return None; }
+        let solid = |cx: usize, cy: usize| cy < self.g.h && self.g.is_solidish(cy * self.g.w + cx);
+        let held = |row: usize| (x0..x0 + w).filter(|&cx| solid(cx, row)).count() * 3 >= w * 2; // two thirds of its width rests on it
+        let reach = 6 * S;
+        if !f.hang { (y..(y + reach).min(self.g.h - 1)).find(|&r| !solid(x, r) && solid(x, r + 1)).filter(|&r| held(r + 1) && r + 1 >= h).map(|r| Furniture { item: it, x: x0, y: r, tint: 0 }) }
+        else { (y.saturating_sub(reach)..=y).rev().find(|&r| r > 0 && !solid(x, r) && solid(x, r - 1)).filter(|&r| held(r - 1) && r + h < self.g.h).map(|r| Furniture { item: it, x: x0, y: r + h - 1, tint: 0 }) }
+    }
+    /// Set down a piece of furniture from the pack (see `furniture_spot`). Its footprint must be open and in
+    /// reach, and it can't overlap other furniture (a rug can lie under anything).
+    pub fn place_furniture(&mut self, it: Item, x: usize, y: usize) -> Result<(), &'static str> {
+        let Some(fu) = self.furniture_spot(it, x, y) else { return Err(if it.furn().is_some_and(|f| f.hang) { "needs a ceiling to hang from" } else { "needs a floor to stand on" }) };
+        if self.inv[it as usize] == 0 { return Err("none left"); }
+        let (x0, y0, x1, y1) = fu.rect();
+        if !self.in_reach((x0 + x1) / 2, (y0 + y1) / 2) { return Err("out of reach"); }
+        for cy in y0..=y1 { for cx in x0..=x1 { if self.g.is_solidish(cy * self.g.w + cx) { return Err("not enough room"); } } }
+        let rug = it == Item::Rug;
+        if self.furniture.iter().any(|o| (o.item == Item::Rug) == rug && { let (a0, b0, a1, b1) = o.rect(); a0 <= x1 && x0 <= a1 && b0 <= y1 && y0 <= b1 }) { return Err("something is already there"); }
+        self.inv[it as usize] -= 1; self.marks.push((1, (x0 + x1) as f32 / 2. + 0.5, (y0 + y1) as f32 / 2. + 0.5, ((x1 - x0) as f32 / 2.).max(1.)));
+        self.furniture.push(fu); self.events.push(Event::Place); Ok(())
+    }
+    /// The furniture under (x, y), topmost first (a rug last, so the table on it is picked first).
+    pub fn furniture_at(&self, x: usize, y: usize) -> Option<usize> {
+        let hit: Vec<usize> = (0..self.furniture.len()).filter(|&k| self.furniture[k].contains(x, y)).collect();
+        hit.iter().copied().find(|&k| self.furniture[k].item != Item::Rug).or(hit.first().copied())
+    }
+    /// Furniture whose floor (or ceiling) was dug away falls loose as its item.
+    fn check_furniture(&mut self) {
+        let mut k = 0;
+        while k < self.furniture.len() {
+            let fu = self.furniture[k].clone(); let Some(f) = fu.item.furn() else { self.furniture.swap_remove(k); continue };
+            let (x0, y0, x1, y1) = fu.rect(); let row = if f.hang { y0.checked_sub(1) } else { Some(y1 + 1).filter(|&r| r < self.g.h) };
+            let held = row.is_some_and(|r| (x0..=x1).filter(|&cx| self.g.is_solidish(r * self.g.w + cx)).count() * 3 >= (x1 - x0 + 1) * 2);
+            let buried = (y0..=y1).any(|cy| (x0..=x1).filter(|&cx| self.g.is_solidish(cy * self.g.w + cx)).count() * 2 > x1 - x0 + 1);
+            if !held || buried { self.furniture.swap_remove(k); self.drop_item((x0 + x1) / 2, y1, fu.item, 1); continue; }
+            k += 1;
+        }
     }
     /// The placed torch drawn at (x, y), if any (a torch is about half a metre tall, standing on its cell).
     pub fn torch_at(&self, x: usize, y: usize) -> Option<usize> {
@@ -1050,7 +1133,7 @@ impl World {
     /// something solid (the ground or a cell placed just before it), so a brush grows out of what it rests on.
     /// Returns how many cells were placed.
     pub fn place_brush(&mut self, x: usize, y: usize, it: Item, want: f32) -> Result<usize, &'static str> {
-        let d = match it { Item::WoodPillar => D_WOOD, Item::Brick => D_BRICK, Item::IronBeam => D_IRON, _ => return Err("not a block") };
+        let Some(d) = block_code(it) else { return Err("not a block") };
         let r = brush_radius(Brush::Place(it), want);
         // blocks go down in whole legacy tiles (S×S cells, on the global tile grid): a radius-r brush is
         // a disc of tiles, so building comes out the same at any resolution
@@ -1065,7 +1148,7 @@ impl World {
     /// follows, so a drag lays a clean row or column. Same rules as the brush: open cells in reach, never the
     /// mole, each new cell resting on something. Returns how many cells were placed.
     pub fn place_line(&mut self, a: (usize, usize), b: (usize, usize), n: usize, it: Item) -> Result<usize, &'static str> {
-        let d = match it { Item::WoodPillar => D_WOOD, Item::Brick => D_BRICK, Item::IronBeam => D_IRON, _ => return Err("not a block") };
+        let Some(d) = block_code(it) else { return Err("not a block") };
         let n = n.clamp(1, 64) as i64; let (ax, ay, bx, by) = (a.0 as i64 / n, a.1 as i64 / n, b.0 as i64 / n, b.1 as i64 / n);
         let (ex, ey) = if (bx - ax).abs() >= (by - ay).abs() { (bx, ay) } else { (ax, by) };
         let mut todo = vec![];
@@ -1127,5 +1210,5 @@ impl World {
         }
     }
 }
-pub fn build_item(d: u8) -> Item { match d { D_BRICK => Item::Brick, D_IRON => Item::IronBeam, _ => Item::WoodPillar } }
-pub fn build_mat(d: u8) -> Mat { match d { D_BRICK => Mat::StoneBrick, D_IRON => Mat::IronBeam, _ => Mat::WoodBeam } }
+pub fn build_item(d: u8) -> Item { match d { D_BRICK => Item::Brick, D_IRON => Item::IronBeam, D_PLANK => Item::Planks, D_POLISH => Item::PolishedStone, D_TILE => Item::Tiles, D_CARVED => Item::CarvedPillar, _ => Item::WoodPillar } }
+pub fn build_mat(d: u8) -> Mat { match d { D_BRICK => Mat::StoneBrick, D_IRON => Mat::IronBeam, D_PLANK => Mat::Planks, D_POLISH => Mat::Polished, D_TILE => Mat::Tiles, D_CARVED => Mat::Carved, _ => Mat::WoodBeam } }

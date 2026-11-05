@@ -1,0 +1,28 @@
+// Pigments paint standing blocks (a brush of them) and dye a rug's cloth; a pigment covers 16 tiles.
+// Paint stays through a save and load.
+map
+##############################
+#............................#
+#............................#
+#..@.kkkkkk..................#
+##############################
+end
+give Ochre 2
+give Woad 1
+give Rust 1
+give Rug 1
+brush 1 1
+paint 2 Ochre 3 0
+expect 3 paint:3,0 == 1
+expect 3 paint:4,0 == 1
+expect 3 paint:7,0 == 0        // outside the brush
+expect 3 inv:Ochre == 1        // one pigment paints 16 tiles' worth
+paint 4 Woad 3 0               // repaint
+expect 5 paint:3,0 == 5
+furnish 6 Rug 14 0
+paint 8 Rust 14 0              // on the rug: dyes it
+expect 9 tint:Rug == 2
+saveload 12
+expect 14 paint:3,0 == 5
+expect 14 tint:Rug == 2
+expect 14 furn:Rug == 1

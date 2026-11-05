@@ -1,0 +1,37 @@
+// Furniture stands on the floor or hangs from the ceiling, wherever the cursor is in the room: a table
+// and a rug under it, a stool beside it, a banner from the roof. A shelf won't fit beside a boulder.
+// Picking a piece up (E) takes it back into the pack.
+map
+##################################
+#................................#
+#................................#
+#................................#
+#................................#
+#................................#
+#................................#
+#..@.............######..........#
+##################################
+end
+give Table 2
+give Rug 1
+give Stool 1
+give Banner 1
+give Shelf 1
+furnish 2 Table 6 -2           // cursor in mid-air: it finds the floor below
+furnish 3 Rug 6 0              // a rug can lie under the table
+furnish 4 Stool -1 0
+furnish 5 Banner 13 -5        // hangs from the ceiling above the cursor
+furnish 6 Table 7 0            // overlaps the first table: refused
+furnish 7 Shelf 15 -1          // would overlap the boulder: refused
+expect 10 furn:Table == 1
+expect 10 furn:Rug == 1
+expect 10 furn:Stool == 1
+expect 10 furn:Banner == 1
+expect 10 furn:Shelf == 0
+expect 10 inv:Table == 1
+pickup 20 -1 0                // E on the stool
+expect 22 furn:Stool == 0
+expect 22 inv:Stool == 1
+pickup 24 6 -1                 // E on the table (not the rug under it)
+expect 26 furn:Table == 0
+expect 26 furn:Rug == 1

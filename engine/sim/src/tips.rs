@@ -36,6 +36,12 @@ pub fn describe(w: &World, x: usize, y: usize) -> Option<Tip> {
             return tip(format!("{} (planned)", b.kind.name()), vec![b.kind.desc().into(), format!("Needs {}.", need.join(", "))]);
         }
     }
+    if let Some(k) = w.furniture_at(x, y) {
+        let f = &w.furniture[k]; let mut l = vec![f.item.desc().to_string()];
+        if f.tint > 0 { l.push(format!("Dyed {}.", pigment_name(f.tint))); }
+        l.push("E: pick up.".into());
+        return tip(f.item.name().into(), l);
+    }
     for c in &w.chests {
         let k = crate::mat::S;
         if x + 2 * k >= c.x && x <= c.x + 2 * k - 1 && y + 3 * k >= c.y && y <= c.y && !w.g.is_solidish(c.y * w.g.w + c.x) {
@@ -63,5 +69,9 @@ pub fn describe(w: &World, x: usize, y: usize) -> Option<Tip> {
     if m.kind() == Kind::Solid && !loose {
         if let Some(s) = strain_word(w.st.util.get(i).copied().unwrap_or(0), w.st.pending.get(i).copied().unwrap_or(0) > 0) { l.push(s.into()); }
     }
+    let p = w.g.paint(i); if p > 0 && m.kind() == Kind::Solid { l.push(format!("Painted {}.", pigment_name(p))); }
     tip(if loose { format!("Loose {}", m.p().name.to_lowercase()) } else { m.p().name.to_string() }, l)
 }
+
+/// A pigment's name by paint index (1..6), lower case.
+pub fn pigment_name(p: u8) -> String { crate::craft::ITEMS.iter().find(|it| it.pigment() == Some(p)).map(|it| it.name().to_lowercase()).unwrap_or_default() }

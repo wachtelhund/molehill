@@ -1,0 +1,43 @@
+// Decorative blocks go down with the block brush and are structural by their own numbers: two carved
+// pillars at the third points save the 12 m rock roof that caves in without them (roof_needs_pillar.scn),
+// like wood pillars do (pillars_rock_roof.scn). Planks, tiles and polished stone lay like any block.
+map
+##########################################################
+#rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr#
+#rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr#
+#rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr#
+#####................................................#####
+#####................................................#####
+#####................................................#####
+#####................................................#####
+#####................................................#####
+#####........................@.......................#####
+##########################################################
+end
+give CarvedPillar 20
+give Planks 4
+give Tiles 4
+give PolishedStone 4
+place 2 -8 -0 CarvedPillar
+place 2 8 -0 CarvedPillar
+place 3 -8 -1 CarvedPillar
+place 3 8 -1 CarvedPillar
+place 4 -8 -2 CarvedPillar
+place 4 8 -2 CarvedPillar
+place 5 -8 -3 CarvedPillar
+place 5 8 -3 CarvedPillar
+place 6 -8 -4 CarvedPillar
+place 6 8 -4 CarvedPillar
+place 7 -8 -5 CarvedPillar
+place 7 8 -5 CarvedPillar
+put 9 -3 0 Planks
+put 10 -2 0 Tiles
+put 11 -1 0 PolishedStone
+expect 13 util:0,-6 < 0.5
+expect 13 is:-3,0,Planks == 1
+expect 13 is:-2,0,Tiles == 1
+expect 13 is:-1,0,Polished == 1
+expect 600 count:Carved == 12
+expect 600 is:-8,-5,Carved == 1
+expect 600 is:8,-5,Carved == 1
+expect 600 crumbled == 0

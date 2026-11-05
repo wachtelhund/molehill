@@ -833,3 +833,17 @@ fn material_table_is_consistent() {
     // and every light source goes through the same rays: the torch is one of the sources
     assert!(w.light_sources().iter().any(|s| (s.x - (tx as f32 + 0.5)).abs() < 0.01 && (s.y - (ty as f32 + 0.5)).abs() < 0.01));
 }
+#[test] fn furnishing_is_craftable_in_survival() {
+    // every decor block, pigment and piece of furniture has a recipe (Survival builds from the ground up;
+    // Creative just has them in the pack), and crafting one at a workbench works from raw materials
+    use molehill_sim::craft::{ITEMS, RECIPES, Item, Station};
+    for it in ITEMS { if it.block().is_some() || it.pigment().is_some() || it.furn().is_some() {
+        assert!(RECIPES.iter().any(|r| r.out.0 == it), "{it:?} has no recipe");
+        assert!(it.uses().place, "{it:?} can't be placed"); assert!(!it.controls().is_empty(), "{it:?} has no controls line");
+    } }
+    let (mut w, x0, y0) = arena(); w.inv = [0; molehill_sim::craft::NITEM];
+    w.inv[Item::Wood as usize] = 6; w.place_building(Station::Workbench, x0 - 30, y0).unwrap();
+    w.inv[Item::Wood as usize] = 4;
+    let r = RECIPES.iter().position(|r| r.out.0 == Item::Table).unwrap();
+    w.craft_now(r).unwrap(); assert_eq!(w.inv[Item::Table as usize], 1); assert_eq!(w.inv[Item::Wood as usize], 0);
+}

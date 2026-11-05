@@ -8,8 +8,12 @@ pub enum Item {
     Brick, Glass, Charcoal, CopperIngot, TinIngot, BronzeIngot, IronIngot,
     Torch, WoodPillar, IronBeam, CopperWire, Thrummer, Gate, Tnt, Lamp,
     StoneTools, BronzeTools, IronTools, Grub, Spore, Mushroom, Vent, Glowmite,
+    // furnishing: decorative blocks (brush-built, structural), pigments (paint), furniture (placed props)
+    Planks, PolishedStone, Tiles, CarvedPillar,
+    Ochre, Rust, Chalk, Verdigris, Woad, Soot,
+    Table, Stool, Nest, Shelf, Rug, Banner, Planter,
 }
-pub const NITEM: usize = 36;
+pub const NITEM: usize = 53;
 /// What an item can do in the world (see `Item::uses`).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Uses { pub place: bool, pub throw: bool, pub pick_up: bool }
@@ -18,7 +22,15 @@ pub const ITEMS: [Item; NITEM] = [
     Item::Brick, Item::Glass, Item::Charcoal, Item::CopperIngot, Item::TinIngot, Item::BronzeIngot, Item::IronIngot,
     Item::Torch, Item::WoodPillar, Item::IronBeam, Item::CopperWire, Item::Thrummer, Item::Gate, Item::Tnt, Item::Lamp,
     Item::StoneTools, Item::BronzeTools, Item::IronTools, Item::Grub, Item::Spore, Item::Mushroom, Item::Vent, Item::Glowmite,
+    Item::Planks, Item::PolishedStone, Item::Tiles, Item::CarvedPillar,
+    Item::Ochre, Item::Rust, Item::Chalk, Item::Verdigris, Item::Woad, Item::Soot,
+    Item::Table, Item::Stool, Item::Nest, Item::Shelf, Item::Rug, Item::Banner, Item::Planter,
 ];
+/// Paint colours by pigment index (0 = unpainted): ochre, rust, chalk, verdigris, woad, soot.
+pub const PIGMENTS: [[u8; 3]; 7] = [[0, 0, 0], [206, 160, 70], [164, 70, 46], [232, 226, 210], [84, 162, 132], [74, 112, 190], [50, 46, 52]];
+/// A piece of furniture's footprint in 0.25 m tiles, and how it's held up: standing on the floor, or
+/// hanging from the ceiling. `cloth` = it has a dyeable part (a pigment colours it).
+#[derive(Clone, Copy, Debug)] pub struct Furn { pub w: usize, pub h: usize, pub hang: bool, pub cloth: bool }
 impl Item {
     /// The material a loose item is a lump of, if it is one: its density and burning come from the table.
     pub fn mat(self) -> Option<Mat> {
@@ -26,7 +38,7 @@ impl Item {
         Some(match self {
             Dirt => Mat::Dirt, Clay => Mat::Clay, Sand => Mat::Sand, Gravel => Mat::Gravel, Stone => Mat::Rock, Coal => Mat::Coal,
             CopperOre => Mat::CopperOre, TinOre => Mat::TinOre, IronOre => Mat::IronOre, Quartz => Mat::Quartz, Crystal => Mat::Crystal,
-            Wood | WoodPillar | Torch => Mat::WoodBeam, Fungus => Mat::Fungus, Brick => Mat::StoneBrick, Glass => Mat::Glass,
+            Wood | WoodPillar | Torch | Table | Stool | Shelf | Planter => Mat::WoodBeam, Planks => Mat::Planks, PolishedStone => Mat::Polished, Tiles => Mat::Tiles, CarvedPillar => Mat::Carved, Fungus => Mat::Fungus, Brick => Mat::StoneBrick, Glass => Mat::Glass,
             IronBeam | IronIngot => Mat::IronBeam,
             _ => return None,
         })
@@ -37,7 +49,7 @@ impl Item {
         if let Some(m) = self.mat() { return m.p().density; }
         match self {
             Charcoal => 400., CopperIngot => 8900., TinIngot => 7300., BronzeIngot => 8800., CopperWire => 3000., Thrummer | Gate | Vent => 2500.,
-            Tnt => 1500., Lamp => 2000., StoneTools => 2500., BronzeTools => 5000., IronTools => 5500., Grub => 1050., Spore => 300., Mushroom => 600.,
+            Tnt => 1500., Lamp => 2000., Rug | Banner | Nest => 300., Ochre | Rust | Chalk | Verdigris | Woad | Soot => 1800., StoneTools => 2500., BronzeTools => 5000., IronTools => 5500., Grub => 1050., Spore => 300., Mushroom => 600.,
             _ => 2000.,
         }
     }
@@ -50,17 +62,20 @@ impl Item {
     /// (a crafting material). Blocks, copperline, devices, torches and tools are never thrown.
     pub fn uses(self) -> Uses {
         use Item::*;
-        let place = matches!(self, WoodPillar | Brick | IronBeam | CopperWire | Torch | Tnt | Lamp | Vent | Spore);
+        let place = matches!(self, WoodPillar | Brick | IronBeam | CopperWire | Torch | Tnt | Lamp | Vent | Spore) || self.block().is_some() || self.pigment().is_some() || self.furn().is_some();
         let throw = matches!(self, Dirt | Clay | Sand | Gravel | Stone | Coal | CopperOre | TinOre | IronOre | Quartz | Crystal | Wood | Fungus
             | Charcoal | CopperIngot | TinIngot | BronzeIngot | IronIngot | Grub | Spore | Mushroom | Tnt);
-        Uses { place, throw, pick_up: matches!(self, CopperWire | Torch | Tnt | Lamp | Vent) }
+        Uses { place, throw, pick_up: matches!(self, CopperWire | Torch | Tnt | Lamp | Vent) || self.furn().is_some() }
     }
     /// One line naming the inputs for the item in hand (hover tooltip and the hint over the hotbar).
     pub fn controls(self) -> &'static str {
         use Item::*;
         match self {
             Tnt => "Left/right mouse: set down unlit · right mouse on it: light · Q: throw lit · E: pick up",
-            WoodPillar | Brick | IronBeam => "Left mouse: build (hold to keep building)",
+            WoodPillar | Brick | IronBeam | Planks | PolishedStone | Tiles | CarvedPillar => "Left mouse: build (hold to keep building)",
+            Ochre | Rust | Chalk | Verdigris | Woad | Soot => "Left mouse: paint blocks, or dye a rug, banner or nest (hold to keep painting)",
+            Table | Stool | Nest | Shelf | Rug | Planter => "Left mouse: set down on the floor · E: pick up",
+            Banner => "Left mouse: hang from the ceiling · E: pick up",
             CopperWire => "Left mouse: lay (drag) · E: take up (drag)",
             Torch => "Left mouse: set down · E: pick up",
             Lamp | Vent => "Left/right mouse: set down · E: pick up",
@@ -71,11 +86,25 @@ impl Item {
             _ => "",
         }
     }
+    /// A decorative block's material (built with the block brush).
+    pub fn block(self) -> Option<Mat> { use Item::*; match self { Planks => Some(Mat::Planks), PolishedStone => Some(Mat::Polished), Tiles => Some(Mat::Tiles), CarvedPillar => Some(Mat::Carved), _ => None } }
+    /// A pigment's paint index (1..6), see `PIGMENTS`.
+    pub fn pigment(self) -> Option<u8> { use Item::*; match self { Ochre => Some(1), Rust => Some(2), Chalk => Some(3), Verdigris => Some(4), Woad => Some(5), Soot => Some(6), _ => None } }
+    /// Furniture: footprint (tiles) and how it's held up.
+    pub fn furn(self) -> Option<Furn> {
+        use Item::*;
+        let f = |w, h, hang, cloth| Some(Furn { w, h, hang, cloth });
+        match self { Table => f(8, 4, false, false), Stool => f(3, 3, false, false), Nest => f(9, 3, false, true), Shelf => f(6, 8, false, false),
+            Rug => f(10, 1, false, true), Banner => f(3, 6, true, true), Planter => f(5, 3, false, false), _ => None }
+    }
     pub fn name(self) -> &'static str {
         ["Dirt", "Clay", "Sand", "Gravel", "Stone", "Coal", "Copper ore", "Tin ore", "Iron ore", "Quartz", "Crystal", "Wood", "Fungus",
          "Brick", "Glass", "Charcoal", "Copper ingot", "Tin ingot", "Bronze ingot", "Iron ingot",
          "Torch", "Wood pillar", "Iron beam", "Copperline", "Thrummer", "Knot", "TNT", "Lamp",
-         "Stone tools", "Bronze tools", "Iron tools", "Grub", "Spore", "Mushroom", "Vent", "Glowmite"][self as usize]
+         "Stone tools", "Bronze tools", "Iron tools", "Grub", "Spore", "Mushroom", "Vent", "Glowmite",
+         "Planks", "Polished stone", "Tiles", "Carved pillar",
+         "Ochre", "Rust", "Chalk", "Verdigris", "Woad", "Soot",
+         "Table", "Stool", "Nest", "Shelf", "Rug", "Banner", "Fungus planter"][self as usize]
     }
     /// One plain line for the hover tooltip: what it is and what it's for.
     pub fn desc(self) -> &'static str {
@@ -92,7 +121,13 @@ impl Item {
          "Mechanical knot: joins two lines into one answer (both, either, turn, odd, catch).", "Blasting charge. Shatters rock in a wide round.",
          "Lights when current flows through it.", "Pack tools of stone.", "Pack tools of bronze.", "Pack tools of iron.",
          "Fat burrowing larva. A good meal.", "Mushroom spore. Plant it on soil to grow food.", "A ripe mushroom. Fills the belly.",
-         "Draws stale air out of the tunnels around it.", "A glowmite caught in a jar. Glows softly, needs no fuel."][self as usize]
+         "Draws stale air out of the tunnels around it.", "A glowmite caught in a jar. Glows softly, needs no fuel.",
+         "Sawn boards for floors and panelling. A light prop.", "Stone dressed smooth. Fine walls and floors, as strong as brick.",
+         "Fired clay tiles in a neat grid. Bright, but brittle under a roof.", "Fluted stone column. Holds a roof better than brick.",
+         "Yellow earth pigment, ground from iron ore and clay.", "Red-brown pigment, ground from iron ore.", "Pale pigment, ground from quartz.",
+         "Green pigment, scraped from weathered copper ore.", "Blue pigment, pressed from fungus.", "Black pigment, from charcoal.",
+         "A sturdy board on legs. Somewhere to eat.", "A low seat.", "A soft bed of moss and cloth. Dye it.", "A tall rack of shelves.",
+         "A woven floor rug. Dye it.", "A cloth banner hung from the ceiling. Dye it.", "A box of glowing fungus. A soft green light."][self as usize]
     }
     pub fn color(self) -> [u8; 3] {
         use Item::*;
@@ -103,6 +138,9 @@ impl Item {
             Charcoal => [70, 60, 60], CopperIngot => [230, 140, 80], TinIngot => [210, 215, 225], BronzeIngot => [205, 150, 70], IronIngot => [190, 190, 200],
             Torch => [255, 190, 90], WoodPillar => [180, 130, 80], IronBeam => [120, 130, 150], CopperWire => [240, 150, 90], Thrummer => [150, 120, 255],
             Gate => [120, 220, 160], Tnt => [220, 60, 50], Lamp => [255, 240, 170], StoneTools => [160, 156, 150], BronzeTools => [205, 150, 70], IronTools => [200, 205, 220], Grub => [235, 215, 170], Spore => [200, 170, 230], Mushroom => [214, 120, 90], Vent => [150, 200, 210], Glowmite => [190, 255, 160],
+            Planks => [182, 134, 84], PolishedStone => [176, 170, 160], Tiles => [190, 108, 74], CarvedPillar => [164, 158, 148],
+            Ochre | Rust | Chalk | Verdigris | Woad | Soot => PIGMENTS[self.pigment().unwrap_or(0) as usize],
+            Table | Stool | Shelf => [160, 112, 66], Nest => [150, 170, 110], Rug => [176, 92, 70], Banner => [200, 70, 60], Planter => [110, 200, 130],
         }
     }
 }
@@ -114,7 +152,7 @@ pub fn drop_of(m: Mat) -> Option<Item> {
         Dirt | Grass => Item::Dirt, Clay => Item::Clay, Sand => Item::Sand, Gravel => Item::Gravel,
         Granite | Rock | Limestone | Basalt | StoneBrick => Item::Stone, Coal => Item::Coal, CopperOre => Item::CopperOre, TinOre => Item::TinOre,
         IronOre => Item::IronOre, Quartz => Item::Quartz, Crystal => Item::Crystal, Roots | WoodBeam | Door | RootTree | TreeRoot => Item::Wood, Fungus | Mycelium => Item::Fungus, Moss => Item::Dirt,
-        IronBeam => Item::IronIngot, Glass => Item::Glass,
+        IronBeam => Item::IronIngot, Glass => Item::Glass, Planks => Item::Wood, Polished | Carved => Item::Stone, Tiles => Item::Clay,
         _ => return None,
     })
 }
@@ -153,6 +191,26 @@ pub static RECIPES: &[Recipe] = &[
     Recipe { name: "Thrummer", station: Station::Anvil, inputs: &[(Item::Crystal, 2), (Item::CopperIngot, 2), (Item::Glass, 1)], out: (Item::Thrummer, 1), ticks: 200 },
     Recipe { name: "Lamp", station: Station::Kiln, inputs: &[(Item::Glass, 1), (Item::Fungus, 2)], out: (Item::Lamp, 1), ticks: 90 },
     Recipe { name: "Vent", station: Station::Workbench, inputs: &[(Item::Wood, 2), (Item::Stone, 2)], out: (Item::Vent, 1), ticks: 90 },
+    // furnishing: decorative blocks
+    Recipe { name: "Planks x8", station: Station::Workbench, inputs: &[(Item::Wood, 2)], out: (Item::Planks, 8), ticks: 60 },
+    Recipe { name: "Polished stone x4", station: Station::Workbench, inputs: &[(Item::Stone, 4), (Item::Sand, 1)], out: (Item::PolishedStone, 4), ticks: 120 },
+    Recipe { name: "Tiles x6", station: Station::Kiln, inputs: &[(Item::Clay, 2), (Item::Coal, 1)], out: (Item::Tiles, 6), ticks: 120 },
+    Recipe { name: "Carved pillar x2", station: Station::Workbench, inputs: &[(Item::Stone, 4)], out: (Item::CarvedPillar, 2), ticks: 150 },
+    // pigments: ground at the workbench from what the rock gives
+    Recipe { name: "Ochre x4", station: Station::Workbench, inputs: &[(Item::IronOre, 1), (Item::Clay, 1)], out: (Item::Ochre, 4), ticks: 60 },
+    Recipe { name: "Rust x4", station: Station::Workbench, inputs: &[(Item::IronOre, 1)], out: (Item::Rust, 4), ticks: 60 },
+    Recipe { name: "Chalk x4", station: Station::Workbench, inputs: &[(Item::Quartz, 1)], out: (Item::Chalk, 4), ticks: 60 },
+    Recipe { name: "Verdigris x4", station: Station::Workbench, inputs: &[(Item::CopperOre, 1)], out: (Item::Verdigris, 4), ticks: 60 },
+    Recipe { name: "Woad x4", station: Station::Workbench, inputs: &[(Item::Fungus, 2)], out: (Item::Woad, 4), ticks: 60 },
+    Recipe { name: "Soot x4", station: Station::Workbench, inputs: &[(Item::Charcoal, 1)], out: (Item::Soot, 4), ticks: 60 },
+    // furniture
+    Recipe { name: "Table", station: Station::Workbench, inputs: &[(Item::Wood, 4)], out: (Item::Table, 1), ticks: 120 },
+    Recipe { name: "Stool", station: Station::Workbench, inputs: &[(Item::Wood, 2)], out: (Item::Stool, 1), ticks: 60 },
+    Recipe { name: "Nest", station: Station::Workbench, inputs: &[(Item::Wood, 2), (Item::Fungus, 3)], out: (Item::Nest, 1), ticks: 120 },
+    Recipe { name: "Shelf", station: Station::Workbench, inputs: &[(Item::Wood, 4)], out: (Item::Shelf, 1), ticks: 120 },
+    Recipe { name: "Rug", station: Station::Workbench, inputs: &[(Item::Fungus, 4)], out: (Item::Rug, 1), ticks: 90 },
+    Recipe { name: "Banner", station: Station::Workbench, inputs: &[(Item::Fungus, 2), (Item::Wood, 1)], out: (Item::Banner, 1), ticks: 90 },
+    Recipe { name: "Fungus planter", station: Station::Workbench, inputs: &[(Item::Wood, 2), (Item::Fungus, 2), (Item::Dirt, 2)], out: (Item::Planter, 1), ticks: 90 },
     Recipe { name: "TNT", station: Station::Workbench, inputs: &[(Item::Coal, 2), (Item::Sand, 2)], out: (Item::Tnt, 1), ticks: 90 },
 ];
 

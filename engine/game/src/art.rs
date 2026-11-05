@@ -266,6 +266,7 @@ pub fn mat_tex(m: molehill_sim::mat::Mat, x: u32, y: u32, t: u64) -> f32 {
     let h = |a: u32, b: u32, s: u32| (hash3(a, b, s) & 255) as f32 / 255.;
     let v = h(x, y, 31); // per-cell speckle: finer cells, finer grain
     // patterns with a size (bands, bricks, rivets, columns) are laid out in legacy 0.25 m tiles
+    let (cx, cy) = (x, y); // cell coordinates, for patterns finer than a tile (grout, board seams)
     let k = molehill_sim::mat::S as u32; let (x, y) = (x / k, y / k);
     match m {
         M::Granite => if v > 0.9 { 1.22 } else if v < 0.1 { 0.8 } else { 1. },
@@ -285,6 +286,16 @@ pub fn mat_tex(m: molehill_sim::mat::Mat, x: u32, y: u32, t: u64) -> f32 {
         M::IronBeam => { let rivet = x % 3 == 1 && y % 3 == 1; let seam = x % 6 == 0; if rivet { 1.3 } else if seam { 0.8 } else { 1. } }
         M::Roots => if (x + y / 2) % 3 == 0 { 0.8 } else { 1.08 },
         M::Fungus => if v > 0.85 { 1.3 } else { 1. },
+        // decorative blocks
+        M::Planks => { // 2-tile boards with a dark seam under each and staggered butt joints, grain along the board
+            let board = cy / (2 * k); let seam = cy % (2 * k) == 2 * k - 1; let joint = (x + board * 5) % 10 == 0;
+            if seam { 0.72 } else if joint { 0.8 } else { 0.92 + h(board, cx / 3, 61) * 0.06 + (h(0, cy, 62) - 0.5) * 0.1 } }
+        M::Polished => { // smooth slabs with fine joints every metre and a faint diagonal sheen
+            let joint = (cx % (4 * k) == 0) || (cy % (4 * k) == 0); if joint { 0.84 } else if (x + y) % 9 == 0 { 1.1 } else { 1.03 + (v - 0.5) * 0.03 } }
+        M::Tiles => { // 2-tile squares with pale grout, each square glazed a touch differently
+            let (gx, gy) = (cx % (2 * k), cy % (2 * k)); if gx == 2 * k - 1 || gy == 2 * k - 1 { 1.25 } else { 0.94 + h(cx / (2 * k), cy / (2 * k), 63) * 0.12 + if gx == 0 && gy == 0 { 0.1 } else { 0. } } }
+        M::Carved => { // fluted column: grooves and ridges down its length, a band every 3 m
+            if y % 12 == 0 { 1.15 } else { match x % 3 { 0 => 1.12, 1 => 0.8, _ => 0.98 } } }
         _ => 1.,
     }
 }

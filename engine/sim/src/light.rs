@@ -44,6 +44,8 @@ pub mod kinds {
     /// The small glow round the lamp itself (and the mole's own faint glow when the lamp is out).
     pub const LAMP_GLOW: ([f32; 3], f32) = ([0.42, 0.40, 0.3], 3.);
     pub const MOLE_GLOW: ([f32; 3], f32) = ([0.26, 0.23, 0.2], 2.);
+    /// A fungus planter: a soft green glow.
+    pub const PLANTER: ([f32; 3], f32) = ([0.35, 0.75, 0.45], 3.);
     /// A glowmite drifting in a grotto: a small cold green-gold glow. A jar of one carried in the paw.
     pub const GLOWMITE: ([f32; 3], f32) = ([0.42, 0.62, 0.3], 2.5);
     pub const GLOWMITE_JAR: ([f32; 3], f32) = ([0.6, 0.85, 0.42], 4.);
@@ -72,13 +74,13 @@ pub fn surface_sources(g: &Grid, r: (usize, usize, usize, usize), margin: usize)
 
 pub struct Light {
     pub w: usize, pub h: usize, pub rgb: Vec<[f32; 3]>, pub rect: (usize, usize, usize, usize),
-    trans: [f32; 32], diag: f32, bounce: f32, liquid: f32,
+    trans: [f32; crate::mat::NMAT], diag: f32, bounce: f32, liquid: f32,
     direct: Vec<[f32; 3]>, scratch: Vec<f32>,
 }
 
 impl Light {
     pub fn new(w: usize, h: usize) -> Self {
-        let mut trans = [0.; 32];
+        let mut trans = [0.; crate::mat::NMAT];
         for (i, p) in PROPS.iter().enumerate() {
             trans[i] = match p.kind { Kind::Empty | Kind::Gas => 0.90, Kind::Liquid => 0.80, _ => (1. - p.opacity as f32 / 255.) * 0.55 };
         }
