@@ -29,7 +29,7 @@ const CH: usize = 64 * S; // texture chunk size in cells (16 m)
 const BG_RES: usize = S;
 const FAR: usize = 4; // chunk rows drawn beyond each end of the simulated window (the camera roams there; nothing simulates)
 
-#[derive(Resource)] pub struct Game { pub w: World, chunks: Vec<Handle<Image>>, buf: Vec<u8>, pub uploads: usize, acc: f32, pub paused: bool, speed: u32, pub frame: u64, last_light: u64, msg: String, pub help: bool, ev: Vec<sw::Event>, shake_off: Vec2, autosave: f32, last_oy: i64, far: Vec<Handle<Image>>, far_done: Vec<bool>, pub inv_open: bool, pub aim: Option<(usize, usize, bool)>,
+#[derive(Resource)] pub struct Game { pub w: World, chunks: Vec<Handle<Image>>, buf: Vec<u8>, pub uploads: usize, acc: f32, pub paused: bool, speed: u32, pub frame: u64, last_light: u64, msg: String, pub help: bool, ev: Vec<sw::Event>, shake_off: Vec2, autosave: f32, last_oy: i64, far: Vec<Handle<Image>>, far_done: Vec<bool>, far_cells: std::collections::HashMap<i64, Option<(Vec<u8>, Vec<u8>)>>, pub inv_open: bool, pub aim: Option<(usize, usize, bool)>,
     pub slots: Vec<Option<Thing>>, pub held: Option<Thing>, pub hot: usize, pub sel_t: f32, pub toasts: Vec<(String, f32)>, log_seen: u64, pub show_dev: bool, disp: Vec2, pub seed: u32,
     /// chosen brush radius per brush item (`brush_slot`), 0 = the item's default
     pub brush: [f32; 7],
@@ -100,7 +100,30 @@ pub fn storage_get(slot: &str) -> Option<Vec<u8>> {
 }
 pub fn storage_put(slot: &str, b: &[u8]) -> Result<(), String> {
     #[cfg(target_arch = "wasm32")] { let st = web_sys::window().and_then(|w| w.local_storage().ok().flatten()).ok_or("no localStorage")?; st.set_item(slot, &molehill_sim::save::to_b64(b)).map_err(|_| "storage full".to_string()) }
-    #[cfg(not(target_arch = "wasm32"))] { std::fs::write(format!("{slot}.save"), b).map_err(|e| e.to_string()) }
+    #[cfg(not(target_arch = "wasm32"))] { let f = format!("{slot}.save"); if let Some(d) = std::path::Path::new(&f).parent() { let _ = std::fs::create_dir_all(d); } std::fs::write(f, b).map_err(|e| e.to_string()) }
+}
+fn storage_del(key: &str) {
+    #[cfg(target_arch = "wasm32")] { if let Some(st) = web_sys::window().and_then(|w| w.local_storage().ok().flatten()) { let _ = st.remove_item(key); } }
+    #[cfg(not(target_arch = "wasm32"))] { let _ = std::fs::remove_file(format!("{key}.save")); }
+}
+/// The band keys stored under a slot (`slot/<band key>`).
+fn storage_bands(slot: &str) -> Vec<String> {
+    #[cfg(target_arch = "wasm32")] { let Some(st) = web_sys::window().and_then(|w| w.local_storage().ok().flatten()) else { return vec![] };
+        let pre = format!("{slot}/"); (0..st.length().unwrap_or(0)).filter_map(|i| st.key(i).ok().flatten()).filter(|k| k.starts_with(&pre)).collect() }
+    #[cfg(not(target_arch = "wasm32"))] { std::fs::read_dir(slot).map(|d| d.filter_map(|e| e.ok()?.file_name().into_string().ok()?.strip_suffix(".save").map(|k| format!("{slot}/{k}"))).collect()).unwrap_or_default() }
+}
+/// Save the world into a slot as bands (see `sim::band`): only bands not stored yet are written, then
+/// the manifest, then bands no longer named are removed. A failed write leaves the previous save whole.
+pub fn save_slot(slot: &str, w: &World) -> Result<(), String> {
+    let p = molehill_sim::save::save_parts(w);
+    let have: std::collections::HashSet<String> = storage_bands(slot).into_iter().collect(); let mut live = std::collections::HashSet::new();
+    for (k, b) in &p.bands { let key = format!("{slot}/{k}"); if !have.contains(&key) { storage_put(&key, b)?; } live.insert(key); }
+    let mut m = p.manifest; m.push(0); storage_put(slot, &m)?;
+    for k in have.difference(&live) { storage_del(k); }
+    Ok(())
+}
+pub fn load_slot(slot: &str) -> Option<Result<World, String>> {
+    let m = storage_get(slot)?; Some(molehill_sim::save::load_with(&m, &mut |k| storage_get(&format!("{slot}/{k}"))))
 }
 fn cell_to_world(x: f32, y: f32) -> Vec2 { Vec2::new(x * CPX - W as f32 * CPX / 2., H as f32 * CPX / 2. - y * CPX) }
 fn world_to_cell(p: Vec2) -> (i32, i32) { (((p.x + W as f32 * CPX / 2.) / CPX).floor() as i32, ((H as f32 * CPX / 2. - p.y) / CPX).floor() as i32) }
@@ -255,20 +278,20 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, mut fonts: R
         px: images.add(art::image(1, 1, vec![255; 4], true)),
     };
     commands.insert_resource(sp);
-    let disp = Vec2::new(sx, sy + 1.5 * SF); commands.insert_resource(Game { w, chunks, buf: vec![1; W * H * 4], uploads: 0, acc: 0., paused: true, speed: 1, frame: 0, last_light: 0, msg: String::new(), help: false, ev: vec![], shake_off: Vec2::ZERO, autosave: 0., last_oy: oy0, far, far_done, inv_open: false, aim: None, slots: default_slots(), held: None, hot: 0, sel_t: 0., toasts: vec![], log_seen: 0, show_dev: false, disp, seed, brush: [0.; 7], demo_right: false, wheel: Default::default(), mouse_latch: false, jump_tap: false, jump_key: false, w_jump: false, charge: None, throw_aim: (1., -1.), pops: vec![], look: Vec2::ZERO });
+    let disp = Vec2::new(sx, sy + 1.5 * SF); commands.insert_resource(Game { w, chunks, buf: vec![1; W * H * 4], uploads: 0, acc: 0., paused: true, speed: 1, frame: 0, last_light: 0, msg: String::new(), help: false, ev: vec![], shake_off: Vec2::ZERO, autosave: 0., last_oy: oy0, far, far_done, far_cells: Default::default(), inv_open: false, aim: None, slots: default_slots(), held: None, hot: 0, sel_t: 0., toasts: vec![], log_seen: 0, show_dev: false, disp, seed, brush: [0.; 7], demo_right: false, wheel: Default::default(), mouse_latch: false, jump_tap: false, jump_key: false, w_jump: false, charge: None, throw_aim: (1., -1.), pops: vec![], look: Vec2::ZERO });
 }
 
-pub fn save_now(g: &mut Game) { let b = molehill_sim::save::save(&g.w); g.msg = match storage_put("molehill-manual", &b) { Ok(()) => "Game saved".into(), Err(e) => format!("Save failed: {e}") }; }
-pub fn save_auto(g: &Game) { let b = molehill_sim::save::save(&g.w); let _ = storage_put("molehill-auto", &b); }
+pub fn save_now(g: &mut Game) { g.msg = match save_slot("molehill-manual", &g.w) { Ok(()) => "Game saved".into(), Err(e) => format!("Save failed: {e}") }; }
+pub fn save_auto(g: &mut Game) { if let Err(e) = save_slot("molehill-auto", &g.w) { g.msg = format!("Autosave failed: {e}"); } }
 fn reset_view(g: &mut Game, commands: &mut Commands) {
-    g.last_oy = g.w.oy; g.far_done.iter_mut().for_each(|v| *v = false); commands.insert_resource(make_bg(&g.w)); g.buf.iter_mut().for_each(|v| *v = 1);
+    g.last_oy = g.w.oy; g.far_done.iter_mut().for_each(|v| *v = false); g.far_cells.clear(); commands.insert_resource(make_bg(&g.w)); g.buf.iter_mut().for_each(|v| *v = 1);
     g.w.pl.sync = None; g.inv_open = false; g.help = false; g.acc = 0.;
 }
 /// Start a fresh holt (world) from a seed.
 pub fn begin(g: &mut Game, commands: &mut Commands, seed: u32) { g.w = make_world(seed); g.seed = seed; reset_view(g, commands); g.msg = format!("Holt {seed}"); }
 /// Load the manual save (or the autosave). Returns false if there is none or it failed.
 pub fn load_saved(g: &mut Game, commands: &mut Commands) -> bool {
-    match storage_get("molehill-manual").or_else(|| storage_get("molehill-auto")).map(|b| molehill_sim::save::load(&b)) {
+    match load_slot("molehill-manual").or_else(|| load_slot("molehill-auto")) {
         Some(Ok(w)) if w.g.w != W || w.g.h != H => { g.msg = format!("Load failed: save is {}x{}, this build is {W}x{H}", w.g.w, w.g.h); false }
         Some(Ok(w)) => { g.w = w; for v in g.w.inv.iter_mut() { *v = (*v).max(999); } reset_view(g, commands); g.msg = "Game loaded".into(); true }
         Some(Err(e)) => { g.msg = format!("Load failed: {e}"); false } None => { g.msg = "No save yet".into(); false } }
@@ -426,13 +449,13 @@ fn simulate(mut commands: Commands, mut g: ResMut<Game>, time: Res<Time>, mut ca
             if g.jump_tap { g.jump_tap = false; g.w.input.jump = g.jump_key; } } // the tap was seen: back to the key's state
         g.pops.retain(|p| now - p.4 < 0.25);
         g.autosave += time.delta_secs();
-        if g.autosave > 30. { g.autosave = 0.; let b = molehill_sim::save::save(&g.w); let _ = storage_put("molehill-auto", &b); }
+        if g.autosave > 30. { g.autosave = 0.; save_auto(&mut g); }
         if g.acc > 4. { g.acc = 0.; }
     }
     let (Ok((mut ct, _)), Ok(win)) = (cam.single_mut(), win.single()) else { return };
     if g.w.oy != g.last_oy { // window slid: keep the camera on the same rock, redraw everything
         let d = (g.w.oy - g.last_oy) as f32; ct.translation.y += d * CPX; g.last_oy = g.w.oy;
-        commands.insert_resource(make_bg(&g.w)); g.buf.iter_mut().for_each(|v| *v = 1); g.far_done.iter_mut().for_each(|v| *v = false);
+        commands.insert_resource(make_bg(&g.w)); g.buf.iter_mut().for_each(|v| *v = 1); g.far_done.iter_mut().for_each(|v| *v = false); g.far_cells.clear();
     }
     // camera shake (quakes, explosions): remove last frame's offset, add a new one
     let off = g.shake_off; ct.translation.x -= off.x; ct.translation.y -= off.y;
@@ -584,8 +607,9 @@ fn render_far(gm: &mut Game, ct: &Transform, win: &Window, images: &mut Assets<I
         let x0 = (cx * CH) as i32;
         let m8 = 8 * S as i32; if x0 + CH as i32 <= vx0 - m8 || x0 > vx1 + m8 || y0 + CH as i32 <= vy0 - m8 || y0 > vy1 + m8 { continue; }
         if budget == 0 { break; } budget -= 1;
-        let w = &gm.w; let mut data = vec![0u8; CH * CH * 4];
-        for r in 0..CH { let wy = w.oy + (y0 + r as i32) as i64; let row = w.cache.get(&wy);
+        let Game { w, far_cells, .. } = &mut *gm; let mut data = vec![0u8; CH * CH * 4];
+        for r in 0..CH { let wy = w.oy + (y0 + r as i32) as i64; let s0 = molehill_sim::band::band_start(w.oy, wy);
+            let row = far_cells.entry(s0).or_insert_with(|| w.stored_cells(s0)).as_ref().map(|(m, f)| { let o = (wy - s0) as usize * W; (&m[o..o + W], &f[o..o + W]) });
             for c in 0..CH { let x = cx * CH + c;
                 let (m, seen) = match row { Some((m, f)) => (m[x], f[x] & F_SEEN != 0), None => (w.gen.cell(x, wy, W).0, false) };
                 let mm = Mat::from_u8(m); let p = &PROPS[m as usize]; let v = (hash3(x as u32, wy as u32, m as u32) & 255) as f32 / 255.;

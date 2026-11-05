@@ -43,7 +43,7 @@ expect 60 rise >= 4.5
 expect 120 grounded == 1
 ```
 
-* **Directives** drive the mole and the world: `hold` keys over a tick range, `mine` / `dig` a cell, `tool` and `brush` to pick a tool and size, `place` / `put` blocks, `device` / `use` / `pickup` / `wire` for copperline and devices, `explode`, `give` items, and `saveload` to round-trip the world mid-run.
+* **Directives** drive the mole and the world: `hold` keys over a tick range, `mine` / `dig` a cell, `tool` and `brush` to pick a tool and size, `place` / `put` blocks, `device` / `use` / `pickup` / `wire` for copperline and devices, `explode`, `give` items, `saveload` to round-trip the world mid-run, and `slide` to send the scenario's rows into stored bands and back.
 * **Assertions** (`expect T <var> <op> <n>`) read the player (`px`, `vx`, `rise`, `grounded`, `cling`, `hp`, `flash`…), the map (`count:Water`, `static:WoodBeam`, `is:DX,DY,Mat`, `util:DX,DY` stress utilisation, `strain:DX,DY` the hover strain level, `awake` chunks), devices (`dev:`, `on:`, `lit:`, `wire:`) and events (`ev:Explode`).
 * **Output** is easy to grep: `PASS` / `FAIL` per file, one `FAIL <file>:<line> tick T: …` per broken assertion, optional `DUMP` JSON and `ASCII` maps, and a final `N scenarios, K failed` (exit code 1 on failure).
 

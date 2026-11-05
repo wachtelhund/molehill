@@ -550,6 +550,94 @@ fn press(w: &mut World, n: usize, f: impl Fn(&mut Input)) -> (f32, f32) { let (m
     assert_eq!(wheel_delta(-100., 0., Mods::default()), 0., "a sideways swipe without Shift is not the wheel");
 }
 
+// ---- bands: the endless world off-window, and chunked saves ----
+mod bands {
+    use molehill_sim::{world::*, mat::{S, Mat}, logic::Dev, craft::{Item, Station}, save, band::BH};
+    use std::collections::HashMap;
+    /// A world with things built near the top of the window, at rows that leave it on a slide down.
+    fn built() -> (World, Snap) {
+        let mut w = World::new(256 * S, 256 * S, 5); w.disasters.enabled = false;
+        let (x, y) = (100, 40);
+        for yy in 32..48 { for xx in 96..152 { let i = w.g.idx(xx, yy); w.g.set(i, Mat::Empty); } }
+        let b = w.logic.block_of(x, y); let gg = &mut w.g; assert!(w.logic.place(gg, Dev::Lever, b));
+        let t = w.logic.block_of(x + 40, y); let gg = &mut w.g; assert!(w.logic.place(gg, Dev::Tnt, t)); w.logic.burn[t] = 50;
+        let c = w.logic.block_of(x + 20, y); w.logic.wire[c] = 1;
+        w.torches.push((x + 60, y)); w.drops.push(Drop::at((x + 70) as f32 + 0.5, (y + 1) as f32 + 0.5, Item::Coal, 3));
+        w.buildings.push(Building { kind: Station::Kiln, x: x + 120, y: 50, built: true, claimed: false });
+        w.farms.push(Farm { x: x + 200, y: 45, growth: 0.5, why: 0 });
+        let a = w.air.block(x, y); w.air.co2[a] = 0.7;
+        let s = snap(&w); (w, s)
+    }
+    #[derive(PartialEq, Debug)] struct Snap { oy: i64, cells: Vec<u8>, devs: Vec<(usize, u8, i16, u8)>, torches: Vec<(usize, usize)>, drops: Vec<(usize, usize, u32)>, blds: Vec<(usize, usize, bool)>, farms: Vec<(usize, usize)>, co2: u8 }
+    fn snap(w: &World) -> Snap {
+        let top = 64 * w.g.w; let mut t = w.torches.clone(); t.sort();
+        Snap { oy: w.oy, cells: w.g.mat[..top].to_vec(),
+            devs: (0..w.logic.dev.len()).filter(|&b| w.logic.dev[b] != 0 || w.logic.wire[b] != 0).map(|b| (b, w.logic.dev[b], w.logic.burn[b], w.logic.wire[b])).collect(),
+            torches: t, drops: w.drops.iter().map(|d| (d.x, d.y, d.n)).collect(), blds: w.buildings.iter().map(|b| (b.x, b.y, b.built)).collect(),
+            farms: w.farms.iter().map(|f| (f.x, f.y)).collect(), co2: (w.air.co2[w.air.block(100, 40)] / 1.5 * 255.) as u8 }
+    }
+    const SL: i64 = 128 * S as i64;
+
+    /// Devices, copperline, lit fuses, torches, drops, stations, plots and air used to vanish when their rows
+    /// left the window; now their band keeps them and brings them back.
+    #[test] fn things_survive_leaving_the_window() {
+        let (mut w, before) = built();
+        w.shift(SL); assert_eq!(w.bands.len(), SL as usize / BH);
+        assert!(w.torches.iter().all(|t| t.0 != 160), "the torch left with its band");
+        let up: Vec<i64> = w.bands.keys().copied().collect();
+        w.shift(-SL); assert!(up.iter().all(|k| !w.bands.contains_key(k)), "back in the window, those bands are no longer stored");
+        let after = snap(&w); assert_eq!(after.devs, before.devs); assert_eq!(after, before);
+        // a lit charge keeps burning where it was: it really went with the band
+        let t = w.logic.block_of(140, 40); assert_eq!(w.logic.burn[t], 50);
+    }
+    #[test] fn save_keeps_off_window_bands() {
+        let (mut w, before) = built(); w.shift(SL); w.shift(SL);
+        // one blob
+        let mut l = save::load(&save::save(&w)).expect("load");
+        assert_eq!(l.oy, w.oy); assert_eq!(l.bands.len(), w.bands.len());
+        l.shift(-SL); l.shift(-SL); assert_eq!(snap(&l), before);
+        // parts: manifest + blobs by key
+        let p = save::save_parts(&w); let store: HashMap<String, Vec<u8>> = p.bands.iter().map(|(k, b)| (k.clone(), b.to_vec())).collect();
+        let mut m = p.manifest.clone(); m.push(0);
+        let mut l = save::load_with(&m, &mut |k| store.get(k).cloned()).expect("load parts");
+        l.shift(-SL); l.shift(-SL); assert_eq!(snap(&l), before);
+    }
+    /// An autosave writes the window and new bands only: far bands keep their keys while unchanged.
+    #[test] fn autosave_writes_only_changed_bands() {
+        let (mut w, _) = built(); w.shift(SL);
+        let k1: Vec<String> = save::save_parts(&w).bands.iter().map(|b| b.0.clone()).collect();
+        let i = w.g.idx(300, 300); w.g.set(i, Mat::IronBeam); // one change in one window band
+        let p2 = save::save_parts(&w); let k2: Vec<String> = p2.bands.iter().map(|b| b.0.clone()).collect();
+        let new = k2.iter().filter(|k| !k1.contains(k)).count();
+        assert_eq!(new, 1, "one changed band, one new key");
+        for (wy0, b) in &w.bands { assert!(k1.contains(&save::band_key(*wy0, b.hash)), "far band {wy0} kept its key"); }
+        assert!(p2.manifest.len() < 16 * 1024, "the manifest stays small: {} bytes", p2.manifest.len());
+        // digging deeper adds bands without rewriting the old ones
+        w.shift(SL); let k3: Vec<String> = save::save_parts(&w).bands.iter().map(|b| b.0.clone()).collect();
+        assert!(k1.iter().filter(|k| k3.contains(k)).count() >= SL as usize / BH, "old far bands are reused");
+    }
+    #[test] fn missing_or_damaged_bands() {
+        let (mut w, _) = built(); w.shift(SL);
+        let p = save::save_parts(&w); let mut store: HashMap<String, Vec<u8>> = p.bands.iter().map(|(k, b)| (k.clone(), b.to_vec())).collect();
+        let mut m = p.manifest.clone(); m.push(0);
+        let far: Vec<String> = w.bands.iter().map(|(wy0, b)| save::band_key(*wy0, b.hash)).collect();
+        store.remove(&far[0]); if let Some(b) = store.get_mut(&far[1]) { let n = b.len() / 2; b[n] ^= 0x55; }
+        let l = save::load_with(&m, &mut |k| store.get(k).cloned()).expect("far bands lost is not fatal");
+        assert_eq!(l.bands.len(), far.len() - 2, "the missing and the damaged band are dropped");
+        assert!(l.log.iter().any(|(_, s)| s.contains("missing")));
+        let win = p.bands.iter().map(|b| b.0.clone()).find(|k| !far.contains(k)).unwrap(); store.remove(&win);
+        assert!(save::load_with(&m, &mut |k| store.get(k).cloned()).is_err(), "a hole around the mole fails the load");
+    }
+    /// v3 saves (one blob, a row cache of cells) from before bands still load; the cached rows become bands.
+    #[test] fn v3_save_still_loads() {
+        let mut w = save::load(include_bytes!("data/v3_cpm8.bin")).expect("v3 loads");
+        assert_eq!(w.bands.len(), SL as usize / BH, "the row cache became bands");
+        let wy0 = *w.bands.keys().next().unwrap(); let (m, _) = w.stored_cells(wy0).unwrap();
+        w.shift(-SL); assert!(!w.bands.contains_key(&wy0)); assert_eq!(&w.g.mat[..m.len()], &m[..], "rows come back from the converted band");
+        for _ in 0..30 { w.step(); }
+        let l = save::load(&save::save(&w)).expect("and saves again as v4"); assert_eq!(l.oy, w.oy);
+    }
+}
 /// The material table is the one place material behaviour lives: its rows must hang together.
 #[test]
 fn material_table_is_consistent() {
