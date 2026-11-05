@@ -1,0 +1,22 @@
+// An overloaded wood beam fails by stress: a long span under a deep sand pile cracks, breaks
+// into loose wooden debris and drops; it doesn't hang in the air or vanish.
+map
+#########################################
+###ssssssssssssssssssssssssssssssssss####
+###ssssssssssssssssssssssssssssssssss####
+###ssssssssssssssssssssssssssssssssss####
+###ssssssssssssssssssssssssssssssssss####
+###ssssssssssssssssssssssssssssssssss####
+###ssssssssssssssssssssssssssssssssss####
+###bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb####
+#..................................######
+#..................................######
+#..................................######
+#..@...............................######
+#########################################
+end
+expect 1 static:WoodBeam == 34
+expect 300 static:WoodBeam <= 2          // only the two end cells resting on the granite ledge remain
+expect 300 is:10,0,WoodBeam == 1         // wooden debris lies on the floor
+expect 300 count:WoodBeam >= 20
+expect 300 count:Sand >= 150
