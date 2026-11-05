@@ -159,6 +159,7 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `survival_kit.scn` | Survival's start kit; only owned tools dig (granite holds against a pickaxe); a save keeps the mode |
 | `survival_food.scn` | Hunger drains; the Delver eats grubs then roots below 40; starving hurts; root tangles give roots |
 | `survival_lamp_oil.scn` | The headlamp burns oil, refills from the pack, then presses fungus, then goes dark; a torch needs oil |
+| `survival_light_fuel_messages.scn` | With no oil spare the headlamp warns once ~30 s before it goes dark, then says it's out and what to gather; a torch refused for lack of oil says so (not "needs open space"); fungus found relights it with a message; with oil spare it never warns |
 | `survival_death_drop.scn` | Death leaves the whole pack where you fell; you wake in the burrow and walk back for it |
 | `survival_no_hunger.scn` | Hunger off: food never drains or gets eaten, the rest of Survival holds, and the option survives a save |
 | `creative_harmless.scn` | Creative: 999 of everything, a long fall and an empty belly don't hurt, the lamp needs no oil |

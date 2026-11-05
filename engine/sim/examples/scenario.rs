@@ -277,7 +277,7 @@ fn run_file(path: &str, json: bool) -> bool {
                     if let Some((cx, cwy)) = ru.chest { r.w.chests.push(molehill_sim::world::Chest { x: cx, y: (cwy - oy) as usize, opened: false, ancient: Some(ru.id) }); }
                     r.w.ruins.push(ru); }
                 Act::Set(t, v, x) if *t == tick => { let m = &mut r.w.moles[0]; match v.as_str() { "hp" => m.hp = *x, "hunger" => m.hunger = *x, "breath" => m.breath = *x, "oil" => r.w.lamp_oil = *x, o => panic!("{path}: can't set {o}") } }
-                Act::PlaceTorch(t, dx, dy) if *t == tick => { let (x, y) = r.at(*dx, *dy); if !r.w.place_torch(x, y) { println!("  NOTE {path} tick {tick}: torch at {dx},{dy} refused"); } }
+                Act::PlaceTorch(t, dx, dy) if *t == tick => { let (x, y) = r.at(*dx, *dy); if let Err(e) = r.w.try_place_torch(x, y) { r.w.say(e.into()); println!("  NOTE {path} tick {tick}: torch at {dx},{dy} refused: {e}"); } }
                 Act::Throw(t, it, dx, dy, pw) if *t == tick => { let item = item_by_name(it).unwrap_or_else(|| panic!("{path}: unknown item {it}"));
                     if let Err(e) = r.w.throw_item(item, (*dx, *dy), *pw) { println!("  NOTE {path} tick {tick}: throw {it}: {e}"); } }
                 Act::Loose(t, it, dx, dy, vx, vy) if *t == tick => { let item = item_by_name(it).unwrap_or_else(|| panic!("{path}: unknown item {it}"));

@@ -563,7 +563,7 @@ fn input(mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<Button
         Some(Thing::Item(it)) if lp && it.pigment().is_some() => { let r = brush_r(&g, sw::Brush::Place(it)); if let Err(e) = g.w.paint(cx, cy, it, r) { if lj { g.msg = format!("Can't paint: {e}"); } } }
         Some(Thing::Item(it)) if lj && it.furn().is_some() => { if let Err(e) = g.w.place_furniture(it, cx, cy) { g.msg = format!("Can't place: {e}"); } }
         Some(Thing::Item(it)) if lj && molehill_sim::transport::is_machine(it) => { if let Err(e) = g.w.place_transport(it, cx, cy) { g.msg = format!("Can't place: {e}"); } }
-        Some(Thing::Item(Item::Torch)) if lj => { if !g.w.place_torch(cx, cy) { g.msg = "Needs open space".into(); } }
+        Some(Thing::Item(Item::Torch)) if lj => { if let Err(e) = g.w.try_place_torch(cx, cy) { g.msg = e.into(); } }
         // TNT goes down inert; right mouse lights it, or wire it to a lever / knot / listener
         Some(Thing::Item(Item::Tnt)) if lj => { if g.w.logic.dev[blk] != 0 { g.w.use_device(cx, cy); } else if let Err(e) = g.w.place_device(Dev::Tnt, cx, cy) { g.msg = format!("Can't place: {e}"); } }
         // pack items that are exactly one device place it (knots and thrummers come in several kinds: use their device slots)

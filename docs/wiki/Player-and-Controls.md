@@ -30,7 +30,7 @@ You play one Delver: a body about **45 × 73 cm** (1.8 × 2.9 tiles of 0.25 m, i
 | `+` / `-`, `Ctrl` / `Cmd` + wheel (or pinch) | Zoom (clamped to scale 0.12–0.75 and saved) |
 | `J` | Journal: the Lid fragments and Ancient ruin carvings you've found (see [Lore](Lore.md#the-lid-in-the-game)) |
 | `V` | Wiring view on / off (see [Devices and Copperline](Devices-and-Copperline.md#wiring-view)) |
-| `G` | Headlamp lit / out (also in Settings; saved). The fungus-oil lamp on the mole's hat throws a beam toward the cursor and reveals the way ahead. In Survival it burns a measure of fungus oil every 3 minutes and goes dark when there's no oil or fungus left |
+| `G` | Headlamp lit / out (also in Settings; saved). The fungus-oil lamp on the mole's hat throws a beam toward the cursor and reveals the way ahead. In Survival it burns a measure of fungus oil every 3 minutes and goes dark when there's no oil or fungus left. The message line warns once about 30 s before the last measure runs out (only when none is spare), says when it goes dark and what to gather (2 fungus press into a measure), and says when found fungus relights it. A torch that can't be lit for lack of oil says so |
 | `H` | Controls overlay |
 | `Esc` | Pause menu, or close a panel |
 | `K` / `L` | Quick save / quick load |

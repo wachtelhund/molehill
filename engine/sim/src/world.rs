@@ -185,7 +185,7 @@ pub struct World {
     pub caught: std::collections::HashMap<(u32, u8), u64>,
     /// Survival, Creative, or Plain (the bare rules: tests and scenarios); `rules` is what the mode switches on
     /// (see `survival.rs`). `lamp_oil` = seconds of oil left in the headlamp.
-    pub mode: crate::survival::Mode, pub rules: crate::survival::Rules, pub lamp_oil: f32, pub lamp_dry: bool,
+    pub mode: crate::survival::Mode, pub rules: crate::survival::Rules, pub lamp_oil: f32, pub lamp_dry: bool, /** the low-oil warning has been given for this measure */ pub lamp_low: bool,
     /// ruins of the Ancients touching the window (refreshed with the chests); the ones already visited (ids);
     /// relics found (bit k = `ruins::RELICS[k]`): each turns up once
     pub ruins: Vec<crate::ruins::Ruin>, pub ruins_seen: std::collections::HashSet<u32>, pub relics: u8,
@@ -212,7 +212,7 @@ impl World {
         World {
             st: Stress::new(w * h), light: Light::new(w, h), tick: 0, inv: [0; NITEM], dig_acc: [0; NMAT], place_acc: [0; 12], desig: vec![0; w * h],
             moles: vec![], drops: vec![], stockpile: (0, 0, 0, 0), buildings: vec![], torches: vec![], chests: vec![], furniture: vec![], paint_acc: 0,
-            quest: 0, log: vec![], discovered: [false; NMAT], chests_opened: 0, pillars: 0, max_depth: 0., craft_queue: vec![], gear: Gear::default(), known: [false; NITEM], mode: Default::default(), rules: Default::default(), lamp_oil: 0., lamp_dry: false, ruins: vec![], ruins_seen: Default::default(), relics: 0, crumbled: 0,
+            quest: 0, log: vec![], discovered: [false; NMAT], chests_opened: 0, pillars: 0, max_depth: 0., craft_queue: vec![], gear: Gear::default(), known: [false; NITEM], mode: Default::default(), rules: Default::default(), lamp_oil: 0., lamp_dry: false, lamp_low: false, ruins: vec![], ruins_seen: Default::default(), relics: 0, crumbled: 0,
             light_rect: (0, 0, w - 1, h - 1), events: vec![], marks: vec![], react_pending: false, logic: Logic::new(w, h), disasters: Disasters::new(seed), shake: 0., air: Air::new(w, h), farms: vec![], harvested: 0, input: Input::default(), pl: Player::default(), gen: gn, oy, bands: Default::default(), opened: Default::default(), clues: vec![], found_clues: Default::default(), journal: vec![], grottos: vec![], caught: Default::default(), keep_blast_field: false, blast_field: vec![], debris: vec![], waves: vec![], tr: Default::default(), blasts_run: 0, info, g,
         }
     }
@@ -428,10 +428,13 @@ impl World {
             else if self.g.mat[i] == 0 || self.g.m(i).kind() != Kind::Solid { self.desig[i] = code; }
         } }
     }
-    pub fn place_torch(&mut self, x: usize, y: usize) -> bool {
-        if self.inv[Item::Torch as usize] == 0 || self.g.is_solidish(self.g.idx(x, y)) { return false; }
-        if self.rules.fuel && !self.take_oil() { self.say("A torch needs fungus oil to burn".into()); return false; }
-        self.inv[Item::Torch as usize] -= 1; self.torches.push((x, y)); self.events.push(Event::Place); self.marks.push((1, x as f32 + 0.5, y as f32 + 0.5, 0.6 * SF)); true
+    pub fn place_torch(&mut self, x: usize, y: usize) -> bool { self.try_place_torch(x, y).is_ok() }
+    /// Set a torch down at (x, y), or say why not: none left, no room, or (Survival) no oil to soak it.
+    pub fn try_place_torch(&mut self, x: usize, y: usize) -> Result<(), &'static str> {
+        if self.inv[Item::Torch as usize] == 0 { return Err("No torches left"); }
+        if self.g.is_solidish(self.g.idx(x, y)) { return Err("Needs open space"); }
+        if self.rules.fuel && !self.take_oil() { self.events.push(Event::Warning); return Err("No fungus oil to soak the torch: gather 2 fungus or find fungus oil"); }
+        self.inv[Item::Torch as usize] -= 1; self.torches.push((x, y)); self.events.push(Event::Place); self.marks.push((1, x as f32 + 0.5, y as f32 + 0.5, 0.6 * SF)); Ok(())
     }
     pub fn place_building(&mut self, kind: Station, x: usize, y: usize) -> Result<(), &'static str> {
         if self.buildings.iter().any(|b| b.kind == kind) { return Err("already have one"); }
