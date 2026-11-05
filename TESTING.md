@@ -79,6 +79,7 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 
 | file | checks |
 |---|---|
+| `air_turn.scn` | Reversing in mid-air takes under 5 ticks; letting go in the air coasts instead of braking |
 | `run_jump.scn` | Top speed in under 8 ticks; full-jump height 4.5-9 cells; lands |
 | `coyote.scn` / `coyote_late.scn` | A jump 4 ticks after leaving a ledge works; 12 ticks after, it doesn't |
 | `wall_climb.scn` | Cling to a wall, then climb more than 6 cells with W |

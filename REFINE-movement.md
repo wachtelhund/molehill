@@ -26,5 +26,8 @@ Polish only: no new features or concepts. Each entry is one commit.
    bite aimed level with the body (or straight up/down) also clears a body-sized passage to the aim point
    (`World::passage_cells`, at most 6 cells, only cells the tool can dig). Scenarios: `shaft_jump`,
    `tunnel_mouth`, `dig_tunnel`, `dig_tunnel_high`; harness `dig` directive (aim relative to the mole).
+4. **Air control and climbing.** `air_accel` 260 -> 480: reversing in mid-air took about 7 ticks and now takes
+   about 4. A new `air_decel` (60) applies when no direction is held, so letting go in the air coasts and keeps
+   wall-jump momentum instead of braking like the ground does. `climb` 9 -> 10.5. Scenario: `air_turn`.
 
 ## Open issues

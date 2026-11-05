@@ -1,0 +1,27 @@
+// Air control is near-instant: running right, jump, then reverse in mid-air. Within 5 ticks of pressing
+// left the mole is moving left at most of its run speed, and it is still airborne.
+map
+##########################################
+#........................................#
+#........................................#
+#........................................#
+#........................................#
+#........................................#
+#........................................#
+#........................................#
+#..................@.....................#
+##########################################
+end
+hold 1-10 right
+hold 11-14 right jump
+hold 15-19 left jump
+expect 14 vx > 14
+expect 19 vx < -11
+expect 19 grounded == 0
+// letting go in the air coasts (gentle air drag), it doesn't brake like the ground does
+hold 50-60 right
+hold 61-64 right jump
+hold 65-71 jump
+expect 60 grounded == 1
+expect 71 vx > 7.5
+expect 71 grounded == 0

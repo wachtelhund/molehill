@@ -38,12 +38,13 @@ pub const BITES: [f32; 4] = [1.8, 2.5, 3.2, 4.2];
 pub const BODY_HW: f32 = 0.9; pub const BODY_H: f32 = 2.9;
 /// Movement tuning (cells, seconds). One place to tweak the feel.
 #[derive(Clone, Copy, Debug)]
-pub struct Tune { pub run: f32, pub ground_accel: f32, pub ground_decel: f32, pub air_accel: f32, pub gravity: f32, pub fall_mul: f32, pub cut_mul: f32, pub jump_v: f32, pub terminal: f32,
+pub struct Tune { pub run: f32, pub ground_accel: f32, pub ground_decel: f32, pub air_accel: f32, /// air drag with no direction held (keeps wall-jump and run-off momentum)
+    pub air_decel: f32, pub gravity: f32, pub fall_mul: f32, pub cut_mul: f32, pub jump_v: f32, pub terminal: f32,
     pub coyote: f32, pub buffer: f32, pub climb: f32, pub slide: f32, pub wall_jump_x: f32, pub wall_jump_y: f32, pub wall_lock: f32, pub step: f32, pub mantle: f32, /// corner correction (cells): head slides round corners, feet slot into tunnel mouths
     pub nudge: f32,
     pub swim_mul: f32, pub swim_grav: f32, pub buoyancy: f32, pub swim_up: f32, pub swim_max: f32, pub lava_dps: f32, pub safe_fall: usize }
-pub const TUNE: Tune = Tune { run: 15., ground_accel: 900., ground_decel: 1400., air_accel: 260., gravity: 150., fall_mul: 1.7, cut_mul: 3.0, jump_v: 42., terminal: 60.,
-    coyote: 0.1, buffer: 0.1, climb: 9., slide: 3., wall_jump_x: 17., wall_jump_y: 36., wall_lock: 0.13, step: 2., mantle: 3., nudge: 0.6,
+pub const TUNE: Tune = Tune { run: 15., ground_accel: 900., ground_decel: 1400., air_accel: 480., air_decel: 60., gravity: 150., fall_mul: 1.7, cut_mul: 3.0, jump_v: 42., terminal: 60.,
+    coyote: 0.1, buffer: 0.1, climb: 10.5, slide: 3., wall_jump_x: 17., wall_jump_y: 36., wall_lock: 0.13, step: 2., mantle: 3., nudge: 0.6,
     swim_mul: 0.55, swim_grav: 0.35, buoyancy: 40., swim_up: 70., swim_max: 11., lava_dps: 60., safe_fall: 20 };
 #[derive(Clone)]
 pub struct Drop { pub x: usize, pub y: usize, pub item: Item, pub n: u32, pub claimed: bool }
@@ -533,7 +534,7 @@ impl World {
         let swim = if wet { t.swim_mul } else { 1. };
         // horizontal: near-instant on the ground, slightly softer in the air, locked briefly after a wall jump
         let target = if self.pl.lock > 0. { self.pl.vx } else { dir as f32 * t.run * swim };
-        let a = if ground { if dir == 0 || (target * self.pl.vx) < 0. { t.ground_decel } else { t.ground_accel } } else { t.air_accel } * dt;
+        let a = if ground { if dir == 0 || (target * self.pl.vx) < 0. { t.ground_decel } else { t.ground_accel } } else if dir == 0 { t.air_decel } else { t.air_accel } * dt;
         self.pl.vx += (target - self.pl.vx).clamp(-a, a);
         // vertical
         if self.pl.cling != 0 {
