@@ -947,6 +947,63 @@ mod progression {
     for _ in 0..240 { a.step(); b.step(); }
     assert!(a.debris.is_empty(), "all landed"); assert_eq!(a.g.mat, b.g.mat, "deterministic"); assert_eq!(sand(&a), n0, "none lost");
 }
+
+/// Grottos may open up within sight of the starting holt, but never break into its burrow: every grotto's
+/// box (shell included) stays clear of the burrow's footprint, and some now lie within view of the spawn.
+/// The showcase seed 14085 (found by the `grottoseed` example) keeps its burrow whole with a root-tree on screen.
+#[test]
+fn grottos_near_spawn_never_touch_the_burrow() {
+    use molehill_sim::gen::{Gen, GROTTO_SHELL};
+    use molehill_sim::mat::{Mat, CPM};
+    let (w, c) = (1024 * S, CPM as i64); let mut near = 0;
+    for seed in 0..3000u32 {
+        let gen = Gen::new(seed, w);
+        for g in gen.grottos_in_rows(-40 * c, 40 * c) {
+            let (sh, dx) = (GROTTO_SHELL as i64, g.cx as i64 - (w / 2) as i64);
+            let (x0, x1, y0, y1) = (dx - g.rx as i64 - sh, dx + g.rx as i64 + sh, g.cy - g.ry as i64 - sh, g.cy + g.ry as i64 + sh);
+            assert!(!(x1 > -6 * c && x0 < 6 * c && y1 > -5 * c && y0 < 3 * c), "seed {seed}: grotto at {dx},{} touches the burrow", g.cy);
+            if x0.abs().min(x1.abs()) < 13 * c && y0 < 7 * c && y1 > -9 * c { near += 1; }
+        }
+    }
+    assert!(near > 0, "no grotto ever opens within view of the spawn");
+    let wd = World::new(1024 * S, 512 * S, 14085); let m = &wd.moles[0];
+    assert!(wd.fits(m.x, m.y), "the burrow is whole");
+    let tree = (0..26 * CPM).flat_map(|dx| (0..15 * CPM).map(move |dy| (dx, dy)))
+        .any(|(dx, dy)| { let (x, y) = (m.x - 13 * CPM + dx, m.y - 9 * CPM + dy); wd.g.get(x, y) == Mat::RootTree });
+    assert!(tree, "seed 14085 shows a root-tree on screen from the spawn");
+}
+
+/// A new holt never starts boxed in by ground the Survival Pickaxe can't dig: within `START_SAFE` (25 m) of
+/// the burrow there's nothing of tier 2 or above (granite, basalt, iron, quartz, crystal), and from the burrow
+/// a Delver with only a Pickaxe can always dig through to copper (an escape and the first tier up).
+#[test]
+fn spawn_zone_is_pickaxe_ground_with_a_way_to_copper() {
+    use molehill_sim::gen::START_SAFE;
+    use molehill_sim::mat::{Kind, Mat, CPM};
+    for seed in 0..30u32 {
+        let w = World::new(256 * S, 256 * S, seed); let (gw, gh) = (w.g.w, w.g.h);
+        let (sx, sy0) = (gw / 2, (-w.oy) as usize); // the burrow: the window's middle column, depth 0
+        let r = START_SAFE * CPM as f32;
+        for y in 0..gh { for x in 0..gw {
+            let (dx, dy) = (x as f32 - sx as f32, y as f32 - sy0 as f32); if dx * dx + dy * dy >= r * r { continue; }
+            let m = w.g.get(x, y);
+            assert!(m == Mat::Bedrock || m.p().tier <= 1, "seed {seed}: {m:?} at {:.1} m, {:.1} m from the burrow", dx / CPM as f32, dy / CPM as f32);
+        } }
+        // walk/dig out from the mole with a Pickaxe: open, liquid (not lava) or tier ≤ 1 ground
+        let ok = |m: Mat| m != Mat::Lava && m != Mat::Bedrock && (m.passable() || matches!(m.kind(), Kind::Solid | Kind::Powder) && m.p().tier <= 1);
+        let start = w.g.idx(w.moles[0].x, w.moles[0].y); let mut seen = vec![false; gw * gh]; seen[start] = true;
+        let mut q = std::collections::VecDeque::from([start]); let mut copper = false;
+        while let Some(i) = q.pop_front() {
+            if w.g.m(i) == Mat::CopperOre { copper = true; break; }
+            let (x, y) = (i % gw, i / gw);
+            for (nx, ny) in [(x.wrapping_sub(1), y), (x + 1, y), (x, y.wrapping_sub(1)), (x, y + 1)] {
+                if nx >= gw || ny >= gh { continue; } let j = ny * gw + nx; if seen[j] || !ok(w.g.m(j)) { continue; } seen[j] = true; q.push_back(j);
+            }
+        }
+        assert!(copper, "seed {seed}: a Pickaxe can't dig through to any copper");
+    }
+}
+
 #[test] fn lid_clues_rise_with_height_and_stay_lore_safe() {
     use molehill_sim::lore::{clue_rate, ClueKind, FRAGMENTS, clues_in_band, next_fragment};
     // more common higher up, never zero-crossing, monotone

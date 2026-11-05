@@ -44,6 +44,7 @@ The rule is simple: **gameplay goes in the sim.** If it changes what happens in 
 | `world.rs` | `World`: the step order, the player (`step_player`, `TUNE`), colony moles, digging, placing, the brush, the endless window, quests and chests |
 | `logic.rs` | copperline nets, devices, knots, fuses, TNT, thrumming |
 | `blast.rs` | explosions as a pressure wave: Kinney-Graham overpressure over the volume the wave has filled, gas pressure in closed spaces, diffraction shadows, rock cracked or shattered by blast strength, loose ground, water and items thrown, moles and devices hit by overpressure |
+| `lore.rs` | the Lid thread: clues (carvings, old notes, drafts, odd finds) placed per 32 m band from the seed, denser higher up, and the 24 journal fragments that hint but never confirm |
 | `survival.rs` | game modes and their rules: **Survival** (start kit, dig only with owned tools, fungus-oil fuel, the pack dropped at death, optional hunger off), **Creative** (999 of everything, nothing hurts) and **Plain** (no mode rules, used by tests and scenarios) |
 | `items.rs` | loose items as physics bodies: dug, dropped and thrown things fly, bounce, skid, float or sink, burn, and sleep when still; thrown TNT |
 | `tips.rs` | the world hover text: what's under a cell, in plain Delver words |
@@ -75,6 +76,7 @@ The rule is simple: **gameplay goes in the sim.** If it changes what happens in 
 | `menu.rs` | main and pause menus, settings, the shared controls table |
 | `art.rs` | pixel-art sprites and icons built in code |
 | `devart.rs` | pixel art for copperline tiles (one per neighbour mask, lit with a travelling glint), every device (off/on, animation frames) and the wiring view's schematic glyphs |
+| `journal.rs` | the journal (`J`): the Lid fragments found, newest first, as a plain list |
 | `decorart.rs` | pixel art for furniture (a base and a pale cloth layer the pigment tints) and the furnishing icons |
 | `wiring.rs` | draws copperline and devices as sprites over the world (one per 1 m block, cached by block), and the wiring view (`V`) |
 | `audio.rs` | procedural sound and the music synth (web only) |
@@ -109,7 +111,7 @@ cd engine && ./build-web.sh && cd .. && rm -rf site && cp -r dist site
 
 The world is saved in **bands** (`band.rs`): horizontal strips of 64 rows (8 m). A band blob holds everything in its rows: cells and flags, copperline and devices (with fuse state), air, and the drops, torches, stations and mushroom plots anchored in it. Layers are byte run-length encoded.
 
-A save (format 6; 5 added the game mode, headlamp oil and hunger option, 6 the items ever picked up, so unlocked recipes survive) is a small **manifest** plus band blobs. The manifest starts with the bytes `MOLEHILL`, the version and the engine tag (which names the cell resolution). It then holds the globals (seed, ticks, the pack, the mole, quests, the log, the window offset, opened chests, the spawn point) and the list of bands: start row, content hash and length for every band of the window and every band stored off-window. Materials are stored **by name** with a name table, so the material enum can grow or be reordered.
+A save (format 7; 5 added the game mode, headlamp oil and hunger option, 6 the items ever picked up, so unlocked recipes survive, 7 the journal and which Lid clues were read) is a small **manifest** plus band blobs. The manifest starts with the bytes `MOLEHILL`, the version and the engine tag (which names the cell resolution). It then holds the globals (seed, ticks, the pack, the mole, quests, the log, the window offset, opened chests, the spawn point) and the list of bands: start row, content hash and length for every band of the window and every band stored off-window. Materials are stored **by name** with a name table, so the material enum can grow or be reordered.
 
 * **Split parts** (`save::save_parts`, the game's slots): each band is stored under its own key, `b<start row>_<hash>`. Unchanged bands keep their key, so an autosave writes only the bands that changed (in practice the window, about 0.3 MB), however far you have dug. Bands are written first and the manifest last, then keys no longer named are removed. A failed write (storage full) therefore leaves the previous save whole. On the web the keys are `molehill-auto/b…` in localStorage (base64); natively they are files in a `molehill-auto/` folder next to `molehill-auto.save`.
 * **One blob** (`save::save` / `save::load`, used by tests and the harness): the manifest followed by every band inline.

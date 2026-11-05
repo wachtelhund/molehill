@@ -291,7 +291,7 @@ impl World {
         // entering rows: generate the never-visited ones, then unpack the stored bands over them
         let fresh: Vec<usize> = (en..en + s).step_by(BH).filter(|&y0| !self.bands.contains_key(&(self.oy + y0 as i64))).collect();
         if let (Some(&a), Some(&b)) = (fresh.first(), fresh.last()) { let b = b + BH; self.gen.fill_rows(&mut self.g, self.oy, a, b); let (gn, oy) = (&self.gen, self.oy); let m = 32 * CPM; // the old rows next to the new ones may now roof a fresh cave: stabilise into them too
-            gen::stabilize_keep(&mut self.g, &mut self.st, a.saturating_sub(m), (b + m).min(h), &|x, y| gn.in_grotto_void(x, oy + y as i64)); }
+            gen::stabilize_soft(&mut self.g, &mut self.st, a.saturating_sub(m), (b + m).min(h), &|x, y| gn.in_grotto_void(x, oy + y as i64), &|x, y| gen::in_start_zone(gn.biome.len(), x, oy + y as i64)); }
         for y0 in (en..en + s).step_by(BH) {
             if let Some(b) = self.bands.remove(&(self.oy + y0 as i64)) {
                 if band::decode(self, y0, &b.blob, None).is_err() { self.gen.fill_rows(&mut self.g, self.oy, y0, y0 + BH); } // damaged: regenerate
