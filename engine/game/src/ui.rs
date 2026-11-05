@@ -107,15 +107,8 @@ pub fn update(g: Res<Game>, sp: Res<Sprites>, time: Res<Time>, win: Query<&Windo
     let busy = mouse.pressed(MouseButton::Left) || mouse.pressed(MouseButton::Right);
     let tip: Option<(Vec2, String, String)> = match (cur, hov.and_then(|(_, k)| g.slots[k])) {
         (Some(c), Some(th)) if g.held.is_none() => Some((c, match thing_count(&g, th) { Some(n) => format!("{}  ({})", thing_name(&g, th), n.min(9999)), None => thing_name(&g, th) }, crate::thing_desc(th).to_string())),
-        (Some(c), None) if hov.is_none() && !busy && now - still.1 > 0.35 && !g.inv_open => g.aim.and_then(|(x, y, _)| {
-            let i = y * w.g.w + x; if w.g.flags[i] & molehill_sim::grid::F_SEEN == 0 { return None; }
-            let b = w.logic.block_of(x, y); let d = molehill_sim::logic::Dev::from_u8(w.logic.dev[b]);
-            if d != molehill_sim::logic::Dev::None { return Some((c, d.name().to_string(), d.desc().to_string())); }
-            if w.logic.wire[b] != 0 { return Some((c, "Copperline".into(), molehill_sim::craft::Item::CopperWire.desc().into())); }
-            let m = w.g.m(i); if m == molehill_sim::mat::Mat::Empty { return None; }
-            let loose = w.g.loose(i) && m.kind() == molehill_sim::mat::Kind::Solid;
-            Some((c, if loose { format!("Loose {}", m.p().name.to_lowercase()) } else { m.p().name.to_string() }, m.desc().to_string()))
-        }),
+        (Some(c), None) if hov.is_none() && !busy && now - still.1 > 0.35 && !g.inv_open => g.aim.and_then(|(x, y, _)|
+            molehill_sim::tips::describe(w, x, y).map(|t| (c, t.name, t.lines.join("\n")))),
         _ => None,
     };
     if let Ok(mut sp) = tipd.single_mut() { let d = tip.as_ref().map(|t| format!("\n{}", t.2)).unwrap_or_default(); if sp.0 != d { sp.0 = d; } }

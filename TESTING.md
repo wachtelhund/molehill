@@ -83,6 +83,7 @@ Map legend: `.` empty, `#` granite, `B` bedrock, `r` rock, `d` dirt, `c` clay, `
 | `inv:<Item>` | Inventory count |
 | `static:<Mat>` | Like `count:` but only cells that are fixed in place (not loose debris) |
 | `util:DX,DY` | Stress utilisation of the cell at an offset from `@` (1.0 = at capacity; above that it cracks) |
+| `strain:DX,DY` | The hover tooltip's strain level for that cell (`tips::strain_at`): 0 idle, 1 bearing, 2 straining, 3 overloaded, 4 cracking |
 | `dev:DX,DY,<Dev>` | 1 if the 1 m block at that offset holds that device |
 | `lit:DX,DY` / `on:DX,DY` / `wire:DX,DY` | The block's fuse is burning / its device is powered / it has copperline |
 | `ev:<Event>` | How many of that event (Explode, Click, Place, ...) happened so far |
@@ -122,6 +123,7 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `beam_spans_gap.scn` | Iron beams placed across a pit stay put, and the mole runs across them |
 | `beam_overload.scn` | A long wood span under deep sand cracks and falls as wooden debris |
 | `brush_place.scn` | A radius-2 brick brush fills the open part of the disc and uses items 4 cells to one |
+| `hover_strain.scn` | The hover warns of an overloaded wood span (cracking) before it falls; floor and loose debris read idle |
 | `brush_clamp.scn` | Brush radius is clamped per item (iron beam max 2, pillar min 0.5, pickaxe max 3) |
 | `pillar_built_in_room.scn` | A wood pillar built cell by cell in a granite room stays rigid |
 | `pillars_rock_roof.scn` / `roof_needs_pillar.scn` | Two pillars at the third points save a 12 m rock roof that caves in (bending) without them |
@@ -152,7 +154,7 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 
 Tuning constants for movement live in one place: `TUNE` in `sim/src/world.rs`. After changing them, rerun both the tests and the scenarios.
 
-Zoom limits and brush ranges also have unit tests in `sim/tests/sim.rs` (`zoom_is_clamped_both_ways`, `brush_sizes_clamp_per_item`), as do tooltip texts (`every_thing_has_a_lore_safe_tooltip`).
+Zoom limits and brush ranges also have unit tests in `sim/tests/sim.rs` (`zoom_is_clamped_both_ways`, `brush_sizes_clamp_per_item`), as do tooltip texts (`every_thing_has_a_lore_safe_tooltip`) and world hover text from `sim/src/tips.rs` (`world_hover_explains_cells`).
 
 ## 2b. Settling / performance check
 
