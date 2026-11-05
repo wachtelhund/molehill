@@ -57,23 +57,38 @@ pub fn setup(commands: &mut Commands, f: &Handle<Font>) {
         BackgroundColor(Color::srgba(0.03, 0.025, 0.035, 0.78)), GlobalZIndex(50), MenuRoot)).with_children(|p| {
         p.spawn((Text::new("Molehill"), tf(56.), TextColor(INK), TextShadow::default(), Node { margin: UiRect::bottom(Val::Px(26.)), ..default() }, MenuTitle));
         for i in 0..ROWS { p.spawn((Text::new(""), tf(22.), TextColor(INK), TextShadow::default(), Interaction::None, Node { padding: UiRect::axes(Val::Px(10.), Val::Px(2.)), ..default() }, MenuRow(i))); }
+        let c = spawn_controls(p, f, 16.); p.commands().entity(c).insert((MenuControls, Visibility::Hidden));
         p.spawn((Text::new(""), tf(14.), TextColor(INK.with_alpha(0.55)), TextLayout { justify: Justify::Center, ..default() }, Node { margin: UiRect::top(Val::Px(24.)), ..default() }, MenuHint));
     });
 }
 
-const CONTROLS: &str = "Move  A / D        Jump  Space (or W)\nWalls  hold into a wall: W / S climb, Space wall-jump\nDig down  S        Use item  Left mouse        Interact  Right mouse\nBrush size  [ / ]  or  Ctrl+wheel        Zoom  + / -  or  Shift+wheel\nHotbar  1-0 / wheel        Pack  I\nPause  Esc        Quick save K / load L        Dev info  F3";
+/// Every control, as (action, keys). Shown as a two-column table on the Controls screen and the H overlay.
+pub const CONTROL_ROWS: &[(&str, &str)] = &[
+    ("Move", "A / D"), ("Jump", "Space  (or W off a wall)"), ("Walls", "hold into a wall: W / S climb, Space wall-jump"),
+    ("Dig down", "S"), ("Use item", "Left mouse"), ("Interact", "Right mouse  (levers, thrum patterns)"), ("Pick up", "Ctrl + Right mouse  (copperline, devices)"),
+    ("Brush size", "[ / ]  or  Ctrl + wheel"), ("Hotbar", "1 - 0  or  wheel"), ("Pack", "I"), ("Zoom", "+ / -  or  Shift + wheel"),
+    ("Pause", "Esc"), ("Save / load", "K / L"), ("Controls", "H"), ("Dev info", "F3"),
+];
+/// A two-column table of `CONTROL_ROWS`: actions dim and right-aligned, keys in ink.
+pub fn spawn_controls(p: &mut ChildSpawnerCommands, f: &Handle<Font>, size: f32) -> Entity {
+    let tf = |s: f32| TextFont { font: f.clone().into(), font_size: s.into(), ..default() };
+    p.spawn(Node { display: Display::Grid, grid_template_columns: vec![GridTrack::auto(), GridTrack::auto()], column_gap: Val::Px(18.), row_gap: Val::Px(4.), ..default() }).with_children(|g| {
+        for (a, k) in CONTROL_ROWS { g.spawn((Text::new(*a), tf(size), TextColor(INK.with_alpha(0.5)), Node { justify_self: JustifySelf::End, ..default() })); g.spawn((Text::new(*k), tf(size), TextColor(INK.with_alpha(0.9)))); }
+    }).id()
+}
+#[derive(Component)] pub struct MenuControls;
 
 #[allow(clippy::too_many_arguments)]
 pub fn update(mut m: ResMut<Menu>, mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<ButtonInput<MouseButton>>, mut commands: Commands,
     mut au: NonSendMut<Audio>, mut cam: Query<&mut Transform, With<Camera2d>>, mut win: Query<&mut Window, With<PrimaryWindow>>,
-    mut q: ParamSet<(Query<&mut Visibility, With<MenuRoot>>, Query<(&MenuRow, &mut Text, &mut TextColor, &Interaction, &mut Visibility)>, Query<&mut Text, With<MenuHint>>, Query<&mut Text, With<MenuTitle>>)>,
+    mut ctl: Query<&mut Visibility, (With<MenuControls>, Without<MenuRoot>, Without<MenuRow>)>, mut q: ParamSet<(Query<&mut Visibility, With<MenuRoot>>, Query<(&MenuRow, &mut Text, &mut TextColor, &Interaction, &mut Visibility)>, Query<&mut Text, With<MenuHint>>, Query<&mut Text, With<MenuTitle>>)>,
     mut exit: MessageWriter<AppExit>) {
     if !m.open() {
         if keys.just_pressed(KeyCode::Escape) && !g.inv_open && !g.help { m.go(Screen::Pause); g.paused = true; }
     } else {
         g.paused = true;
         if keys.get_just_pressed().next().is_some() || mouse.get_just_pressed().next().is_some() { au.unlock(); }
-        let items = m.items(); let n = items.len();
+        let items = m.items(); let n = items.len(); let (sel0, scr0) = (m.sel, m.screen);
         if keys.just_pressed(KeyCode::ArrowDown) || keys.just_pressed(KeyCode::KeyS) { m.sel = (m.sel + 1) % n; }
         if keys.just_pressed(KeyCode::ArrowUp) || keys.just_pressed(KeyCode::KeyW) { m.sel = (m.sel + n - 1) % n; }
         let mut act = keys.just_pressed(KeyCode::Enter) || keys.just_pressed(KeyCode::Space) || keys.just_pressed(KeyCode::NumpadEnter);
@@ -111,12 +126,15 @@ pub fn update(mut m: ResMut<Menu>, mut g: ResMut<Game>, keys: Res<ButtonInput<Ke
             },
             _ => {}
         }
+        // a soft tick when the choice moves or a screen changes: immediate feedback for every press
+        if m.sel != sel0 || m.screen != scr0 || act && n > 0 { au.play(molehill_sim::world::Event::Click, 0.35); }
         if keys.just_pressed(KeyCode::Escape) { match m.screen { Screen::Pause => m.go(Screen::Off), Screen::Settings | Screen::Controls => { let b = m.back; m.go(b); } _ => {} } }
         if !m.open() { g.paused = false; }
     }
     // draw
     let open = m.open();
     for mut v in q.p0().iter_mut() { *v = if open { Visibility::Inherited } else { Visibility::Hidden }; }
+    for mut v in &mut ctl { *v = if m.screen == Screen::Controls { Visibility::Inherited } else { Visibility::Hidden }; }
     if !open { return; }
     let items = m.items(); let sel = m.sel;
     let labels: Vec<String> = items.iter().map(|i| m.label(*i)).collect();
@@ -126,6 +144,6 @@ pub fn update(mut m: ResMut<Menu>, mut g: ResMut<Game>, keys: Res<ButtonInput<Ke
     }
     let title = match m.screen { Screen::Pause => "Paused".to_string(), Screen::Settings => "Settings".into(), Screen::Controls => "Controls".into(), _ => "Molehill".into() };
     for mut t in q.p3().iter_mut() { t.0 = title.clone(); }
-    let hint = match m.screen { Screen::Controls => CONTROLS.to_string(), Screen::Settings => "A / D adjust     Esc back".into(), Screen::Main => format!("W / S choose     Enter select\nholt {}", g.seed), _ => "W / S choose     Enter select     Esc resume".into() };
+    let hint = match m.screen { Screen::Controls => "Esc back".to_string(), Screen::Settings => "A / D adjust     Esc back".into(), Screen::Main => format!("W / S choose     Enter select\nholt {}", g.seed), _ => "W / S choose     Enter select     Esc resume".into() };
     for mut t in q.p2().iter_mut() { t.0 = hint.clone(); }
 }
