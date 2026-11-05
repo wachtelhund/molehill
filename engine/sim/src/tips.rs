@@ -3,7 +3,7 @@
 use crate::craft::Item;
 use crate::grid::F_SEEN;
 use crate::logic::Dev;
-use crate::mat::{Kind, Mat, S};
+use crate::mat::{Kind, Mat, S, TRACK, TUBE, CPM};
 use crate::world::World;
 use crate::craft::Station;
 
@@ -22,7 +22,7 @@ pub fn strain_at(w: &World, i: usize) -> u8 {
 }
 
 /// Describe what's at window cell (x, y), or None for open air or rock the colony hasn't seen.
-/// Order: station, chest, mushroom plot, device, copperline, material.
+/// Order: station, furniture, clue, chest, mushroom plot, transport machine, device, copperline, material.
 pub fn describe(w: &World, x: usize, y: usize) -> Option<Tip> {
     if x >= w.g.w || y >= w.g.h { return None; }
     let i = y * w.g.w + x;
@@ -63,6 +63,7 @@ pub fn describe(w: &World, x: usize, y: usize) -> Option<Tip> {
             return tip("Mushroom".into(), l);
         }
     }
+    if let Some(t) = transport_tip(w, x, y) { return Some(t); }
     let b = w.logic.block_of(x, y);
     let d = Dev::from_u8(w.logic.dev[b]);
     if d != Dev::None { return tip(d.name().into(), vec![d.desc().into(), if w.logic.lit(b) { "Burning: too late to pick it up.".into() } else { "E: pick up.".into() }]); }
@@ -76,8 +77,42 @@ pub fn describe(w: &World, x: usize, y: usize) -> Option<Tip> {
         if let Some(s) = strain_word(w.st.util.get(i).copied().unwrap_or(0), w.st.pending.get(i).copied().unwrap_or(0) > 0) { l.push(s.into()); }
     }
     let p = w.g.paint(i); if p > 0 && m.kind() == Kind::Solid { l.push(format!("Painted {}.", pigment_name(p))); }
+    // track and pipe: what makes them go
+    if m.has(TRACK) && !loose { l.push(if w.rail_powered(x, y) { "Powered: carts on it are driven along.".into() } else { "Set a mine cart on it; copperline with current along it drives carts.".into() }); }
+    if m.has(TUBE) && !loose { l.push("Put tube hoppers on the line: one with current sends, the others receive.".into()); }
     tip(if loose { format!("Loose {}", m.p().name.to_lowercase()) } else { m.p().name.to_string() }, l)
 }
 
 /// A pigment's name by paint index (1..6), lower case.
 pub fn pigment_name(p: u8) -> String { crate::craft::ITEMS.iter().find(|it| it.pigment() == Some(p)).map(|it| it.name().to_lowercase()).unwrap_or_default() }
+
+/// Transport machines under (x, y): what it is, its state, and the one or two inputs that matter.
+pub fn transport_tip(w: &World, x: usize, y: usize) -> Option<Tip> {
+    let tip = |n: &str, l: Vec<String>| Some(Tip { name: n.into(), lines: l });
+    if let Some(k) = w.cart_at(x, y) {
+        let c = &w.tr.carts[k]; let mut l = vec![];
+        if w.tr.riding == Some(k) { l.push("You're in it. Space: jump out · A/D: lean on it.".into()); }
+        else { l.push("Right mouse: get in · walk into it to push.".into()); }
+        l.push(if c.load() > 0 { format!("Carrying {} items · E: unload them.", c.load()) } else if w.tr.riding == Some(k) { "Empty.".into() } else { "Empty: throw things in to load it · E: pick it up.".into() });
+        if !c.on_rail { l.push("Off the rails: it won't roll until it's back on track.".into()); }
+        return tip("Mine cart", l);
+    }
+    if let Some(k) = w.hopper_at(x, y) {
+        let mut l = vec![if w.hopper_blowing(k) { "Blowing: drop items in to send them · right mouse (empty paw): ride.".into() } else { "No current: it only receives. Copperline current runs its blower.".into() }];
+        match w.tr.hoppers[k].dest { Some(d) if d < w.tr.hoppers.len() => { let (dx, _) = w.tr.hoppers[d].centre(); let (hx, _) = w.tr.hoppers[k].centre();
+                l.push(format!("Sends to the hopper {:.0} m {} · right mouse (paw full): change.", (dx - hx).abs() / CPM as f32, if dx < hx { "left" } else { "right" })); }
+            _ => l.push("No other hopper on its line yet.".into()) }
+        return tip("Tube hopper", l);
+    }
+    if let Some(k) = w.lift_at(x, y) {
+        let lf = &w.tr.lifts[k]; let on = w.on_cage(lf);
+        let cage = crate::lifts::CAGE_KG + if on { crate::lifts::MOLE_KG } else { 0. }; let cw = lf.counter_kg();
+        let powered = w.logic.net_lit(w.logic.block_of(lf.x, lf.head));
+        let state = if powered { "Wound by current: the cage goes up.".to_string() } else { format!("Counterweight {:.0} kg, cage {:.0} kg{}: it {}.", cw, cage, if on { " with you" } else { "" }, if cw > cage { "rises" } else { "sinks" }) };
+        return tip("Lift", vec![state, "Right mouse with stone in paw: a stone on · empty paw: one off.".into()]);
+    }
+    if let Some(k) = w.ladder_at(x, y) {
+        let _ = k; return tip("Rope ladder", vec![if w.tr.climbing { "Space: let go.".into() } else { "W / S: climb (let go of the keys to hang still).".into() }, "E: take it down.".into()]);
+    }
+    None
+}

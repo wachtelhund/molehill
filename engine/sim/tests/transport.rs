@@ -37,3 +37,30 @@ fn reachable() -> [bool; NITEM] {
     let mut w = World::new(256 * molehill_sim::mat::S, 128 * molehill_sim::mat::S, 3); w.set_mode(Mode::Creative);
     for it in [Item::Rail, Item::Cart, Item::RopeLadder, Item::Lift, Item::Tube, Item::TubeHopper] { assert!(w.inv[it as usize] >= 999, "{it:?}"); }
 }
+
+/// Hover tips for transport: resting the cursor on each machine says what it is and the action that
+/// matters (get in / push, climb, ballast, send / receive), and track and pipe say what makes them go.
+#[test] fn transport_hover_tips_say_what_to_do() {
+    use molehill_sim::{grid::F_SEEN, mat::{CPM, S}, tips::describe};
+    let mut w = World::new(256 * S, 128 * S, 3); w.disasters.enabled = false; w.set_mode(Mode::Creative);
+    let (mx, my) = (w.moles[0].x, w.moles[0].y); let c = CPM;
+    // a room 10 m wide and 5 m tall round the mole, rock all round; seen
+    for y in my - 5 * c..=my + 2 * c { for x in mx - 6 * c..=mx + 6 * c { let i = w.g.idx(x, y);
+        let rock = y > my || y <= my - 5 * c || x < mx - 5 * c || x > mx + 5 * c;
+        w.g.set(i, if rock { Mat::Granite } else { Mat::Empty }); w.g.flags[i] = F_SEEN; } }
+    for x in mx + c..mx + 3 * c { let i = w.g.idx(x, my + 1); w.g.set(i, Mat::Rail); }       // track in the floor's top row
+    for x in mx + 4 * c..mx + 5 * c { let i = w.g.idx(x, my + 1); w.g.set(i, Mat::Tube); }   // and pipe
+    w.drops.clear(); for _ in 0..3 { w.step(); }
+    let tip = |w: &World, x: usize, y: usize| describe(w, x, y).map(|t| format!("{}: {}", t.name, t.lines.join(" / "))).unwrap_or_default();
+    assert!(tip(&w, mx + 2 * c, my + 1).contains("Set a mine cart on it"), "rail: {}", tip(&w, mx + 2 * c, my + 1));
+    assert!(tip(&w, mx + 4 * c + 2, my + 1).contains("tube hoppers"), "tube: {}", tip(&w, mx + 4 * c + 2, my + 1));
+    assert_eq!(w.place_transport(Item::Cart, mx + 2 * c, my), Ok(true));
+    let t = tip(&w, mx + 2 * c, my - 1); assert!(t.starts_with("Mine cart") && t.contains("Right mouse: get in") && t.contains("push") && t.contains("throw things in"), "cart: {t}");
+    w.tr.riding = Some(0); let t = tip(&w, mx + 2 * c, my - 1); assert!(t.contains("Space: jump out"), "cart, riding: {t}"); w.tr.riding = None;
+    assert_eq!(w.place_transport(Item::RopeLadder, mx - c - c / 2, my - 2 * c), Ok(true));
+    let t = tip(&w, mx - c - c / 2, my - 2 * c); assert!(t.starts_with("Rope ladder") && t.contains("W / S: climb"), "ladder: {t}");
+    assert_eq!(w.place_transport(Item::Lift, mx - 3 * c - c / 2, my - c), Ok(true));
+    let t = tip(&w, mx - 3 * c - c / 2, my - S); assert!(t.starts_with("Lift") && t.contains("Counterweight 40 kg") && t.contains("sinks") && t.contains("stone"), "lift: {t}");
+    assert_eq!(w.place_transport(Item::TubeHopper, mx + 4 * c + 2, my), Ok(true));
+    let t = tip(&w, mx + 4 * c + 2, my - 2); assert!(t.starts_with("Tube hopper") && t.contains("No current") && t.contains("only receives"), "hopper: {t}");
+}
