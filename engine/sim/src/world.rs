@@ -142,7 +142,9 @@ pub struct World {
     pub moles: Vec<Mole>, pub drops: Vec<Drop>, pub stockpile: (usize, usize, usize, usize),
     pub buildings: Vec<Building>, pub torches: Vec<(usize, usize)>, pub chests: Vec<Chest>, pub furniture: Vec<Furniture>, paint_acc: u16,
     pub quest: usize, pub log: Vec<(u64, String)>, pub discovered: [bool; NMAT], pub chests_opened: u32, pub pillars: u32,
-    pub max_depth: f32, pub craft_queue: Vec<usize>, pub gear: Gear, pub crumbled: u64, pub light_rect: (usize, usize, usize, usize),
+    pub max_depth: f32, pub craft_queue: Vec<usize>, pub gear: Gear,
+    /// Items that have ever been in the pack: a recipe appears once any of its inputs is known.
+    pub known: [bool; NITEM], pub crumbled: u64, pub light_rect: (usize, usize, usize, usize),
     pub events: Vec<Event>, pub react_pending: bool,
     /// where this tick's feedback happened, for in-world pops: (kind, x, y, radius in cells); kind 0 = a bite
     /// cleared, 1 = a block placed. Cleared every step like `events`.
@@ -186,7 +188,7 @@ impl World {
         World {
             st: Stress::new(w * h), light: Light::new(w, h), tick: 0, inv: [0; NITEM], dig_acc: [0; NMAT], place_acc: [0; 9], desig: vec![0; w * h],
             moles: vec![], drops: vec![], stockpile: (0, 0, 0, 0), buildings: vec![], torches: vec![], chests: vec![], furniture: vec![], paint_acc: 0,
-            quest: 0, log: vec![], discovered: [false; NMAT], chests_opened: 0, pillars: 0, max_depth: 0., craft_queue: vec![], gear: Gear::default(), mode: Default::default(), rules: Default::default(), lamp_oil: 0., lamp_dry: false, crumbled: 0,
+            quest: 0, log: vec![], discovered: [false; NMAT], chests_opened: 0, pillars: 0, max_depth: 0., craft_queue: vec![], gear: Gear::default(), known: [false; NITEM], mode: Default::default(), rules: Default::default(), lamp_oil: 0., lamp_dry: false, crumbled: 0,
             light_rect: (0, 0, w - 1, h - 1), events: vec![], marks: vec![], react_pending: false, logic: Logic::new(w, h), disasters: Disasters::new(seed), shake: 0., air: Air::new(w, h), farms: vec![], harvested: 0, input: Input::default(), pl: Player::default(), gen: gn, oy, bands: Default::default(), opened: Default::default(), grottos: vec![], caught: Default::default(), keep_blast_field: false, blast_field: vec![], info, g,
         }
     }
@@ -373,6 +375,7 @@ impl World {
 
     pub fn step(&mut self) {
         self.tick += 1; self.events.clear(); self.marks.clear();
+        self.learn();
         // active region: the falling sand runs only around the mole (the view at the widest zoom, with room
         // to spare); the rest of the window waits, frozen mid-flow, and catches up when the mole comes near
         self.g.active = self.moles.first().map(|m| { let c = crate::grid::CHUNK; let (hx, hy) = (ACTIVE_HX / c + 1, ACTIVE_HY / c + 1);
@@ -477,7 +480,7 @@ impl World {
     pub fn farm_conditions(&self, x: usize, y: usize) -> (bool, bool) {
         let near = |px: usize, py: usize, r: usize| px.abs_diff(x) <= r * S && py.abs_diff(y) <= r * S;
         let bright = self.torches.iter().any(|&(tx, ty)| near(tx, ty, 10)) || self.logic.dev_list.iter().any(|&b| self.logic.dev[b] == Dev::Lamp as u8 && self.logic.dev_s[b] != 0 && { let (cx, cy) = self.logic.centre(b); near(cx, cy, 10) })
-            || self.buildings.iter().any(|b| b.built && matches!(b.kind, Station::Kiln | Station::Furnace) && near(b.x + Station::W / 2, b.y, 12));
+            || self.buildings.iter().any(|b| b.built && b.kind == Station::Forge && near(b.x + Station::W / 2, b.y, 12));
         let mut wet = 0;
         let r = 4 * S as i32; for dy in -r..=r { for dx in -r..=r { let (nx, ny) = (x as i32 + dx, y as i32 + dy); if !self.g.in_bounds(nx, ny) { continue; } let i = self.g.idx(nx as usize, ny as usize);
             if self.g.mat[i] == Mat::Water as u8 { wet += 3; } else if self.g.flags[i] & F_WET != 0 || self.g.mat[i] == Mat::Clay as u8 { wet += 1; } } }
@@ -521,7 +524,7 @@ impl World {
         let c = |x: usize, y: usize| (x as f32 + 0.5, y as f32 + 0.5);
         let mut v: Vec<Source> = self.torches.iter().map(|&(x, y)| { let (x, y) = c(x, y); Source::point(x, y, TORCH.0, TORCH.1) }).collect();
         for f in &self.furniture { if f.item == Item::Planter { let (x0, y0, x1, _) = f.rect(); v.push(Source::point((x0 + x1) as f32 / 2. + 0.5, y0 as f32, PLANTER.0, PLANTER.1)); } }
-        for b in &self.buildings { if b.built && matches!(b.kind, Station::Kiln | Station::Furnace) { let (x, y) = c(b.x + Station::W / 2, b.y - S); v.push(Source::point(x, y, KILN.0, KILN.1)); } }
+        for b in &self.buildings { if b.built && b.kind == Station::Forge { let (x, y) = c(b.x + Station::W / 2, b.y - S); v.push(Source::point(x, y, KILN.0, KILN.1)); } }
         for &b in &self.logic.dev_list { if self.logic.dev[b] == Dev::Lamp as u8 && self.logic.dev_s[b] != 0 { let (x, y) = self.logic.centre(b); let (x, y) = c(x, y); v.push(Source::point(x, y, LAMP.0, LAMP.1)); } }
         for (x, y, _, _) in self.glowmites() { v.push(Source::point(x, y, GLOWMITE.0, GLOWMITE.1)); }
         if self.gear.held == Some(Item::Glowmite) { v.push(Source::point(self.pl.px + self.moles.first().map_or(0., |m| m.facing as f32) * 1.6 * SF, self.pl.py - 1.4 * SF, GLOWMITE_JAR.0, GLOWMITE_JAR.1)); }
@@ -1136,7 +1139,7 @@ impl World {
         // blocks go down in whole legacy tiles (S×S cells, on the global tile grid): a radius-r brush is
         // a disc of tiles, so building comes out the same at any resolution
         let (k, rt) = (S as i32, r / SF); let (tx, ty) = (x as i32 / k, y as i32 / k);
-        let mut todo: Vec<(i32, i32)> = disc(rt).into_iter().flat_map(|(dx, dy)| (0..k * k).map(move |j| ((tx + dx) * k + j % k, (ty + dy) * k + j / k)))
+        let todo: Vec<(i32, i32)> = disc(rt).into_iter().flat_map(|(dx, dy)| (0..k * k).map(move |j| ((tx + dx) * k + j % k, (ty + dy) * k + j / k)))
             .filter(|&(nx, ny)| self.open_for_block(nx, ny)).collect();
         if todo.is_empty() { return Err(if self.in_reach(x, y) { "cell is not open" } else { "out of reach" }); }
         let n = self.fill_cells(todo, it, d)?; self.marks.push((1, x as f32 + 0.5, y as f32 + 0.5, r)); Ok(n)
@@ -1186,13 +1189,55 @@ impl World {
         Ok(n)
     }
     /// Craft one recipe at once; needs the right station built within 16 cells of the mole.
+    /// Note every item now in the pack as known, and say which recipes that opened.
+    pub fn learn(&mut self) {
+        let fresh: Vec<usize> = (0..NITEM).filter(|&k| self.inv[k] > 0 && !self.known[k]).collect();
+        if fresh.is_empty() { return; }
+        let before: Vec<bool> = (0..RECIPES.len()).map(|r| self.recipe_known(r)).collect();
+        for k in fresh { self.known[k] = true; }
+        if !self.rules.crafting { return; }
+        let new: Vec<&str> = (0..RECIPES.len()).filter(|&r| !before[r] && self.recipe_known(r)).map(|r| RECIPES[r].name).collect();
+        if !new.is_empty() { self.say(format!("New recipes: {}.", new.join(", "))); }
+    }
+    /// Is this recipe listed? Creative (and Plain): always. Survival: once any of its inputs has been picked up.
+    pub fn recipe_known(&self, r: usize) -> bool { !self.rules.crafting || RECIPES[r].inputs.iter().any(|&(it, _)| self.known[it as usize]) }
+    /// The built station of this kind the mole is standing at (within 4 m across, 2.5 m up or down).
+    pub fn station_here(&self, kind: Station) -> Option<&Building> {
+        let m = self.moles.first()?;
+        self.buildings.iter().find(|b| b.built && b.kind == kind && (b.x + Station::W / 2).abs_diff(m.x) <= 16 * S && b.y.abs_diff(m.y) <= 10 * S)
+    }
+    /// Is this station working? The workbench always is; the forge needs heat (lava or fire within 3 m, or a
+    /// heatstone fed by lava within 3 m); the workshop needs a live copperline in or touching its footprint.
+    pub fn station_ready(&self, b: &Building) -> Result<(), &'static str> {
+        let (x0, x1, y0, y1) = (b.x, b.x + Station::W - 1, (b.y + 1).saturating_sub(Station::H), b.y);
+        match b.kind {
+            Station::Workbench => Ok(()),
+            Station::Forge => {
+                let r = 3 * CPM; let (ax, ay, bx, by) = (x0.saturating_sub(r), y0.saturating_sub(r), (x1 + r).min(self.g.w - 1), (y1 + r).min(self.g.h - 1));
+                let hot = (ay..=by).any(|y| (ax..=bx).any(|x| self.g.get(x, y).p().heat >= 1));
+                let stone = self.logic.dev_list.iter().any(|&k| { let (cx, cy) = self.logic.centre(k);
+                    self.logic.dev[k] == Dev::Heat as u8 && self.logic.dev_s[k] != 0 && cx + r >= x0 && cx <= x1 + r && cy + r >= y0 && cy <= y1 + r });
+                if hot || stone { Ok(()) } else { Err("the forge is cold: bring lava or fire within 3 m, or a heatstone") }
+            }
+            Station::Workshop => {
+                let bb = crate::logic::B; let (ax, ay, bx, by) = (x0.saturating_sub(bb), y0.saturating_sub(bb), (x1 + bb).min(self.g.w - 1), (y1 + bb).min(self.g.h - 1));
+                let live = (ay..=by).step_by(bb).any(|y| (ax..=bx).step_by(bb).any(|x| { let k = self.logic.block_of(x, y); self.logic.wire[k] != 0 && self.logic.net_lit(k) }));
+                if live { Ok(()) } else { Err("the workshop has no power: run a live copperline to it") }
+            }
+        }
+    }
+    /// Craft one recipe at once. Survival: the recipe must be known and the mole must stand at a working
+    /// station of its kind (`rules.crafting`). Creative: anywhere (free access), still paid from the pack.
     pub fn craft_now(&mut self, r: usize) -> Result<(), String> {
-        let rec = &RECIPES[r]; let Some(m) = self.moles.first() else { return Err("no mole".into()) };
-        let near = self.buildings.iter().any(|b| b.built && b.kind == rec.station && (b.x + Station::W / 2).abs_diff(m.x) <= 16 * S && b.y.abs_diff(m.y) <= 10 * S);
-        if !near { return Err(format!("stand at a {}", rec.station.name())); }
-        if let Some(&(it, n)) = rec.inputs.iter().find(|&&(it, n)| self.inv[it as usize] < n) { return Err(format!("need {} {}", n, it.name())); }
+        let rec = &RECIPES[r]; if self.moles.is_empty() { return Err("no mole".into()); }
+        if self.rules.crafting {
+            if !self.recipe_known(r) { return Err("you haven't found what that needs yet".into()); }
+            let Some(b) = self.station_here(rec.station) else { return Err(format!("stand at a {}", rec.station.name().to_lowercase())) };
+            self.station_ready(b)?;
+        }
+        if let Some(&(it, n)) = rec.inputs.iter().find(|&&(it, n)| self.inv[it as usize] < n) { return Err(format!("need {} {}", n, it.name().to_lowercase())); }
         for &(it, n) in rec.inputs { self.inv[it as usize] -= n; } self.inv[rec.out.0 as usize] += rec.out.1;
-        self.events.push(Event::Craft); self.say(format!("Crafted {}.", rec.name)); Ok(())
+        self.events.push(Event::Craft); self.say(format!("Crafted {}.", rec.name)); self.learn(); Ok(())
     }
     pub fn quest_done(&self, q: usize) -> bool {
         match QUESTS[q].goal {

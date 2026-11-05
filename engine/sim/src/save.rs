@@ -4,15 +4,16 @@
 //! the save) so the material enum can grow/reorder. Loading regenerates the world from the seed
 //! (biome/surface info, background) and then overwrites all mutable state. Loading never panics:
 //! every read is bounds-checked and returns a readable error; values are sanitised.
-use crate::craft::{Item, Station, NITEM, RECIPES, STATIONS};
+use crate::craft::{Item, Station, NITEM, RECIPES};
 use crate::mat::{Mat, NMAT, PROPS};
 use crate::world::{Building, Chest, Drop, Farm, Mole, World};
 use std::collections::VecDeque;
 
+/// v5: v4 plus the mode (Creative / Survival) and the items ever picked up (recipes unlock by touch).
 /// v4: the world as bands (see `band.rs`): a manifest names every band (window and off-window) by start
 /// row and content hash; blobs travel inline (`save`) or as separate keys (`save_parts`). v3: one blob
 /// with a row cache of cells (still loads). Older (surface-world) saves are refused.
-pub const VERSION: u32 = 5; // 5: the game mode, the headlamp's oil, and hunger on/off
+pub const VERSION: u32 = 6; // 6: the items ever picked up (recipes unlock by touch); 5: the game mode, the headlamp's oil, and hunger on/off
 const MAGIC: &[u8; 8] = b"MOLEHILL";
 /// The engine tag also names the cell resolution: a save at another cells-per-metre won't load.
 const ENGINE: &str = if crate::mat::CPM == 4 { "bevy-v3" } else if crate::mat::CPM == 8 { "bevy-v3-cpm8" } else { "bevy-v3-cpm?" };
@@ -53,7 +54,7 @@ fn load_v3(b: &[u8]) -> R<World> {
     w.moles.truncate(1); if w.moles.is_empty() { w.moles.push(tmpl.clone()); } // one mole: the player
     w.drops.clear(); for _ in 0..r.len(1 << 20)? { let (x, y, it, nn) = (r.u32()? as usize, r.u32()? as usize, r.u8()?, r.u32()?); if x < gw && y < gh && (it as usize) < NITEM { w.drops.push(Drop::at(x as f32 + 0.5, y as f32 + 0.5, crate::craft::ITEMS[it as usize], nn)); } }
     w.chests.clear(); for _ in 0..r.len(1 << 16)? { let (x, y, o) = (r.u32()? as usize, r.u32()? as usize, r.u8()? != 0); if x < gw && y < gh { w.chests.push(Chest { x, y, opened: o }); } }
-    w.buildings.clear(); for _ in 0..r.len(1 << 16)? { let (k, x, y, b) = (r.u8()?, r.u32()? as usize, r.u32()? as usize, r.u8()? != 0); if (k as usize) < STATIONS.len() && x + Station::W < gw && y < gh { w.buildings.push(Building { kind: STATIONS[k as usize], x, y, built: b, claimed: false }); } }
+    w.buildings.clear(); for _ in 0..r.len(1 << 16)? { let (k, x, y, b) = (r.u8()?, r.u32()? as usize, r.u32()? as usize, r.u8()? != 0); if let Some(kind) = band::station_from_code(k) { if x + Station::W < gw && y < gh { w.buildings.push(Building { kind, x, y, built: b, claimed: false }); } } }
     w.torches.clear(); for _ in 0..r.len(1 << 20)? { let (x, y) = (r.u32()? as usize, r.u32()? as usize); if x < gw && y < gh { w.torches.push((x, y)); } }
     w.quest = (r.u32()? as usize).min(crate::craft::QUESTS.len()); w.chests_opened = r.u32()?; w.pillars = r.u32()?; w.max_depth = r.f32()?; w.crumbled = r.u64()?;
     let sp: Vec<usize> = (0..4).map(|_| r.u32().map(|v| v as usize)).collect::<R<_>>()?; w.stockpile = (sp[0].min(gw - 1), sp[1].min(gh - 1), sp[2].min(gw - 1), sp[3].min(gh - 1));
@@ -116,6 +117,7 @@ pub fn save_parts(w: &World) -> Parts<'_> {
     o.u32(opened.len() as u32); for &(x, wy) in &opened { o.u32(x as u32); o.u64(wy as u64); }
     o.u32(w.harvested); o.u32(w.pl.deaths); o.u32(w.pl.spawn.0 as u32); o.u64(w.pl.spawn.1 as u64);
     o.u8(w.mode as u8); o.f32(w.lamp_oil); o.u8(w.rules.no_hunger as u8);
+    o.u32(NITEM as u32); for k in w.known { o.u8(k as u8); }
     o.u32(bands.len() as u32); for (wy0, h, b) in &bands { o.u64(*wy0 as u64); o.u64(*h); o.u32(b.len() as u32); }
     Parts { manifest: o.0, bands: bands.into_iter().map(|(wy0, h, b)| (band_key(wy0, h), b)).collect() }
 }
@@ -156,6 +158,8 @@ pub fn load_with(b: &[u8], fetch: &mut dyn FnMut(&str) -> Option<Vec<u8>>) -> R<
     let mut opened = std::collections::HashSet::new(); for _ in 0..r.len(1 << 20)? { let x = r.u32()? as usize; let wy = r.u64()? as i64; opened.insert((x, wy)); }
     let (harvested, deaths, spx, spy) = (r.u32()?, r.u32()?, r.u32()? as usize, r.u64()? as i64);
     let (mode, lamp_oil, no_hunger) = if ver >= 5 { (crate::survival::Mode::from_u8(r.u8()?), r.f32()?, r.u8()? != 0) } else { (crate::survival::Mode::Plain, 0., false) };
+    // v6: items ever picked up; before that, what is in the pack counts as known
+    let known = if ver >= 6 { let n = r.len(4096)?; let mut k = [false; NITEM]; for j in 0..n { let v = r.u8()? != 0; if j < NITEM { k[j] = v; } } Some(k) } else { None };
     let list: Vec<(i64, u64, usize)> = (0..r.len(1 << 20)?).map(|_| Ok((r.u64()? as i64, r.u64()?, r.len(1 << 28)?))).collect::<R<_>>()?;
     let inline = !r.done() && r.u8()? == 1;
     // the world: generated from the seed, then everything mutable comes from the bands
@@ -185,6 +189,7 @@ pub fn load_with(b: &[u8], fetch: &mut dyn FnMut(&str) -> Option<Vec<u8>>) -> R<
     w.stockpile = (sp[0].min(gw - 1), sp[1].min(gh - 1), sp[2].min(gw - 1), sp[3].min(gh - 1));
     w.craft_queue = craft_queue.into_iter().filter(|&k| k < RECIPES.len()).collect(); w.discovered = discovered;
     w.disasters.rng = drng; w.disasters.ticks_left = dleft; w.disasters.enabled = den; w.log = log; w.opened = opened;
+    w.known = known.unwrap_or_else(|| std::array::from_fn(|k| w.inv[k] > 0));
     w.harvested = harvested; w.pl.deaths = deaths; if spx < gw { w.pl.spawn = (spx, spy); }
     w.refresh_chests();
     w.g.life.iter_mut().for_each(|v| *v = 0); w.g.wake_all(); w.st = crate::stress::Stress::new(gw * gh);

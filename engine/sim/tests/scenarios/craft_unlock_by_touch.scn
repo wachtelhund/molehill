@@ -1,0 +1,34 @@
+// Survival: recipes unlock by touch. A recipe appears the first time any of its inputs reaches the pack
+// (picked up off the floor, dug, crafted, given). Before that it isn't listed at all. The Survival kit
+// (a pickaxe, torches, grubs, roots, fungus oil) holds none of wood, stone or copper ore.
+map
+##############################################
+#............................................#
+#............................................#
+#............................................#
+#............................................#
+#.....@......................................#
+##############################################
+end
+mode survival
+expect 2 recipe:Pickaxe == 0
+expect 2 recipe:Copper_ingot == 0
+expect 2 known:Wood == 0
+// a piece of wood lying ahead: walking over it picks it up
+drop 3 Wood 4 -1
+hold 4-40 right
+expect 41 inv:Wood == 1
+expect 41 known:Wood == 1
+expect 41 recipe:Pickaxe == 1          // wood + stone: touching either shows it
+expect 41 recipe:Wood_pillar_x4 == 1
+expect 41 recipe:Charcoal_x2 == 1
+expect 41 recipe:Copper_ingot == 0     // still unseen
+drop 42 CopperOre 12 -1
+hold 43-80 right
+expect 81 known:CopperOre == 1
+expect 81 recipe:Copper_ingot == 1
+expect 81 recipe:Drill == 0            // iron and copperline: not yet
+// Creative lists everything
+switch 82 creative
+expect 83 recipe:Drill == 1
+expect 83 recipe:Bore == 1

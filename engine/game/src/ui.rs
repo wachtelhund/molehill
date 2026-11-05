@@ -9,7 +9,7 @@ pub const S: f32 = 44.; pub const GAP: f32 = 4.;
 #[derive(Resource)] pub struct UiFont(pub Handle<Font>);
 #[derive(Component)] pub struct Slot(pub usize);
 #[derive(Component)] pub struct SlotIcon(pub usize);
-#[derive(Component, Clone, Copy, PartialEq)] pub enum Lbl { Count(usize), Tip, Quest, Toast, Sel, Center, Dev, Brush }
+#[derive(Component, Clone, Copy, PartialEq)] pub enum Lbl { Count(usize), Tip, Quest, Toast, Sel, Center, Dev, Brush, Craft(usize) }
 #[derive(Component)] pub struct InvBg;
 #[derive(Component)] pub struct Held;
 #[derive(Component)] pub struct Bar(pub u8);
@@ -51,6 +51,8 @@ pub fn setup(commands: &mut Commands, f: &Handle<Font>) {
     });
     commands.spawn((Text::new(""), tf(f, 16.), TextColor(INK), TextShadow::default(), TextLayout { justify: Justify::Center, ..default() }, Node { position_type: PositionType::Absolute, top: Val::Px(14.), width: Val::Percent(100.), justify_content: JustifyContent::Center, ..default() }, Lbl::Toast));
     commands.spawn((Text::new(""), tf(f, 15.), TextColor(INK.with_alpha(0.85)), TextShadow::default(), TextLayout { justify: Justify::Center, ..default() }, Node { position_type: PositionType::Absolute, bottom: Val::Px(66.), width: Val::Percent(100.), ..default() }, Lbl::Sel));
+    // crafting list rows (pack open, at a station)
+    for k in 0..crate::CRAFT_ROWS { let p = crate::craft_row_pos(k); commands.spawn((Text::new(""), tf(f, 14.), TextColor(INK), TextShadow::default(), Node { position_type: PositionType::Absolute, left: Val::Px(p.x), top: Val::Px(p.y), ..default() }, Visibility::Hidden, Lbl::Craft(k))); }
     // the brush size, written just off the brush outline
     commands.spawn((Text::new(""), tf(f, 12.), TextColor(INK.with_alpha(0.8)), TextShadow::default(), Node { position_type: PositionType::Absolute, ..default() }, Visibility::Hidden, Lbl::Brush));
     commands.spawn((Text::new(""), tf(f, 28.), TextColor(INK), TextShadow::default(), TextLayout { justify: Justify::Center, ..default() }, Node { position_type: PositionType::Absolute, top: Val::Percent(38.), width: Val::Percent(100.), ..default() }, Lbl::Center));
@@ -98,7 +100,7 @@ pub fn update(g: Res<Game>, sp: Res<Sprites>, time: Res<Time>, win: Query<&Windo
         let sel = s.0 == g.hot; *bc = BorderColor::all(if sel { Color::srgba(1., 0.88, 0.55, 0.9) } else { Color::srgba(1., 1., 1., 0.10) });
         bg.0 = if sel { Color::srgba(0.25, 0.2, 0.12, 0.6) } else { Color::srgba(0.08, 0.07, 0.08, 0.5) };
     }
-    for (s, mut im, mut vis) in &mut q.p1() { match g.slots[s.0] { Some(t) => { let h = icon(&sp, t); if im.image != h { im.image = h; } *vis = Visibility::Inherited; } None => *vis = Visibility::Hidden } }
+    for (s, mut im, mut vis) in &mut q.p1() { match g.slots[s.0] { Some(t) if crate::thing_usable(&g, t) => { let h = icon(&sp, t); if im.image != h { im.image = h; } *vis = Visibility::Inherited; } _ => *vis = Visibility::Hidden } }
     let vals = [me.hp, me.hunger, me.breath];
     for (b, row, mut n) in &mut q.p2() {
         if let Some(b) = b { n.width = Val::Percent(vals[b.0 as usize].clamp(0., 100.)); }
@@ -118,6 +120,7 @@ pub fn update(g: Res<Game>, sp: Res<Sprites>, time: Res<Time>, win: Query<&Windo
         _ => None,
     };
     if let Ok(mut sp) = tipd.single_mut() { let d = tip.as_ref().map(|t| format!("\n{}", t.2)).unwrap_or_default(); if sp.0 != d { sp.0 = d; } }
+    let crafts = crate::craft_rows(&g);
     for (l, mut t, mut c, mut n, mut v) in &mut q.p5() {
         let mut set = |t: &mut Text, s: String| if t.0 != s { t.0 = s; };
         match *l {
@@ -133,6 +136,9 @@ pub fn update(g: Res<Game>, sp: Res<Sprites>, time: Res<Time>, win: Query<&Windo
             Lbl::Toast => { let live: Vec<&(String, f32)> = g.toasts.iter().filter(|(_, t0)| now - t0 < 4.).collect();
                 set(&mut t, live.iter().map(|(m, _)| m.as_str()).collect::<Vec<_>>().join("\n"));
                 let age = live.last().map_or(9., |(_, t0)| now - t0); c.0 = INK.with_alpha((4. - age).clamp(0., 1.)); }
+            Lbl::Craft(k) => match crafts.get(k) { Some(r) => { set(&mut t, r.text.clone());
+                    c.0 = if r.head { Color::srgba(1., 0.85, 0.55, if r.ok { 0.95 } else { 0.7 }) } else if r.ok { INK.with_alpha(0.95) } else { INK.with_alpha(0.4) }; *v = Visibility::Inherited; }
+                None => *v = Visibility::Hidden },
             Lbl::Brush => match (&g.brush_tag, cur) { (Some((s, r)), Some(c)) if !g.inv_open && hov.is_none() => { set(&mut t, s.clone());
                     n.left = Val::Px(c.x + r * 0.72 + 4.); n.top = Val::Px(c.y + r * 0.72 + 2.); *v = Visibility::Inherited; }
                 _ => *v = Visibility::Hidden },
@@ -154,7 +160,7 @@ pub fn icon(sp: &Sprites, t: Thing) -> Handle<Image> {
         Thing::Pick(n) => sp.tools[(n as usize - 1).min(2)].clone(),
         Thing::Item(it) => if it == Item::Torch { sp.torch.clone() } else { sp.icons[it as usize].clone() },
         Thing::Dev(d) => match DEVS[d] { molehill_sim::logic::Dev::Tnt => sp.icons[Item::Tnt as usize].clone(), dv if dv.is_thrum() => sp.icons[Item::Thrummer as usize].clone(), dv if dv.is_gate() => sp.icons[Item::Gate as usize].clone(), molehill_sim::logic::Dev::Lamp => sp.icons[Item::Lamp as usize].clone(), molehill_sim::logic::Dev::Vent => sp.icons[Item::Vent as usize].clone(), _ => sp.dev.clone() },
-        Thing::Station(s) => sp.station[s][1].clone(),
+        Thing::Station(s) => sp.station[molehill_sim::craft::STATIONS[s].art() as usize][1].clone(),
     }
 }
 #[allow(dead_code)] pub fn all_items() -> &'static [Item] { &ITEMS }

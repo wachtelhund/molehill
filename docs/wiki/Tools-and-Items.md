@@ -51,7 +51,7 @@ Food (grubs, mushrooms, fungus) is eaten from the pack automatically when the mo
 
 The pack (`I`) is a grid of 70 slots, and the bottom row is the hotbar (`1`–`0`). Click a slot to pick its item up, then click another to drop or swap. Counts come from one shared inventory. Hovering a slot shows its name, count and a one-line description. Resting the cursor on a seen cell for about 0.35 s explains what's there (`sim/src/tips.rs`): the material (and whether it's loose debris), a device, copperline (carrying current or idle), a station (what it makes; craft by standing at it with the pack open), a chest (opened or not) or a mushroom plot (growth % and whether it's too bright or too dry). A standing block also says how hard it is working, read from the stress solver: bearing weight, straining, overloaded, or cracking, so you can see a span is about to fail before it does.
 
-> **Modes:** New Holt asks for **Survival** (a small kit: stone tools, 4 torches, 3 grubs, 2 roots, 2 fungus oil; you dig only with tools you own; the headlamp and torches burn fungus oil) or **Creative** (999 of every item). Crafting is still hidden. **Fungus oil** is pressed from fungus (2 a measure, done by the pack when it runs out); a **root** is food from root tangles. See [Progression](Progression.md#survival-mode-today). The sim's own starting pack (used by the tests) is small: 8 wood, 6 torches, 12 pillars, 12 grubs, 40 copperline, 6 knots, 3 thrummers, 6 spores and a vent.
+> **Modes:** New Holt asks for **Survival** (a small kit: a Pickaxe, 4 torches, 3 grubs, 2 roots, 2 fungus oil; you dig only with tools you own; the headlamp and torches burn fungus oil) or **Creative** (999 of every item). Crafting works at stations (below). **Fungus oil** is pressed from fungus (2 a measure, done by the pack when it runs out); a **root** is food from root tangles. See [Progression](Progression.md#survival-mode-today). The sim's own starting pack (used by the tests) is small: 8 wood, 6 torches, 12 pillars, 12 grubs, 40 copperline, 6 knots, 3 thrummers, 6 spores and a vent.
 
 ## Digging drops
 
@@ -74,7 +74,7 @@ One table (`Item::uses` in `craft.rs`) says whether an item is **set down**, **t
 
 ## Furnishing
 
-Making the holt look like home: decorative blocks, paint and furniture. In Survival they're crafted (all at the workbench except tiles, fired at the kiln) and unlock when you first hold their materials. In Creative they're in the pack.
+Making the holt look like home: decorative blocks, paint and furniture. In Survival they're crafted (all at the workbench except tiles, fired at the forge) and unlock when you first hold their materials. In Creative they're in the pack.
 
 **Decorative blocks** are built with the round block brush (`[`/`]` resize, grid snap works too). They are structural, by their own numbers (see [Physics](Physics.md#materials)):
 
@@ -82,7 +82,7 @@ Making the holt look like home: decorative blocks, paint and furniture. In Survi
 |---|---|---|---|
 | Planks | 2 wood → 8 | boards with seams and staggered joints | light, like a wood prop (6000 kPa) |
 | Polished stone | 4 stone + 1 sand → 4 | smooth slabs, fine joints, a faint sheen | as strong as brick |
-| Tiles | 2 clay + 1 coal → 6 (kiln) | glazed squares with pale grout | brittle under a roof |
+| Tiles | 2 clay + 1 coal → 6 (forge) | glazed squares with pale grout | brittle under a roof |
 | Carved pillar | 4 stone → 2 | a fluted column | the strongest stone prop (22000 kPa) |
 
 **Pigments** are ground at the workbench: ochre (iron ore + clay), rust (iron ore), chalk (quartz), verdigris (copper ore), woad (fungus), soot (charcoal); each makes 4. With a pigment in hand, left mouse paints a brush of standing blocks (any solid block: brick, planks, even raw rock). The pigment takes over most of the colour and the block keeps its pattern and shading. One pigment covers 16 tiles. Painting a rug, banner or nest dyes its cloth. Paint goes with the block (a painted block that falls is still painted) and is kept in saves.
@@ -105,44 +105,71 @@ Furniture finds the floor below the cursor, or the ceiling above it for a banner
 
 Hold `Q` to charge a throw of a throwable item in hand and release to throw it at the cursor; 0.8 s of charge is a full throw, which carries about 6 m on the level, and dots show the arc. You can't catch your own throw for half a second. A thrown **TNT** charge goes out lit: it flies, bounces and rolls, and goes off where its 1.5 s fuse runs out, with the same blast as placed TNT. Water puts it out (it lies there as a dud you can pick up again), and lava or fire lights one lying loose. A lit charge can't be picked up. Blocks, copperline, devices, torches and tools aren't thrown: `Q` says so and keeps them. Blasts throw loose items around. In the colony design, moles haul drops to the **stockpile**, and only stockpiled items count. The first sighting of each ore, fluid or rock is a **discovery** with a small reward.
 
+## Modes and crafting
+
+In **Survival** (see [Progression](Progression.md#survival-mode-today)) crafting is earned: recipes appear as you pick up their ingredients and you make things at a working station. In **Creative** every recipe is listed and can be made anywhere. The sim's default (Plain, used by tests and scenarios) crafts freely too. This is `Rules::crafting` in `survival.rs`. Saves keep what you have found (format 6); older saves count what is in the pack as found.
+
+## Tool tiers
+
+| tier | tool | made at | from | digs |
+|---|---|---|---|---|
+| 0 | claws | (always) | | dirt, clay, sand, gravel; soft stone (sandstone, limestone, coal, copper and tin ore) slowly |
+| 1 | Pickaxe | workbench (Survival starts with one) | 2 wood + 4 stone | the same, faster |
+| 2 | Drill | workshop | 3 iron ingots + 2 copper ingots | granite and iron ore |
+| 3 | Bore | forge | 6 iron ingots + 2 copper ingots + 2 crystal | basalt |
+
+In Survival a dig tool you don't own isn't in the hotbar, and holding a better tool's slot doesn't help: digging uses the best tool in the pack (`World::tool`, scenario `tool_tiers_survival`). Without any tool, claws still take soft stone, slowly.
+
 ## Stations
 
-| station | cost | does |
-|---|---|---|
-| Workbench | 6 wood | saw and bench for wooden things |
-| Kiln | 8 stone + 4 clay | bakes clay into brick and sand into glass |
-| Furnace | 10 brick | smelts ore into metal |
-| Anvil | 5 iron ingots | hammers metal into tools and beams |
+Stations, not menus: you craft standing at one you have built. Open the pack (`I`) there and its recipes are listed down the left; click a bright one to make it. A dim recipe is missing something.
+
+| station | cost | works when | makes |
+|---|---|---|---|
+| Workbench | 6 wood | always | the pickaxe, wood pillars, torches, vents, TNT, simple furniture |
+| Forge | 10 stone + 4 clay | **hot**: lava or fire within 3 m of it, or a heatstone fed by lava within 3 m | brick, glass, charcoal, ingots, bronze, copperline, iron beams, lamps, the bore |
+| Workshop | 4 wood + 4 stone + 6 copperline | **powered**: a live copperline in or touching its footprint (a thrown lever on the line will do) | the drill, knots, thrummers |
+
+A cold forge or an unpowered workshop says why in the list (scenario `craft_stations`). Saves from before list the old stations: a kiln or furnace becomes a forge, an anvil a workshop.
+
+## Recipes unlock by touch
+
+A recipe appears the first time **any** of its inputs reaches the pack: picked up off the floor, dug, crafted, found in a chest or given as a reward. The log says what opened ("New recipes: Pickaxe, Wood pillar x4."). There is no tech-tree screen: the world is the tree (scenario `craft_unlock_by_touch`).
 
 ## Recipes
 
+Chains are short: nothing is more than two steps from the ground (ore → ingot → tool), checked by the test `recipes_are_short_chains`.
+
 | station | makes | from |
 |---|---|---|
-| Workbench | 4 torches | 1 wood + 1 coal (or charcoal) |
+| Workbench | Pickaxe | 2 wood + 4 stone |
 | | 4 wood pillars | 2 wood |
-| | stone tools | 2 wood + 4 stone |
+| | 4 torches | 1 wood + 1 coal (or charcoal) |
 | | vent | 2 wood + 2 stone |
 | | TNT | 2 coal + 2 sand |
-| Kiln | 4 brick | 2 clay + 1 coal |
-| | 2 glass | 2 sand + 1 coal |
+| Forge | 4 brick | 2 clay |
+| | 2 glass | 2 sand |
 | | 2 charcoal | 2 wood |
-| | lamp | 1 glass + 2 fungus |
-| Furnace | copper ingot / tin ingot | 2 ore + 1 coal |
-| | iron ingot | 2 iron ore + 2 coal |
+| | copper ingot / tin ingot | 2 ore |
+| | iron ingot | 2 iron ore + 1 coal |
 | | 4 bronze | 3 copper + 1 tin ingot |
-| Anvil | bronze tools / iron tools | 3 ingots + 1 wood |
-| | 4 iron beams | 1 iron ingot |
 | | 8 copperline | 1 copper ingot |
+| | 4 iron beams | 1 iron ingot |
+| | lamp | 1 glass + 2 fungus |
+| | Bore | 6 iron ingots + 2 copper ingots + 2 crystal |
+| Workshop | Drill | 3 iron ingots + 2 copper ingots |
 | | knot | 1 copper ingot + 1 quartz |
 | | thrummer | 2 crystal + 2 copper ingots + 1 glass |
 
-The chain is the design: wood and stone get you a bench; clay and coal get you a kiln and brick; brick gets you a furnace and metal; iron gets you an anvil, beams and copperline; and crystal from the deep gets you a thrummer.
+The chain is the design: wood and stone give a bench and a pickaxe; heat (fire at first, lava deeper) lights a forge for copper and iron; copperline and a lever power a workshop for the drill; and iron, copper and crystal from the deep make the bore.
+
+**Adding a recipe** (furniture, decor): add the item at the **end** of `Item` (saves store items by index) with its name, description, colour and `uses`, then one `Recipe` line with its station. Unlocking and the crafting list need nothing more.
 
 ## Mushroom farms
 
 Plant a spore on an open cell standing on soil. A plot grows fastest when it is both:
 
-* **dark:** no torch, lit lamp, kiln or furnace within 10 tiles (2.5 m), or 12 tiles (3 m) for a kiln or furnace; and
+* **dark:** no torch or lit lamp within 10 tiles (2.5 m), and no forge within 12 tiles (3 m); and
 * **damp:** water, wet soil or clay within 4 tiles (1 m).
 
 With only one of the two it grows at ¼ speed, and with neither it doesn't grow. A ripe plot drops 2 mushrooms (with a 1-in-3 chance of a spore) and regrows. Farms breathe a little CO2.
@@ -156,16 +183,16 @@ A chain of 18 quests leads through the game. Each one has an item reward:
 3. Build a workbench
 4. Farm mushrooms: gather 4
 5. Prop a tunnel: place 8 pillar cells
-6. Craft stone tools
+6. Make a pickaxe
 7. Reach 15 m
-8. Build a kiln
+8. Build a forge (it needs heat)
 9. Open a buried chest
 10. Fire 10 bricks
-11. Build a furnace
-12. Smelt 4 copper ingots
-13. Alloy bronze
-14. Reach 40 m
-15. Forge an anvil
+11. Smelt 4 copper ingots
+12. Alloy bronze
+13. Reach 40 m
+14. Build a workshop and power it
+15. Make a drill
 16. Assemble a thrummer
 17. Reach 80 m: the deep
 18. Open 4 chests

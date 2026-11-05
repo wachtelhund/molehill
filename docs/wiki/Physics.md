@@ -184,13 +184,13 @@ A blast (`blast.rs`) is a pressure wave, not a fixed crater. A TNT charge is **0
 
 Light is per-cell RGB, and there is no sky light and no day cycle: everything is lit by something down here. Two kinds of light are added together.
 
-**Every light casts rays**, so all of it is shadowed the same way: torches, lamps, kilns, the headlamp, a held torch, and glowing materials. A glowing surface (lava, crystal, fungus, fire) that touches open air becomes a ray-cast point source in that air: one per 2 m square, coloured by the material, reaching 2–5 m by how brightly it glows (`light::surface_sources`). A lava pool therefore lights a cave with real shadows. On top of that, a faint **glow** is seeded in the glowing cells themselves and spread a short way with a two-sweep 8-neighbour chamfer pass:
+**Every light casts rays**, so all of it is shadowed the same way: torches, lamps, forges, the headlamp, a held torch, and glowing materials. A glowing surface (lava, crystal, fungus, fire) that touches open air becomes a ray-cast point source in that air: one per 2 m square, coloured by the material, reaching 2–5 m by how brightly it glows (`light::surface_sources`). A lava pool therefore lights a cave with real shadows. On top of that, a faint **glow** is seeded in the glowing cells themselves and spread a short way with a two-sweep 8-neighbour chamfer pass:
 
 ```
 L(i) = max(L(i), L(n) · t(i) · d)     t = 0.90 open, 0.80 liquid, ≈ 0.3 into rock (per 0.25 m);  d = 0.93 on diagonals
 ```
 
-**Sources** (`light::Source`) are torches, lit lamps, kilns and furnaces, the mole's headlamp, a torch or a jarred glowmite in its paws, and the glowmites drifting in grottos. Each casts rays to its radius:
+**Sources** (`light::Source`) are torches, lit lamps, forges, the mole's headlamp, a torch or a jarred glowmite in its paws, and the glowmites drifting in grottos. Each casts rays to its radius:
 
 * A ray stops at the first solid or powder cell. The face it hits takes half the light, so rock throws real shadows.
 * Liquid dims a ray as it passes.
@@ -204,7 +204,7 @@ L(i) = max(L(i), L(n) · t(i) · d)     t = 0.90 open, 0.80 liquid, ≈ 0.3 into
 | torch | warm orange | 7.5 m |
 | torch in the paws | warm orange | 6.5 m |
 | lit lamp | pale | 9 m |
-| kiln, furnace | deep orange | 6 m |
+| forge | deep orange | 6 m |
 | headlamp beam | warm, faintly green (fungus oil) | 12 m, ±29° |
 | headlamp glow | warm | 3 m |
 | glowmite (drifting) | cold green-gold | 2.5 m |

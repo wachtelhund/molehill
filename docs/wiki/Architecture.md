@@ -43,6 +43,7 @@ The rule is simple: **gameplay goes in the sim.** If it changes what happens in 
 | `gen.rs` | seeded procgen per `(seed, x, absolute row)` and the stability pass |
 | `world.rs` | `World`: the step order, the player (`step_player`, `TUNE`), colony moles, digging, placing, the brush, the endless window, quests and chests |
 | `logic.rs` | copperline nets, devices, knots, fuses, TNT, thrumming |
+| `blast.rs` | explosions as a pressure wave: Kinney-Graham overpressure over the volume the wave has filled, gas pressure in closed spaces, diffraction shadows, rock cracked or shattered by blast strength, loose ground, water and items thrown, moles and devices hit by overpressure |
 | `survival.rs` | game modes and their rules: **Survival** (start kit, dig only with owned tools, fungus-oil fuel, the pack dropped at death, optional hunger off), **Creative** (999 of everything, nothing hurts) and **Plain** (no mode rules, used by tests and scenarios) |
 | `items.rs` | loose items as physics bodies: dug, dropped and thrown things fly, bounce, skid, float or sink, burn, and sleep when still; thrown TNT |
 | `tips.rs` | the world hover text: what's under a cell, in plain Delver words |

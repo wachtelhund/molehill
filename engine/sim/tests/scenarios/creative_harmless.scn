@@ -44,7 +44,7 @@ BBBBBBBBBBBBBBBBBBBB
 end
 mode creative
 expect 1 inv:Tnt == 999
-expect 1 inv:IronTools == 999
+expect 1 inv:Bore == 999
 lamp 1 on
 set 2 hp 1
 set 2 hunger 0

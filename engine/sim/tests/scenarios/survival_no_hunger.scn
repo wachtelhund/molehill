@@ -18,7 +18,7 @@ expect 3000 inv:Grub == 3
 expect 3000 inv:Root == 2
 expect 3000 hp == 100
 // Survival's other rules still hold (the kit, owned tools)
-expect 3000 inv:StoneTools == 1
+expect 3000 inv:Pickaxe == 1
 saveload 3010
 expect 3011 hungeron == 0
 expect 3011 mode == 1
