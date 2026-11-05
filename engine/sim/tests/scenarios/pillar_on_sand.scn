@@ -10,11 +10,11 @@ map
 ##############################
 end
 give WoodPillar 20
-place 2 8 0 WoodPillar
-place 3 8 -1 WoodPillar
-place 4 8 -2 WoodPillar
-place 5 9 0 WoodPillar
-place 6 10 0 WoodPillar
-place 7 10 -1 WoodPillar
+put 2 8 0 WoodPillar
+put 3 8 -1 WoodPillar
+put 4 8 -2 WoodPillar
+put 5 9 0 WoodPillar
+put 6 10 0 WoodPillar
+put 7 10 -1 WoodPillar
 expect 400 count:WoodBeam == 6
 expect 400 crumbled == 0

@@ -1,20 +1,22 @@
-// A wood beam over a wide gap with a deep sand load on it cracks and breaks into debris.
+// An overloaded wood beam fails by stress: a long span under a deep sand pile cracks, breaks
+// into loose wooden debris and drops; it doesn't hang in the air or vanish.
 map
-###################################
-#..sssssssssssssssssssssssssss....#
-#..sssssssssssssssssssssssssss....#
-#..sssssssssssssssssssssssssss....#
-#..sssssssssssssssssssssssssss....#
-#..sssssssssssssssssssssssssss....#
-#..sssssssssssssssssssssssssss....#
-#..sssssssssssssssssssssssssss....#
-#..sssssssssssssssssssssssssss....#
-#..bbbbbbbbbbbbbbbbbbbbbbbbbbb....#
-#.@#.........................######
-####.........................######
-####.........................######
-###################################
+#########################################
+###ssssssssssssssssssssssssssssssssss####
+###ssssssssssssssssssssssssssssssssss####
+###ssssssssssssssssssssssssssssssssss####
+###ssssssssssssssssssssssssssssssssss####
+###ssssssssssssssssssssssssssssssssss####
+###ssssssssssssssssssssssssssssssssss####
+###bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb####
+#..................................######
+#..................................######
+#..................................######
+#..@...............................######
+#########################################
 end
-expect 300 crumbled > 0
-expect 300 count:WoodBeam < 27
-expect 300 count:Roots > 0       // the beam broke into wood splinters
+expect 1 static:WoodBeam == 34
+expect 300 static:WoodBeam <= 2          // only the two end cells resting on the granite ledge remain
+expect 300 is:10,0,WoodBeam == 1         // wooden debris lies on the floor
+expect 300 count:WoodBeam >= 20
+expect 300 count:Sand >= 150

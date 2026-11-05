@@ -334,3 +334,43 @@ fn press(w: &mut World, n: usize, f: impl Fn(&mut Input)) -> (f32, f32) { let (m
     for _ in 0..600 { w.step(); if w.oy != last { shifts += 1; last = w.oy; } }
     assert_eq!(shifts, 0, "window slid {shifts} times (mole y {})", w.moles[0].y);
 }
+
+#[test] fn zoom_is_clamped_both_ways() {
+    use molehill_sim::view::*;
+    let mut z = ZOOM_DEFAULT;
+    for _ in 0..3 { z = zoom_step(z, 1.); } assert!(z < ZOOM_DEFAULT, "zooming in makes the scale smaller");
+    for _ in 0..100 { z = zoom_step(z, 1.); } assert_eq!(z, ZOOM_MIN, "zoom in stops at the minimum scale");
+    for _ in 0..3 { z = zoom_step(z, -1.); } assert!(z > ZOOM_MIN, "zoom out works again from the closest zoom");
+    for _ in 0..100 { z = zoom_step(z, -1.); } assert_eq!(z, ZOOM_MAX, "zoom out stops at the maximum scale");
+    assert!(zoom_step(z, 1.) < ZOOM_MAX, "and zooms back in");
+    assert_eq!(clamp_zoom(f32::NAN), ZOOM_DEFAULT); assert_eq!(clamp_zoom(-1.), ZOOM_DEFAULT); assert_eq!(clamp_zoom(1.5), ZOOM_MAX);
+    assert!((zoom_level(ZOOM_DEFAULT) - 1.).abs() < 1e-6 && zoom_level(ZOOM_MIN) > 1. && zoom_level(ZOOM_MAX) < 1.);
+}
+
+#[test] fn brush_sizes_clamp_per_item() {
+    use molehill_sim::world::{brush_radius, brush_range, disc, Brush, BITES};
+    use molehill_sim::craft::Item;
+    for t in 0..4u8 { assert_eq!(brush_radius(Brush::Dig(t), 0.), BITES[t as usize], "default bite unchanged"); }
+    let max = |b| brush_range(b).unwrap().1;
+    assert!(max(Brush::Dig(1)) < max(Brush::Dig(2)) && max(Brush::Dig(2)) < max(Brush::Dig(3)), "bigger tools allow bigger bites");
+    assert_eq!(brush_radius(Brush::Dig(1), 99.), max(Brush::Dig(1)));
+    assert_eq!(brush_radius(Brush::Place(Item::IronBeam), 99.), 2.0);
+    assert_eq!(brush_radius(Brush::Place(Item::WoodPillar), 0.01), 0.5);
+    assert!(brush_range(Brush::Place(Item::Torch)).is_none(), "torches are not a brush");
+    assert_eq!(disc(0.5).len(), 1); assert_eq!(disc(1.0).len(), 5); assert_eq!(disc(2.0).len(), 13); assert_eq!(disc(3.0).len(), 29);
+    assert_eq!(disc(2.0)[0], (0, 0), "centre first");
+}
+
+#[test] fn every_thing_has_a_lore_safe_tooltip() {
+    use molehill_sim::{craft::{ITEMS, STATIONS}, logic::DEVS, mat::{Mat, NMAT}};
+    let mut all: Vec<(String, &str)> = ITEMS.iter().map(|i| (i.name().to_string(), i.desc())).collect();
+    all.extend(DEVS.iter().map(|d| (d.name().to_string(), d.desc())));
+    all.extend(STATIONS.iter().map(|s| (s.name().to_string(), s.desc())));
+    all.extend((0..NMAT as u8).map(|m| (format!("{:?}", Mat::from_u8(m)), Mat::from_u8(m).desc())));
+    // LORE.md: handmade tech, no modern or magic words
+    let banned = ["radio", "wifi", "wi-fi", "electric", "battery", "signal", "wireless", "antenna", "magic", "mana", "spell", "sky", "sun", "surface", "logic gate", "sensor", "laser"];
+    for (n, d) in &all {
+        assert!(!d.trim().is_empty() && d.len() <= 110, "{n}: tooltip must be one short line ({d:?})");
+        let l = d.to_lowercase(); for b in banned { assert!(!l.contains(b), "{n}: tooltip uses '{b}': {d}"); }
+    }
+}

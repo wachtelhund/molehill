@@ -9,7 +9,7 @@ use crate::{Game, audio::Audio};
 #[derive(Clone, Copy, PartialEq, Debug)] enum Item { Continue, NewHolt, Seed, Settings, Controls, Quit, Resume, Restart, Save, Load, MainMenu, Volume, Zoom, Fullscreen, Back }
 
 #[derive(Resource)] pub struct Menu { pub screen: Screen, back: Screen, sel: usize, pub seed_text: String, pub volume: f32, pub zoom: f32, pub fullscreen: bool, has_save: bool }
-impl Default for Menu { fn default() -> Self { Menu { screen: Screen::Main, back: Screen::Main, sel: 0, seed_text: String::new(), volume: 0.8, zoom: 0.32, fullscreen: false, has_save: false } } }
+impl Default for Menu { fn default() -> Self { Menu { screen: Screen::Main, back: Screen::Main, sel: 0, seed_text: String::new(), volume: 0.8, zoom: molehill_sim::view::ZOOM_DEFAULT, fullscreen: false, has_save: false } } }
 impl Menu {
     pub fn open(&self) -> bool { self.screen != Screen::Off }
     fn items(&self) -> Vec<Item> {
@@ -27,15 +27,17 @@ impl Menu {
             Item::Seed => format!("Seed  {}", if self.seed_text.is_empty() { "random  (type digits)".into() } else { self.seed_text.clone() + "_" }),
             Item::Settings => "Settings".into(), Item::Controls => "Controls".into(), Item::Quit => "Quit".into(),
             Item::Resume => "Resume".into(), Item::Restart => "Restart (same seed)".into(), Item::Save => "Save".into(), Item::Load => "Load".into(), Item::MainMenu => "Main Menu".into(),
-            Item::Volume => format!("Volume   <  {:>3}%  >", (self.volume * 100.).round()), Item::Zoom => format!("Zoom     <  {:.2}  >", self.zoom),
+            Item::Volume => format!("Volume   <  {:>3}%  >", (self.volume * 100.).round()), Item::Zoom => format!("Zoom     <  {:.1}x  >", molehill_sim::view::zoom_level(self.zoom)),
             Item::Fullscreen => format!("Fullscreen   {}", if self.fullscreen { "on" } else { "off" }), Item::Back => "Back".into(),
         }
     }
-    fn persist(&self) { let _ = crate::storage_put("molehill-settings", format!("{} {} {}", self.volume, self.zoom, self.fullscreen as u8).as_bytes()); }
+    /// Zoom by `steps` notches (positive = closer), clamped, applied to the camera and saved.
+    pub fn zoom_by(&mut self, steps: f32, cam: &mut Transform) { let z = molehill_sim::view::zoom_step(self.zoom, steps); if z != self.zoom { self.zoom = z; self.persist(); } cam.scale = Vec3::splat(self.zoom); }
+    pub fn persist(&self) { let _ = crate::storage_put("molehill-settings", format!("{} {} {}", self.volume, self.zoom, self.fullscreen as u8).as_bytes()); }
     pub fn load() -> Menu {
         let mut m = Menu::default();
         if let Some(b) = crate::storage_get("molehill-settings") { let s = String::from_utf8_lossy(&b).to_string(); let v: Vec<&str> = s.split_whitespace().collect();
-            if v.len() == 3 { m.volume = v[0].parse().unwrap_or(0.8); m.zoom = v[1].parse().unwrap_or(0.32); m.fullscreen = v[2] == "1"; } }
+            if v.len() == 3 { m.volume = v[0].parse().unwrap_or(0.8); m.zoom = molehill_sim::view::clamp_zoom(v[1].parse().unwrap_or(f32::NAN)); m.fullscreen = v[2] == "1"; } }
         m.has_save = crate::storage_get("molehill-manual").is_some() || crate::storage_get("molehill-auto").is_some(); m
     }
     pub fn go(&mut self, s: Screen) { if matches!(s, Screen::Settings | Screen::Controls) { self.back = self.screen; } self.screen = s; self.sel = 0; if s == Screen::Main { self.has_save = crate::storage_get("molehill-manual").is_some() || crate::storage_get("molehill-auto").is_some(); } }
@@ -59,7 +61,7 @@ pub fn setup(commands: &mut Commands, f: &Handle<Font>) {
     });
 }
 
-const CONTROLS: &str = "Move  A / D        Jump  Space (or W)\nWalls  hold into a wall: W / S climb, Space wall-jump\nDig down  S        Use item  Left mouse        Interact  Right mouse\nHotbar  1-0 / wheel        Pack  I        Zoom  + / -  or  Ctrl+wheel\nPause  Esc        Quick save K / load L        Dev info  F3";
+const CONTROLS: &str = "Move  A / D        Jump  Space (or W)\nWalls  hold into a wall: W / S climb, Space wall-jump\nDig down  S        Use item  Left mouse        Interact  Right mouse\nBrush size  [ / ]  or  Ctrl+wheel        Zoom  + / -  or  Shift+wheel\nHotbar  1-0 / wheel        Pack  I\nPause  Esc        Quick save K / load L        Dev info  F3";
 
 #[allow(clippy::too_many_arguments)]
 pub fn update(mut m: ResMut<Menu>, mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<ButtonInput<MouseButton>>, mut commands: Commands,
@@ -87,10 +89,12 @@ pub fn update(mut m: ResMut<Menu>, mut g: ResMut<Game>, keys: Res<ButtonInput<Ke
             for (d, k) in digs.iter().enumerate() { if keys.just_pressed(*k) && m.seed_text.len() < 9 { m.seed_text.push(char::from(b'0' + d as u8)); } }
             if keys.just_pressed(KeyCode::Backspace) { m.seed_text.pop(); }
         }
-        let mut z = |m: &mut Menu, d: f32| { m.zoom = (m.zoom * if d > 0. { 1.15 } else { 1. / 1.15 }).clamp(0.12, 1.5); if let Ok(mut ct) = cam.single_mut() { ct.scale = Vec3::splat(m.zoom); } m.persist(); };
+        // zoom row: A/D or arrows step out/in; a click on the left half zooms out, on the right half in
+        let click_dir = win.single().ok().and_then(|w| w.cursor_position().map(|c| if c.x < w.width() / 2. { -1. } else { 1. })).unwrap_or(1.);
+        let mut z = |m: &mut Menu, d: f32| { if let Ok(mut ct) = cam.single_mut() { m.zoom_by(d, &mut ct); } };
         match it {
             Item::Volume if adj != 0. || act => { m.volume = if adj != 0. { (m.volume + adj * 0.1).clamp(0., 1.) } else if m.volume > 0. { 0. } else { 0.8 }; au.set_volume(m.volume); m.persist(); }
-            Item::Zoom if adj != 0. || act => z(&mut m, if adj != 0. { adj } else { 1. }),
+            Item::Zoom if adj != 0. || act => z(&mut m, if adj != 0. { adj } else if clicked { click_dir } else { 1. }),
             _ if act => match it {
                 Item::Continue => { if crate::load_saved(&mut g, &mut commands) { m.go(Screen::Off); } }
                 Item::NewHolt | Item::Seed => { let seed = m.seed_text.parse().unwrap_or_else(|_| crate::seed_now() % 100000); crate::begin(&mut g, &mut commands, seed); m.seed_text.clear(); m.go(Screen::Off); if let Ok(mut ct) = cam.single_mut() { ct.scale = Vec3::splat(m.zoom); } }

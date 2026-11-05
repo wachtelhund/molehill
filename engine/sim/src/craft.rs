@@ -23,6 +23,23 @@ impl Item {
          "Torch", "Wood pillar", "Iron beam", "Copperline", "Thrummer", "Knot", "TNT", "Lamp",
          "Stone tools", "Bronze tools", "Iron tools", "Grub", "Spore", "Mushroom", "Vent"][self as usize]
     }
+    /// One plain line for the hover tooltip: what it is and what it's for.
+    pub fn desc(self) -> &'static str {
+        ["Loose earth. Packs into burrow walls; weak under load.", "Stiff, wet earth. Holds a little better than dirt; fired into brick.",
+         "Flows like water when nothing holds it. Melts into glass.", "Rubble. Shifts when disturbed.", "Broken rock. Builds kilns; cut into brick.",
+         "Burns hot. Lights torches and feeds the furnace.", "Green-flecked rock. Smelted into copper for copperline.", "Pale ore. Smelted into tin for bronze.",
+         "Heavy red ore. Smelted into iron for beams and heatstones.", "Clear stone that lets light through.", "Glowing stone from deep down. Lights the dark.",
+         "Roots and timber. Pillars, torches and workbenches.", "Soft glowing growth. Edible in a pinch.",
+         "Fired stone block. Strong in a wall, heavy on a roof.", "Clear pane. Lets light through a wall.", "Wood baked black. Burns cleaner than wood.",
+         "Drawn into copperline.", "Alloyed with copper into bronze.", "Tough metal for better tools.", "Strongest metal. Beams and heatstones.",
+         "Lights a few metres around it. Breathes the air stale over time.", "Wooden prop. Holds up a roof or spans a short gap.",
+         "Iron girder. Spans wide gaps and carries heavy roofs.", "Copper wire. Carries current between levers, knots and lamps.",
+         "Knocks a pattern into the rock for a listener to hear. Stone carries it; dirt and water muffle it.",
+         "Mechanical knot: joins two lines into one answer (both, either, turn, odd, catch).", "Blasting charge. Shatters rock in a wide round.",
+         "Lights when current flows through it.", "Pack tools of stone.", "Pack tools of bronze.", "Pack tools of iron.",
+         "Fat burrowing larva. A good meal.", "Mushroom spore. Plant it on soil to grow food.", "A ripe mushroom. Fills the belly.",
+         "Draws stale air out of the tunnels around it."][self as usize]
+    }
     pub fn color(self) -> [u8; 3] {
         use Item::*;
         match self {
@@ -53,6 +70,7 @@ pub enum Station { Workbench, Kiln, Furnace, Anvil }
 pub const STATIONS: [Station; 4] = [Station::Workbench, Station::Kiln, Station::Furnace, Station::Anvil];
 impl Station {
     pub fn name(self) -> &'static str { ["Workbench", "Kiln", "Furnace", "Anvil"][self as usize] }
+    pub fn desc(self) -> &'static str { ["Saw and bench for wooden things.", "Bakes clay into brick and sand into glass.", "Smelts ore into metal.", "Hammers metal into tools and beams."][self as usize] }
     pub fn cost(self) -> &'static [(Item, u32)] {
         match self { Station::Workbench => &[(Item::Wood, 6)], Station::Kiln => &[(Item::Stone, 8), (Item::Clay, 4)], Station::Furnace => &[(Item::Brick, 10)], Station::Anvil => &[(Item::IronIngot, 5)] }
     }

@@ -2,7 +2,9 @@
 //!
 //! Units: cell edge s = 0.25 m, unit depth b = 1 m, g = 9.81 m/s², ρ in kg/m³, stresses in kPa.
 //! 1. Overburden: P(x,y) = Σ_{cells above, not empty/gas} ρ·g·s / 1000          [kPa]
-//! 2. Connectivity: static solids not 4-connected to bedrock have no load path → fail.
+//! 2. Connectivity: static solids not 4-connected to bedrock have no load path → fail. Loose
+//!    ground (powder, loose rubble) passes load straight down: whatever rests on a supported pile
+//!    is supported, so placed pillars and bricks can stand on a sand floor.
 //! 3. Bending (roofs): every maximal horizontal run of static cells with no support directly
 //!    below is a beam of span L = n·s. Its depth h = min static thickness above the run, capped
 //!    at the span (arching / Voussoir effect: only ~L of rock acts as the beam). Superimposed
@@ -54,6 +56,14 @@ impl Stress {
             for y in 0..h { let i = y * w + x; p[i] = acc; acc += cw(y); if y >= ARCH { acc -= cw(y - ARCH); } }
         }
         let p = &self.overburden;
+        // ctop: top row of the unbroken static column a static cell belongs to (does it reach the roof?);
+        // vtop: for an open cell, the row of the first non-open cell above it (the roof over that void)
+        let open = |i: usize| matches!(g.m(i).kind(), Kind::Empty | Kind::Gas);
+        let mut ctop = vec![0u32; n]; let mut vtop = vec![0u32; n];
+        for y in 0..h { for x in 0..w { let i = y * w + x;
+            if st(i) { ctop[i] = if y > 0 && st(i - w) { ctop[i - w] } else { y as u32 }; }
+            else if open(i) { vtop[i] = if y == 0 { 0 } else if open(i - w) { vtop[i - w] } else { (y - 1) as u32 }; }
+        } }
         let mut util = vec![0f32; n];
         // 2. connectivity (BFS from bedrock)
         let mut reach = vec![false; n]; let mut q: Vec<u32> = Vec::with_capacity(n / 4);
@@ -62,12 +72,11 @@ impl Stress {
         let mut head = 0;
         while head < q.len() {
             let i = q[head] as usize; head += 1; let (x, y) = (i % w, i / w);
-            for j in g.n4(x, y) { if !reach[j] && st(j) { reach[j] = true; q.push(j as u32); } }
-            // load also passes straight down through a resting pile of sand / rubble: a pillar or
-            // wall built on a sand floor that lies on rock has a load path, even though sand can't
-            // hold a roof up by itself (no sideways or hanging links through powder)
-            if y > 0 { let mut a = i; while a >= w && !reach[a - w] && g.is_solidish(a - w) && !st(a - w) { a -= w; reach[a] = true; }
-                if a >= w && a != i && !reach[a - w] && st(a - w) { reach[a - w] = true; q.push((a - w) as u32); } }
+            // static cells carry each other in all four directions; loose ground (sand, rubble) only
+            // carries what rests directly on top of it, so a pillar built on a sand floor has a load path
+            let carried = g.is_static(i);
+            if carried { for j in g.n4(x, y) { if !reach[j] && st(j) { reach[j] = true; q.push(j as u32); } } }
+            if y > 0 { let j = i - w; if !reach[j] && supports(j) { reach[j] = true; q.push(j as u32); } }
         }
         for i in 0..n { if st(i) && !reach[i] { util[i] = 9.; } }
         // 3. bending of roof runs
@@ -121,16 +130,18 @@ impl Stress {
                 if !st(y * w + x) { x += 1; continue; }
                 let xa = x; while x < w && st(y * w + x) { x += 1; } let xb = x - 1;
                 let mut load: f32 = (xa..=xb).map(|xx| p[y * w + xx]).sum();
-                                // left void run
-                // Tributary load from the open space beside the run. Above an opening of width n the
-                // rock arches, so only the loosened zone (≈ n+1 cells of rock) bears down on the
-                // supports, not the whole overburden column: a lone prop in a sound hall isn't crushed.
+                // Tributary load from the open space beside the run, but only if the run's static column
+                // actually reaches up to that void's roof (a free-standing stub carries no roof). Above
+                // an opening of width n the rock arches, so only the loosened zone (≈ n+1 cells of rock)
+                // bears down on the supports: a lone prop in a sound hall isn't crushed.
+                let rt = (xa..=xb).map(|xx| ctop[y * w + xx]).min().unwrap_or(0);
                 let cell_w = PROPS[Mat::Granite as usize].density * G * CELL_M / 1000.;
                 let mut nl = 0; while xa > nl && !st(y * w + xa - nl - 1) && nl < 400 { nl += 1; }
                 let mut nr = 0; while xb + nr + 1 < w && !st(y * w + xb + nr + 1) && nr < 400 { nr += 1; }
                 let (cl, cr) = ((nl + 1) as f32 * cell_w, (nr + 1) as f32 * cell_w);
-                let vl: f32 = (1..=nl).map(|k| p[y * w + xa - k].min(cl)).sum();
-                let vr: f32 = (1..=nr).map(|k| p[y * w + xb + k].min(cr)).sum();
+                let trib = |j: usize, cap: f32| if open(j) && rt > vtop[j] { 0. } else { p[j].min(cap) };
+                let vl: f32 = (1..=nl).map(|k| trib(y * w + xa - k, cl)).sum();
+                let vr: f32 = (1..=nr).map(|k| trib(y * w + xb + k, cr)).sum();
                 load += 0.5 * (vl + vr);
                 let wid = (xb - xa + 1) as f32;
                 let sigma = load / wid;

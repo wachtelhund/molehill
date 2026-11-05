@@ -1,0 +1,31 @@
+// A row of iron beams placed across a pit is rigid: it stays, and the mole runs across it.
+map
+###############################
+#.............................#
+#.............................#
+#.............................#
+#.............................#
+#..@..........................#
+#####..........################
+#####..........################
+#####..........################
+#####..........################
+###############################
+end
+give IronBeam 20
+place 2 2 1 IronBeam
+place 3 3 1 IronBeam
+place 4 4 1 IronBeam
+place 5 5 1 IronBeam
+place 6 6 1 IronBeam
+place 7 7 1 IronBeam
+place 8 8 1 IronBeam
+place 9 9 1 IronBeam
+place 10 10 1 IronBeam
+place 11 11 1 IronBeam
+expect 20 count:IronBeam == 10
+expect 400 static:IronBeam == 10
+hold 401-460 right
+expect 460 dx >= 14
+expect 460 dy <= 0.5
+expect 460 static:IronBeam == 10

@@ -46,8 +46,10 @@ hold 1-30 right         // hold keys for ticks A-B: left right jump up down (sev
 hold 31-40 right jump
 tool 41 3               // from tick 41 dig with tool tier 0 claws, 1 pickaxe, 2 drill, 3 bore
 mine 41-60 3 0          // hold mine on cell (dx,dy) relative to '@' during ticks A-B
+place 12 6 0 WoodPillar // at tick T place a round brush of that block centred at (dx,dy) (WoodPillar, Brick, IronBeam)
+brush 10 2.5            // from tick T the brush radius in cells for digging and placing (0 = item default; clamped per item)
 explode 70 5 -2 3       // TNT-strength blast at (dx,dy) with radius r at tick T
-place 2 8 0 WoodPillar  // place a block item (WoodPillar, IronBeam, Brick) at (dx,dy) at tick T, no reach check
+put 2 8 0 WoodPillar    // put exactly one block cell at (dx,dy) at tick T, no reach check (scripted building)
 dump 50                 // print the JSON state after tick T
 ascii 80                // print the map region after tick T
 expect 60 rise >= 4.5   // assertion after tick T: <var> <op> <number>, ops: < <= > >= == !=
@@ -71,6 +73,8 @@ Map legend: `.` empty, `#` granite, `B` bedrock, `r` rock, `d` dirt, `c` clay, `
 | `count:<Mat>` | Cells of that material inside the map rectangle, e.g. `count:Water` |
 | `is:DX,DY,<Mat>` | 1 if the cell at an offset from `@` is that material |
 | `inv:<Item>` | Inventory count |
+| `static:<Mat>` | Like `count:` but only cells that are fixed in place (not loose debris) |
+| `util:DX,DY` | Stress utilisation of the cell at an offset from `@` (1.0 = at capacity; above that it cracks) |
 
 The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of the scenario tick), player state, non-zero inventory, material counts in the map rectangle, and events as `"tick:Event"`.
 
@@ -93,7 +97,13 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `water_levels.scn` / `lava_flows.scn` | A heap levels to the right depth (water by tick 120, lava much later), nothing lost, then sleeps |
 | `sand_sinks.scn` / `sand_floats_lava.scn` | Sand sinks through water and piles on the bottom; it floats on lava |
 | `lava_meets_water.scn` | Lava on water quenches to basalt with steam; the steam clears and the chamber sleeps |
-| `beam_span.scn` / `beam_overload.scn` | An iron beam bridges an 8-cell gap; a sand-loaded wood beam breaks into splinters |
+| `beam_span.scn` / `beam_overload_sand.scn` | An iron beam bridges an 8-cell gap; a sand-loaded wood beam breaks into loose debris |
+| `pillar_holds_roof.scn` | Placed pillars (full height, a short stub, a ledge off a wall) stay rigid |
+| `pillar_on_rubble.scn` | Pillars, a ledge and bricks built on a sand floor stay rigid; no new sand appears |
+| `beam_spans_gap.scn` | Iron beams placed across a pit stay put, and the mole runs across them |
+| `beam_overload.scn` | A long wood span under deep sand cracks and falls as wooden debris |
+| `brush_place.scn` | A radius-2 brick brush fills the open part of the disc and uses items 4 cells to one |
+| `brush_clamp.scn` | Brush radius is clamped per item (iron beam max 2, pillar min 0.5, pickaxe max 3) |
 
 ### Writing a new scenario (for agents)
 
@@ -104,6 +114,8 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 
 Tuning constants for movement live in one place: `TUNE` in `sim/src/world.rs`. After changing them, rerun both the tests and the scenarios.
 
+Zoom limits and brush ranges also have unit tests in `sim/tests/sim.rs` (`zoom_is_clamped_both_ways`, `brush_sizes_clamp_per_item`), as do tooltip texts (`every_thing_has_a_lore_safe_tooltip`).
+
 ## 2b. Settling / performance check
 
 `cargo run --release -p molehill-sim --example wakediag [seed]` generates a world, runs 1200 ticks and reports how many CA chunks are still awake and what is still changing. A settled world should be close to 0 awake chunks.
@@ -111,3 +123,5 @@ Tuning constants for movement live in one place: `TUNE` in `sim/src/world.rs`. A
 ## 3. Visual check (optional)
 
 `cargo build --release -p molehill`. On a headless Linux box, run it under `Xvfb :99` with `VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.json`, wait about 8 s, and grab one frame with `ffmpeg -f x11grab`. The game opens on the main menu; press Enter to start a New Holt. One screenshot is enough; don't record videos unless asked.
+
+Native builds also take a frame by themselves: `molehill --fresh --seed=4242 --shot=out.bmp [--shot-at=150] [--shot-ui=pause|inv|help|dev] [--shot-walk]` starts a holt, writes one BMP and quits. On macOS the window must be visible on screen: launched from a background shell the surface reads back empty.

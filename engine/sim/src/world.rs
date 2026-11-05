@@ -27,13 +27,39 @@ pub struct Mole {
 /// What the player is pressing this tick (the game fills it in; the sim never reads the keyboard).
 #[derive(Clone, Default, Debug)]
 pub struct Input { pub left: bool, pub right: bool, pub jump: bool, pub up: bool, pub down: bool, pub mine: Option<(usize, usize)>, /// dig tool in hand: 0 claws (pack tools), 1 pickaxe, 2 drill, 3 bore
-    pub tool: u8 }
+    pub tool: u8,
+    /// brush radius (cells) the player picked for the item in hand; 0 = that item's default. Always clamped by `brush_range`.
+    pub brush: f32 }
 /// The player mole's platformer state (cells; velocities in cells/s).
 #[derive(Clone, Default, Debug)]
 pub struct Player { pub px: f32, pub py: f32, pub ppx: f32, pub ppy: f32, pub sync: Option<(usize, usize)>, pub coyote: f32, pub buffer: f32, pub lock: f32, pub cling: i8, pub jump_was: bool, pub vx: f32, pub vy: f32, pub ax: f32, pub ay: f32, pub grounded: bool, pub fall_from: usize, pub mine: Option<(usize, u32, u32)>, pub spawn: (usize, i64), pub dead_t: u32, pub deaths: u32 }
 pub const REACH_CELLS: f32 = 18.; // 4.5 m
 /// Mining brush radius (cells) per dig tool: claws, pickaxe, drill, bore. A pickaxe bite is about a mole tall.
 pub const BITES: [f32; 4] = [1.8, 2.5, 3.2, 4.2];
+/// What a round brush is attached to: a dig tool tier (0 claws .. 3 bore) or a placeable block item.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Brush { Dig(u8), Place(Item) }
+/// Brush radius range in cells for an item: (min, max, default). Bigger tools allow bigger bites; a radius
+/// of 0.5 is one cell, 1.0 a plus of five. Defaults: dig tools keep their `BITES`; pillars and beams place one cell, bricks a small plus.
+pub fn brush_range(b: Brush) -> Option<(f32, f32, f32)> {
+    Some(match b {
+        Brush::Dig(t) => match t { 0 => (0.5, 1.8, BITES[0]), 1 => (0.5, 3.0, BITES[1]), 2 => (0.5, 4.0, BITES[2]), _ => (1.0, 5.5, BITES[3]) },
+        Brush::Place(Item::WoodPillar) => (0.5, 3.0, 0.5),
+        Brush::Place(Item::Brick) => (0.5, 3.5, 1.0),
+        Brush::Place(Item::IronBeam) => (0.5, 2.0, 0.5),
+        _ => return None,
+    })
+}
+/// The radius actually used: the requested one (0 = default), clamped to the item's range.
+pub fn brush_radius(b: Brush, want: f32) -> f32 {
+    match brush_range(b) { Some((lo, hi, def)) => if want <= 0. { def } else { want.clamp(lo, hi) }, None => 0.5 }
+}
+/// Cells (dx, dy) of a round brush of radius r, nearest the centre first.
+pub fn disc(r: f32) -> Vec<(i32, i32)> {
+    let k = r.ceil() as i32; let mut v = vec![];
+    for dy in -k..=k { for dx in -k..=k { if (dx * dx + dy * dy) as f32 <= r * r { v.push((dx, dy)); } } }
+    v.sort_by_key(|&(dx, dy)| dx * dx + dy * dy); v
+}
 /// Player body (cells): an AABB centred on px, feet at py.
 pub const BODY_HW: f32 = 0.9; pub const BODY_H: f32 = 2.9;
 /// Movement tuning (cells, seconds). One place to tweak the feel.
@@ -446,12 +472,10 @@ impl World {
         if !self.diggable(i) { return None; }
         let m = self.g.m(i); Some((m.p().dig as u32 * 4 / (1 + self.dig_power() as u32) + 1).max(4))
     }
-    /// Cells in the mining bite around (x, y): a disc of radius BITES[tool] cells.
+    /// Cells in the mining bite around (x, y): a disc of the tool's brush radius (default BITES[tool]).
     pub fn bite_cells(&self, x: usize, y: usize) -> Vec<usize> {
-        let b = BITES[self.input.tool.min(3) as usize]; let r = b.ceil() as i32; let mut v = vec![];
-        for dy in -r..=r { for dx in -r..=r { if (dx * dx + dy * dy) as f32 > b * b { continue; }
-            let (nx, ny) = (x as i32 + dx, y as i32 + dy); if self.g.in_bounds(nx, ny) { v.push(self.g.idx(nx as usize, ny as usize)); } } }
-        v
+        let b = brush_radius(Brush::Dig(self.input.tool.min(3)), self.input.brush);
+        disc(b).into_iter().filter_map(|(dx, dy)| { let (nx, ny) = (x as i32 + dx, y as i32 + dy); self.g.in_bounds(nx, ny).then(|| self.g.idx(nx as usize, ny as usize)) }).collect()
     }
     /// Does the body AABB (centre px, feet py) overlap any solid cell?
     pub fn box_hits(&self, px: f32, py: f32) -> bool {
@@ -601,6 +625,35 @@ impl World {
         if !self.g.n4(x, y).any(|j| self.g.is_solidish(j)) { return Err("needs something to rest on"); }
         if self.place_acc[d as usize] == 0 && self.inv[it as usize] == 0 { return Err("none left"); }
         self.place_cell(i, d); Ok(())
+    }
+    /// Place a round brush of blocks centred on (x, y) with radius `want` (0 = the item's default, clamped to
+    /// its range). Only open cells in reach are filled, never the mole's body, and each new cell must touch
+    /// something solid (the ground or a cell placed just before it), so a brush grows out of what it rests on.
+    /// Returns how many cells were placed.
+    pub fn place_brush(&mut self, x: usize, y: usize, it: Item, want: f32) -> Result<usize, &'static str> {
+        let d = match it { Item::WoodPillar => D_WOOD, Item::Brick => D_BRICK, Item::IronBeam => D_IRON, _ => return Err("not a block") };
+        let r = brush_radius(Brush::Place(it), want);
+        let ok = |w: &World, nx: i32, ny: i32| -> bool {
+            if nx < 1 || ny < 1 || nx as usize + 1 >= w.g.w || ny as usize + 1 >= w.g.h { return false; }
+            let (cx, cy) = (nx as usize, ny as usize); let i = w.g.idx(cx, cy);
+            (w.g.mat[i] == 0 || matches!(w.g.m(i), Mat::Water | Mat::Steam)) && w.in_reach(cx, cy)
+                && !w.moles.iter().any(|m| m.alive && m.x == cx && cy <= m.y && cy + MOLE_H > m.y)
+        };
+        let mut todo: Vec<(i32, i32)> = disc(r).into_iter().map(|(dx, dy)| (x as i32 + dx, y as i32 + dy)).filter(|&(nx, ny)| ok(self, nx, ny)).collect();
+        if todo.is_empty() { return Err(if self.in_reach(x, y) { "cell is not open" } else { "out of reach" }); }
+        let mut n = 0;
+        loop {
+            let before = todo.len();
+            todo.retain(|&(nx, ny)| {
+                let (cx, cy) = (nx as usize, ny as usize);
+                if !self.g.n4(cx, cy).any(|j| self.g.is_solidish(j)) { return true; }
+                if self.place_acc[d as usize] == 0 && self.inv[it as usize] == 0 { return true; }
+                let i = self.g.idx(cx, cy); self.place_cell(i, d); n += 1; false
+            });
+            if todo.is_empty() || todo.len() == before { break; }
+        }
+        if n == 0 { return Err(if self.place_acc[d as usize] == 0 && self.inv[it as usize] == 0 { "none left" } else { "needs something to rest on" }); }
+        Ok(n)
     }
     /// Craft one recipe at once; needs the right station built within 16 cells of the mole.
     pub fn craft_now(&mut self, r: usize) -> Result<(), String> {
