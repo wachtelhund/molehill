@@ -158,6 +158,8 @@ pub struct World {
     pub gen: Gen, pub oy: i64,
     /// Bands that left the window, by the world row they start at (see `band.rs`): everything in them, packed.
     pub bands: std::collections::BTreeMap<i64, crate::band::Stored>, pub opened: std::collections::HashSet<(usize, i64)>,
+    /// The Lid thread (`lore.rs`): clues in the window, the ones found (x, absolute row), and the journal (fragment ids, in the order read).
+    pub clues: Vec<crate::lore::Clue>, pub found_clues: std::collections::HashSet<(usize, i64)>, pub journal: Vec<u16>,
     /// grottos touching the window (from the generator; refreshed with the chests)
     pub grottos: Vec<gen::Grotto>,
     /// keep the last blast's overpressure field (kPa per cell) in `blast_field` (tests and the harness)
@@ -175,7 +177,7 @@ pub struct World {
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Picked { Dev(Dev), Torch, Wire, Furniture(Item) }
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub enum Event { Dig, Crumble, Crack, Place, Chest, Quest, Explode, Discover, Hurt, Craft, Eat, Death, Warning, Quake, Click, Harvest, Gasp }
+pub enum Event { Dig, Crumble, Crack, Place, Chest, Quest, Explode, Discover, Hurt, Craft, Eat, Death, Warning, Quake, Click, Harvest, Gasp, Lore }
 
 const NAMES: [&str; 8] = ["Mossy", "Pip", "Bramble", "Tuck", "Clover", "Dusty", "Fern", "Nib"];
 
@@ -193,7 +195,7 @@ impl World {
             st: Stress::new(w * h), light: Light::new(w, h), tick: 0, inv: [0; NITEM], dig_acc: [0; NMAT], place_acc: [0; 9], desig: vec![0; w * h],
             moles: vec![], drops: vec![], stockpile: (0, 0, 0, 0), buildings: vec![], torches: vec![], chests: vec![], furniture: vec![], paint_acc: 0,
             quest: 0, log: vec![], discovered: [false; NMAT], chests_opened: 0, pillars: 0, max_depth: 0., craft_queue: vec![], gear: Gear::default(), known: [false; NITEM], mode: Default::default(), rules: Default::default(), lamp_oil: 0., lamp_dry: false, crumbled: 0,
-            light_rect: (0, 0, w - 1, h - 1), events: vec![], marks: vec![], react_pending: false, logic: Logic::new(w, h), disasters: Disasters::new(seed), shake: 0., air: Air::new(w, h), farms: vec![], harvested: 0, input: Input::default(), pl: Player::default(), gen: gn, oy, bands: Default::default(), opened: Default::default(), grottos: vec![], caught: Default::default(), keep_blast_field: false, blast_field: vec![], debris: vec![], waves: vec![], info, g,
+            light_rect: (0, 0, w - 1, h - 1), events: vec![], marks: vec![], react_pending: false, logic: Logic::new(w, h), disasters: Disasters::new(seed), shake: 0., air: Air::new(w, h), farms: vec![], harvested: 0, input: Input::default(), pl: Player::default(), gen: gn, oy, bands: Default::default(), opened: Default::default(), clues: vec![], found_clues: Default::default(), journal: vec![], grottos: vec![], caught: Default::default(), keep_blast_field: false, blast_field: vec![], debris: vec![], waves: vec![], info, g,
         }
     }
     pub fn new(w: usize, h: usize, seed: u32) -> World {
@@ -228,6 +230,33 @@ impl World {
                 let y = wy - self.oy; if y < mg || y >= h - mg { continue; }
                 self.chests.push(Chest { x, y: y as usize, opened: self.opened.contains(&(x, wy)) });
             }
+        }
+        self.refresh_clues();
+    }
+    /// The clues in the window, from the seed (like chests); the ones already found stay found.
+    pub fn refresh_clues(&mut self) {
+        let h = self.g.h as i64; let bh = crate::lore::LORE_BAND as i64; let mg = 4 * S as i64; self.clues.clear();
+        for band in self.oy.div_euclid(bh)..=(self.oy + h).div_euclid(bh) {
+            for (kind, x, wy, look) in crate::lore::clues_in_band(&self.gen, self.gen.seed, band, self.g.w) {
+                let y = wy - self.oy; if y < mg || y >= h - mg { continue; }
+                self.clues.push(crate::lore::Clue { kind, x, y: y as usize, wy, found: self.found_clues.contains(&(x, wy)), look });
+            }
+        }
+    }
+    /// A Delver who comes within about a metre of a clue (in the open, not buried) reads it: the next
+    /// fragment of its kind goes into the journal. Once all of a kind are read, more clues are just noted.
+    fn check_clues(&mut self) {
+        let r = CPM as i64 + S as i64;
+        for k in 0..self.clues.len() {
+            let c = &self.clues[k]; if c.found || self.g.is_solidish(c.y * self.g.w + c.x) { continue; }
+            let near = self.moles.iter().any(|m| m.alive && (m.x as i64 - c.x as i64).abs() <= r && (m.y as i64 - c.y as i64).abs() <= r + 2 * S as i64);
+            if !near { continue; }
+            let (kind, x, wy) = (c.kind, c.x, c.wy); self.clues[k].found = true; self.found_clues.insert((x, wy));
+            match crate::lore::next_fragment(kind, &self.journal) {
+                Some(f) => { self.journal.push(f); self.say(format!("Journal: {} (J)", crate::lore::FRAGMENTS[f as usize].title)); }
+                None => self.say(format!("Another {}, like the others.", kind.name().to_lowercase())),
+            }
+            self.events.push(Event::Lore);
         }
     }
     /// Slide the window by `rows` (a multiple of `band::BH`; + = deeper). Rows leaving are packed into
@@ -443,6 +472,7 @@ impl World {
         if self.tick % 30 == 0 { self.follow_colony(); }
         self.shake *= 0.93;
         if self.tick % 30 == 0 { self.check_quests(); self.check_chests(); }
+        if self.tick % 10 == 0 { self.check_clues(); }
     }
     /// Stress re-solve over clusters of dirty chunk boxes (boxes within 16 m of each other merge).
     fn solve_regions(&mut self, mut boxes: Vec<(usize, usize, usize, usize)>) -> Vec<u32> {

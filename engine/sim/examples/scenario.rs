@@ -12,7 +12,7 @@ fn mat_by_name(s: &str) -> Option<Mat> { (0..NMAT as u8).map(Mat::from_u8).find(
 fn mat_char(c: char) -> Option<Mat> { Some(match c { '.' | '@' => Mat::Empty, 't' => Mat::Roots, 'f' => Mat::Fungus, '#' => Mat::Granite, 'B' => Mat::Bedrock, 'r' => Mat::Rock, 'd' => Mat::Dirt, 'c' => Mat::Clay, 's' => Mat::Sand, 'g' => Mat::Gravel, 'w' => Mat::Water, 'l' => Mat::Lava, 'o' => Mat::Coal, 'i' => Mat::IronOre, 'b' => Mat::WoodBeam, 'k' => Mat::StoneBrick, 'I' => Mat::IronBeam, 'a' => Mat::Basalt, 'T' => Mat::RootTree, 'R' => Mat::TreeRoot, 'm' => Mat::Moss, 'y' => Mat::Mycelium, 'p' => Mat::Planks, 'q' => Mat::Polished, 'x' => Mat::Tiles, 'C' => Mat::Carved, _ => return None }) }
 fn ch_of(m: Mat) -> char { match m { Mat::Empty => '.', Mat::Roots => 't', Mat::Fungus => 'f', Mat::Granite => '#', Mat::Bedrock => 'B', Mat::Rock => 'r', Mat::Dirt => 'd', Mat::Clay => 'c', Mat::Sand => 's', Mat::Gravel => 'g', Mat::Water => 'w', Mat::Lava => 'l', Mat::Coal => 'o', Mat::IronOre => 'i', Mat::WoodBeam => 'b', Mat::StoneBrick => 'k', Mat::IronBeam => 'I', Mat::Basalt => 'a', Mat::Steam => '~', Mat::RootTree => 'T', Mat::TreeRoot => 'R', Mat::Moss => 'm', Mat::Mycelium => 'y', Mat::Planks => 'p', Mat::Polished => 'q', Mat::Tiles => 'x', Mat::Carved => 'C', _ => '?' } }
 
-enum Act { Furnish(u64, String, i32, i32), Paint(u64, String, i32, i32), Set(u64, String, f32), PlaceTorch(u64, i32, i32), Grotto(u64, i32, i32, f32, f32), Catch(u64, i32, i32), Throw(u64, String, f32, f32, f32), Loose(u64, String, i32, i32, f32, f32), Brush(u64, f32), Place(u64, i32, i32, String), Put(u64, i32, i32, String), Hold(u64, u64, Vec<String>), Mine(u64, u64, i32, i32), Dig(u64, u64, i32, i32), Tool(u64, u8), Explode(u64, i32, i32, f32), Dump(u64), Ascii(u64), Device(u64, i32, i32, String), Use(u64, i32, i32), Pickup(u64, i32, i32), Wire(u64, i32, i32, i32, i32), SaveLoad(u64), Lamp(u64, bool), Aim(u64, Option<(i32, i32)>), Wield(u64, String), Torch(u64, i32, i32), Slide(u64), SizeKey(u64, String), SizeWheel(u64, String, i32), Hand(u64, String), Snap(u64, bool), Line(u64, i32, i32, i32, i32, String), Mode(u64, bool), Pour(u64, i32, i32, String), Craft(u64, String), Station(u64, i32, i32, String), Expect(u64, String, String, f64, usize) }
+enum Act { Clue(u64, String, i32, i32), Furnish(u64, String, i32, i32), Paint(u64, String, i32, i32), Set(u64, String, f32), PlaceTorch(u64, i32, i32), Grotto(u64, i32, i32, f32, f32), Catch(u64, i32, i32), Throw(u64, String, f32, f32, f32), Loose(u64, String, i32, i32, f32, f32), Brush(u64, f32), Place(u64, i32, i32, String), Put(u64, i32, i32, String), Hold(u64, u64, Vec<String>), Mine(u64, u64, i32, i32), Dig(u64, u64, i32, i32), Tool(u64, u8), Explode(u64, i32, i32, f32), Dump(u64), Ascii(u64), Device(u64, i32, i32, String), Use(u64, i32, i32), Pickup(u64, i32, i32), Wire(u64, i32, i32, i32, i32), SaveLoad(u64), Lamp(u64, bool), Aim(u64, Option<(i32, i32)>), Wield(u64, String), Torch(u64, i32, i32), Slide(u64), SizeKey(u64, String), SizeWheel(u64, String, i32), Hand(u64, String), Snap(u64, bool), Line(u64, i32, i32, i32, i32, String), Mode(u64, bool), Pour(u64, i32, i32, String), Craft(u64, String), Station(u64, i32, i32, String), Expect(u64, String, String, f64, usize) }
 
 struct Run { w: World, sizes: molehill_sim::view::BrushSizes, held: molehill_sim::world::Brush, ox: usize, oy: usize, mw: usize, mh: usize, ax: usize, ay: usize, sx: f32, sy: f32, top: f32, events: Vec<String> }
 impl Run {
@@ -62,6 +62,14 @@ impl Run {
                 let b = self.w.logic.block_of(x, y); let l = &self.w.logic;
                 match k { "dev" => (format!("{:?}", molehill_sim::logic::Dev::from_u8(l.dev[b])).eq_ignore_ascii_case(a.get(2)?)) as u8 as f64, "lit" => l.lit(b) as u8 as f64, "wire" => l.wire[b] as f64, _ => l.powered[b] as f64 } }
             // furn:Item  how many of that furniture stand in the world; tint:Item  the first one's dye (0 undyed)
+            // journal: fragments read; clues: unread clues in the map; clues_upper / clues_lower: every clue in the upper / lower half of the window
+            "journal" => self.w.journal.len() as f64,
+            // clues_bands:A,B  how many clues the world places in 32 m bands A..=B (absolute; negative = higher up)
+            _ if v.starts_with("clues_bands:") => { let a: Vec<i64> = v[12..].split(',').filter_map(|t| t.parse().ok()).collect(); let (b0, b1) = (*a.first()?, *a.get(1)?);
+                (b0..=b1).map(|b| molehill_sim::lore::clues_in_band(&self.w.gen, self.w.gen.seed, b, self.w.g.w).len()).sum::<usize>() as f64 }
+            "clues" => self.w.clues.iter().filter(|c| !c.found && c.x >= self.ox && c.x < self.ox + self.mw && c.y >= self.oy && c.y < self.oy + self.mh).count() as f64,
+            "clues_upper" => self.w.clues.iter().filter(|c| c.y < self.w.g.h / 2).count() as f64,
+            "clues_lower" => self.w.clues.iter().filter(|c| c.y >= self.w.g.h / 2).count() as f64,
             _ if v.starts_with("furn:") => { let it = molehill_sim::craft::ITEMS.iter().copied().find(|i| format!("{i:?}").eq_ignore_ascii_case(&v[5..]))?; self.w.furniture.iter().filter(|f| f.item == it).count() as f64 }
             _ if v.starts_with("tint:") => { let it = molehill_sim::craft::ITEMS.iter().copied().find(|i| format!("{i:?}").eq_ignore_ascii_case(&v[5..]))?; self.w.furniture.iter().find(|f| f.item == it)?.tint as f64 }
             // paint:DX,DY  the pigment on the tile's centre cell (0 unpainted)
@@ -164,6 +172,8 @@ fn run_file(path: &str, json: bool) -> bool {
             "brush" => acts.push(Act::Brush(t[1].parse().unwrap(), t[2].parse().unwrap())),
             "put" => acts.push(Act::Put(t[1].parse().unwrap(), t[2].parse().unwrap(), t[3].parse().unwrap(), t[4].into())),
             // furnish T Item DX DY: set a piece of furniture down at tile (DX, DY) (it finds the floor or ceiling)
+            // clue T Kind DX DY: put a Lid clue (Carving, Note, Draft, Relic) on the floor of tile (DX, DY)
+            "clue" => acts.push(Act::Clue(t[1].parse().unwrap(), t[2].into(), t[3].parse().unwrap(), t[4].parse().unwrap())),
             "furnish" => acts.push(Act::Furnish(t[1].parse().unwrap(), t[2].into(), t[3].parse().unwrap(), t[4].parse().unwrap())),
             // paint T Pigment DX DY: paint a brush (see `brush`) of cells around tile (DX, DY), or dye the furniture there
             "paint" => acts.push(Act::Paint(t[1].parse().unwrap(), t[2].into(), t[3].parse().unwrap(), t[4].parse().unwrap())),
@@ -196,7 +206,7 @@ fn run_file(path: &str, json: bool) -> bool {
             o => panic!("{path}:{}: unknown directive {o}", ln + 1),
         }
     }
-    for a in &acts { ticks = ticks.max(match a { Act::Hold(_, b, _) | Act::Mine(_, b, _, _) | Act::Dig(_, b, _, _) => *b, Act::Grotto(t, ..) | Act::Catch(t, ..) | Act::Tool(t, _) | Act::Furnish(t, ..) | Act::Paint(t, ..) | Act::Set(t, ..) | Act::PlaceTorch(t, ..) | Act::Throw(t, ..) | Act::Loose(t, ..) | Act::Brush(t, _) | Act::Place(t, ..) | Act::Put(t, ..) | Act::Explode(t, ..) | Act::Device(t, ..) | Act::Use(t, ..) | Act::Pickup(t, ..) | Act::Wire(t, ..) | Act::SaveLoad(t) | Act::Lamp(t, _) | Act::Aim(t, _) | Act::Wield(t, _) | Act::Torch(t, ..) | Act::Slide(t) | Act::SizeKey(t, ..) | Act::SizeWheel(t, ..) | Act::Hand(t, ..) | Act::Snap(t, ..) | Act::Line(t, ..) | Act::Dump(t) | Act::Ascii(t) | Act::Mode(t, _) | Act::Pour(t, ..) | Act::Craft(t, _) | Act::Station(t, ..) | Act::Expect(t, ..) => *t }); }
+    for a in &acts { ticks = ticks.max(match a { Act::Hold(_, b, _) | Act::Mine(_, b, _, _) | Act::Dig(_, b, _, _) => *b, Act::Grotto(t, ..) | Act::Catch(t, ..) | Act::Tool(t, _) | Act::Clue(t, ..) | Act::Furnish(t, ..) | Act::Paint(t, ..) | Act::Set(t, ..) | Act::PlaceTorch(t, ..) | Act::Throw(t, ..) | Act::Loose(t, ..) | Act::Brush(t, _) | Act::Place(t, ..) | Act::Put(t, ..) | Act::Explode(t, ..) | Act::Device(t, ..) | Act::Use(t, ..) | Act::Pickup(t, ..) | Act::Wire(t, ..) | Act::SaveLoad(t) | Act::Lamp(t, _) | Act::Aim(t, _) | Act::Wield(t, _) | Act::Torch(t, ..) | Act::Slide(t) | Act::SizeKey(t, ..) | Act::SizeWheel(t, ..) | Act::Hand(t, ..) | Act::Snap(t, ..) | Act::Line(t, ..) | Act::Dump(t) | Act::Ascii(t) | Act::Mode(t, _) | Act::Pour(t, ..) | Act::Craft(t, _) | Act::Station(t, ..) | Act::Expect(t, ..) => *t }); }
     let mut w = World::new(512 * K, 256 * K, seed); w.disasters.enabled = false; w.drops.clear(); w.torches.clear(); w.farms.clear(); w.grottos.clear(); w.keep_blast_field = true; // (the generated world's own grottos aren't part of the scenario)
     // tile-aligned spawn tile: the map is laid out in K×K tiles from here
     let (sx0, sy0) = (w.moles[0].x / K, w.moles[0].y / K);
@@ -242,6 +252,10 @@ fn run_file(path: &str, json: bool) -> bool {
                 Act::Wield(t, it) if *t == tick => r.w.gear.held = molehill_sim::craft::ITEMS.iter().copied().find(|i| format!("{i:?}").eq_ignore_ascii_case(it)),
                 Act::Torch(t, dx, dy) if *t == tick => { let c = r.at(*dx, *dy); r.w.torches.push(c); }
                 Act::Explode(t, dx, dy, kg) if *t == tick => { let (x, y) = r.at(*dx, *dy); r.w.blast(x, y, *kg); } // a blast of kg TNT-equivalent (a TNT charge is 0.5)
+                Act::Clue(t, k, dx, dy) if *t == tick => { use molehill_sim::lore::{Clue, ClueKind};
+                    let kind = [ClueKind::Carving, ClueKind::Note, ClueKind::Draft, ClueKind::Relic].into_iter().find(|c| format!("{c:?}").eq_ignore_ascii_case(k)).unwrap_or_else(|| panic!("{path}: unknown clue {k}"));
+                    let (x, _) = r.at(*dx, *dy); let y = (r.ay as i32 + dy * K as i32 + K as i32 - 1) as usize; let wy = r.w.oy + y as i64;
+                    r.w.clues.push(Clue { kind, x, y, wy, found: false, look: 0 }); }
                 Act::Furnish(t, it, dx, dy) if *t == tick => { let item = molehill_sim::craft::ITEMS.iter().copied().find(|i| format!("{i:?}").eq_ignore_ascii_case(it)).unwrap_or_else(|| panic!("{path}: unknown item {it}"));
                     let (x, y) = r.at(*dx, *dy); if let Err(e) = r.w.place_furniture(item, x, y) { println!("  NOTE {path} tick {tick}: furnish {it} at {dx},{dy}: {e}"); } }
                 Act::Paint(t, it, dx, dy) if *t == tick => { let item = molehill_sim::craft::ITEMS.iter().copied().find(|i| format!("{i:?}").eq_ignore_ascii_case(it)).unwrap_or_else(|| panic!("{path}: unknown item {it}"));

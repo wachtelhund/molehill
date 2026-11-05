@@ -1,0 +1,11 @@
+// Lid clues grow more common the higher you go: the world places many in the wet layers far above the
+// start, about one per 32 m band around it, and next to none deep down. (Bands are 32 m; negative = higher.)
+map
+##########
+#..@.....#
+##########
+end
+expect 0 clues_bands:-7,-4 >= 24      // 96-224 m above the start: dense
+expect 0 clues_bands:-1,0 >= 1         // around the start: a few
+expect 0 clues_bands:-1,0 <= 6
+expect 0 clues_bands:4,7 <= 2          // 128-256 m below: almost none

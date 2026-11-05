@@ -54,6 +54,21 @@ The lore is a design constraint as much as a story. Here is where it shows up in
 | Handmade tech | Every device has a plain name: lever, both-knot, ticker, catch-knot, floodgate, listener, relay thrummer. Tooltips are checked by a test (`every_thing_has_a_lore_safe_tooltip`). |
 | Thrumming | Modelled as an elastic wave through the actual cells between thrummer and listener (see [Devices and Copperline](Devices-and-Copperline.md#thrumming)). |
 
+## The Lid in the game
+
+The Lid is the thread that pulls a Delver upward, but **the game never shows or confirms it** (`sim/src/lore.rs`). Older Delvers left **clues** in the rock, and they get more common the higher you go:
+
+| clue | where | what it is |
+|---|---|---|
+| Carving | on a wall | marks cut into the rock: moles climbing, a round hole with something falling from it, tallies counting upward |
+| Old note | on a floor | a scrap of bark with scratched writing: doubts, claims, an expedition that turned back |
+| Draft | under a rising shaft | nothing to see but dust drifting down; a cool, fresh breath falling from above, when every other breath rises |
+| Odd find | on a floor | something that doesn't belong down here: a flat green thing veined like a paw, a feather, a sliver of blue glass, a stone-hard seed, a pebble worn perfectly round, a bleached bone |
+
+**Placement** is a pure function of the seed and a 32 m band, like chests, and doesn't change the generator. A band expects 1.2 × 2^(−depth/30 m) clues, between 0.1 and 8. That's about one per band at the start layer, doubling every 30 m upward and fading out below. Drafts and odd finds only appear above the start layer. Scenario `lore_density` checks the counts by height: 8 per band 100–200 m up, 1 around the start, 0 below 30 m.
+
+**The journal** (`J`): walking within about a metre of a clue reads it. The next unread fragment of its kind goes into the journal, with a toast and a soft sound. Twenty-four fragments (six per kind) hint, doubt and argue; none of them proves anything, and a test bans the words that would. The journal is a plain list, newest first: kind and title, then the text. It is kept in saves (v7), along with which clues were read.
+
 ## Glossary
 
 | word | meaning |
