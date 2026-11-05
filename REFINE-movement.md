@@ -50,6 +50,11 @@ Polish only: no new features or concepts. Each entry is one commit.
    of the wall first, so the jump found no wall and the mole just dropped. Leaving a cling now keeps a
    0.1 s grace (`TUNE.coyote`, like ground coyote) in which Space still kicks off that wall. Scenario:
    `wall_jump_away` (same-tick press, a late press 4 ticks after letting go, none after 8 ticks).
+8. **One frame less lag on screen.** The camera follow and the mole's interpolated draw position were worked
+   out in `input()`, before that frame's sim steps ran, so every frame showed the mole where it was a step
+   earlier (about 16 ms behind the keys). They now run in `follow()` right after the steps (and after the old
+   shake offset is removed), so a press shows on the same frame. Game-only, so there's no scenario; the
+   cursor-to-cell mapping still uses the camera as drawn, which is what the player sees.
 
 ## Open issues
 * `main`'s solver still sends overburden through open caves, so dirt seams under deep rock are crushed in

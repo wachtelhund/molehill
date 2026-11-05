@@ -263,7 +263,7 @@ fn input(mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<Button
          mut commands: Commands, mut menu: ResMut<menu::Menu>) {
     let Ok(win) = win.single() else { return }; let Ok(mut ct) = cam.single_mut() else { return };
     if g.paused { g.w.input = Default::default(); g.aim = None; return; } // a menu is open: no input, no aim ring
-    let dt = time.delta_secs(); let sc = ct.scale.x; let now = time.elapsed_secs();
+    let sc = ct.scale.x; let now = time.elapsed_secs();
     let ctrl = keys.pressed(KeyCode::ControlLeft) || keys.pressed(KeyCode::ControlRight);
     // toasts: short game messages and new world log lines (deduplicated, at most 3 live)
     let fresh: Vec<String> = g.w.log.iter().filter(|(t, _)| *t > g.log_seen).map(|(_, l)| l.clone()).collect();
@@ -299,16 +299,6 @@ fn input(mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<Button
         let k = brush_slot(b); let r = brush_r(&g, b); let (lo, hi, _) = sw::brush_range(b).unwrap_or((0.5, 0.5, 0.5));
         g.brush[k] = (r + resize * 0.5).clamp(lo, hi); g.sel_t = now;
     }
-    // render interpolation between the last two fixed sim steps; tight camera with a little lookahead
-    { let a = g.acc.clamp(0., 1.); let pl = &g.w.pl; g.disp = Vec2::new(pl.ppx + (pl.px - pl.ppx) * a, pl.ppy + (pl.py - pl.ppy) * a - 1.0);
-      // the lookahead eases (a turn doesn't whip the view); the follow itself stays tight
-      let want = Vec2::new(g.w.pl.vx * 0.14, if g.w.pl.vy > 20. { (g.w.pl.vy - 20.) * 0.08 } else { 0. });
-      let kl = 1. - (-7. * dt).exp(); let look = g.look + (want - g.look) * kl; g.look = look;
-      let p = cell_to_world(g.disp.x + look.x, g.disp.y - 1.5 + look.y); let k = 1. - (-30. * dt).exp();
-      let d = Vec2::new(p.x - ct.translation.x, p.y - ct.translation.y);
-      if d.length() > 200. { ct.translation.x = p.x; ct.translation.y = p.y; } else { ct.translation.x += d.x * k; ct.translation.y += d.y * k; } }
-    let half = Vec2::new(W as f32 * CPX / 2., H as f32 * CPX / 2.);
-    ct.translation.x = ct.translation.x.clamp(-half.x, half.x); { let fy = half.y + (FAR * CH) as f32 * CPX; ct.translation.y = ct.translation.y.clamp(-fy, fy); }
     let digits = [KeyCode::Digit1, KeyCode::Digit2, KeyCode::Digit3, KeyCode::Digit4, KeyCode::Digit5, KeyCode::Digit6, KeyCode::Digit7, KeyCode::Digit8, KeyCode::Digit9, KeyCode::Digit0];
     for (k, d) in digits.iter().enumerate() { if keys.just_pressed(*d) { g.hot = k; } }
     if keys.just_pressed(KeyCode::Escape) { g.inv_open = false; g.help = false; }
@@ -372,6 +362,20 @@ fn input(mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<Button
     }
 }
 
+/// Render interpolation between the last two fixed sim steps, and a tight camera with a little lookahead.
+/// Runs after this frame's steps, so the mole is drawn where this frame's input put it (no frame of lag).
+fn follow(g: &mut Game, ct: &mut Transform, dt: f32) {
+    { let a = g.acc.clamp(0., 1.); let pl = &g.w.pl; g.disp = Vec2::new(pl.ppx + (pl.px - pl.ppx) * a, pl.ppy + (pl.py - pl.ppy) * a - 1.0);
+      // the lookahead eases (a turn doesn't whip the view); the follow itself stays tight
+      let want = Vec2::new(g.w.pl.vx * 0.14, if g.w.pl.vy > 20. { (g.w.pl.vy - 20.) * 0.08 } else { 0. });
+      let kl = 1. - (-7. * dt).exp(); let look = g.look + (want - g.look) * kl; g.look = look;
+      let p = cell_to_world(g.disp.x + look.x, g.disp.y - 1.5 + look.y); let k = 1. - (-30. * dt).exp();
+      let d = Vec2::new(p.x - ct.translation.x, p.y - ct.translation.y);
+      if d.length() > 200. { ct.translation.x = p.x; ct.translation.y = p.y; } else { ct.translation.x += d.x * k; ct.translation.y += d.y * k; } }
+    let half = Vec2::new(W as f32 * CPX / 2., H as f32 * CPX / 2.);
+    ct.translation.x = ct.translation.x.clamp(-half.x, half.x); { let fy = half.y + (FAR * CH) as f32 * CPX; ct.translation.y = ct.translation.y.clamp(-fy, fy); }
+}
+
 fn simulate(mut commands: Commands, mut g: ResMut<Game>, time: Res<Time>, mut cam: Query<(&mut Transform, &Projection), With<Camera2d>>, win: Query<&Window, With<PrimaryWindow>>) {
     g.frame += 1;
     if !g.paused {
@@ -393,6 +397,7 @@ fn simulate(mut commands: Commands, mut g: ResMut<Game>, time: Res<Time>, mut ca
     }
     // camera shake (quakes, explosions): remove last frame's offset, add a new one
     let off = g.shake_off; ct.translation.x -= off.x; ct.translation.y -= off.y;
+    if !g.paused { follow(&mut g, &mut ct, time.delta_secs()); }
     let sh = g.w.shake; let f = g.frame as f32;
     g.shake_off = if sh > 0.05 { Vec2::new((f * 1.7).sin(), (f * 2.3).cos()) * sh * 3. * ct.scale.x.max(0.3) } else { Vec2::ZERO };
     ct.translation.x += g.shake_off.x; ct.translation.y += g.shake_off.y;
