@@ -58,7 +58,7 @@ fn load_v3(b: &[u8]) -> R<World> {
     w.quest = (r.u32()? as usize).min(crate::craft::QUESTS.len()); w.chests_opened = r.u32()?; w.pillars = r.u32()?; w.max_depth = r.f32()?; w.crumbled = r.u64()?;
     let sp: Vec<usize> = (0..4).map(|_| r.u32().map(|v| v as usize)).collect::<R<_>>()?; w.stockpile = (sp[0].min(gw - 1), sp[1].min(gh - 1), sp[2].min(gw - 1), sp[3].min(gh - 1));
     w.craft_queue = (0..r.len(64)?).map(|_| r.u32().map(|v| v as usize)).collect::<R<Vec<_>>>()?.into_iter().filter(|&k| k < RECIPES.len()).collect();
-    for k in 0..NMAT { w.discovered[k] = r.u8()? != 0; }
+    for k in 0..nm { let v = r.u8()? != 0; w.discovered[remap[k] as usize] |= v; } // by name: saves from before a material was added still load
     w.disasters.rng = r.u64()? | 1; w.disasters.ticks_left = r.u32()?; w.disasters.enabled = r.u8()? != 0;
     w.log.clear(); for _ in 0..r.len(1000)? { let t = r.u64()?; let s = r.str()?; w.log.push((t, s)); }
     w.oy = r.u64()? as i64;
@@ -148,7 +148,7 @@ pub fn load_with(b: &[u8], fetch: &mut dyn FnMut(&str) -> Option<Vec<u8>>) -> R<
     let (quest, chests_opened, pillars, max_depth, crumbled) = (r.u32()? as usize, r.u32()?, r.u32()?, r.f32()?, r.u64()?);
     let sp: Vec<usize> = (0..4).map(|_| r.u32().map(|v| v as usize)).collect::<R<_>>()?;
     let craft_queue: Vec<usize> = (0..r.len(64)?).map(|_| r.u32().map(|v| v as usize)).collect::<R<_>>()?;
-    let mut discovered = [false; NMAT]; for k in 0..NMAT { discovered[k] = r.u8()? != 0; }
+    let mut discovered = [false; NMAT]; for k in 0..nm { let v = r.u8()? != 0; discovered[remap[k] as usize] |= v; }
     let (drng, dleft, den) = (r.u64()? | 1, r.u32()?, r.u8()? != 0);
     let mut log = vec![]; for _ in 0..r.len(1000)? { let t = r.u64()?; let s = r.str()?; log.push((t, s)); }
     let oy = r.u64()? as i64;

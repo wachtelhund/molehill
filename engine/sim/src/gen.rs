@@ -2,11 +2,108 @@
 //! ore veins, aquifers, deep lava, crystal geodes, fungus, roots. Then a stability pass so
 //! fresh caves obey the structural model.
 use crate::grid::{hash3, Grid, F_WET};
-use crate::mat::{Mat, CPM, S, SF};
+use crate::mat::{Mat, CELL_M, CPM, S, SF};
 use crate::stress::Stress;
 
 /// Rows per chest band (32 m).
 pub const CHEST_BAND: usize = 32 * CPM;
+
+/// Ore seams by depth (metres below the holt, after the strata wobble): full strength between `lo` and
+/// `hi`, fading to nothing over `fade` metres outside. Copper sits just below the holt (tier 2), tin a
+/// little deeper, iron in the granite from about 35 m (tier 3), quartz and crystal in the deep basalt.
+pub struct Band { pub lo: f32, pub hi: f32, pub fade: f32 }
+pub const COPPER: Band = Band { lo: 2., hi: 30., fade: 10. };
+pub const TIN: Band = Band { lo: 12., hi: 45., fade: 8. };
+pub const IRON: Band = Band { lo: 40., hi: 85., fade: 8. };
+pub const QUARTZ: Band = Band { lo: 50., hi: 1e9, fade: 10. };
+impl Band { pub fn weight(&self, d: f32) -> f32 { if d < self.lo { (1. - (self.lo - d) / self.fade).max(0.) } else if d > self.hi { (1. - (d - self.hi) / self.fade).max(0.) } else { 1. } } }
+
+/// Grottos: at most one per GROTTO_W × GROTTO_H cell of the world (40 m × 24 m), decided by a hash.
+pub const GROTTO_W: usize = 40 * CPM; pub const GROTTO_H: usize = 24 * CPM;
+/// Chance that a grotto cell holds a grotto, by the depth (m) of its middle. Grottos follow the water:
+/// commonest in the wet upper layers, thinning out with depth, none where the lava takes over.
+pub fn grotto_chance(d: f32) -> f32 {
+    if d < -20. { 0.2 } else if d < 10. { 0.2 - (d + 20.) / 30. * 0.1 } else if d < 50. { 0.1 - (d - 10.) / 40. * 0.08 } else if d < 60. { 0.02 } else { 0. }
+}
+/// Shell round the hollow: limestone where the host rock is too weak to hold a dome.
+pub const GROTTO_SHELL: usize = 3 * CPM / 2;
+/// Height (cells) a root-tree reaches from its root row `root_wy`, per 1 m column block: 2-3.5 m.
+/// Regrowth uses the same rule, so a cut tree grows back to the height it had.
+pub fn tree_height(x: usize, root_wy: i64, seed: u32) -> usize { let h = hash3((x / CPM) as u32, root_wy as u32, seed ^ 0x7EE5); 2 * CPM + h as usize % (3 * CPM / 2 + 1) }
+/// One grotto: a domed hollow with a flat floor of moss and mycelium, a seep pool sunk into the floor,
+/// and 1-3 root-trees. `cx` is a window column; `cy` and the floor are absolute rows.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Grotto { pub id: u32, pub cx: usize, pub cy: i64, pub rx: usize, pub ry: usize,
+    /// floor row offset below the centre (cells)
+    pub floor: i64,
+    /// pool centre (dx from cx) and half width (cells)
+    pub pool: (i64, i64),
+    /// trunk block starts (window columns; the trunk is cells [x + 2, x + 6)) and heights
+    pub trees: [(usize, usize); 3], pub ntrees: usize }
+/// What a cell is in a grotto.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Part { Hollow, Pool, Trunk, Roots, Floor, Wall, Shell }
+impl Grotto {
+    pub fn floor_row(&self) -> i64 { self.cy + self.floor }
+    fn in_hollow(&self, dx: i64, dy: i64) -> bool { (dx as f32 / self.rx as f32).powi(2) + (dy as f32 / self.ry as f32).powi(2) < 1. && dy < self.floor }
+    /// The cell (x, wy)'s part of this grotto, or None outside its shell.
+    pub fn part(&self, x: usize, wy: i64) -> Option<Part> {
+        let (dx, dy) = (x as i64 - self.cx as i64, wy - self.cy);
+        let t = GROTTO_SHELL as f32;
+        if (dx as f32 / (self.rx as f32 + t)).powi(2) + (dy as f32 / (self.ry as f32 + t)).powi(2) >= 1. { return None; }
+        let (f, tile, xi) = (self.floor, S as i64, x as i64);
+        for &(bx, th) in &self.trees[..self.ntrees] { let t0 = bx as i64 + 2;
+            if dy < f && dy >= f - th as i64 && xi >= t0 && xi < t0 + 4 { return Some(Part::Trunk); }
+            // roots: under the trunk exactly at the top (so regrowth keeps it 4 cells wide), spreading deeper
+            let sp = (dy - f) / 2; if dy >= f && dy < f + CPM as i64 && xi >= t0 - sp && xi < t0 + 4 + sp { return Some(Part::Roots); }
+        }
+        let (px, pw) = self.pool;
+        if dy >= f && dy < f + (CPM / 2) as i64 && (dx - px).abs() < pw - (dy - f) { return Some(Part::Pool); }
+        if self.in_hollow(dx, dy) { return Some(Part::Hollow); }
+        if dy >= f && dy < f + tile && self.in_hollow(dx, f - 1) { return Some(Part::Floor); }
+        if dy > 0 && dy < f && (self.in_hollow(dx - tile, dy) || self.in_hollow(dx + tile, dy)) { return Some(Part::Wall); }
+        Some(Part::Shell)
+    }
+    /// Is (x, wy) open air or water of this grotto (stabilisation must not fill it)?
+    pub fn is_void(&self, x: usize, wy: i64) -> bool { matches!(self.part(x, wy), Some(Part::Hollow | Part::Pool)) }
+}
+impl Gen {
+    /// The grotto in grotto cell (gx, gy), if it has one.
+    pub fn grotto_at(&self, gx: i64, gy: i64) -> Option<Grotto> {
+        let w = self.biome.len(); if gx < 0 || (gx as usize + 1) * GROTTO_W > w { return None; }
+        let h = hash3(gx as u32, gy as u32, self.seed ^ 0x6A07);
+        let (gw, gh) = (GROTTO_W as i64, GROTTO_H as i64); let mid = gy * gh + gh / 2;
+        if (h & 0xFFFF) as f32 / 65536. >= grotto_chance(mid as f32 * CELL_M) { return None; }
+        let c = CPM as i64;
+        // never on top of the starting burrow (depth 0, the middle of the window)
+        if ((gx * gw + gw / 2) - (w / 2) as i64).abs() < 30 * c && mid.abs() < 20 * c { return None; }
+        let r = |k: u32, n: i64| (hash3(h, k, self.seed) as i64).rem_euclid(n.max(1));
+        let (rx, ry) = (5 * c + r(1, 3 * c + 1), 3 * c + r(2, 3 * c / 2 + 1));
+        let m = GROTTO_SHELL as i64 + c; // room for the shell inside the grotto cell
+        let cx = gx * gw + rx + m + r(3, gw - 2 * (rx + m) + 1);
+        let cy = gy * gh + ry + m + r(4, gh - 2 * (ry + m) + 1);
+        let floor = ry / 2;
+        let pw = 3 * c / 2; let px = r(5, rx) - rx / 2;
+        let mut trees = [(0usize, 0usize); 3]; let mut n = 0;
+        let want = 1 + r(6, 3) as usize;
+        for k in 0..3i64 { if n >= want { break; }
+            let dx = (k - 1) * rx * 11 / 20 + r(7 + k as u32, c) - c / 2;
+            if (dx - px).abs() < pw + c { continue; }
+            let bx = ((cx + dx) / c * c) as usize;
+            trees[n] = (bx, tree_height(bx, cy + floor, self.seed)); n += 1; }
+        Some(Grotto { id: h, cx: cx as usize, cy, rx: rx as usize, ry: ry as usize, floor, pool: (px, pw), trees, ntrees: n })
+    }
+    /// The grotto whose cell holds (x, wy), if any.
+    pub fn grotto_of(&self, x: usize, wy: i64) -> Option<Grotto> { self.grotto_at((x / GROTTO_W) as i64, wy.div_euclid(GROTTO_H as i64)) }
+    /// Every grotto touching rows [wy0, wy1).
+    pub fn grottos_in_rows(&self, wy0: i64, wy1: i64) -> Vec<Grotto> {
+        let gh = GROTTO_H as i64; let mut v = vec![];
+        for gy in wy0.div_euclid(gh)..=(wy1 - 1).div_euclid(gh) { for gx in 0..(self.biome.len() / GROTTO_W) as i64 { if let Some(g) = self.grotto_at(gx, gy) { v.push(g); } } }
+        v
+    }
+    /// Open air or water of a grotto (kept open by stabilisation).
+    pub fn in_grotto_void(&self, x: usize, wy: i64) -> bool { self.grotto_of(x, wy).map_or(false, |g| g.is_void(x, wy)) }
+}
 
 pub struct Noise { seed: u32 }
 impl Noise {
@@ -58,8 +155,20 @@ impl Gen {
     fn cell_with(&self, x: usize, wy: i64, w: usize, open: &dyn Fn(usize, i64) -> bool) -> (u8, u8) {
         if x < 2 * S || x >= w - 2 * S { return (Mat::Bedrock as u8, 0); }
         let (fx, fy) = (x as f32 / SF, wy as f32 / SF); let d = fy * 0.25; // fx, fy in legacy 0.25 m tiles; d = metres below the starting layer
+        // grottos are carved in first: their hollow, pool, trees and floor don't depend on the rock around
+        let part = self.grotto_of(x, wy).and_then(|g| g.part(x, wy));
+        let glow = || self.n0.at(fx / 6., fy / 6.) > 0.58;
+        match part {
+            Some(Part::Hollow) => return (0, 0),
+            Some(Part::Pool) => return (Mat::Water as u8, 0),
+            Some(Part::Trunk) => return (Mat::RootTree as u8, 0),
+            Some(Part::Roots) => return (Mat::TreeRoot as u8, F_WET),
+            Some(Part::Floor) => return (if glow() { Mat::Mycelium } else { Mat::Moss } as u8, F_WET),
+            Some(Part::Wall) if glow() => return (Mat::Mycelium as u8, 0),
+            _ => {}
+        }
         let dd = d + (self.n1.fbm(fx, fy, 60., 3) - 0.5) * 10. + match self.biome[x] { Biome::Loam => -4., Biome::Karst => 2., Biome::Crags => 8., Biome::Ashlands => 4. };
-        if open(x, wy) {
+        if part.is_none() && open(x, wy) {
             // fluid pockets: wetter up, hotter down
             let pk = self.n2.fbm(fx + 7000., fy * 1.4, 28., 2);
             if pk > 0.63 {
@@ -75,16 +184,21 @@ impl Gen {
             else if dd < 0. { if n2.fbm(fx, fy * 2., 40., 2) > 0.5 { Mat::Clay } else if n2.fbm(fx + 90., fy, 70., 2) > 0.62 { Mat::Limestone } else { Mat::Dirt } }
             else if dd < 30. { if self.biome[x] == Biome::Crags { Mat::Granite } else if n2.fbm(fx + 300., fy, 70., 3) > 0.55 { Mat::Rock } else { Mat::Limestone } }
             else if dd < 70. { if n2.fbm(fx + 300., fy, 70., 3) > 0.5 { Mat::Granite } else { Mat::Rock } }
-            else if self.biome[x] == Biome::Ashlands || n2.at(fx / 50., fy / 50.) > 0.4 { Mat::Basalt } else { Mat::Granite };
+            else if self.biome[x] == Biome::Ashlands || n2.at(fx / 50., fy / 50.) > 0.3 { Mat::Basalt } else { Mat::Granite }; // the deep is mostly basalt
         if dd < 35. { let l = n2.fbm(fx, fy * 3., 50., 3); if l > 0.67 { m = if n1.at(fx / 30., fy / 30.) > 0.5 { Mat::Gravel } else { Mat::Sand }; if l > 0.71 { fl |= F_WET; } } }
         let vein = |nn: &Noise, sc: f32, sal: f32| (nn.fbm(fx + sal, fy * 1.3, sc, 3) - 0.5).abs();
         if m != Mat::Sand && m != Mat::Gravel {
             if dd > -20. && dd < 9. && vein(&self.n1, 70., 11.) < 0.018 { m = Mat::Coal; } // coal never forms where lava runs
             if dd > -60. && dd < 9. && vein(&self.n0, 30., 900.) < 0.008 { m = Mat::Coal; }
-            if dd > 0. && vein(&self.n2, 45., 77.) < 0.012 { m = Mat::CopperOre; }
-            if dd > 10. && vein(&self.n3, 40., 501.) < 0.009 { m = Mat::TinOre; }
-            if dd > 35. && vein(&self.n0, 55., 1234.) < 0.012 { m = Mat::IronOre; }
-            if dd > 45. && vein(&self.n1, 25., 4321.) < 0.006 { m = Mat::Quartz; }
+            // seams by depth band (thinner toward a band's edges): copper, tin, iron, quartz
+            if vein(&self.n2, 45., 77.) < 0.014 * COPPER.weight(dd) { m = Mat::CopperOre; }
+            if vein(&self.n3, 40., 501.) < 0.009 * TIN.weight(dd) { m = Mat::TinOre; }
+            if vein(&self.n0, 55., 1234.) < 0.013 * IRON.weight(dd) { m = Mat::IronOre; }
+            if vein(&self.n1, 25., 4321.) < 0.006 * QUARTZ.weight(dd) { m = Mat::Quartz; }
+        }
+        if part.is_some() { // a grotto's shell (and the walls without mycelium): a dome strong enough to stand
+            if m.p().tensile < Mat::Limestone.p().tensile || m.kind() != crate::mat::Kind::Solid { m = Mat::Limestone; }
+            return (m as u8, fl & !F_WET);
         }
         // decoration on cave walls
         let (k, ki) = (S, S as i64); // a decoration skin one legacy tile thick
@@ -109,7 +223,7 @@ impl Gen {
         let r = 4 * S;
         for y in y0..y1 { for x in 2 * S..w - 2 * S { if g.mat[y * w + x] != Mat::Lava as u8 { continue; }
             for yy in y.saturating_sub(r).max(y0)..(y + r + 1).min(y1) { for xx in x.saturating_sub(r)..(x + r + 1).min(w - 2 * S) {
-                let j = yy * w + xx; if matches!(Mat::from_u8(g.mat[j]), Mat::Coal | Mat::Roots | Mat::Fungus) { g.mat[j] = Mat::Basalt as u8; }
+                let j = yy * w + xx; if Mat::from_u8(g.mat[j]).p().ignite > 0 { g.mat[j] = Mat::Basalt as u8; }
             } }
         } }
         // unsupported sand at gen time turns to sandstone
@@ -153,13 +267,13 @@ pub fn generate(g: &mut Grid, seed: u32, oy: i64) -> (Gen, GenInfo) {
     // ...and the walls stand on rock: if a cavern lies under the burrow, drop granite legs down to the next solid ground
     let mut st = Stress::new(w * h); st.solve(g);
     for x in (cx0 - 4 * S..cx0).chain(cx1 + 1..=cx1 + 4 * S) { let mut y = cy1 + 4 * S; while y < h - 1 && !st.reach[y * w + x] { g.mat[y * w + x] = Mat::Limestone as u8; g.flags[y * w + x] = 0; y += 1; } } // diggable with claws
-    let keep = (cx0, cy0, cx1, cy1);
+    let keep = |x: usize, y: usize| (x >= cx0 && x <= cx1 && y >= cy0 && y <= cy1) || gen.in_grotto_void(x, oy + y as i64);
     for y in cy0 - 6 * S..cy1 + 4 * S { for x in cx0 - 4 * S..=cx1 + 4 * S { g.flags[y * w + x] = 0; } } // built cells are fresh rock, not rubble
-    stabilize_keep(g, &mut st, 0, usize::MAX, Some(keep));
+    stabilize_keep(g, &mut st, 0, usize::MAX, &keep);
     g.wake_all(); for _ in 0..240 { g.step_ca(); }
     // nothing the settling pass let flow in stays inside the burrow
     for y in cy0 - 8 * S..=cy1 { for x in cx0 - 3 * S..=cx1 + 3 * S { let i = y * w + x; if matches!(Mat::from_u8(g.mat[i]), Mat::Water | Mat::Lava | Mat::Steam) { g.mat[i] = if x >= cx0 && x <= cx1 && y >= cy0 && y <= cy1 { 0 } else { Mat::Clay as u8 }; } } }
-    stabilize_keep(g, &mut st, 0, usize::MAX, Some(keep));
+    stabilize_keep(g, &mut st, 0, usize::MAX, &keep);
     // the burrow floor stays soil (farms need it), even where the stability pass reinforced it
     for x in cx0..=cx1 { for y in cy1 + 1..=cy1 + S { let i = y * w + x; if matches!(Mat::from_u8(g.mat[i]), Mat::Granite | Mat::Limestone) { g.mat[i] = Mat::Clay as u8; } } }
     // claws can always dig down out of the burrow: no granite just below its floor
@@ -171,10 +285,9 @@ pub fn generate(g: &mut Grid, seed: u32, oy: i64) -> (Gen, GenInfo) {
 
 pub fn stabilize(g: &mut Grid, st: &mut Stress) { stabilize_rows(g, st, 0, usize::MAX) }
 /// Like `stabilize`, but only touches failing cells in rows [y0, y1).
-pub fn stabilize_rows(g: &mut Grid, st: &mut Stress, y0: usize, y1: usize) { stabilize_keep(g, st, y0, y1, None) }
-/// `keep`: a rectangle (x0, y0, x1, y1) of open space that must stay open (the starting burrow).
-pub fn stabilize_keep(g: &mut Grid, st: &mut Stress, y0: usize, y1: usize, keep: Option<(usize, usize, usize, usize)>) {
-    let kept = |x: usize, y: usize| keep.map_or(false, |(a, b, c, d)| x >= a && x <= c && y >= b && y <= d);
+pub fn stabilize_rows(g: &mut Grid, st: &mut Stress, y0: usize, y1: usize) { stabilize_keep(g, st, y0, y1, &|_, _| false) }
+/// `kept(x, y)`: open space that must stay open (the starting burrow, grotto hollows and pools).
+pub fn stabilize_keep(g: &mut Grid, st: &mut Stress, y0: usize, y1: usize, kept: &dyn Fn(usize, usize) -> bool) {
     let (w, h) = (g.w, g.h);
     let thr0 = st.thr; st.thr = 0.45; // gen-time safety factor: fresh caves must survive fluids shifting about
     // after one full solve, each round re-solves only around the cells the last round changed (every

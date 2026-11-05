@@ -405,7 +405,7 @@ fn input(mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<Button
     if !reach || latched && mouse.pressed(MouseButton::Right) { return; }
     // right mouse: interact (lever, thrum channel, ticker, light a fuse or TNT); Ctrl+right picks up copperline or a device
     if mouse.pressed(MouseButton::Right) && ctrl { g.w.pick_up(cx, cy); }
-    else if mouse.just_pressed(MouseButton::Right) { g.w.use_device(cx, cy); }
+    else if mouse.just_pressed(MouseButton::Right) { if !g.w.catch_glowmite(cx, cy) { g.w.use_device(cx, cy); } } // a glowmite under the cursor goes in a jar
     // left mouse: use the item in hand
     let (lp, lj) = (mouse.pressed(MouseButton::Left) && !latched, mouse.just_pressed(MouseButton::Left) && !latched);
     match sel {
@@ -755,6 +755,12 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
         let f = ((now * 10. + h * 7.) as usize + k) % 3;
         want.push((4, k, cell_to_world(x as f32 + 0.5, y as f32 + 1. - 0.75 * SF), 4.5, sp.torch_f[f].clone(), Vec2::new(8., 12.), false, Color::WHITE));
         want.push((9, k, cell_to_world(x as f32 + 0.5, y as f32 + 1. - 1.3 * SF), 4.4, sp.glow.clone(), Vec2::splat(64. * fl), false, Color::srgba(1., 0.62, 0.28, 0.20 * fl)));
+    }
+    // glowmites: a bright speck with a soft cold halo that pulses a little
+    for (k, (x, y, _, n)) in w.glowmites().into_iter().enumerate() {
+        let p = 0.75 + 0.25 * (now * 3.1 + n as f32 * 1.7).sin();
+        want.push((20, k, cell_to_world(x, y), 4.6, sp.px.clone(), Vec2::splat(1.6 * p.max(0.6)), false, Color::srgba(0.85, 1., 0.6, 0.95)));
+        want.push((21, k, cell_to_world(x, y), 4.4, sp.glow.clone(), Vec2::splat(20. * p), false, Color::srgba(0.6, 1., 0.45, 0.18 * p)));
     }
     for (k, &b) in w.logic.dev_list.iter().enumerate() {
         if w.logic.dev[b] != Dev::Lamp as u8 || w.logic.dev_s[b] == 0 { continue; } let (x, y) = w.logic.centre(b);

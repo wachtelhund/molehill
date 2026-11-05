@@ -97,6 +97,8 @@ Whatever the choice, the name and the workings stay earthy and physical: a wayga
 
 Wood is the first material and must stay precious, so it doesn't come from the endless rock. It comes from **grottos**: rare, generated underground oases.
 
+> **Built:** grottos, root-trees that regrow from their roots, moss, mycelium, seep pools and catchable glowmites are in the game. The generator is described in [World and Generation](World-and-Generation.md#grottos). Glowmite lanterns (a crafted, placeable light) are still to come.
+
 * **Cave trees (root-trees)** grow where water seeps through the rock. They drink the seep and the minerals in it; they need no light.
 * **Glowing mycelium** threads the floor and walls, giving soft light. **Moss** covers the damp stone, and **small pools** collect the seep.
 * **Glowmites** drift through the air: small glowing insects, ambient light that can be caught in a jar for a **lantern** that needs no fuel.
@@ -130,7 +132,7 @@ Everything the Ancients built obeys the same physics as everything else: weight,
 | Recipes | always listed | unlocked by first pick-up; at most 2 steps |
 | Light | torches, lamps and a headlamp, no fuel | fungus-oil fuel for torches and headlamp; glowmite lanterns |
 | Death | respawn in the burrow, pack kept | wake in the holt; carried items stay where you died |
-| Wood | wood from roots and the start pack | grottos with regrowing root-trees |
+| Wood | **built:** grottos with regrowing root-trees (see [World and Generation](World-and-Generation.md#grottos)) | grottos with regrowing root-trees |
 | Decor | none | furniture, decorative blocks, back walls, dyes |
 | Colony | one mole | Delvers move in when the holt is comfortable |
 | Late game | none | Ancient facilities, ruins, relics, the Lid myth |

@@ -167,6 +167,7 @@ impl Stress {
                 let cap = ((xb - xa + 1) + 1).min(80 * S);
                 for xx in xa..=xb {
                     let mut k = 0; while k < cap && y >= k && st((y - k) * w + xx) { rho += PROPS[g.mat[(y - k) * w + xx] as usize].density; k += 1; }
+                    if k > y && k < cap { k = cap; } // solid right up to the window's top: the rock goes on beyond it, it isn't a thin roof
                     hmin = hmin.min(k); tmin = tmin.min(PROPS[g.mat[y * w + xx] as usize].tensile);
                     // superimposed load: only loose rubble / sand / water lying directly on the beam.
                     // Static rock above (beyond the arch cap) carries itself; an open cave above is
@@ -177,7 +178,7 @@ impl Stress {
                         qtop += qq; }
                 }
                 qtop /= (xb - xa + 1) as f32; // spread over the span (uniformly distributed load)
-                let cnt: usize = (xa..=xb).map(|xx| { let mut k = 0; while k < cap && y >= k && st((y - k) * w + xx) { k += 1; } k }).sum();
+                let cnt: usize = (xa..=xb).map(|xx| { let mut k = 0; while k < cap && y >= k && st((y - k) * w + xx) { k += 1; } if k > y && k < cap { k = cap; } k }).sum();
                 rho /= cnt.max(1) as f32;
                 let hd = (hmin.max(1) as f32 * CELL_M).min(span.max(CELL_M));
                 let wload = rho * G * hd / 1000. + qtop; // kPa (kN/m² over b = 1 m)

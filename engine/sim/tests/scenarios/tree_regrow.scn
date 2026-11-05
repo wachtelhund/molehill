@@ -1,0 +1,27 @@
+// A root-tree cut down to its roots grows back slowly while its seep pool is wet: a trunk climbs
+// from the roots (about a cell every 6 s per column) and stops at the tree's height.
+map
+##################################
+#................................#
+#................................#
+#................................#
+#................................#
+#................................#
+#................................#
+#................................#
+#................................#
+#................................#
+#................................#
+#................................#
+#................................#
+#.@.......mmmmRRRRmmmmmmmwwwwwmm.#
+##############RRRR#######wwwww####
+##################################
+##################################
+end
+expect 1 count:RootTree == 0
+expect 1200 count:RootTree > 0           // it has started
+expect 3600 count:RootTree >= 6          // a trunk 1 m wide and more than 1.5 m tall
+expect 3600 count:Water == 10            // it drinks no water away
+expect 3600 is:13,-1,RootTree == 1       // the trunk stands on its roots
+expect 3600 crumbled == 0             // the grotto floor and the new trunk stand

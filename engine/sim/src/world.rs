@@ -13,6 +13,11 @@ use std::collections::VecDeque;
 pub const BULK_IN_10: u32 = 3;
 /// Half-size of the active region around the mole where the falling sand runs (64 m × 48 m each way).
 pub const ACTIVE_HX: usize = 64 * CPM; pub const ACTIVE_HY: usize = 48 * CPM;
+/// Root-trees: a regrowth sweep every TREE_EVERY ticks; each cut trunk column grows a cell in 1 of
+/// TREE_GROW_1_IN sweeps (a 3 m trunk grows back in about three minutes), while its seep is wet.
+pub const TREE_EVERY: u64 = 120; pub const TREE_GROW_1_IN: u32 = 3;
+/// Glowmites: how many drift in a grotto, and how long (ticks) a caught one takes to be replaced.
+pub const GLOWMITES_MIN: u32 = 4; pub const GLOWMITE_BACK: u64 = 5 * 60 * 60;
 /// Rows the window slides by when the colony nears its edge (32 m).
 pub const SLIDE: usize = 32 * CPM;
 /// Cells of a placed block one pack item makes (a legacy tile is S×S cells, and an item made 4 of them).
@@ -132,6 +137,10 @@ pub struct World {
     pub gen: Gen, pub oy: i64,
     /// Bands that left the window, by the world row they start at (see `band.rs`): everything in them, packed.
     pub bands: std::collections::BTreeMap<i64, crate::band::Stored>, pub opened: std::collections::HashSet<(usize, i64)>,
+    /// grottos touching the window (from the generator; refreshed with the chests)
+    pub grottos: Vec<gen::Grotto>,
+    /// glowmites caught: (grotto id, glowmite) → tick. A grotto's swarm refills: each comes back after GLOWMITE_BACK.
+    pub caught: std::collections::HashMap<(u32, u8), u64>,
 }
 /// For audio / UI feedback.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -153,7 +162,7 @@ impl World {
             st: Stress::new(w * h), light: Light::new(w, h), tick: 0, inv: [0; NITEM], dig_acc: [0; NMAT], place_acc: [0; 8], desig: vec![0; w * h],
             moles: vec![], drops: vec![], stockpile: (0, 0, 0, 0), buildings: vec![], torches: vec![], chests: vec![],
             quest: 0, log: vec![], discovered: [false; NMAT], chests_opened: 0, pillars: 0, max_depth: 0., craft_queue: vec![], gear: Gear::default(), crumbled: 0,
-            light_rect: (0, 0, w - 1, h - 1), events: vec![], marks: vec![], react_pending: false, logic: Logic::new(w, h), disasters: Disasters::new(seed), shake: 0., air: Air::new(w, h), farms: vec![], harvested: 0, input: Input::default(), pl: Player::default(), gen: gn, oy, bands: Default::default(), opened: Default::default(), info, g,
+            light_rect: (0, 0, w - 1, h - 1), events: vec![], marks: vec![], react_pending: false, logic: Logic::new(w, h), disasters: Disasters::new(seed), shake: 0., air: Air::new(w, h), farms: vec![], harvested: 0, input: Input::default(), pl: Player::default(), gen: gn, oy, bands: Default::default(), opened: Default::default(), grottos: vec![], caught: Default::default(), info, g,
         }
     }
     pub fn new(w: usize, h: usize, seed: u32) -> World {
@@ -181,6 +190,7 @@ impl World {
     pub fn depth_m(&self, _x: usize, y: usize) -> f32 { (self.oy + y as i64) as f32 * CELL_M }
     /// Chests for every chest band overlapping the window (opened ones stay opened).
     pub fn refresh_chests(&mut self) {
+        self.grottos = self.gen.grottos_in_rows(self.oy, self.oy + self.g.h as i64);
         let h = self.g.h as i64; self.chests.clear(); let bh = gen::CHEST_BAND as i64; let mg = 4 * S as i64;
         for band in self.oy.div_euclid(bh)..=(self.oy + h).div_euclid(bh) {
             for (x, wy) in self.gen.chests_in_band(band, self.g.w) {
@@ -218,7 +228,8 @@ impl World {
         self.air.shift_rows(rows / air::AB as i64);
         // entering rows: generate the never-visited ones, then unpack the stored bands over them
         let fresh: Vec<usize> = (en..en + s).step_by(BH).filter(|&y0| !self.bands.contains_key(&(self.oy + y0 as i64))).collect();
-        if let (Some(&a), Some(&b)) = (fresh.first(), fresh.last()) { let b = b + BH; self.gen.fill_rows(&mut self.g, self.oy, a, b); gen::stabilize_rows(&mut self.g, &mut self.st, a.saturating_sub(8), (b + 8).min(h)); }
+        if let (Some(&a), Some(&b)) = (fresh.first(), fresh.last()) { let b = b + BH; self.gen.fill_rows(&mut self.g, self.oy, a, b); let (gn, oy) = (&self.gen, self.oy); let m = 32 * CPM; // the old rows next to the new ones may now roof a fresh cave: stabilise into them too
+            gen::stabilize_keep(&mut self.g, &mut self.st, a.saturating_sub(m), (b + m).min(h), &|x, y| gn.in_grotto_void(x, oy + y as i64)); }
         for y0 in (en..en + s).step_by(BH) {
             if let Some(b) = self.bands.remove(&(self.oy + y0 as i64)) {
                 if band::decode(self, y0, &b.blob, None).is_err() { self.gen.fill_rows(&mut self.g, self.oy, y0, y0 + BH); } // damaged: regenerate
@@ -399,6 +410,7 @@ impl World {
         let booms = std::mem::take(&mut self.logic.booms);
         for b in booms { if self.logic.dev[b] == Dev::Tnt as u8 { self.logic.remove(&mut self.g, b); let (x, y) = self.logic.centre(b); self.blast_tnt(x, y); } }
         if self.tick % LAVA_COOL_EVERY == 0 { self.cool_lava(); }
+        if self.tick % TREE_EVERY == 0 { self.grow_trees(); }
         // disasters
         let mut dz = std::mem::replace(&mut self.disasters, Disasters::new(0));
         dz.step(self); self.disasters = dz;
@@ -495,6 +507,8 @@ impl World {
         let mut v: Vec<Source> = self.torches.iter().map(|&(x, y)| { let (x, y) = c(x, y); Source::point(x, y, TORCH.0, TORCH.1) }).collect();
         for b in &self.buildings { if b.built && matches!(b.kind, Station::Kiln | Station::Furnace) { let (x, y) = c(b.x + Station::W / 2, b.y - S); v.push(Source::point(x, y, KILN.0, KILN.1)); } }
         for &b in &self.logic.dev_list { if self.logic.dev[b] == Dev::Lamp as u8 && self.logic.dev_s[b] != 0 { let (x, y) = self.logic.centre(b); let (x, y) = c(x, y); v.push(Source::point(x, y, LAMP.0, LAMP.1)); } }
+        for (x, y, _, _) in self.glowmites() { v.push(Source::point(x, y, GLOWMITE.0, GLOWMITE.1)); }
+        if self.gear.held == Some(Item::Glowmite) { v.push(Source::point(self.pl.px + self.moles.first().map_or(0., |m| m.facing as f32) * 1.6 * SF, self.pl.py - 1.4 * SF, GLOWMITE_JAR.0, GLOWMITE_JAR.1)); }
         for (k, m) in self.moles.iter().enumerate() { if !m.alive { continue; }
             if k == 0 {
                 let (head, dir) = self.headlamp();
@@ -938,6 +952,59 @@ impl World {
         let (cx, cy) = self.logic.centre(b); self.events.push(Event::Place); self.marks.push((1, cx as f32 + 0.5, cy as f32 + 0.5, SF)); Ok(())
     }
     /// Right mouse on a device: flip a lever, step a thrum channel or ticker, light a fuse or TNT.
+    /// Root-trees grow back from their roots. A trunk column whose root cell (the top root under it) still
+    /// stands, with seep water within reach of the root, grows a cell upward now and then until it is as tall
+    /// as the root's tree (`gen::tree_height`) or hits rock. Cut the roots, or drain the seep, and it never
+    /// grows again. Stateless: it reads the grid, so it survives slides and saves. Runs in the active region.
+    fn grow_trees(&mut self) {
+        let (w, h) = (self.g.w, self.g.h); let c = crate::grid::CHUNK;
+        let (x0, y0, x1, y1) = self.g.active.map_or((0, 1, w - 1, h - 1), |(a, b, cx1, cy1)| (a * c, (b * c).max(1), ((cx1 + 1) * c - 1).min(w - 1), ((cy1 + 1) * c - 1).min(h - 1)));
+        let (root, trunk) = (Mat::TreeRoot as u8, Mat::RootTree as u8); let mut grow = vec![];
+        for y in y0..=y1 { for x in x0..=x1 { let i = y * w + x;
+            if self.g.mat[i] != root || !(self.g.mat[i - w] == trunk || self.g.m(i - w).passable()) { continue; }
+            if hash3(x as u32, y as u32, (self.tick / TREE_EVERY) as u32 ^ 0x7EE) % TREE_GROW_1_IN != 0 { continue; }
+            // climb the trunk to its top, then grow one cell into open space above it
+            let full = gen::tree_height(x, self.oy + y as i64, self.info.seed);
+            let mut k = 1; while k <= full && y >= k + 1 && self.g.mat[i - k * w] == trunk { k += 1; }
+            if k > full || y < k + 1 { continue; }
+            let j = i - k * w; if !matches!(self.g.m(j).kind(), crate::mat::Kind::Empty | crate::mat::Kind::Gas) { continue; }
+            if !self.seep_near(x, y) { continue; }
+            grow.push(j);
+        } }
+        for j in grow { self.g.set(j, Mat::RootTree); }
+    }
+    /// Seep water within 6 m sideways, 4 m above and 2 m below of (x, y): a root-tree drinks from it.
+    pub fn seep_near(&self, x: usize, y: usize) -> bool {
+        let (w, h, c) = (self.g.w, self.g.h, CPM); let water = Mat::Water as u8;
+        (y.saturating_sub(4 * c)..(y + 2 * c).min(h)).any(|yy| (x.saturating_sub(6 * c)..(x + 6 * c).min(w)).any(|xx| self.g.mat[yy * w + xx] == water))
+    }
+    /// The glowmites drifting in the window now: (x, y) in cells, grotto index, glowmite number. Each grotto
+    /// keeps a small swarm (4-7) drifting slowly about its hollow on its own looping path, minus any
+    /// caught in the last GLOWMITE_BACK ticks.
+    pub fn glowmites(&self) -> Vec<(f32, f32, usize, u8)> {
+        let t = self.tick as f32 / 60.; let mut v = vec![];
+        for (gi, g) in self.grottos.iter().enumerate() {
+            let n = GLOWMITES_MIN + g.id % 4;
+            for k in 0..n as u8 {
+                if self.caught.get(&(g.id, k)).map_or(false, |&t0| self.tick < t0 + GLOWMITE_BACK) { continue; }
+                let h = hash3(g.id, k as u32, 0x61); let f = |b: u32| ((h >> b) & 255) as f32 / 255.;
+                let (rx, ry) = (g.rx as f32, g.ry as f32);
+                let x = g.cx as f32 + rx * 0.6 * (f(0) * 6.28 + t * (0.05 + 0.08 * f(8))).sin() + 0.5 * SF * (t * (1.3 + f(16))).sin();
+                let yr = (g.cy - self.oy) as f32 - ry * 0.15 + ry * 0.35 * (f(24) * 6.28 + t * (0.07 + 0.06 * f(4))).sin() + 0.4 * SF * (t * 1.7 + f(12) * 6.).cos();
+                if yr >= 0. && yr < self.g.h as f32 { v.push((x, yr, gi, k)); }
+            }
+        }
+        v
+    }
+    /// Right mouse near a glowmite (within half a metre of the click, and in reach): catch it in a jar.
+    pub fn catch_glowmite(&mut self, x: usize, y: usize) -> bool {
+        if x >= self.g.w || y >= self.g.h || !self.in_reach(x, y) { return false; }
+        let (cx, cy) = (x as f32 + 0.5, y as f32 + 0.5); let r = 0.5 * CPM as f32;
+        let Some(&(_, _, gi, k)) = self.glowmites().iter().filter(|g| (g.0 - cx).powi(2) + (g.1 - cy).powi(2) <= r * r)
+            .min_by(|a, b| ((a.0 - cx).powi(2) + (a.1 - cy).powi(2)).total_cmp(&((b.0 - cx).powi(2) + (b.1 - cy).powi(2)))) else { return false };
+        self.caught.insert((self.grottos[gi].id, k), self.tick); self.inv[Item::Glowmite as usize] += 1;
+        self.events.push(Event::Click); self.say("Caught a glowmite in a jar.".into()); true
+    }
     pub fn use_device(&mut self, x: usize, y: usize) -> bool {
         if x >= self.g.w || y >= self.g.h || !self.in_reach(x, y) { return false; }
         let b = self.logic.block_of(x, y); if self.logic.dev[b] == 0 { return false; }
