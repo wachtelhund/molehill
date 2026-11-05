@@ -51,7 +51,7 @@ Food (grubs, mushrooms, fungus) is eaten from the pack automatically when the mo
 
 The pack (`I`) is a grid of 70 slots, and the bottom row is the hotbar (`1`–`0`). Click a slot to pick its item up, then click another to drop or swap. Counts come from one shared inventory. Hovering a slot shows its name, count and a one-line description. Resting the cursor on a seen cell for about 0.35 s explains what's there (`sim/src/tips.rs`): the material (and whether it's loose debris), a device, copperline (carrying current or idle), a station (what it makes; craft by standing at it with the pack open), a chest (opened or not) or a mushroom plot (growth % and whether it's too bright or too dry). A standing block also says how hard it is working, read from the stress solver: bearing weight, straining, overloaded, or cracking, so you can see a span is about to fail before it does.
 
-> **Modes:** New Holt asks for **Survival** (a small kit: a Pickaxe, 4 torches, 3 grubs, 2 roots, 2 fungus oil; you dig only with tools you own; the headlamp and torches burn fungus oil) or **Creative** (999 of every item). Crafting works at stations (below). **Fungus oil** is pressed from fungus (2 a measure, done by the pack when it runs out); a **root** is food from root tangles. See [Progression](Progression.md#survival-mode-today). The sim's own starting pack (used by the tests) is small: 8 wood, 6 torches, 12 pillars, 12 grubs, 40 copperline, 6 knots, 3 thrummers, 6 spores and a vent.
+> **Modes:** New Holt asks for **Survival** (a small kit: a Pickaxe, 6 wood, 4 torches, 3 grubs, 2 roots, 2 fungus oil; you dig only with tools you own; the headlamp and torches burn fungus oil) or **Creative** (999 of every item). Crafting works at stations (below). **Fungus oil** is pressed from fungus (2 a measure, done by the pack when it runs out); a **root** is food from root tangles. See [Progression](Progression.md#survival-mode-today). The sim's own starting pack (used by the tests) is small: 8 wood, 6 torches, 12 pillars, 12 grubs, 40 copperline, 6 knots, 3 thrummers, 6 spores and a vent.
 
 ## Digging drops
 
@@ -115,7 +115,7 @@ In **Survival** (see [Progression](Progression.md#survival-mode-today)) crafting
 |---|---|---|---|---|
 | 0 | claws | (always) | | dirt, clay, sand, gravel; soft stone (sandstone, limestone, coal, copper and tin ore) slowly |
 | 1 | Pickaxe | workbench (Survival starts with one) | 2 wood + 4 stone | the same, faster |
-| 2 | Drill | workshop | 3 iron ingots + 2 copper ingots | granite and iron ore |
+| 2 | Drill | workshop | 3 copper ingots + 2 tin ingots | granite and iron ore |
 | 3 | Bore | forge | 6 iron ingots + 2 copper ingots + 2 crystal | basalt |
 
 In Survival a dig tool you don't own isn't in the hotbar, and holding a better tool's slot doesn't help: digging uses the best tool in the pack (`World::tool`, scenario `tool_tiers_survival`). Without any tool, claws still take soft stone, slowly.
@@ -126,9 +126,9 @@ Stations, not menus: you craft standing at one you have built. Open the pack (`I
 
 | station | cost | works when | makes |
 |---|---|---|---|
-| Workbench | 6 wood | always | the pickaxe, wood pillars, torches, vents, TNT, simple furniture |
-| Forge | 10 stone + 4 clay | **hot**: lava or fire within 3 m of it, or a heatstone fed by lava within 3 m | brick, glass, charcoal, ingots, bronze, copperline, iron beams, lamps, the bore |
-| Workshop | 4 wood + 4 stone + 6 copperline | **powered**: a live copperline in or touching its footprint (a thrown lever on the line will do) | the drill, knots, thrummers |
+| Workbench | 4 wood + 4 stone | always | the pickaxe, wood pillars, torches, vents, TNT, simple furniture |
+| Forge | 10 stone + 4 clay | **hot**: lava or fire within 3 m of it, or a heatstone fed by lava within 3 m; otherwise it burns one coal (or charcoal) from the pack per job (scenario `forge_coal_fuel`) | brick, glass, charcoal, ingots, bronze, copperline, iron beams, lamps, the bore |
+| Workshop | 2 wood + 6 stone + 6 copperline | **powered**: a live copperline in or touching its footprint (a thrown lever on the line will do) | the drill, knots, thrummers |
 
 A cold forge or an unpowered workshop says why in the list (scenario `craft_stations`). Saves from before list the old stations: a kiln or furnace becomes a forge, an anvil a workshop.
 
@@ -138,7 +138,7 @@ A recipe appears the first time **any** of its inputs reaches the pack: picked u
 
 ## Recipes
 
-Chains are short: nothing is more than two steps from the ground (ore → ingot → tool), checked by the test `recipes_are_short_chains`.
+Chains are short: nothing is more than two steps from the ground (ore → ingot → tool), checked by the test `recipes_are_short_chains`. The balance follows a survey of what lies around the burrow across seeds (`survey` example): wood is scarce near spawn, so the kit carries it; lava is 20–34 m away, so a forge can burn coal until then; copper and tin come before iron, so the drill is made from them. The test `survival_ladder_is_reachable` checks the whole tool ladder can be made from the kit and the ground.
 
 | station | makes | from |
 |---|---|---|
@@ -157,7 +157,7 @@ Chains are short: nothing is more than two steps from the ground (ore → ingot 
 | | 4 iron beams | 1 iron ingot |
 | | lamp | 1 glass + 2 fungus |
 | | Bore | 6 iron ingots + 2 copper ingots + 2 crystal |
-| Workshop | Drill | 3 iron ingots + 2 copper ingots |
+| Workshop | Drill | 3 copper ingots + 2 tin ingots |
 | | knot | 1 copper ingot + 1 quartz |
 | | thrummer | 2 crystal + 2 copper ingots + 1 glass |
 
