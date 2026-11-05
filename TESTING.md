@@ -82,6 +82,8 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 |---|---|
 | `air_turn.scn` | Reversing in mid-air takes under 5 ticks; letting go in the air coasts instead of braking |
 | `fall_hurt.scn` | A 30-cell fall hurts, flashes the mole and jolts the view; a normal jump landing doesn't |
+| `step_up.scn` | Running into a 1-cell then a 2-cell step hops up them at full speed |
+| `mantle.scn` | Climb a 9-cell wall with W and roll over the top onto the ledge |
 | `run_jump.scn` | Top speed in under 8 ticks; full-jump height 4.5-9 cells; lands |
 | `coyote.scn` / `coyote_late.scn` | A jump 4 ticks after leaving a ledge works; 12 ticks after, it doesn't |
 | `wall_climb.scn` | Cling to a wall, then climb more than 6 cells with W |

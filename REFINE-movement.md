@@ -37,6 +37,8 @@ Polish only: no new features or concepts. Each entry is one commit.
    0.2 s. Camera: the lookahead eases at 7/s, so turning doesn't whip the view; the follow stays tight, and it
    only looks down on real falls. Test: `digging_and_placing_give_instant_feedback`; scenario: `fall_hurt`;
    harness vars `flash`, `shake`.
+6. **Step-up and mantle checked.** Both already behaved (steps of 1-2 cells at full speed; a climbed wall
+   rolls you onto its top), so there was no tuning change, just coverage: scenarios `step_up` and `mantle`.
 
 ## Open issues
 * No screenshot of the hit-flash, pops or camera: this run was on macOS without a capture setup. They need a
