@@ -127,7 +127,7 @@ pub fn load(b: &[u8]) -> R<World> {
     let _ = Item::Dirt; let _ = Mat::Empty;
     // derived state
     w.g.life.iter_mut().for_each(|v| *v = 0); w.g.wake_all(); w.st = crate::stress::Stress::new(n);
-    let f = w.st.solve(&w.g); w.st.crack(&f); w.g.struct_dirty = None;
+    let f = w.st.solve(&w.g); w.st.crack(&f); w.g.clear_struct();
     w.say(format!("Loaded save (tick {}).", tick));
     Ok(w)
 }

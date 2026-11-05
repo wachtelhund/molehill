@@ -481,3 +481,19 @@ fn press(w: &mut World, n: usize, f: impl Fn(&mut Input)) -> (f32, f32) { let (m
     let banned = ["radio", "electric", "signal", "sensor", "sky", "sun", "surface", "magic"];
     for (n, l) in [(t.name.clone(), t.lines.join(" "))] { let l = l.to_lowercase(); for b in banned { assert!(!l.contains(b), "{n}: {l}"); } }
 }
+
+/// A local stress re-solve (only the region around a change) gives the same answer as a full solve there.
+#[test] fn local_stress_resolve_matches_full_solve() {
+    let mut w = World::new(512 * S, 256 * S, 11); w.disasters.enabled = false;
+    let (x0, y0) = (w.moles[0].x + 20 * S, w.moles[0].y + 12 * S);
+    // carve a 6 m hall in the rock below the burrow, then re-solve only around it
+    for y in y0..y0 + 8 * S { for x in x0..x0 + 24 * S { let i = w.g.idx(x, y); w.g.set(i, Mat::Empty); } }
+    let bx = (x0, y0, x0 + 24 * S - 1, y0 + 8 * S - 1);
+    let mut part = w.st.solve_rect(&w.g, Some(bx)); part.sort();
+    let mut full = Stress::new(w.g.w * w.g.h); let all = full.solve(&w.g);
+    let k = 4 * molehill_sim::mat::CPM; let inside = |i: u32| { let (x, y) = (i as usize % w.g.w, i as usize / w.g.w); x + k >= bx.0 && x <= bx.2 + k && y + k >= bx.1 && y <= bx.3 + k };
+    let mut want: Vec<u32> = all.into_iter().filter(|&i| inside(i)).collect(); want.sort();
+    assert_eq!(part, want, "failing cells near the change");
+    let mut diff = 0; for y in bx.1 - k..=bx.3 + k { for x in bx.0 - k..=bx.2 + k { let i = w.g.idx(x, y); if w.st.util[i] != full.util[i] { diff += 1; } } }
+    assert_eq!(diff, 0, "utilisation differs in {diff} cells");
+}

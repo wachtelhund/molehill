@@ -29,11 +29,14 @@ impl Air {
     fn survey(&mut self, g: &Grid) {
         for b in 0..self.bw * self.bh {
             let (x0, y0) = ((b % self.bw) * AB, (b / self.bw) * AB); let (mut v, mut p, mut f) = (0f32, 0f32, 0f32);
-            for y in y0..y0 + AB { for x in x0..x0 + AB {
+            // one sample per legacy 0.25 m tile, each standing for its S×S cells: air moves at block
+            // scale, so this is the same answer in metres for a quarter (at S = 2) of the reads
+            let k = (S * S) as f32;
+            for y in (y0..y0 + AB).step_by(S) { for x in (x0..x0 + AB).step_by(S) {
                 let m = g.get(x, y);
-                match m.kind() { Kind::Empty | Kind::Gas => { v += 1.; if m == Mat::Fire { f += 1.; } } _ => {} }
-                if m == Mat::Lava { f += 1.; }
-                if matches!(m, Mat::Dirt | Mat::Sand | Mat::Gravel | Mat::Roots | Mat::Clay | Mat::Fungus) { p += 1.; }
+                match m.kind() { Kind::Empty | Kind::Gas => { v += k; if m == Mat::Fire { f += k; } } _ => {} }
+                if m == Mat::Lava { f += k; }
+                if matches!(m, Mat::Dirt | Mat::Sand | Mat::Gravel | Mat::Roots | Mat::Clay | Mat::Fungus) { p += k; }
             } }
             self.vol[b] = v; self.porous[b] = if v > 0. { p.min(v * 2.) } else { 0. };
             self.src[b] += f * FIRE_CO2;

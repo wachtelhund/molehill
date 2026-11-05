@@ -144,7 +144,7 @@ impl World {
         for (it, n) in [(Item::Wood, 8), (Item::Torch, 6), (Item::WoodPillar, 12), (Item::Grub, 12), (Item::CopperWire, 40), (Item::Gate, 6), (Item::Thrummer, 3), (Item::Spore, 6), (Item::Vent, 1)] { wd.inv[it as usize] = n; }
         for k in 0..NMAT { if wd.g.mat.iter().zip(&wd.g.flags).any(|(&m, &f)| m as usize == k && f & F_SEEN != 0) { wd.discovered[k] = true; } }
         // settle the structure once so crack timers start from the real state
-        let f = wd.st.solve(&wd.g); wd.st.crack(&f); wd.g.struct_dirty = None;
+        let f = wd.st.solve(&wd.g); wd.st.crack(&f); wd.g.clear_struct();
         wd.say("A lone mole wakes in the burrow. Seed ".to_string() + &seed.to_string());
         wd
     }
@@ -193,7 +193,7 @@ impl World {
         self.disasters.y = (self.disasters.y as i64 - rows).clamp(8, h as i64 - 8) as usize;
         self.refresh_chests();
         self.g.life.iter_mut().for_each(|v| *v = 0); self.g.wake_all();
-        self.st = Stress::new(w * h); let f = self.st.solve(&self.g); self.st.crack(&f); self.g.struct_dirty = None;
+        self.st = Stress::new(w * h); let f = self.st.solve(&self.g); self.st.crack(&f); self.g.clear_struct();
         self.light = Light::new(w, h);
         self.pl.mine = None; if let Some(m) = self.moles.first() { self.pl.fall_from = m.y; }
     }
@@ -304,12 +304,15 @@ impl World {
     pub fn step(&mut self) {
         self.tick += 1; self.events.clear(); self.marks.clear();
         self.g.step_ca();
+        // structural changes are flagged per 8 m chunk (by `Grid::set` and by CA moves/reactions), so the
+        // re-solve covers only the regions around them; reactions are batched every 24 ticks
         if self.g.reactions.swap(0, Relaxed) != 0 { self.react_pending = true; }
-        if self.g.undermined.swap(0, Relaxed) != 0 && self.g.struct_dirty.is_none() { self.g.struct_dirty = Some((0, 0, 0, 0)); }
-        if (self.tick % 6 == 0 && self.g.struct_dirty.is_some()) || (self.tick % 24 == 0 && self.react_pending) {
-            self.react_pending = false;
-            self.g.struct_dirty = None; let f = self.st.solve(&self.g);
-            let before = self.st.cracking.len(); self.st.crack(&f); if self.st.cracking.len() > before { self.events.push(Event::Crack); }
+        self.g.undermined.swap(0, Relaxed);
+        if (self.tick % 6 == 0 && self.g.struct_dirty.is_some() || self.tick % 6 == 0 && self.g.sdirty.iter().any(|f| f.load(Relaxed) & 1 != 0)) || (self.tick % 24 == 0 && self.react_pending) {
+            let bits = if self.tick % 24 == 0 && self.react_pending { 3 } else { 1 };
+            self.react_pending = false; self.g.struct_dirty = None;
+            let boxes = self.g.take_struct(bits);
+            let f = self.solve_regions(boxes);            let before = self.st.cracking.len(); self.st.crack(&f); if self.st.cracking.len() > before { self.events.push(Event::Crack); }
         }
         let crumble = self.st.tick(&self.g);
         if !crumble.is_empty() { self.events.push(Event::Crumble); }
@@ -355,6 +358,30 @@ impl World {
         self.shake *= 0.93;
         if self.tick % 30 == 0 { self.check_quests(); self.check_chests(); }
         self.day = 0.; // no sky in the Deepholt
+    }
+    /// Stress re-solve over clusters of dirty chunk boxes (boxes within 16 m of each other merge).
+    fn solve_regions(&mut self, mut boxes: Vec<(usize, usize, usize, usize)>) -> Vec<u32> {
+        if boxes.is_empty() { return vec![]; }
+        let gap = 16 * CPM; let near = |a: &(usize, usize, usize, usize), b: &(usize, usize, usize, usize)| a.0 <= b.2 + gap && b.0 <= a.2 + gap && a.1 <= b.3 + gap && b.1 <= a.3 + gap;
+        let mut merged = true;
+        while merged { merged = false;
+            'o: for i in 0..boxes.len() { for j in i + 1..boxes.len() { if near(&boxes[i], &boxes[j]) { let b = boxes.swap_remove(j); let a = &mut boxes[i];
+                *a = (a.0.min(b.0), a.1.min(b.1), a.2.max(b.2), a.3.max(b.3)); merged = true; break 'o; } } } }
+        // budget: about an eighth of the window's cells per re-solve, nearest the mole first; the rest stay
+        // flagged for the next pass (6 ticks on), so a world that's settling everywhere never stalls a frame
+        let (w, h) = (self.g.w, self.g.h);
+        let (mx, my) = self.moles.first().map_or((w / 2, h / 2), |m| (m.x, m.y));
+        let dist = |b: &(usize, usize, usize, usize)| mx.abs_diff((b.0 + b.2) / 2) + my.abs_diff((b.1 + b.3) / 2);
+        boxes.sort_by_key(|b| dist(b));
+        let work = |b: &(usize, usize, usize, usize)| ((b.2 - b.0 + 1 + 72 * CPM).min(w)) * ((b.3 - b.1 + 1 + 28 * CPM).min(h));
+        let (mut f, mut spent) = (vec![], 0usize);
+        for b in boxes {
+            if spent > 0 && spent + work(&b) > w * h / 8 { // over budget: leave it flagged
+                for y in (b.1..=b.3).step_by(crate::grid::CHUNK) { for x in (b.0..=b.2).step_by(crate::grid::CHUNK) { self.g.note_struct(y * w + x, 1); } }
+                continue; }
+            spent += work(&b); f.extend(self.st.solve_rect(&self.g, Some(b)));
+        }
+        f
     }
     pub fn vents(&self) -> Vec<(usize, usize)> { self.logic.dev_list.iter().filter(|&&b| self.logic.dev[b] == Dev::Vent as u8).map(|&b| self.logic.centre(b)).collect() }
     fn step_air(&mut self) {
@@ -494,8 +521,10 @@ impl World {
     fn cool_lava(&mut self) {
         let (w, h) = (self.g.w, self.g.h); let lava = Mat::Lava as u8;
         let mut freeze = vec![];
-        for y in 0..h { for x in 0..w { let i = y * w + x; if self.g.mat[i] != lava { continue; }
-            if hash3(x as u32, y as u32, (self.tick / LAVA_COOL_EVERY) as u32 ^ 0x1A7A) % LAVA_COOL_1_IN != 0 { continue; }
+        // each sweep visits a quarter of the rows at 4× the chance: the same cooling rate for a quarter of the scan
+        let (sweep, rows) = ((self.tick / LAVA_COOL_EVERY) as u32, 4usize);
+        for y in (sweep as usize % rows..h).step_by(rows) { for x in 0..w { let i = y * w + x; if self.g.mat[i] != lava { continue; }
+            if hash3(x as u32, y as u32, sweep ^ 0x1A7A) % (LAVA_COOL_1_IN / rows as u32) != 0 { continue; }
             let mut n = 0;
             let r = 2 * S; for yy in y.saturating_sub(r)..=(y + r).min(h - 1) { for xx in x.saturating_sub(r)..=(x + r).min(w - 1) { if self.g.mat[yy * w + xx] == lava { n += 1; } } }
             // it sets from the bottom up, on solid ground: a crust on top of molten lava would just break up again

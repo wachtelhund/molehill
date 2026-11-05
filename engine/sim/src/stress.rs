@@ -1,4 +1,5 @@
-//! Structural solver. Physically-motivated, cheap enough to run on 0.5M cells every few ticks.
+//! Structural solver. Physically-motivated; a full solve covers the whole window, and the world
+//! re-solves only the region around each change (`solve_rect`) so digging stays cheap.
 //!
 //! Units: cell edge s = 0.25 m, unit depth b = 1 m, g = 9.81 m/s², ρ in kg/m³, stresses in kPa.
 //! 1. Overburden: P(x,y) = Σ_{cells above, not empty/gas} ρ·g·s / 1000          [kPa]
@@ -42,51 +43,78 @@ impl Stress {
     /// Full solve. Returns indices with u > 1.
     /// Height of the load-bearing column above any cell (16 m), the pressure-arch height.
     pub fn _arch() -> usize { ARCH }
-    pub fn solve(&mut self, g: &Grid) -> Vec<u32> {
+    pub fn solve(&mut self, g: &Grid) -> Vec<u32> { self.solve_rect(g, None) }
+    /// Re-solve only around `dirty` (cells x0, y0, x1, y1 inclusive): the work region is that box plus
+    /// 32 m to each side, the 16 m arch height above and 8 m below; results are written back only for
+    /// the box plus 4 m (cells further out keep their last state). The region's edge cells that had
+    /// a load path last time anchor it, so the 2M-cell window isn't re-solved for every bite.
+    /// `None` (or no previous solve) is a full solve. Returns failing cells (u > thr) in the written area.
+    pub fn solve_rect(&mut self, g: &Grid, dirty: Option<(usize, usize, usize, usize)>) -> Vec<u32> {
         let (w, h) = (g.w, g.h);
         let n = w * h;
+        let dirty = if self.reach.len() == n { dirty } else { None };
+        let (rx0, ry0, rx1, ry1, cx0, cy0, cx1, cy1) = match dirty {
+            None => (0, 0, w - 1, h - 1, 0, 0, w - 1, h - 1),
+            Some((a, b, c, d)) => {
+                let (side, up, down, keep) = (32 * CPM, ARCH, 8 * CPM, 4 * CPM);
+                let (cx0, cy0, cx1, cy1) = (a.saturating_sub(keep), b.saturating_sub(keep), (c + keep).min(w - 1), (d + keep).min(h - 1));
+                (cx0.saturating_sub(side), cy0.saturating_sub(up), (cx1 + side).min(w - 1), (cy1 + down).min(h - 1), cx0, cy0, cx1, cy1)
+            }
+        };
+        let (rw, rh) = (rx1 - rx0 + 1, ry1 - ry0 + 1); let rn = rw * rh;
+        let li = |x: usize, y: usize| (y - ry0) * rw + (x - rx0);
         let st = |i: usize| g.is_static(i);
         let supports = |i: usize| { let k = g.m(i).kind(); k == Kind::Powder || (k == Kind::Solid) };
-        // 1. overburden
+        let open = |i: usize| matches!(g.m(i).kind(), Kind::Empty | Kind::Gas);
+        // 1. overburden (sliding ARCH-cell column, started ARCH rows above the region)
         let p = &mut self.overburden;
-        for x in 0..w {
+        for x in rx0..=rx1 {
             let mut acc = 0f32;
             // Ground arching (Terzaghi): load deeper than ARCH cells above is carried by the rock arch
             // around the opening, so only a sliding column of ARCH cells bears down on a cell.
             let cw = |y: usize| { let m = g.m(y * w + x); if matches!(m.kind(), Kind::Empty | Kind::Gas) { 0. } else { PROPS[m as usize].density * G * CELL_M / 1000. } };
-            for y in 0..h { let i = y * w + x; p[i] = acc; acc += cw(y); if y >= ARCH { acc -= cw(y - ARCH); } }
+            let ys = ry0.saturating_sub(ARCH);
+            for y in ys..=ry1 { let i = y * w + x; if y >= ry0 { p[i] = acc; } acc += cw(y); if y >= ARCH && y - ARCH >= ys { acc -= cw(y - ARCH); } }
         }
         let p = &self.overburden;
         // ctop: top row of the unbroken static column a static cell belongs to (does it reach the roof?);
-        // vtop: for an open cell, the row of the first non-open cell above it (the roof over that void)
-        let open = |i: usize| matches!(g.m(i).kind(), Kind::Empty | Kind::Gas);
-        let mut ctop = vec![0u32; n]; let mut vtop = vec![0u32; n];
-        for y in 0..h { for x in 0..w { let i = y * w + x;
-            if st(i) { ctop[i] = if y > 0 && st(i - w) { ctop[i - w] } else { y as u32 }; }
-            else if open(i) { vtop[i] = if y == 0 { 0 } else if open(i - w) { vtop[i - w] } else { (y - 1) as u32 }; }
+        // vtop: for an open cell, the row of the first non-open cell above it (the roof over that void).
+        // The region's top row looks up through the grid for its true values.
+        // (computed across the full width of the region's rows: runs and voids may reach past its sides)
+        let mut ctop = vec![0u32; rh * w]; let mut vtop = vec![0u32; rh * w];
+        let lf = |x: usize, y: usize| (y - ry0) * w + x;
+        for y in ry0..=ry1 { for x in 0..w { let i = y * w + x; let l = lf(x, y);
+            if st(i) { ctop[l] = if y > ry0 { if st(i - w) { ctop[l - w] } else { y as u32 } } else { let mut t = y; while t > 0 && st((t - 1) * w + x) { t -= 1; } t as u32 }; }
+            else if open(i) { vtop[l] = if y == 0 { 0 } else if y > ry0 { if open(i - w) { vtop[l - w] } else { (y - 1) as u32 } } else { let mut t = y; while t > 0 && open((t - 1) * w + x) { t -= 1; } t.saturating_sub(1) as u32 }; }
         } }
-        let mut util = vec![0f32; n];
+        let inr = |x: usize, y: usize| x >= rx0 && x <= rx1 && y >= ry0 && y <= ry1;
+        let ctop_at = |x: usize, y: usize| ctop[lf(x, y)];
+        let vtop_at = |x: usize, y: usize| vtop[lf(x, y)];
+        let mut util = vec![0f32; rn];
         // 2. connectivity (BFS from bedrock)
-        let mut reach = vec![false; n]; let mut q: Vec<u32> = Vec::with_capacity(n / 4);
-        // anchors: bedrock walls, plus the window's top and bottom rows (the Deepholt continues beyond them)
-        for i in 0..n { if g.mat[i] == Mat::Bedrock as u8 || ((i < w || i >= n - w) && st(i)) { reach[i] = true; q.push(i as u32); } }
+        let mut reach = vec![false; rn]; let mut q: Vec<u32> = Vec::with_capacity(rn / 4);
+        // anchors: bedrock walls, the window's top and bottom rows (the Deepholt continues beyond them),
+        // and for a partial solve the region's edge cells that had a load path last time
+        let edge = |x: usize, y: usize| (x == rx0 && rx0 > 0) || (x == rx1 && rx1 + 1 < w) || (y == ry0 && ry0 > 0) || (y == ry1 && ry1 + 1 < h);
+        for y in ry0..=ry1 { for x in rx0..=rx1 { let i = y * w + x;
+            if g.mat[i] == Mat::Bedrock as u8 || ((i < w || i >= n - w) && st(i)) || (dirty.is_some() && edge(x, y) && self.reach[i] && supports(i)) { reach[li(x, y)] = true; q.push(i as u32); } } }
         let mut head = 0;
         while head < q.len() {
             let i = q[head] as usize; head += 1; let (x, y) = (i % w, i / w);
             // static cells carry each other in all four directions; loose ground (sand, rubble) only
             // carries what rests directly on top of it, so a pillar built on a sand floor has a load path
             let carried = g.is_static(i);
-            if carried { for j in g.n4(x, y) { if !reach[j] && st(j) { reach[j] = true; q.push(j as u32); } } }
-            if y > 0 { let j = i - w; if !reach[j] && supports(j) { reach[j] = true; q.push(j as u32); } }
+            if carried { for j in g.n4(x, y) { let (jx, jy) = (j % w, j / w); if inr(jx, jy) && !reach[li(jx, jy)] && st(j) { reach[li(jx, jy)] = true; q.push(j as u32); } } }
+            if y > ry0 { let j = i - w; if !reach[li(x, y - 1)] && supports(j) { reach[li(x, y - 1)] = true; q.push(j as u32); } }
         }
-        for i in 0..n { if st(i) && !reach[i] { util[i] = 9.; } }
+        for y in ry0..=ry1 { for x in rx0..=rx1 { if st(y * w + x) && !reach[li(x, y)] { util[li(x, y)] = 9.; } } }
         // 3. bending of roof runs
-        for y in 0..h - 1 {
-            let mut x = 0;
-            while x < w {
-                let i = y * w + x;
-                if !(st(i) && !supports(i + w)) { x += 1; continue; }
-                let xa = x; while x < w && st(y * w + x) && !supports(y * w + x + w) { x += 1; } let xb = x - 1;
+        for y in ry0..=ry1.min(h - 2) {
+            let beam = |x: usize| st(y * w + x) && !supports(y * w + x + w);
+            let mut x = rx0; while x > 0 && beam(x) && beam(x - 1) { x -= 1; } // a run reaching in from the left
+            while x <= rx1 {
+                if !beam(x) { x += 1; continue; }
+                let xa = x; while x < w && beam(x) { x += 1; } let xb = x - 1;
                 let left = xa > 0 && st(y * w + xa - 1) && supports(y * w + xa - 1 + w);
                 let right = xb + 1 < w && st(y * w + xb + 1) && supports(y * w + xb + 1 + w);
                 let span = (xb - xa + 1) as f32 * CELL_M;
@@ -120,14 +148,14 @@ impl Stress {
                 for xx in xa..=xb {
                     let t = (xx - xa) as f32 + 0.5;
                     let f = if left && right { 4. * t * (n - t) / (n * n) } else if left { ((n - t + 0.5) / n).powi(2) } else if right { ((t + 0.5) / n).powi(2) } else { 1. };
-                    let j = y * w + xx; let uu = u * f.min(1.); if uu > util[j] { util[j] = uu; }
+                    if !inr(xx, y) { continue; } let j = li(xx, y); let uu = u * f.min(1.); if uu > util[j] { util[j] = uu; }
                 }
             }
         }
         // 4. compression of horizontal solid runs (pillars / walls)
-        for y in 1..h {
-            let mut x = 0;
-            while x < w {
+        for y in ry0.max(1)..=ry1 {
+            let mut x = rx0; while x > 0 && st(y * w + x) && st(y * w + x - 1) { x -= 1; } // a run reaching in from the left
+            while x <= rx1 {
                 if !st(y * w + x) { x += 1; continue; }
                 let xa = x; while x < w && st(y * w + x) { x += 1; } let xb = x - 1;
                 let mut load: f32 = (xa..=xb).map(|xx| p[y * w + xx]).sum();
@@ -135,14 +163,14 @@ impl Stress {
                 // actually reaches up to that void's roof (a free-standing stub carries no roof). Above
                 // an opening of width n the rock arches, so only the loosened zone (≈ n+1 cells of rock)
                 // bears down on the supports: a lone prop in a sound hall isn't crushed.
-                let rt = (xa..=xb).map(|xx| ctop[y * w + xx]).min().unwrap_or(0);
+                let rt = (xa..=xb).map(|xx| ctop_at(xx, y)).min().unwrap_or(0);
                 let cell_w = PROPS[Mat::Granite as usize].density * G * CELL_M / 1000.;
                 let mut nl = 0; while xa > nl && !st(y * w + xa - nl - 1) && nl < 400 * S { nl += 1; }
                 let mut nr = 0; while xb + nr + 1 < w && !st(y * w + xb + nr + 1) && nr < 400 * S { nr += 1; }
                 let (cl, cr) = ((nl + 1) as f32 * cell_w, (nr + 1) as f32 * cell_w);
-                let trib = |j: usize, cap: f32| if open(j) && rt > vtop[j] { 0. } else { p[j].min(cap) };
-                let vl: f32 = (1..=nl).map(|k| trib(y * w + xa - k, cl)).sum();
-                let vr: f32 = (1..=nr).map(|k| trib(y * w + xb + k, cr)).sum();
+                let trib = |xx: usize, cap: f32| { let j = y * w + xx; if open(j) && rt > vtop_at(xx, y) { 0. } else { p[j].min(cap) } };
+                let vl: f32 = (1..=nl).map(|k| trib(xa - k, cl)).sum();
+                let vr: f32 = (1..=nr).map(|k| trib(xb + k, cr)).sum();
                 load += 0.5 * (vl + vr);
                 let wid = (xb - xa + 1) as f32;
                 let sigma = load / wid;
@@ -150,17 +178,18 @@ impl Stress {
                 // of the run can't crush; only cells at a free face (the run's ends) see the
                 // unconfined strength. So an overloaded body spalls at its faces instead of the
                 // whole mass turning to rubble at once.
-                for xx in [xa, xb] { let j = y * w + xx; let u = sigma / PROPS[g.mat[j] as usize].compressive.max(1e-3); if u > util[j] { util[j] = u; } }
-                if xb > xa + 1 { for xx in xa + 1..xb { let j = y * w + xx; let u = 0.5 * sigma / PROPS[g.mat[j] as usize].compressive.max(1e-3); if u > util[j] { util[j] = u.min(0.9); } } }
+                for xx in [xa, xb] { if !inr(xx, y) { continue; } let j = li(xx, y); let u = sigma / PROPS[g.mat[y * w + xx] as usize].compressive.max(1e-3); if u > util[j] { util[j] = u; } }
+                if xb > xa + 1 { for xx in (xa + 1).max(rx0)..xb.min(rx1 + 1) { let j = li(xx, y); let u = 0.5 * sigma / PROPS[g.mat[y * w + xx] as usize].compressive.max(1e-3); if u > util[j] { util[j] = u.min(0.9); } } }
             }
         }
-        self.reach = reach;
+        if self.reach.len() != n { self.reach = vec![false; n]; }
         let mut fail = vec![];
-        for i in 0..n {
-            let u = util[i];
+        for y in cy0..=cy1 { for x in cx0..=cx1 {
+            let (i, l) = (y * w + x, li(x, y)); let u = util[l];
+            self.reach[i] = reach[l];
             self.util[i] = (u * 128.).min(255.) as u8;
             if u > self.thr && g.mat[i] != Mat::Bedrock as u8 { fail.push(i as u32); }
-        }
+        } }
         fail
     }
 

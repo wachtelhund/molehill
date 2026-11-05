@@ -20,6 +20,9 @@ pub struct Grid {
     pub reactions: AtomicU8,
     /// set when a moving cell leaves from under static rock (its support may be gone: re-solve stress)
     pub undermined: AtomicU8,
+    /// per-chunk flags for the stress re-solve: bit 0 a structural change, bit 1 a reaction (fire,
+    /// quenching). Set from the main thread and from CA threads alike.
+    pub sdirty: Vec<AtomicU8>,
 }
 
 #[inline] pub fn hash3(x: u32, y: u32, t: u32) -> u32 {
@@ -38,8 +41,19 @@ impl Grid {
         let n = w * h; let (cx, cy) = (w / CHUNK, h / CHUNK);
         Grid { w, h, cx, cy, mat: vec![0; n], flags: vec![0; n], shade: (0..n).map(|i| (hash3(i as u32, 7, 1) & 255) as u8).collect(),
             life: vec![0; n], moved: vec![0; n], awake: (0..cx * cy).map(|_| AtomicU8::new(1)).collect(), awake_next: (0..cx * cy).map(|_| AtomicU8::new(1)).collect(),
-            tick: 0, struct_dirty: None, reactions: AtomicU8::new(0), undermined: AtomicU8::new(0) }
+            tick: 0, struct_dirty: None, reactions: AtomicU8::new(0), undermined: AtomicU8::new(0), sdirty: (0..cx * cy).map(|_| AtomicU8::new(0)).collect() }
     }
+    /// Flag the chunk holding cell i for a stress re-solve (`bit` 1 structural, 2 reaction); thread-safe.
+    #[inline] pub fn note_struct(&self, i: usize, bit: u8) { let (x, y) = (i % self.w, i / self.w); self.sdirty[(y / CHUNK) * self.cx + x / CHUNK].fetch_or(bit, Relaxed); }
+    /// Take the chunks flagged with any of `bits` (clearing those bits), as cell boxes (x0, y0, x1, y1).
+    pub fn take_struct(&self, bits: u8) -> Vec<(usize, usize, usize, usize)> {
+        let mut v = vec![];
+        for (c, f) in self.sdirty.iter().enumerate() { if f.load(Relaxed) & bits != 0 { f.fetch_and(!bits, Relaxed);
+            let (x0, y0) = ((c % self.cx) * CHUNK, (c / self.cx) * CHUNK); v.push((x0, y0, x0 + CHUNK - 1, y0 + CHUNK - 1)); } }
+        v
+    }
+    /// Forget pending structural changes (after a full solve).
+    pub fn clear_struct(&mut self) { self.struct_dirty = None; for f in &self.sdirty { f.store(0, Relaxed); } }
     #[inline] pub fn idx(&self, x: usize, y: usize) -> usize { y * self.w + x }
     #[inline] pub fn get(&self, x: usize, y: usize) -> Mat { Mat::from_u8(self.mat[y * self.w + x]) }
     #[inline] pub fn m(&self, i: usize) -> Mat { Mat::from_u8(self.mat[i]) }
@@ -63,6 +77,7 @@ impl Grid {
     }
     pub fn wake_all(&self) { for a in &self.awake_next { a.store(1, Relaxed); } }
     pub fn mark_struct(&mut self, x: usize, y: usize) {
+        self.note_struct(y * self.w + x, 1);
         self.struct_dirty = Some(match self.struct_dirty { None => (x, y, x, y), Some((a, b, c, d)) => (a.min(x), b.min(y), c.max(x), d.max(y)) });
     }
     /// Set a cell (main thread). Marks structure + wakes.
@@ -120,7 +135,7 @@ impl Grid {
         self.moved[i] = stamp; self.moved[j] = stamp;
         // whatever just moved out from under static rock may have been holding it up
         // (only grains carry load: water slipping along under a roof changes nothing)
-        let w = self.w; for (a, b) in [(i, j), (j, i)] { if a >= w && self.is_solidish(b) && !self.is_solidish(a) && self.is_static(a - w) { self.undermined.store(1, Relaxed); } }
+        let w = self.w; for (a, b) in [(i, j), (j, i)] { if a >= w && self.is_solidish(b) && !self.is_solidish(a) && self.is_static(a - w) { self.undermined.store(1, Relaxed); self.note_struct(a - w, 1); } }
         let w = self.w; self.wake(i % w, i / w); self.wake(j % w, j / w);
     }
     #[inline] fn rnd(&self, x: usize, y: usize, salt: u32) -> u32 { hash3(x as u32, y as u32 ^ (salt << 20), self.tick as u32) }
@@ -160,8 +175,8 @@ impl Grid {
                     for n in self.n4(x, y) {
                         let nm = self.m(n);
                         // quenched lava shatters into loose scoria (F_LOOSE) instead of a free-floating crust
-                        if nm == Mat::Water { self.mat[i] = Mat::Basalt as u8; self.flags[i] = F_LOOSE; self.mat[n] = Mat::Steam as u8; self.life[n] = 90; self.moved[i] = stamp; self.moved[n] = stamp; self.wake(x, y); self.reactions.store(1, Relaxed); return; }
-                        if matches!(nm, Mat::WoodBeam | Mat::Roots | Mat::Fungus | Mat::Coal | Mat::Door) && self.rnd(x, y, 4) % 40 == 0 { self.mat[n] = Mat::Fire as u8; self.life[n] = 70; self.reactions.store(1, Relaxed); }
+                        if nm == Mat::Water { self.mat[i] = Mat::Basalt as u8; self.flags[i] = F_LOOSE; self.mat[n] = Mat::Steam as u8; self.life[n] = 90; self.moved[i] = stamp; self.moved[n] = stamp; self.wake(x, y); self.reactions.store(1, Relaxed); self.note_struct(i, 2); return; }
+                        if matches!(nm, Mat::WoodBeam | Mat::Roots | Mat::Fungus | Mat::Coal | Mat::Door) && self.rnd(x, y, 4) % 40 == 0 { self.mat[n] = Mat::Fire as u8; self.life[n] = 70; self.reactions.store(1, Relaxed); self.note_struct(n, 2); }
                     }
                 }
                 if let Some(j) = self.liquid_target(x, y, m) {
@@ -184,10 +199,10 @@ impl Grid {
                     for n in self.n4(x, y) {
                         let nm = self.m(n);
                         if nm == Mat::Water { self.mat[i] = Mat::Steam as u8; self.life[i] = 60; return; }
-                        if matches!(nm, Mat::WoodBeam | Mat::Roots | Mat::Fungus | Mat::Door) && self.rnd(x, y, 9) % 30 == 0 { self.mat[n] = Mat::Fire as u8; self.life[n] = 70; self.reactions.store(1, Relaxed); }
+                        if matches!(nm, Mat::WoodBeam | Mat::Roots | Mat::Fungus | Mat::Door) && self.rnd(x, y, 9) % 30 == 0 { self.mat[n] = Mat::Fire as u8; self.life[n] = 70; self.reactions.store(1, Relaxed); self.note_struct(n, 2); }
                     }
                     self.life[i] = self.life[i].saturating_sub(1);
-                    if self.life[i] == 0 { self.mat[i] = 0; self.reactions.store(1, Relaxed); }
+                    if self.life[i] == 0 { self.mat[i] = 0; self.reactions.store(1, Relaxed); self.note_struct(i, 2); }
                     else if y > 0 && self.mat[i - w] == 0 && self.rnd(x, y, 10) % 4 == 0 { self.swap(i, i - w, stamp); }
                 }
             }
