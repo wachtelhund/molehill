@@ -99,6 +99,19 @@ In practice:
 
 `tnt_thrum.scn` checks the classic use: a lever drives a thrummer, the knock goes through 2 m of granite to a listener, and the listener's copperline sets off a charge.
 
+## How it looks
+
+Copperline is drawn per 1 m block as a 3-pixel copper wire with a bright top edge and a shaded underside. It bends to join the blocks around it, ends in a brass stud and gets a solder blob where it branches. Live copperline glows warm, and a glint runs outward along it. Devices have their own pixel art on wood or iron mounts, with on/off states: a lever thrown left or right, a plate that sinks when pressed, a lamp's glass lit, a pump and vent turning, a thrummer's mallet knocking, a listener's trumpet ringing, a water wheel turning, a fuse cord or TNT spark. Knots are brass plates with their mark (both: two rings, either: a fork, turn: a loop, odd: a cross, catch: a hook, ticker: a pendulum), copper stubs on the west and north inputs, and an output stub on the east that lights. Thrum devices show a small pip in their pattern's colour.
+
+## Wiring view
+
+`V` switches to a schematic of the logic layer, and `V` again switches back to the pixel art. The world dims, a thin pale-blue border and a small `WIRING` label frame the screen, and the cursor becomes a crosshair, so it's always clear which view you're in. Holding copperline, a knot, a thrummer, a lamp or TNT shows a small "V wiring view" hint.
+
+* **Copperline:** a thick line per block. Steel blue when idle; amber when carrying current, with a pulse running along the net.
+* **Devices:** a framed glyph coloured by role. Sources (lever, plate, sensor, listener, heatstone, water wheel) are green, knots violet, sinks (door, floodgate, pump, lamp, TNT, fuse, vent) orange, and thrummers take their pattern's colour. Bright when on, dim when off.
+* **Knots:** arrows on the west and north edges show the inputs (amber when live), an arrow on the east the output, and the knot's name (BOTH, EITHER, TURN, ODD, CATCH, TICKER) sits above.
+* **Thrumming:** each thrummer, relay and listener is labelled with its pattern (CH 1–8). A line joins every linked pair in the sender's colour. A faint ring around each thrummer shows its reach through the rock it's braced in. It counts spreading and absorption only, since boundaries cost more, so the link lines are the truth.
+
 ## Save and load
 
 Copperline, devices and their state (thrown levers, lit lamps, burning fuses and lit charges, patterns and beats) survive save and load (`saveload_devices.scn`), and survive the window sliding away from them and back (`band_keeps_devices.scn`).

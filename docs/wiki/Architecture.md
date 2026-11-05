@@ -72,6 +72,8 @@ The rule is simple: **gameplay goes in the sim.** If it changes what happens in 
 | `ui.rs` | the HUD: vitals, quest line, toasts, hotbar, pack grid, tooltips, dev text |
 | `menu.rs` | main and pause menus, settings, the shared controls table |
 | `art.rs` | pixel-art sprites and icons built in code |
+| `devart.rs` | pixel art for copperline tiles (one per neighbour mask, lit with a travelling glint), every device (off/on, animation frames) and the wiring view's schematic glyphs |
+| `wiring.rs` | draws copperline and devices as sprites over the world (one per 1 m block, cached by block), and the wiring view (`V`) |
 | `audio.rs` | procedural sound and the music synth (web only) |
 | `music.rs` | the generative music composer: pure Rust, unit-tested natively, writes timed notes for `audio.rs` |
 

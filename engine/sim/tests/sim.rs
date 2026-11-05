@@ -688,3 +688,11 @@ fn material_table_is_consistent() {
     w.g.active = None; w.g.step_ca(); w.g.step_ca(); // (region covering it again)
     assert_ne!(w.g.get(far.0, far.1 - 6), Mat::Sand, "and falls once the region covers it");
 }
+#[test] fn fresh_copperline_reads_idle_before_the_next_tick() {
+    // the game draws between sim ticks: copperline laid since the last net rebuild has no net yet and
+    // must read as idle, not index out of bounds
+    let (mut w, x0, y0) = arena();
+    let b = w.logic.block_of(x0 + 8, y0 - 2); assert!(w.logic.place_wire(b));
+    assert!(!w.logic.net_lit(b));
+    w.step(); assert!(!w.logic.net_lit(b));
+}
