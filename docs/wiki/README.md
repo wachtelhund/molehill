@@ -9,7 +9,7 @@ Molehill is a falling-sand platformer and colony sim about moles digging through
 ## What makes it Molehill
 
 * **The ground is the game.** About two million 12.5 cm cells are simulated at 60 ticks a second. Sand pours, water levels out, lava creeps, and stone cracks when a span gets too wide. Even loose things obey it: a dropped stone bounces off granite and dies in dirt, wood floats, and a thrown charge rolls before it goes off.
-* **Structures are judged by real numbers.** Roofs are checked as beams in bending and pillars in compression, using densities and rock-mass strengths in kPa. A 1 m dirt span holds; a 6 m one comes down. See [Physics](Physics.md).
+* **Structures are judged by real numbers.** Roofs are checked as beams in bending and pillars in compression, using densities and rock-mass strengths in kPa. A 1 m dirt span holds; a 6 m one comes down. Blasts are pressure waves too: a charge roars down a tunnel, fades across a cave, leaves a shadow behind a wall, and breaks dirt long before granite. See [Physics](Physics.md).
 * **Movement is snappy.** Instant start and stop, coyote time, a jump buffer, wall clinging and corner correction. The target feel is Streets of Rogue: actions fire on press with immediate feedback. See [Player and Controls](Player-and-Controls.md).
 * **Handmade technology.** Copperline carries current from levers, heatstones and water wheels through knots into doors, lamps, pumps and blasting charges. Signals cross solid rock by thrumming. See [Devices and Copperline](Devices-and-Copperline.md).
 * **No sky, ever.** The world keeps going up and down for as long as you dig. What you leave behind stays: rows that scroll out of the live window are kept in 8 m bands, devices and all, and saved band by band. See [Lore](Lore.md) and [World and Generation](World-and-Generation.md).
@@ -25,7 +25,7 @@ Molehill is a falling-sand platformer and colony sim about moles digging through
 | [Tools and Items](Tools-and-Items.md) | Dig tools, the round brush, blocks, the pack, stations, recipes and quests |
 | [Devices and Copperline](Devices-and-Copperline.md) | Nets, sources, knots, sinks, TNT and fuses, heatstones, wheels, thrummers |
 | [Testing](Testing.md) | The headless test suite and the `.scn` scenario harness |
-| [Progression](Progression.md) | *Design, not yet implemented:* depth as progression, the survival loop, tiers, crafting, furnishing, transportation, grottos, modes, the Ancients |
+| [Progression](Progression.md) | *Mostly design* (Survival and Creative modes are in): depth as progression, the survival loop, tiers, crafting, furnishing, transportation, grottos, modes, the Ancients |
 | [Architecture](Architecture.md) | Crates, the sim/engine split, the frame loop, native and web builds |
 
 ## Play it
@@ -36,6 +36,8 @@ Molehill is private and has no hosted build. From a clone:
 cd engine && cargo run --release              # native; add `-- --fresh` to skip the autosave
 python3 -m http.server -d site 8080           # web: the committed wasm build, then open localhost:8080
 ```
+
+New Holt asks for **Survival** (a small kit; you dig with the tools you own, find food and burn fungus oil for light, and your pack stays where you fall) or **Creative** (every item, nothing hurts).
 
 ## Keeping this wiki true
 

@@ -1,0 +1,18 @@
+// Furniture needs what it stands on: blast the floor away under a table and it falls loose as an item.
+map
+##############################
+#............................#
+#............................#
+#............................#
+#..@.........................#
+#############dddddddd#########
+#############dddddddd#########
+#............................#
+##############################
+end
+give Table 1
+furnish 2 Table 14 0
+expect 5 furn:Table == 1
+explode 10 14 1 0.5             // one TNT charge under the floor
+expect 80 furn:Table == 0
+expect 80 items:Table == 1

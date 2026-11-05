@@ -14,6 +14,12 @@ use crate::craft::{Station, ITEMS, NITEM, STATIONS};
 use crate::world::{Building, Drop, Farm, World};
 use crate::{air::AB, logic::B};
 
+/// Stations are stored as `STATION_CODE + index`; smaller codes are the four stations of older saves
+/// (workbench, kiln, furnace, anvil), which become the workbench, forge, forge and workshop.
+pub const STATION_CODE: u8 = 16;
+pub fn station_from_code(k: u8) -> Option<Station> {
+    if k >= STATION_CODE { STATIONS.get((k - STATION_CODE) as usize).copied() } else { [Station::Workbench, Station::Forge, Station::Forge, Station::Workshop].get(k as usize).copied() }
+}
 /// Rows per band: 8 m. The window height and every slide are multiples of it.
 pub const BH: usize = 64;
 const _: () = assert!(BH % B == 0 && BH % AB == 0);
@@ -75,9 +81,12 @@ pub fn encode(w: &World, y0: usize) -> Vec<u8> {
     let t: Vec<&(usize, usize)> = w.torches.iter().filter(|t| inb(t.1)).collect();
     o.u32(t.len() as u32); for &&(x, y) in &t { o.u32(x as u32); o.u32((y - y0) as u32); }
     let b: Vec<&Building> = w.buildings.iter().filter(|b| inb(b.y)).collect();
-    o.u32(b.len() as u32); for b in b { o.u8(STATIONS.iter().position(|&s| s == b.kind).unwrap_or(0) as u8); o.u32(b.x as u32); o.u32((b.y - y0) as u32); o.u8(b.built as u8); }
+    o.u32(b.len() as u32); for b in b { o.u8(STATION_CODE + STATIONS.iter().position(|&s| s == b.kind).unwrap_or(0) as u8); o.u32(b.x as u32); o.u32((b.y - y0) as u32); o.u8(b.built as u8); }
     let f: Vec<&Farm> = w.farms.iter().filter(|f| inb(f.y)).collect();
     o.u32(f.len() as u32); for f in f { o.u32(f.x as u32); o.u32((f.y - y0) as u32); o.f32(f.growth); }
+    // furniture (an optional trailing section: blobs written before it simply end here)
+    let fu: Vec<&crate::world::Furniture> = w.furniture.iter().filter(|f| inb(f.y)).collect();
+    o.u32(fu.len() as u32); for f in fu { o.u8(f.item as u8); o.u32(f.x as u32); o.u32((f.y - y0) as u32); o.u8(f.tint); }
     o.0
 }
 
@@ -99,8 +108,11 @@ pub fn decode(w: &mut World, y0: usize, blob: &[u8], remap: Option<&[u8]>) -> R<
     let air = r.rle(abw * (BH / AB))?;
     let mut drops = vec![]; for _ in 0..r.len(1 << 20)? { let (x, y, it, n) = (r.u32()? as usize, r.u32()? as usize, r.u8()?, r.u32()?); if x < gw && y < BH && (it as usize) < NITEM { drops.push(Drop::at(x as f32 + 0.5, (y0 + y) as f32 + 0.5, ITEMS[it as usize], n)); } }
     let mut torches = vec![]; for _ in 0..r.len(1 << 20)? { let (x, y) = (r.u32()? as usize, r.u32()? as usize); if x < gw && y < BH { torches.push((x, y0 + y)); } }
-    let mut blds = vec![]; for _ in 0..r.len(1 << 16)? { let (k, x, y, b) = (r.u8()?, r.u32()? as usize, r.u32()? as usize, r.u8()? != 0); if (k as usize) < STATIONS.len() && x + Station::W < gw && y < BH && y0 + y >= Station::H { blds.push(Building { kind: STATIONS[k as usize], x, y: y0 + y, built: b, claimed: false }); } }
+    let mut blds = vec![]; for _ in 0..r.len(1 << 16)? { let (k, x, y, b) = (r.u8()?, r.u32()? as usize, r.u32()? as usize, r.u8()? != 0); if let Some(kind) = station_from_code(k) { if x + Station::W < gw && y < BH && y0 + y >= Station::H { blds.push(Building { kind, x, y: y0 + y, built: b, claimed: false }); } } }
     let mut farms = vec![]; for _ in 0..r.len(1 << 16)? { let (x, y, g) = (r.u32()? as usize, r.u32()? as usize, r.f32()?); if x < gw && y < BH && y0 + y + 1 < gh { farms.push(Farm { x, y: y0 + y, growth: g.clamp(0., 1.), why: 0 }); } }
+    let mut furn = vec![];
+    if r.p < r.b.len() { for _ in 0..r.len(1 << 16)? { let (it, x, y, t) = (r.u8()?, r.u32()? as usize, r.u32()? as usize, r.u8()?);
+        if (it as usize) < NITEM && ITEMS[it as usize].furn().is_some() && x < gw && y < BH { furn.push(crate::world::Furniture { item: ITEMS[it as usize], x, y: y0 + y, tint: t.min(6) }); } } }
     // all read: apply
     let c0 = y0 * gw; w.g.mat[c0..c0 + gw * BH].copy_from_slice(&mat); w.g.flags[c0..c0 + gw * BH].copy_from_slice(&flags);
     let ndev = crate::logic::DEVS.len() as u8; let b0 = (y0 / B) * bw; let lg = &mut w.logic;
@@ -111,7 +123,7 @@ pub fn decode(w: &mut World, y0: usize, blob: &[u8], remap: Option<&[u8]>) -> R<
     }
     lg.invalidate();
     let a0 = (y0 / AB) * abw; for (k, &v) in air.iter().enumerate() { w.air.co2[a0 + k] = v as f32 / 255. * 1.5; }
-    w.drops.extend(drops); w.torches.extend(torches); w.buildings.extend(blds); w.farms.extend(farms);
+    w.drops.extend(drops); w.torches.extend(torches); w.buildings.extend(blds); w.farms.extend(farms); w.furniture.extend(furn);
     Ok(())
 }
 

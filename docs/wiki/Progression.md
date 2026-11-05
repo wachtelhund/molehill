@@ -1,6 +1,6 @@
 # Progression
 
-> **Mostly design.** This page describes where Molehill is going. The game now has a **Survival** and a **Creative** mode, with the first slice of Survival in (see [Survival mode today](#survival-mode-today)); everything else here is design unless marked **built**. The other pages describe what is actually in the code. Everything here must follow [Lore](Lore.md).
+> **Mostly design.** This page describes where Molehill is going. The game now has a **Survival** and a **Creative** mode, with the first slice of Survival in (see [Survival mode today](#survival-mode-today)) and **crafting** built (stations, recipes unlocked by touch, the tool ladder: see [Crafting](#crafting)); everything else here is design unless marked **built**. The other pages describe what is actually in the code. Everything here must follow [Lore](Lore.md).
 
 ## The idea in one line
 
@@ -50,6 +50,8 @@ The tool ladder matches the rock: the **Pickaxe** for soft ground, the **Drill**
 
 ### Crafting
 
+> **Built** (Survival; Creative keeps free access): the three stations below with their heat and power rules, recipes that unlock by touch, short chains, and the tool ladder: Pickaxe at the workbench, Drill at the workshop, Bore at the forge. Details and the recipe list: [Tools and Items](Tools-and-Items.md#stations). Not yet: the forge's heat from a heatstone carried by pipes, fungus-oil fuel, and emberiron (the Bore uses iron, copper and crystal for now).
+
 * **Stations, not menus.** You craft at a station you have built and stand at:
   * the **workbench** for wood, stone, simple devices and furniture;
   * the **forge**, which needs heat: a heatstone, or lava run to it, for smelting and metalwork;
@@ -58,6 +60,8 @@ The tool ladder matches the rock: the **Pickaxe** for soft ground, the **Drill**
 * **Short chains.** At most two steps from the ground to the thing: ore → ingot → tool. No intermediate parts lists.
 
 ## Furnishing and decor
+
+> **Built:** decorative blocks (planks, polished stone, tiles, carved pillars), six pigments that paint blocks and dye cloth, and furniture (table, stool, nest, shelf, rug, banner, glowing fungus planter). Details: [Tools and Items](Tools-and-Items.md#furnishing). Not yet: back walls, and Delvers moving in.
 
 Making the holt **look like home** is a core goal, not a side feature. A Delver should be able to stand in their main hall and be proud of it.
 
@@ -117,10 +121,11 @@ Wood is the first material and must stay precious, so it doesn't come from the e
 The first slice of Survival is in the game (`sim/src/survival.rs`); the rest of this page is still design.
 
 * **New Holt** asks for a mode: **Survival** or **Creative**. The mode is kept in the save; a save from before modes loads as Creative.
-* **Start kit:** stone tools (the Pickaxe), 4 torches, 3 grubs, 2 roots and 2 measures of fungus oil. Nothing else.
-* **Tools you own:** you dig only with tools in the pack. The hotbar's Drill and Bore act as your best tool until you have them.
+* **Start kit:** a Pickaxe, 4 torches, 3 grubs, 2 roots and 2 measures of fungus oil. Nothing else.
+* **Tools you own:** you dig only with tools in the pack; a tool you don't own isn't in the hotbar. The Drill is made at the workshop and the Bore at the forge (see [Crafting](#crafting)).
 * **Food:** hunger drains; below 40 the Delver eats from the pack on its own (grub 45, mushroom 35, root 30, fungus 25). Root tangles turn up edible **roots** when dug, soil turns up grubs, and fungus is food too. Starving hurts. **Hunger can be turned off** for a holt: a New Holt option, also in Settings for the current holt, and saved with it. Then food never drains and the food bar is hidden.
 * **Light costs fuel:** a lit headlamp burns a measure of **fungus oil** every 3 minutes, and placing a torch soaks up a measure. With no oil left the pack presses 2 fungus into a measure; with neither, the headlamp goes dark and torches won't light.
+* **Crafting:** recipes appear as you pick up their ingredients, and you make things standing at a working station: see [Crafting](#crafting).
 * **Stale air** works as before.
 * **Death:** you wake in the burrow with an empty pack. Everything you carried lies where you fell as loose items (a pile you can walk back over). Items that burn are lost if that was in lava or fire.
 * **Creative:** 999 of everything, nothing hurts, nothing needs fuel.
@@ -139,14 +144,14 @@ Everything the Ancients built obeys the same physics as everything else: weight,
 
 | area | today | this design |
 |---|---|---|
-| Mode | New Holt picks **Survival** (small kit, food, fuel, the pack lost at death) or **Creative** (999 of everything); crafting still hidden | Survival as the main game; Creative kept |
-| Tools | Pickaxe, Drill, Bore with tiers 1–3 | the same three, unlocked by tiers 1, 3 and 5 |
-| Stations | workbench, kiln, furnace, anvil | workbench, forge (needs heat), workshop (needs copperline and power) |
-| Recipes | always listed | unlocked by first pick-up; at most 2 steps |
+| Mode | New Holt picks **Survival** (small kit, food, fuel, the pack lost at death) or **Creative** (999 of everything); crafting at stations, recipes unlocked by touch | Survival as the main game; Creative kept |
+| Tools | **built:** Pickaxe (workbench), Drill (workshop), Bore (forge), dig tiers 1–3; in Survival you dig with the best you own | the same three, unlocked by tiers 1, 3 and 5 |
+| Stations | **built:** workbench, forge (needs heat), workshop (needs a live copperline) | workbench, forge (needs heat), workshop (needs copperline and power) |
+| Recipes | **built:** unlocked by first pick-up; at most 2 steps | unlocked by first pick-up; at most 2 steps |
 | Light | torches, lamps, a headlamp and a jarred glowmite in the paw; in Survival the headlamp and torches burn fungus oil (pressed from fungus), the glowmite needs no fuel | fungus-oil fuel for torches and headlamp; glowmite lanterns |
 | Death | Survival: wake in the burrow, the pack stays where you died (Creative: nothing hurts) | wake in the holt; carried items stay where you died |
 | Wood | **built:** grottos with regrowing root-trees (see [World and Generation](World-and-Generation.md#grottos)) | grottos with regrowing root-trees |
-| Decor | none | furniture, decorative blocks, back walls, dyes |
+| Decor | **built:** furniture, decorative blocks and pigments (see [Tools and Items](Tools-and-Items.md#furnishing)); back walls not yet | furniture, decorative blocks, back walls, dyes |
 | Colony | one mole | Delvers move in when the holt is comfortable |
 | Late game | none | Ancient facilities, ruins, relics, the Lid myth |
 | Travel | walking, climbing, digging | carts and rails, ladders and lifts, powered rails, pressure tubes; Ancient waygates (open decision) |

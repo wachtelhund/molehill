@@ -83,7 +83,7 @@ impl World {
             // diffraction: the further the wave has had to detour round rock to get here (path length over
             // the straight line), the more it has lost bending round edges, so a wall shadows what's behind it
             let (x, y) = (i % w, i / w);
-            let straight = (((x as f32 - cx as f32).powi(2) + (y as f32 - cy as f32).powi(2)).sqrt());
+            let straight = ((x as f32 - cx as f32).powi(2) + (y as f32 - cy as f32).powi(2)).sqrt();
             let detour_m = (dist[i] - straight).max(0.) * CELL_M;
             let pi = overpressure(r_eq / w3).max(TNT_KJ * GAS_SHARE * kg / vol.max(cell_v)) / (1. + detour_m / DIFFRACT_M); p[i] = pi; rep.cells += 1;
             rep.reach_m = rep.reach_m.max(dist[i] * CELL_M);
@@ -101,10 +101,10 @@ impl World {
                     let loose = mj.kind() == Kind::Powder || self.g.loose(j);
                     if !loose && pi > BLAST_SHATTER * brk {
                         // shattered: it opens, and the wave runs on into the crater
-                        // a third of it flies off as rubble (thrown below), the rest is pulverised; some flashes to fire
+                        // a third of it flies off as rubble (thrown below), the rest is pulverised (no fire is left in the crater)
                         let h = hash3(nx as u32, ny as u32, self.tick as u32);
                         if h % 3 == 0 { let c = mj.p().crumbles_to; if c.kind() != Kind::Empty { self.g.set(j, c); if c.kind() == Kind::Solid { self.g.set_loose(j); } flying.push((j, pi, (dx as i8, dy as i8))); } else { self.g.set(j, Mat::Empty); } }
-                        else { self.g.set(j, if pi > 2000. && h % 9 == 1 { Mat::Fire } else { Mat::Empty }); }
+                        else { self.g.set(j, Mat::Empty); }
                         rep.shattered += 1;
                         let d = dist[i] + c; dist[j] = d; dir[j] = (dx as i8, dy as i8); heap.push((key(d), j as u32));
                     } else { faces.push((j, pi, (dx as i8, dy as i8))); }

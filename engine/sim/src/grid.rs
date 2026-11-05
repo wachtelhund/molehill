@@ -9,6 +9,8 @@ pub const CHUNK: usize = 64;
 pub const F_LOOSE: u8 = 1;    // static soil knocked loose -> behaves as powder
 pub const F_SEEN: u8 = 2;     // revealed (fog of war)
 pub const F_WET: u8 = 4;      // aquifer-saturated soil (seeps water when dug)
+/// Paint (bits 3..5): a pigment index 1..6 (`craft::PIGMENTS`), 0 unpainted. It travels with the cell.
+pub const F_PAINT: u8 = 0b0011_1000; pub const PAINT_SHIFT: u8 = 3;
 
 pub struct Grid {
     pub w: usize, pub h: usize, pub cx: usize, pub cy: usize,
@@ -61,6 +63,8 @@ impl Grid {
     #[inline] pub fn get(&self, x: usize, y: usize) -> Mat { Mat::from_u8(self.mat[y * self.w + x]) }
     #[inline] pub fn m(&self, i: usize) -> Mat { Mat::from_u8(self.mat[i]) }
     #[inline] pub fn loose(&self, i: usize) -> bool { self.flags[i] & F_LOOSE != 0 }
+    #[inline] pub fn paint(&self, i: usize) -> u8 { (self.flags[i] & F_PAINT) >> PAINT_SHIFT }
+    #[inline] pub fn set_paint(&mut self, i: usize, p: u8) { self.flags[i] = (self.flags[i] & !F_PAINT) | ((p & 7) << PAINT_SHIFT); }
     #[inline] pub fn is_static(&self, i: usize) -> bool { self.m(i).kind() == Kind::Solid && !self.loose(i) }
     #[inline] pub fn is_solidish(&self, i: usize) -> bool { matches!(self.m(i).kind(), Kind::Solid | Kind::Powder) }
     pub fn in_bounds(&self, x: i32, y: i32) -> bool { x >= 0 && y >= 0 && (x as usize) < self.w && (y as usize) < self.h }
@@ -86,7 +90,7 @@ impl Grid {
     /// Set a cell (main thread). Marks structure + wakes.
     pub fn set(&mut self, i: usize, m: Mat) {
         let was = self.m(i);
-        self.mat[i] = m as u8; self.flags[i] &= !F_LOOSE;
+        self.mat[i] = m as u8; self.flags[i] &= !(F_LOOSE | F_PAINT); // a new material starts unpainted
         self.life[i] = m.p().life;
         let (x, y) = (i % self.w, i / self.w);
         // structural change, or something that held up static rock above just went away

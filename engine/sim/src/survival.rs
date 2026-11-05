@@ -16,7 +16,7 @@ impl Mode {
     pub fn rules(self) -> Rules {
         match self {
             Mode::Plain => Rules::default(),
-            Mode::Survival => Rules { tools: true, fuel: true, drop_pack: true, ..Rules::default() },
+            Mode::Survival => Rules { tools: true, fuel: true, drop_pack: true, crafting: true, ..Rules::default() },
             Mode::Creative => Rules { harmless: true, ..Rules::default() },
         }
     }
@@ -34,21 +34,24 @@ pub struct Rules {
     pub harmless: bool,
     /// hunger off (a Survival option, saved with the world): food never drains
     pub no_hunger: bool,
+    /// crafting is earned: recipes appear once an input has been picked up, and you craft at a working
+    /// station (a hot forge, a powered workshop). Off: every recipe, anywhere (Creative, Plain)
+    pub crafting: bool,
 }
 
 /// Seconds of headlamp light in one measure of fungus oil.
 pub const OIL_SECS: f32 = 180.;
 /// Fungus pressed into one measure of oil when the pack has no oil left.
 pub const FUNGUS_PER_OIL: u32 = 2;
-/// The Survival start kit: a stone pickaxe (stone tools), a few torches, some food and oil.
-pub const KIT: &[(Item, u32)] = &[(Item::StoneTools, 1), (Item::Torch, 4), (Item::Grub, 3), (Item::Root, 2), (Item::FungusOil, 2)];
+/// The Survival start kit: a pickaxe, a few torches, some food and oil.
+pub const KIT: &[(Item, u32)] = &[(Item::Pickaxe, 1), (Item::Torch, 4), (Item::Grub, 3), (Item::Root, 2), (Item::FungusOil, 2)];
 
 impl World {
     /// Start this world in `mode`: its rules, and its pack (Survival's kit; Creative's 999 of everything).
     pub fn set_mode(&mut self, mode: Mode) {
         self.mode = mode; self.rules = mode.rules();
         match mode {
-            Mode::Survival => { self.inv = [0; NITEM]; for &(it, n) in KIT { self.inv[it as usize] = n; } self.lamp_oil = OIL_SECS; }
+            Mode::Survival => { self.inv = [0; NITEM]; for &(it, n) in KIT { self.inv[it as usize] = n; } self.lamp_oil = OIL_SECS; self.known = [false; NITEM]; }
             Mode::Creative => { for v in self.inv.iter_mut() { *v = (*v).max(999); } self.lamp_oil = OIL_SECS; }
             Mode::Plain => {}
         }

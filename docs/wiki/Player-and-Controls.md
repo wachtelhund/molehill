@@ -23,10 +23,10 @@ You play one Delver: a body about **45 × 73 cm** (1.8 × 2.9 tiles of 0.25 m, i
 | `[` / `]`, `Alt` / `Option` + wheel | Brush size for the tool or block in hand, within its range. `[` / `]` count by the character typed, so they work on any layout (Option+8 / Option+9 on a Swedish Mac); Option+digit doesn't pick a hotbar slot |
 | `X` | Grid snap for blocks on/off (see [Tools and Items](Tools-and-Items.md)) |
 | `1`–`0`, wheel | Hotbar slot (a trackpad flick moves one slot, momentum included). Sprinting doesn't change this |
-| `I` | Pack (inventory grid): click a slot to pick it up, click another to drop or swap. The bottom row is the hotbar |
+| `I` | Pack (inventory grid): click a slot to pick it up, click another to drop or swap. The bottom row is the hotbar. At a station, its recipes are listed on the left; click one to make it (see [Tools and Items](Tools-and-Items.md#stations)) |
 | `+` / `-`, `Ctrl` / `Cmd` + wheel (or pinch) | Zoom (clamped to scale 0.12–0.75 and saved) |
 | `V` | Wiring view on / off (see [Devices and Copperline](Devices-and-Copperline.md#wiring-view)) |
-| `G` | Headlamp lit / out (also in Settings; saved). The fungus-oil lamp on the mole's hat throws a beam toward the cursor and reveals the way ahead |
+| `G` | Headlamp lit / out (also in Settings; saved). The fungus-oil lamp on the mole's hat throws a beam toward the cursor and reveals the way ahead. In Survival it burns a measure of fungus oil every 3 minutes and goes dark when there's no oil or fungus left |
 | `H` | Controls overlay |
 | `Esc` | Pause menu, or close a panel |
 | `K` / `L` | Quick save / quick load |
