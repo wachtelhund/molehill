@@ -6,6 +6,13 @@
 //! thing you have). Creative has everything, so it keeps its fixed layout.
 use crate::{Game, Thing, thing_count, thing_usable};
 
+/// Tint (multiplies the icon's colours) for a slot holding something you have none of: a cool grey at
+/// about half strength, so the shape stays readable but the colour drops out and it sits back.
+pub const FAINT_ICON: [f32; 4] = [0.62, 0.62, 0.68, 0.45];
+/// The brush ring over rock your tools can't dig: a cold slate blue, darker and bluer than the warm
+/// white dig ring (1, 0.97, 0.9) so it never reads as a white outline, and solid enough to see on rock.
+pub const REFUSE_RING: [f32; 4] = [0.42, 0.52, 0.72, 0.6];
+
 /// How usable a thing is right now. Ordered: owned first, free next, none last.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub enum Have { Owned, Free, None }
@@ -87,6 +94,21 @@ mod tests {
         assert!(hot.iter().all(|&t| have_w(&w, t) != Have::None), "{hot:?}");
         let d = crate::default_slots(); assert!(d[..10].iter().flatten().any(|&t| have_w(&w, t) == Have::None), "the fixed layout had faint slots");
         w.set_mode(Mode::Creative); assert!(d.iter().flatten().all(|&t| have_w(&w, t) != Have::None));
+    }
+
+    /// The two "you can't" looks stay readable but quiet: the refusal ring is cold (blue above red), much
+    /// darker than the warm dig ring and solid enough to see; a faint icon keeps its shape at about half
+    /// strength with its colour mostly drained.
+    #[test] fn refusal_ring_and_faint_icons_read_but_stay_quiet() {
+        let lum = |c: [f32; 4]| 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+        let warm = [1., 0.97, 0.9, 1.];
+        let r = REFUSE_RING;
+        assert!(r[2] - r[0] >= 0.2, "cold: blue well above red");
+        assert!(lum(r) < 0.6 * lum(warm), "not a white outline: {} vs {}", lum(r), lum(warm));
+        assert!((0.45..=0.8).contains(&r[3]), "visible on rock, not shouting");
+        let f = FAINT_ICON;
+        assert!((0.35..=0.6).contains(&f[3]), "readable, not cluttering");
+        assert!(f[0..3].iter().all(|&v| (0.5..=0.75).contains(&v)) && f[2] >= f[0], "a cool grey tint");
     }
 
     #[test] fn have_reads_counts_tools_and_free_things() {

@@ -104,7 +104,7 @@ pub fn update(g: Res<Game>, sp: Res<Sprites>, time: Res<Time>, win: Query<&Windo
     let faint = |t: Thing| crate::hotbar::adaptive(&g) && crate::hotbar::have(&g, t) == crate::hotbar::Have::None;
     for (s, mut im, mut vis) in &mut q.p1() { match g.slots[s.0] {
         Some(t) if crate::thing_usable(&g, t) || faint(t) => { let h = icon(&sp, t); if im.image != h { im.image = h; }
-            let c = Color::srgba(1., 1., 1., if faint(t) { 0.22 } else { 1. }); if im.color != c { im.color = c; } *vis = Visibility::Inherited; }
+            let c = if faint(t) { let [r, gg, b, a] = crate::hotbar::FAINT_ICON; Color::srgba(r, gg, b, a) } else { Color::WHITE }; if im.color != c { im.color = c; } *vis = Visibility::Inherited; }
         _ => *vis = Visibility::Hidden } }
     let vals = [me.hp, me.hunger, me.breath];
     for (b, row, mut n) in &mut q.p2() {
