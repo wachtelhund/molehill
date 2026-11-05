@@ -138,6 +138,8 @@ Long before today's holts there were **Ancient Delvers**: moles, like everyone e
 * **Ruins:** rare, randomly placed remains with **lore fragments** (carvings, inscribed plates, patterns knocked into stone for a listener) and **unique loot**.
 * **Relics:** one-of-a-kind items that can't be crafted. They are better-made versions of things Delvers know (a finer drill bit, a lens that throws light further, a lighter alloy), not new physics.
 
+**Built (first slice):** rare ruins of three kinds (pumping halls, sealed vaults, collapsed tube stations), each with a carving read out the first time you come near, two relics (the Ancient bit and the Ground lens) in sealed vaults, and broken waygates at the tube stations as the hook for the fast lines (found, not yet mendable). See [World and Generation](World-and-Generation.md#ruins-of-the-ancients).
+
 Everything the Ancients built obeys the same physics as everything else: weight, heat, water, pressure and current. Nothing is supernatural, and nothing a modern word would name. Their ruins point toward the Lid, but **the game never shows the Lid**. The myth stays a myth, and the journey is the point.
 
 ## From today to here

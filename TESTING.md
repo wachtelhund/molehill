@@ -69,6 +69,7 @@ craft 5 Pickaxe         // craft as at a station ("_" for spaces); station 2 DX 
 snap 4 on               // grid snap; line 5 DX1 DY1 DX2 DY2 Brick drags a snapped line; snapcells = the square side in tiles
 slide 60                // slide the window away until only its bottom band is left, and back (things go into bands and return)
 put 2 8 0 WoodPillar    // put exactly one block cell at (dx,dy) at tick T, no reach check (scripted building)
+ruin 1 vault 2 -17      // stamp a ruin of the Ancients (hall | vault | tube, `left` for a tube running left) with its top-left on tile (dx,dy); a vault's chest is registered
 mode survival           // start in a game mode (survival | creative): its rules and its pack; `give` applies after
 nohunger                // the world's hunger option off (after `mode`): food never drains
 set 40 hp -1            // set a vital at tick T: hp, hunger, breath, or oil (headlamp oil, seconds)
@@ -97,6 +98,7 @@ Map legend: `t` roots (a root tangle), `f` fungus, `.` empty, `#` granite, `B` b
 | `flash` `shake` | Hit-flash time left (s); view-shake strength (decays each tick) |
 | `step` | Distance the body moved this tick (tiles); catches teleport pops that a velocity check misses |
 | `hunger` `oil` `lamp` `mode` `hungeron` | Food (0-100); headlamp oil left (s); 1 if the headlamp shines; the mode (0 plain, 1 survival, 2 creative); 0 if hunger is turned off |
+| `relics` `ruins_seen` | Relics found (bit mask: 1 Ancient bit, 2 Ground lens); ruins visited (their carving read) |
 | `items:Name` | How many of that item lie loose |
 | `ix:Name` `iy:Name` `ivx:Name` `ivy:Name` | The first loose item of that kind: centre in tiles from the `@` tile's centre (iy 0 = resting on the `@` floor), velocity in tiles/s |
 | `irest:Name` `ilit:Name` | 1 if that item is asleep (lying still); 1 if it's a lit charge |
@@ -151,6 +153,9 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `survival_death_drop.scn` | Death leaves the whole pack where you fell; you wake in the burrow and walk back for it |
 | `survival_no_hunger.scn` | Hunger off: food never drains or gets eaten, the rest of Survival holds, and the option survives a save |
 | `creative_harmless.scn` | Creative: 999 of everything, a long fall and an empty belly don't hurt, the lamp needs no oil |
+| `ruin_hall_stands.scn` | A pumping hall (brick roof on iron pillars, one fallen with its bay on an old girder) stands 20 s under an open cave |
+| `ruin_hall_caves_in.scn` | The same hall under 3 m of sand: its brick bays crack and fall in as rubble; the iron holds |
+| `ruin_vault_loot.scn` | Tunnel into three vaults with a Pickaxe: the Ancient bit, then the Ground lens, then only old materials; a save keeps the relics and ruins seen |
 | `throw_arc.scn` | A full throw flies a ~6 m arc, bounces, skids to rest; a weaker one falls shorter; walking over them picks them up |
 | `item_bounces_rests.scn` | A stone bounces off granite but not off dirt; both fall asleep on the floor without drifting |
 | `item_sinks_floats.scn` | Wood floats in water, an iron ingot sinks straight to the bottom, a grub sinks slowly |

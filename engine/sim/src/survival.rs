@@ -75,7 +75,8 @@ impl World {
         let dt = 1. / 60.;
         let alive = self.moles.first().map_or(false, |m| m.alive);
         if self.rules.fuel && self.gear.lamp && alive {
-            self.lamp_oil = (self.lamp_oil - dt).max(0.);
+            let burn = if self.inv[Item::GroundLens as usize] > 0 { 0.5 } else { 1. }; // the Ancients' lens: half the oil
+            self.lamp_oil = (self.lamp_oil - dt * burn).max(0.);
             if self.lamp_oil <= 0. {
                 if self.take_oil() { self.lamp_oil += OIL_SECS; self.lamp_dry = false; }
                 else if !self.lamp_dry { self.lamp_dry = true; self.say("The headlamp is out of oil. Press fungus to refill it.".into()); self.events.push(Event::Warning); }

@@ -13,8 +13,10 @@ pub enum Item {
     Planks, PolishedStone, Tiles, CarvedPillar,
     Ochre, Rust, Chalk, Verdigris, Woad, Soot,
     Table, Stool, Nest, Shelf, Rug, Banner, Planter,
+    // relics of the Ancients: found in ruins, never made (see ruins.rs)
+    AncientBit, GroundLens,
 }
-pub const NITEM: usize = 55;
+pub const NITEM: usize = 57;
 /// What an item can do in the world (see `Item::uses`).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Uses { pub place: bool, pub throw: bool, pub pick_up: bool }
@@ -27,6 +29,7 @@ pub const ITEMS: [Item; NITEM] = [
     Item::Planks, Item::PolishedStone, Item::Tiles, Item::CarvedPillar,
     Item::Ochre, Item::Rust, Item::Chalk, Item::Verdigris, Item::Woad, Item::Soot,
     Item::Table, Item::Stool, Item::Nest, Item::Shelf, Item::Rug, Item::Banner, Item::Planter,
+    Item::AncientBit, Item::GroundLens,
 ];
 /// Paint colours by pigment index (0 = unpainted): ochre, rust, chalk, verdigris, woad, soot.
 pub const PIGMENTS: [[u8; 3]; 7] = [[0, 0, 0], [206, 160, 70], [164, 70, 46], [232, 226, 210], [84, 162, 132], [74, 112, 190], [50, 46, 52]];
@@ -51,7 +54,7 @@ impl Item {
         if let Some(m) = self.mat() { return m.p().density; }
         match self {
             Charcoal => 400., CopperIngot => 8900., TinIngot => 7300., BronzeIngot => 8800., CopperWire => 3000., Thrummer | Gate | Vent => 2500.,
-            Tnt => 1500., Lamp => 2000., Pickaxe => 2500., Drill => 5000., Bore => 5500., Grub => 1050., Spore => 300., Mushroom => 600., FungusOil => 900., Root => 1100., Rug | Banner | Nest => 300., Ochre | Rust | Chalk | Verdigris | Woad | Soot => 1800.,
+            Tnt => 1500., Lamp => 2000., Pickaxe => 2500., Drill => 5000., Bore => 5500., Grub => 1050., Spore => 300., Mushroom => 600., FungusOil => 900., Root => 1100., AncientBit => 7000., GroundLens => 2600., Rug | Banner | Nest => 300., Ochre | Rust | Chalk | Verdigris | Woad | Soot => 1800.,
             _ => 2000.,
         }
     }
@@ -106,7 +109,7 @@ impl Item {
          "Pickaxe", "Drill", "Bore", "Grub", "Spore", "Mushroom", "Vent", "Glowmite", "Fungus oil", "Root",
          "Planks", "Polished stone", "Tiles", "Carved pillar",
          "Ochre", "Rust", "Chalk", "Verdigris", "Woad", "Soot",
-         "Table", "Stool", "Nest", "Shelf", "Rug", "Banner", "Fungus planter"][self as usize]
+         "Table", "Stool", "Nest", "Shelf", "Rug", "Banner", "Fungus planter", "Ancient bit", "Ground lens"][self as usize]
     }
     /// One plain line for the hover tooltip: what it is and what it's for.
     pub fn desc(self) -> &'static str {
@@ -130,7 +133,9 @@ impl Item {
          "Yellow earth pigment, ground from iron ore and clay.", "Red-brown pigment, ground from iron ore.", "Pale pigment, ground from quartz.",
          "Green pigment, scraped from weathered copper ore.", "Blue pigment, pressed from fungus.", "Black pigment, from charcoal.",
          "A sturdy board on legs. Somewhere to eat.", "A low seat.", "A soft bed of moss and cloth. Dye it.", "A tall rack of shelves.",
-         "A woven floor rug. Dye it.", "A cloth banner hung from the ceiling. Dye it.", "A box of glowing fungus. A soft green light."][self as usize]
+         "A woven floor rug. Dye it.", "A cloth banner hung from the ceiling. Dye it.", "A box of glowing fungus. A soft green light.",
+         "A relic of the Ancients: a bit of a metal no forge makes now. Carried, every bite digs a quarter faster.",
+         "A relic of the Ancients: a lens ground true. Carried, the headlamp burns half the oil."][self as usize]
     }
     pub fn color(self) -> [u8; 3] {
         use Item::*;
@@ -143,7 +148,7 @@ impl Item {
             Gate => [120, 220, 160], Tnt => [220, 60, 50], Lamp => [255, 240, 170], Pickaxe => [160, 156, 150], Drill => [205, 150, 70], Bore => [200, 205, 220], Grub => [235, 215, 170], Spore => [200, 170, 230], Mushroom => [214, 120, 90], Vent => [150, 200, 210], Glowmite => [190, 255, 160], FungusOil => [200, 220, 120], Root => [190, 140, 90],
             Planks => [182, 134, 84], PolishedStone => [176, 170, 160], Tiles => [190, 108, 74], CarvedPillar => [164, 158, 148],
             Ochre | Rust | Chalk | Verdigris | Woad | Soot => PIGMENTS[self.pigment().unwrap_or(0) as usize],
-            Table | Stool | Shelf => [160, 112, 66], Nest => [150, 170, 110], Rug => [176, 92, 70], Banner => [200, 70, 60], Planter => [110, 200, 130],
+            Table | Stool | Shelf => [160, 112, 66], Nest => [150, 170, 110], Rug => [176, 92, 70], Banner => [200, 70, 60], Planter => [110, 200, 130], AncientBit => [150, 200, 210], GroundLens => [210, 235, 250],
         }
     }
 }

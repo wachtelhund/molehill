@@ -124,7 +124,7 @@ impl Gen {
         v
     }
     /// Open air or water of a grotto (kept open by stabilisation).
-    pub fn in_grotto_void(&self, x: usize, wy: i64) -> bool { self.grotto_of(x, wy).map_or(false, |g| g.is_void(x, wy)) }
+    pub fn in_grotto_void(&self, x: usize, wy: i64) -> bool { self.grotto_of(x, wy).map_or(false, |g| g.is_void(x, wy)) || self.in_ruin_void(x, wy) } // (and a ruin's halls)
 }
 
 pub struct Noise { seed: u32 }
@@ -177,7 +177,9 @@ impl Gen {
     fn cell_with(&self, x: usize, wy: i64, w: usize, open: &dyn Fn(usize, i64) -> bool) -> (u8, u8) {
         if x < 2 * S || x >= w - 2 * S { return (Mat::Bedrock as u8, 0); }
         let (fx, fy) = (x as f32 / SF, wy as f32 / SF); let d = fy * 0.25; // fx, fy in legacy 0.25 m tiles; d = metres below the starting layer
-        // grottos are carved in first: their hollow, pool, trees and floor don't depend on the rock around
+        // ruins of the Ancients are stamped in whole (see ruins.rs); then grottos are carved: their hollow,
+        // pool, trees and floor don't depend on the rock around
+        if let Some(c) = self.ruin_cell(x, wy) { return c; }
         let part = self.grotto_of(x, wy).and_then(|g| g.part(x, wy));
         let glow = || self.n0.at(fx / 6., fy / 6.) > 0.58;
         match part {
