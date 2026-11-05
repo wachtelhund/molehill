@@ -1,6 +1,6 @@
 # Molehill
 
-A colony sim about moles digging a falling-sand world where every tunnel has to carry real loads. This is a private project with no hosted build; play it locally.
+A colony sim about moles digging through the Deepholt, an endless falling-sand underworld where every tunnel has to carry real loads. There is no sky and no surface (see [LORE.md](LORE.md)). This is a private project with no hosted build; play it locally.
 
 * **v3 engine:** Rust + Bevy 0.20 in [`engine/`](engine/). The older TypeScript v2 prototype lives in [`legacy/`](legacy/).
 
@@ -28,7 +28,7 @@ Tests: `cd engine && cargo test --release -p molehill-sim`. Collapse check: `car
 
 | path | what |
 |---|---|
-| `engine/sim` | `molehill-sim`: pure-Rust simulation (no Bevy): sand and fluids, stress, procgen, light and fog, colony AI and needs, crafting and quests, logic and LoRa, disasters, save/load |
+| `engine/sim` | `molehill-sim`: pure-Rust simulation (no Bevy): sand and fluids, stress, procgen, light and fog, colony AI and needs, crafting and quests, copperline logic and thrumming, stale air, mushroom farms, endless world streaming, disasters, save/load |
 | `engine/game` | `molehill`: the Bevy front-end. It composites the world into 128 chunk textures of 64×64 cells and uploads only the chunks that changed. It also draws the sprites, the HUD, the wire and device overlay, and the procedural WebAudio sound. |
 | `engine/web`, `engine/build-web.sh` | the wasm build, written to `dist/` |
 | `site/` | committed copy of the web build, for local play |
@@ -52,9 +52,10 @@ Tests: `cd engine && cargo test --release -p molehill-sim`. Collapse check: `car
 | `7` | Station (`Tab` cycles workbench, kiln, furnace, anvil) |
 | `8` | Move the stockpile |
 | `9` | Cancel |
-| `0` | Wire (drag to lay copper wire) |
-| `G` | Device tool; press again to cycle devices (lever, plate, sensor, door, floodgate, pump, lamp, gates, TNT, LoRa node/repeater, timer…) |
-| `R` | Use the device under the cursor (flip a lever, set a LoRa channel, set a timer) |
+| `0` | Copperline (drag to lay it) |
+| `P` | Plant a spore (snaps to the floor; needs dirt, clay or roots underneath) |
+| `G` | Device tool; press again to cycle devices (lever, plate, sensor, door, floodgate, pump, lamp, both-/either-/turn-/odd-/catch-knots, ticker, TNT, thrummer, listener, relay thrummer, vent, heatstone, water wheel) |
+| `R` | Use the device under the cursor (flip a lever, set a thrum channel, set a ticker) |
 | `Q` / `E` | Choose a recipe |
 | `Enter` / `C` | Queue the recipe |
 | `K` / `L` | Save / load |
@@ -67,38 +68,45 @@ Tests: `cd engine && cargo test --release -p molehill-sim`. Collapse check: `car
 ## Systems
 
 * **Falling sand and fluids:** sand, gravel, water and lava. Lava meeting water becomes loose basalt scoria.
-* **Structural stress:** overburden, bending, compression and connectivity. Cracked cells crumble after 40 ticks. With no player action, fewer than 0.1% of cells collapse in the first 2 minutes (this is tested).
-* **Seeded procgen:** biomes, strata, caves, aquifers, lava lakes, roots and chests (details below).
-* **Lighting:** unlit tunnels stay dark, and torches and powered lamps give light. There is also fog of war, and parallax sky, hills and underground backgrounds.
+* **Structural stress:** overburden, bending, compression and connectivity. Cracked cells crumble after 40 ticks. With no player action, the start burrow stands and a fresh world collapses only a little in the first 2 minutes (this is tested). Some natural caves may still settle in the fog away from the colony.
+* **Endless Deepholt:** you start in the middle layer of earth (depth 0 m). The 1024×512-cell grid is a sliding window over an infinite column: when the camera or colony nears the top or bottom edge, the window slides by 128 rows. Leaving rows are cached (your digging is kept), and new rows are generated on demand from a pure per-cell function of (seed, x, absolute row), so the world is deterministic per seed. Horizontally it is still bounded by bedrock walls.
+* **Seeded procgen:** biomes, strata by depth, caves, and pockets of water and lava. Water is common in shallow layers and lava deeper down (details below).
+* **Lighting:** unlit tunnels stay dark, and torches and powered lamps give light. There is also fog of war and a deep-earth parallax background. There is no sky light and no day cycle.
 * **Moles:**
   * They dig, haul, build and craft.
-  * Their needs are hunger and sleep. They eat grubs (+45) and fungus (+25) at the stockpile, and sleep when tired.
+  * Their needs are hunger, sleep and breath. They eat grubs (+45), mushrooms (+35) and fungus (+25) at the stockpile, and sleep when tired.
+  * In stale air (CO2 above 0.45) their breath drains and then they lose health. Above 0.55 they flee to fresher air.
   * Low needs halve their work speed, and starving hurts them. Digging soil sometimes turns up grubs.
+* **Stale air (`sim/src/air.rs`):** CO2 lives on an 8×8-cell block grid (0 is fresh, 1 is lethal). Breathing moles, torches, fire and lava add CO2. It diffuses conservatively between open neighbouring blocks, seeps slowly into porous soil faces, and is pulled out strongly by **vents** (×0.5 per update in the vent's block, ×0.8 around it). A sealed tunnel system therefore goes stale (tested). Stale air shows as an olive haze, and the HUD shows each mole's breath and air.
+* **Mushroom farms:** plant spores (dug out of fungus, or found on harvest) with `P`. A plot grows fastest when it is **dark** (no torch, lit lamp, kiln or furnace within 10 cells) **and damp** (water, wet soil or clay within 4 cells). It grows at ¼ speed with only one of those and not at all with neither. A ripe plot drops 2 mushrooms (with a 1-in-3 chance of a spore) and regrows.
 * **Crafting, quests and chests:** stations, a recipe queue and a quest chain.
 * **Wiring and logic:**
-  * Wires on a 1 m block layer form nets. Gates switch one tick after their inputs change.
-  * Devices include levers, plates, sensors, doors, floodgates, pumps, lamps, TNT and timers.
-  * The LoRa link budget is 40 minus the distance in metres minus the attenuation of the material in between. Repeaters extend range.
+  * Copperline on a 1 m block layer forms nets. Knots (both = AND, either = OR, turn = NOT, odd = XOR, catch = latch) switch one tick after their inputs change.
+  * Devices include levers, plates, sensors, doors, floodgates, pumps, lamps, TNT and tickers. Power comes from **heatstones** (live while lava touches neighbouring blocks) and **water wheels** (turn while water flows through their block).
+  * **Thrumming** sends a knock through the rock from a thrummer to listeners on the same channel; relay thrummers pass it on. It is modelled as an elastic wave, with every number derived from the material table:
+    * stiffness E ≈ 300 × compressive strength (rock-mass modulus ratio); water uses the bulk modulus 2.2 GPa and air 142 kPa;
+    * wave speed c = √(E/ρ) and impedance Z = ρc;
+    * quality factor Q = 5 + 4 × UCS in MPa for intact solids (granite ≈ 85, dirt ≈ 6), 4 for loose or powdery ground, 20 for water and 2 for air;
+    * absorption 8.686·π·f/(Q·c) dB/m at f = 200 Hz, applied per cell along the ray;
+    * at every material boundary only T = 4Z₁Z₂/(Z₁+Z₂)² of the energy passes, so a rock/air boundary costs about 30 dB and an open tunnel reflects the knock away;
+    * cylindrical spreading of 10·log₁₀(r) dB.
+    * A link holds while 60 dB − losses > 0. Dense stone carries the knock tens of metres, loose dirt muffles it, and tunnels block it (tested).
 * **Disasters:** floods, lava surges and quakes. Each starts with a 10 s warning banner and lasts 6 s, with camera shake. The first comes at about 2.5 min, then one every 90–180 s.
 * **Sound:** procedural WebAudio effects plus an ambient rumble that changes with depth. It is web only (native is silent) and starts after the first input.
 * **Save/load:** a binary run-length-encoded format. It goes to localStorage on web and to files on native. It autosaves every 30 s and autoloads at start.
 
 ## World generation (`sim/src/gen.rs`)
 
-Each game uses a new seed. The grid is 1024×512 cells, and one cell is 0.25 m.
+Each game uses a new seed. The window is 1024×512 cells, one cell is 0.25 m, and every cell is a pure function of (seed, x, absolute row). Depth 0 is the starting layer; positive is deeper and negative is shallower, and both are unbounded.
 
 * **Biomes** vary along x (Loamlands, Karst caverns, Granite crags, Ashlands) and shift layer depths and cave density.
-* **Strata by depth:**
-  * grass on top;
-  * topsoil dirt to about 6 m;
-  * dirt and clay with sand or gravel lenses, which can be saturated aquifers (`F_WET`, so digging them releases water);
-  * limestone or granite;
-  * mixed sandstone and granite;
-  * basalt and granite below about 90 m, where lava lakes sit.
-* **Caves:** cellular-automata caves on a 2-cell lattice, plus winding worm tunnels.
-* **Ore veins** follow thin ridged-noise bands: coal seams, copper, tin, iron and quartz, each in its own depth window.
-* **Features:** crystal geodes and quartz on deep cave walls, glowing fungus on cave floors, root systems under the surface, and 24 treasure chests (on cave floors or buried).
-* **Stability pass:** the world is settled for 240 CA ticks, then the structural solver runs and failing cells are reinforced or removed. A fresh world therefore stands, and collapses are caused by you, or by the deep lava/water front.
+* **Strata by depth:** dirt and clay above about −30 m, mixed limestone near the start, then rock, granite and basalt deeper down.
+* **Caves:** fbm caverns plus ridged worm tunnels.
+* **Fluid pockets** use a separate noise field, and each pocket holds one fluid. The lava share is clamp((d − 10)/60, 0, 0.92) and the water share is clamp((40 − d)/60, 0.08, 1), where d is depth in metres. Pockets near the start burrow are dried to clay.
+* **Ore veins** follow thin ridged-noise bands (coal, copper, tin, iron, quartz). Crystal and quartz line deeper caves, and glowing fungus grows on cave floors.
+* **Chests:** 6 per 128-row band, placed deterministically. Opened chests are remembered across window slides.
+* **Start burrow:** a domed 31-cell chamber with a granite roof and a clay floor. The roof steps down toward the walls, so no roof run is long enough to fail.
+* **Stability pass:** the world is settled for 240 CA ticks, then the structural solver runs and failing cells are reinforced or removed. Newly generated rows are stabilised the same way when the window slides. A fresh world therefore stands, and collapses are caused by you, or by the deep lava/water front.
 
 ## Structural model (`sim/src/stress.rs`)
 
@@ -113,7 +121,7 @@ Units: cell edge s = 0.25 m, unit depth b = 1 m, g = 9.81 m/s². Densities are i
 | wood beam | 600 | 3000 | 8000 |
 | iron beam | 7800 | 40000 | 120000 |
 
-1. **Overburden:** P(x,y) = Σ ρ·g·s / 1000 [kPa] over the non-empty cells above.
+1. **Overburden:** P(x,y) = Σ ρ·g·s / 1000 [kPa] over the non-empty cells in the 16 m (64 cells) above. This is the pressure-arch height: load from deeper overhead is carried around openings by the ground arch, as in Terzaghi arching. The window's top and bottom rows count as anchors, because the rock continues beyond them.
 2. **Load path:** static solids that are not 4-connected to bedrock (through static solids) fail. Floating islands fall.
 3. **Roof bending:** every horizontal run of static cells with nothing static under it is a beam with span L = n·s. Its depth h is the static thickness above it, capped at L (arching: only about one span of rock works as the beam). q is the superimposed load on top of that beam, counted only when the static thickness ends inside the cap.
    * M = k·(ρ g h + q)·L², with k = 1/8 when both ends rest on supported cells and k = 1/2 for a cantilever.
@@ -126,7 +134,7 @@ Units: cell edge s = 0.25 m, unit depth b = 1 m, g = 9.81 m/s². Densities are i
 
 ## Light and fog (`sim/src/light.rs`)
 
-* **Light** is per-cell RGB. It is seeded by sky light down open columns (with a day/night cycle), by emissive materials (lava, crystal, fungus, fire) and by point lights (torches, mole headlamps, kilns and furnaces). It spreads with a two-sweep 8-neighbour chamfer pass: L(i) = max(L(i), L(n)·t(i)), with transmittance t = 0.90 per open cell and about 0.3 into rock. It is computed only over the camera view plus a margin.
+* **Light** is per-cell RGB. It is seeded by emissive materials (lava, crystal, fungus, fire) and by point lights (torches, mole headlamps, kilns and furnaces). It spreads with a two-sweep 8-neighbour chamfer pass: L(i) = max(L(i), L(n)·t(i)), with transmittance t = 0.90 per open cell and about 0.3 into rock. It is computed only over the camera view plus a margin.
 * **Fog of war:** cells stay hidden until a mole sees them (raycasts every few ticks, radius 7 m) or digs next to them.
 
 ## Parallax background
@@ -135,9 +143,9 @@ Open underground cells show procedural background layers:
 
 * far rock strata with biome tint (parallax 0.8);
 * cave silhouettes (0.6);
-* hanging roots near the surface (0.35).
+* mineral veins, rusty near the start and pale quartz or ember veins deeper down (0.35).
 
-They are sampled per cell at a camera-dependent offset, so they scroll slower than the camera. Each cell is darkened by its light value (floor of 16%, so never pure black) and tinted by coloured light. Above ground there is a sky gradient with two parallax hill layers, all following the day/night cycle.
+They are sampled per cell at a camera-dependent offset, so they scroll slower than the camera. Each cell is darkened by its light value (floor of 16%, so never pure black) and tinted by coloured light. The bands follow absolute depth, so they stay continuous as the window slides.
 
 ## Crafting, items and quests (`sim/src/craft.rs`, `sim/src/world.rs`)
 
@@ -158,7 +166,7 @@ They are sampled per cell at a camera-dependent offset, so they scroll slower th
   | workbench | torches, wood pillars, stone tools, TNT |
   | kiln | brick, glass from sand, charcoal, fungus lamps |
   | furnace | copper, tin and iron ingots; bronze (3 Cu + 1 Sn) |
-  | anvil | bronze and iron tools, iron beams, copper wire (1 Cu ingot gives 8), logic gates (Cu + quartz), LoRa nodes (2 crystal + 2 Cu + glass) |
+  | anvil | bronze and iron tools, iron beams, copperline (1 Cu ingot gives 8), knots (Cu + quartz), thrummers (2 crystal + 2 Cu + glass), vents at the workbench (2 wood + 2 stone) |
 
 * **Tool tiers** (claws, then stone, bronze, iron) speed up digging and gate the harder rock.
 * **Quests:** 17 sequential quests (reach a depth, stockpile, build, craft, open chests) with item rewards.

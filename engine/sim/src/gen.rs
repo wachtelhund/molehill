@@ -127,9 +127,11 @@ pub fn generate(g: &mut Grid, seed: u32, oy: i64) -> (Gen, GenInfo) {
     let sx = w / 2; let cy1 = (-oy) as usize; // window row of the starting layer
     let (cx0, cx1, cy0) = (sx - 15, sx + 15, cy1 - 10);
     for y in cy0 - 6..cy1 + 6 { for x in cx0 - 8..=cx1 + 8 { let i = y * w + x; if g.mat[i] == Mat::Water as u8 || g.mat[i] == Mat::Lava as u8 { g.mat[i] = Mat::Clay as u8; } } }
-    for y in cy0..=cy1 { for x in cx0..=cx1 { g.mat[y * w + x] = 0; } }
+    // a domed burrow: the roof steps down toward the walls so no roof run spans more than a few cells
+    let top = |x: usize| { let t = (x as f32 - sx as f32) / 15.; cy0 + (7. * t * t).round() as usize };
+    for x in cx0 - 3..=cx1 + 3 { let t = top(x.clamp(cx0, cx1)); for y in t.saturating_sub(5)..t { g.mat[y * w + x] = Mat::Granite as u8; } }
+    for x in cx0..=cx1 { for y in top(x)..=cy1 { g.mat[y * w + x] = 0; } }
     for y in cy1 + 1..cy1 + 4 { for x in cx0 - 4..=cx1 + 4 { g.mat[y * w + x] = Mat::Clay as u8; } }
-    for y in cy0 - 5..cy0 { for x in cx0 - 3..=cx1 + 3 { g.mat[y * w + x] = Mat::Granite as u8; } }
     let keep = (cx0, cy0, cx1, cy1);
     let mut st = Stress::new(w * h);
     stabilize_keep(g, &mut st, 0, usize::MAX, Some(keep));

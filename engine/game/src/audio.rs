@@ -6,9 +6,9 @@ use molehill_sim::world::Event;
 mod imp {
     use super::Event;
     use web_sys::*;
-    pub struct Audio { ctx: Option<AudioContext>, white: Option<AudioBuffer>, brown: Option<AudioBuffer>, last: [f64; 16], master: Option<GainNode>, rumble: Option<GainNode> }
+    pub struct Audio { ctx: Option<AudioContext>, white: Option<AudioBuffer>, brown: Option<AudioBuffer>, last: [f64; 18], master: Option<GainNode>, rumble: Option<GainNode> }
     impl Audio {
-        pub fn new() -> Self { Audio { ctx: None, white: None, brown: None, last: [0.; 16], master: None, rumble: None } }
+        pub fn new() -> Self { Audio { ctx: None, white: None, brown: None, last: [0.; 18], master: None, rumble: None } }
         /// Browsers only allow audio after a user gesture: call on first input.
         pub fn unlock(&mut self) {
             if self.ctx.is_some() { if let Some(c) = &self.ctx { let _ = c.resume(); } return; }
@@ -51,7 +51,7 @@ mod imp {
         /// `gain` = spatial attenuation from the listener (camera).
         pub fn play(&mut self, e: Event, gain: f32) {
             let Some(ctx) = &self.ctx else { return }; let now = ctx.current_time();
-            let (k, gap) = match e { Event::Explode => (0, 0.3), Event::Crumble => (1, 1.2), Event::Crack => (2, 0.8), Event::Dig => (3, 0.07), Event::Place => (4, 0.1), Event::Hurt => (5, 0.3), Event::Death => (6, 1.), Event::Chest => (7, 0.5), Event::Quest => (8, 0.5), Event::Craft => (9, 0.3), Event::Discover => (10, 0.5), Event::Eat => (11, 0.3), Event::Warning => (12, 1.), Event::Quake => (13, 2.), Event::Click => (14, 0.05) };
+            let (k, gap) = match e { Event::Explode => (0, 0.3), Event::Crumble => (1, 1.2), Event::Crack => (2, 0.8), Event::Dig => (3, 0.07), Event::Place => (4, 0.1), Event::Hurt => (5, 0.3), Event::Death => (6, 1.), Event::Chest => (7, 0.5), Event::Quest => (8, 0.5), Event::Craft => (9, 0.3), Event::Discover => (10, 0.5), Event::Eat => (11, 0.3), Event::Warning => (12, 1.), Event::Quake => (13, 2.), Event::Click => (14, 0.05), Event::Harvest => (15, 0.3), Event::Gasp => (16, 1.5) };
             if now - self.last[k] < gap { return; } self.last[k] = now;
             use BiquadFilterType as F; use OscillatorType as O;
             match e {
@@ -68,6 +68,8 @@ mod imp {
                 Event::Eat => self.noise(false, F::Bandpass, 1400., 700., 0.1, 0.2, gain),
                 Event::Warning => { self.tone(O::Square, 440., 440., 0.25, 0.12, 1.); self.tone(O::Square, 330., 330., 0.5, 0.1, 1.); }
                 Event::Click => self.tone(O::Square, 1800., 1200., 0.03, 0.08, 1.),
+                Event::Harvest => { self.tone(O::Sine, 440., 520., 0.1, 0.2, gain); self.noise(false, F::Bandpass, 2000., 900., 0.06, 0.12, gain); }
+                Event::Gasp => { self.noise(false, F::Bandpass, 700., 300., 0.5, 0.25, gain); self.tone(O::Sine, 300., 220., 0.4, 0.12, gain); }
             }
         }
     }

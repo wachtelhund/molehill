@@ -14,58 +14,43 @@ pub fn biome_tint(b: Biome) -> [f32; 3] { match b { Biome::Loam => [1.0, 0.92, 0
 fn smooth(e0: f32, e1: f32, x: f32) -> f32 { let t = ((x - e0) / (e1 - e0)).clamp(0., 1.); t * t * (3. - 2. * t) }
 
 /// Background layer kinds. Each image covers `cells_w × cells_h` world cells at `res` cells per texel.
-pub enum Layer { Strata, Caves, Roots, HillsFar, HillsNear }
+pub enum Layer { Strata, Caves, Veins }
 
 /// `surface[x]`, `biome[x]` per cell column; layer image spans [-pad, w+pad] × [-pad, h+pad] cells.
-pub fn layer(kind: Layer, surface: &[usize], biome: &[Biome], w: usize, h: usize, pad: usize, res: usize, seed: u32) -> (Vec<u8>, u32, u32) {
+/// `oy` = absolute row of window row 0, so the deep-earth bands line up with the endless world.
+pub fn layer(kind: Layer, oy: i64, biome: &[Biome], w: usize, h: usize, pad: usize, res: usize, seed: u32) -> (Vec<u8>, u32, u32) {
     let (tw, th) = (((w + 2 * pad) / res) as u32, (h / res) as u32);
     let mut d = vec![0u8; (tw * th * 4) as usize];
     let n = Noise::new(seed ^ 0xBEEF); let n2 = Noise::new(seed ^ 0xF00D);
     for ty in 0..th { for tx in 0..tw {
         let cx = (tx as i64 * res as i64 - pad as i64).clamp(0, w as i64 - 1) as usize;
-        let cxf = tx as f32 * res as f32 - pad as f32; let cyf = ty as f32 * res as f32;
-        let s = surface[cx] as f32; let depth = (cyf - s) * 0.25; let tint = biome_tint(biome[cx]);
+        let cxf = tx as f32 * res as f32 - pad as f32; let cyf = (ty as i64 * res as i64 + oy) as f32;
+        let depth = cyf * 0.25; let tint = biome_tint(biome[cx]);
         let (mut c, mut a): ([f32; 3], f32) = ([0.; 3], 0.);
         match kind {
             Layer::Strata => {
-                if depth > 2. {
-                    let band = ((cyf + (n.fbm(cxf, 0., 140., 3) - 0.5) * 60.) / 22.).floor();
-                    let v = (molehill_sim::grid::hash3(band as i32 as u32, 3, seed) & 255) as f32 / 255.;
-                    let deep = smooth(0., 110., depth);
-                    let top = [96., 72., 52.]; let mid = [84., 80., 76.]; let bot = [58., 44., 50.];
-                    let base = if deep < 0.5 { mix(top, mid, deep * 2.) } else { mix(mid, bot, deep * 2. - 1.) };
-                    let grain = n2.fbm(cxf * 1.7, cyf * 3.5, 18., 2);
-                    let k = 0.78 + v * 0.22 + (grain - 0.5) * 0.12;
-                    c = [base[0] * k * tint[0], base[1] * k * tint[1], base[2] * k * tint[2]]; a = smooth(2., 5., depth);
-                }
+                // deep earth: slanted rock bands, warm loam above the starting layer, cold basalt far below
+                let band = ((cyf + cxf * 0.12 + (n.fbm(cxf, 0., 140., 3) - 0.5) * 70.) / 22.).floor();
+                let v = (molehill_sim::grid::hash3(band as i32 as u32, 3, seed) & 255) as f32 / 255.;
+                let deep = smooth(-60., 120., depth);
+                let top = [92., 70., 54.]; let mid = [78., 74., 72.]; let bot = [52., 42., 52.];
+                let base = if deep < 0.5 { mix(top, mid, deep * 2.) } else { mix(mid, bot, deep * 2. - 1.) };
+                let grain = n2.fbm(cxf * 1.7, cyf * 3.5, 18., 2);
+                let k = 0.74 + v * 0.26 + (grain - 0.5) * 0.14;
+                c = [base[0] * k * tint[0], base[1] * k * tint[1], base[2] * k * tint[2]]; a = 1.;
             }
             Layer::Caves => {
-                if depth > 6. {
-                    let v = n.fbm(cxf + 700., cyf * 1.4, 60., 4);
-                    if v > 0.56 { let e = smooth(0.56, 0.62, v); c = [22. * tint[0], 18. * tint[1], 22. * tint[2]]; a = e * 0.8; }
-                    else if v > 0.52 { c = [120. * tint[0], 104. * tint[1], 92. * tint[2]]; a = 0.18; } // rim highlight
-                }
+                let v = n.fbm(cxf + 700., cyf * 1.4, 60., 4);
+                if v > 0.56 { let e = smooth(0.56, 0.62, v); c = [20. * tint[0], 16. * tint[1], 22. * tint[2]]; a = e * 0.85; }
+                else if v > 0.52 { c = [118. * tint[0], 102. * tint[1], 92. * tint[2]]; a = 0.2; } // rim highlight
             }
-            Layer::Roots => {
-                if depth > 0. && depth < 22. {
-                    let r = (n2.fbm(cxf * 0.6, cyf * 0.15, 30., 3) - 0.5).abs();
-                    let r2 = (n.fbm(cxf * 0.25, cyf * 0.6 + 50., 24., 3) - 0.5).abs();
-                    let fade = 1. - smooth(6., 22., depth);
-                    if r < 0.025 || r2 < 0.018 { c = [70. * tint[0], 48. * tint[1], 30. * tint[2]]; a = 0.85 * fade; }
-                }
-            }
-            Layer::HillsFar | Layer::HillsNear => {
-                let near = matches!(kind, Layer::HillsNear);
-                let base = surface.iter().sum::<usize>() as f32 / surface.len() as f32;
-                let amp = if near { 36. } else { 70. }; let sc = if near { 120. } else { 260. };
-                let top = base - (if near { 6. } else { 18. }) - n.fbm(cxf + if near { 0. } else { 999. }, 1., sc, 4) * amp;
-                if cyf > top {
-                    let t = smooth(top, top + 140., cyf);
-                    c = if near { mix([86., 120., 84.], [58., 82., 64.], t) } else { mix([120., 146., 160.], [96., 120., 136.], t) };
-                    let tree = near && cyf < top + 3. + 4. * n2.at(cxf / 5., 0.) && (molehill_sim::grid::hash3(cxf as i32 as u32 / 3, 9, seed) % 4 == 0);
-                    if tree { c = [52., 84., 58.]; }
-                    a = 1.;
-                }
+            Layer::Veins => {
+                // thin mineral veins: rusty roots of ore near the start, pale quartz and glowing ember-veins deeper
+                let r = (n2.fbm(cxf * 0.6, cyf * 0.25, 30., 3) - 0.5).abs();
+                let r2 = (n.fbm(cxf * 0.3, cyf * 0.6 + 50., 24., 3) - 0.5).abs();
+                let t = smooth(0., 80., depth);
+                if r < 0.02 { c = mix([120., 84., 56.], [190., 190., 200.], t); a = 0.55; }
+                else if r2 < 0.012 { c = mix([150., 110., 70.], [230., 110., 50.], t); a = 0.45 + 0.3 * t; }
             }
         }
         let i = ((ty * tw + tx) * 4) as usize;
@@ -73,10 +58,17 @@ pub fn layer(kind: Layer, surface: &[usize], biome: &[Biome], w: usize, h: usize
     } }
     (d, tw, th)
 }
-pub fn sky(h: u32) -> Image {
-    let mut d = vec![0u8; (h * 4) as usize];
-    for y in 0..h { let t = y as f32 / h as f32; let c = mix([92., 150., 214.], [206., 226., 238.], t); let i = (y * 4) as usize; d[i] = c[0] as u8; d[i + 1] = c[1] as u8; d[i + 2] = c[2] as u8; d[i + 3] = 255; }
-    image(1, h, d, false)
+/// Mushroom plot sprite; `stage` 0 = sprouting, 1 = growing, 2 = ripe.
+pub fn mushroom(stage: u8) -> Image {
+    let mut c = Canvas::new(24, 24);
+    c.ellipse(12., 22., 9., 1.8, [0., 0., 0., 0.3]);
+    let caps: &[(f32, f32, f32)] = match stage { 0 => &[(12., 18., 2.5)], 1 => &[(9., 15., 4.), (16., 17., 3.)], _ => &[(8., 12., 5.5), (16., 14., 4.5), (12., 17., 3.)] };
+    for &(x, y, r) in caps {
+        c.rect(x - r * 0.3, y, x + r * 0.3, 22., r * 0.2, rgb([226, 214, 190], 1.));
+        c.ellipse(x, y, r, r * 0.65, rgb([168, 92, 62], 1.)); c.ellipse(x - r * 0.3, y - r * 0.25, r * 0.35, r * 0.2, [255., 230., 210., 0.45]);
+        if stage == 2 { c.ellipse(x + r * 0.35, y - r * 0.1, r * 0.15, r * 0.12, [250., 240., 220., 0.9]); }
+    }
+    c.image()
 }
 
 /// Tiny SDF painter for crisp vector-style sprites.

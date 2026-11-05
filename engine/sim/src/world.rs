@@ -265,6 +265,8 @@ impl World {
     pub fn plant(&mut self, x: usize, y: usize) -> Result<(), &'static str> {
         if self.inv[Item::Spore as usize] == 0 { return Err("no spores (dig fungus to find some)"); }
         if x < 1 || y + 1 >= self.g.h || x + 1 >= self.g.w { return Err("out of bounds"); }
+        // snap to the floor: climb out of rock or drop through air (up to 6 cells)
+        let mut y = y; for _ in 0..6 { if y > 1 && self.g.mat[self.g.idx(x, y)] != 0 { y -= 1; } else if y + 2 < self.g.h && self.g.mat[self.g.idx(x, y + 1)] == 0 { y += 1; } else { break; } }
         if self.g.mat[self.g.idx(x, y)] != 0 { return Err("needs an open cell"); }
         if !matches!(self.g.get(x, y + 1), Mat::Dirt | Mat::Clay | Mat::Roots | Mat::Gravel | Mat::Fungus | Mat::Grass) || self.g.loose(self.g.idx(x, y + 1)) { return Err("needs a soil floor (dirt, clay, roots)"); }
         if self.farms.iter().any(|f| f.x.abs_diff(x) < 3 && f.y.abs_diff(y) < 3) { return Err("too close to another mushroom"); }

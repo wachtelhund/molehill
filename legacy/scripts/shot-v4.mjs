@@ -1,0 +1,30 @@
+import { chromium } from "playwright-core";
+const url = process.env.URL || "http://localhost:8765/";
+const out = process.env.OUT || "../engine/shots";
+const b = await chromium.launch({ executablePath: "/usr/bin/google-chrome", args: ["--no-sandbox", "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"] });
+const p = await b.newPage({ viewport: { width: 1400, height: 860 } });
+const logs = []; p.on("pageerror", e => logs.push("PAGEERR " + String(e))); p.on("console", m => logs.push(m.type() + ": " + m.text()));
+await p.goto(url); await p.waitForTimeout(25000);
+await p.screenshot({ path: `${out}/v4-01-start.png` });
+const W8 = () => p.waitForTimeout(700);
+await p.keyboard.press("KeyG"); await W8(); await p.mouse.click(490, 345); await W8();
+await p.keyboard.press("Digit0"); await W8(); await p.mouse.move(525, 345); await p.mouse.down(); for (let x = 525; x <= 610; x += 12) { await p.mouse.move(x, 345); await W8(); } await p.mouse.up();
+await p.keyboard.press("KeyG"); await W8(); for (let i = 0; i < 6; i++) { await p.keyboard.press("KeyG"); await W8(); }
+await p.mouse.click(640, 345); await W8();
+await p.mouse.move(490, 345); await W8(); await p.keyboard.press("KeyR"); await p.waitForTimeout(3000);
+await p.screenshot({ path: `${out}/v4-05-wiring.png` });
+await p.mouse.move(700, 560); await p.mouse.down(); await p.mouse.move(760, 600, { steps: 10 }); await p.mouse.up();
+await p.keyboard.press("KeyP"); for (const x of [680, 800, 940]) { await p.mouse.click(x, 525); await W8(); }
+await p.waitForTimeout(20000);
+await p.screenshot({ path: `${out}/v4-02-digging.png` });
+for (let i = 0; i < 3; i++) await p.mouse.wheel(0, -300); await p.mouse.move(800, 525); await p.waitForTimeout(2500);
+await p.screenshot({ path: `${out}/v4-06-farm.png` });
+for (let i = 0; i < 3; i++) await p.mouse.wheel(0, 300);
+for (let i = 0; i < 4; i++) await p.mouse.wheel(0, 300);
+await p.keyboard.down("KeyS"); await p.waitForTimeout(1500); await p.keyboard.up("KeyS");
+await p.waitForTimeout(3000);
+await p.screenshot({ path: `${out}/v4-03-overview.png` });
+await p.keyboard.down("KeyS"); await p.waitForTimeout(2500); await p.keyboard.up("KeyS"); await p.waitForTimeout(3000);
+await p.screenshot({ path: `${out}/v4-04-deep.png` });
+console.log(logs.filter(l => !l.includes("GPU stall")).slice(-25).join("\n"));
+await b.close();
