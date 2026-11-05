@@ -172,16 +172,21 @@ pub fn stabilize_keep(g: &mut Grid, st: &mut Stress, y0: usize, y1: usize, keep:
     let kept = |x: usize, y: usize| keep.map_or(false, |(a, b, c, d)| x >= a && x <= c && y >= b && y <= d);
     let (w, h) = (g.w, g.h);
     let thr0 = st.thr; st.thr = 0.45; // gen-time safety factor: fresh caves must survive fluids shifting about
+    // after one full solve, each round re-solves only around the cells the last round changed (every
+    // failing cell is changed, so nothing elsewhere can be failing): exact, and far cheaper on a big window
+    let mut changed: Vec<usize> = vec![];
     for it in 0..100 {
         if it == 40 { st.thr = 1.0; } // out of patience with the margin: just make sure nothing actually fails
-        let fail: Vec<u32> = st.solve(g).into_iter().filter(|&i| (i as usize / w) >= y0 && (i as usize / w) < y1).collect();
+        let all = if it == 0 { st.solve(g) } else { st.solve_cells(g, &changed) };
+        let fail: Vec<u32> = all.into_iter().filter(|&i| (i as usize / w) >= y0 && (i as usize / w) < y1).collect();
         if fail.is_empty() { break; }
+        changed.clear();
         for &i in &fail {
-            let i = i as usize; let m = Mat::from_u8(g.mat[i]); // (keep protects the burrow's air, not its roof)
+            let i = i as usize; let m = Mat::from_u8(g.mat[i]); changed.push(i); // (keep protects the burrow's air, not its roof)
             if !st.reach[i] { g.mat[i] = 0; continue; } // floating island: no load path
             if it >= 4 { // still failing: widen the pillar / thicken the roof by filling neighbouring voids
                 let (x, y) = (i % w, i / w);
-                for (dx, dy) in [(-1i32, 0i32), (1, 0), (0, 1), (-1, 1), (1, 1), (0, 2), (0, -1), (-1, -1), (1, -1)] { let (nx, ny) = (x as i32 + dx, y as i32 + dy); if nx > 1 && ny >= 0 && (nx as usize) < w - 2 && (ny as usize) < h { let j = ny as usize * w + nx as usize; if kept(nx as usize, ny as usize) { continue; } if g.mat[j] == 0 || g.mat[j] == Mat::Water as u8 || g.mat[j] == Mat::Lava as u8 { g.mat[j] = Mat::Granite as u8; } } }
+                for (dx, dy) in [(-1i32, 0i32), (1, 0), (0, 1), (-1, 1), (1, 1), (0, 2), (0, -1), (-1, -1), (1, -1)] { let (nx, ny) = (x as i32 + dx, y as i32 + dy); if nx > 1 && ny >= 0 && (nx as usize) < w - 2 && (ny as usize) < h { let j = ny as usize * w + nx as usize; if kept(nx as usize, ny as usize) { continue; } if g.mat[j] == 0 || g.mat[j] == Mat::Water as u8 || g.mat[j] == Mat::Lava as u8 { g.mat[j] = Mat::Granite as u8; changed.push(j); } } }
             }
             g.mat[i] = if it < 3 && m.p().tensile < Mat::Limestone.p().tensile { Mat::Limestone as u8 } else { Mat::Granite as u8 };
         }

@@ -366,18 +366,14 @@ impl World {
     /// Stress re-solve over clusters of dirty chunk boxes (boxes within 16 m of each other merge).
     fn solve_regions(&mut self, mut boxes: Vec<(usize, usize, usize, usize)>) -> Vec<u32> {
         if boxes.is_empty() { return vec![]; }
-        let gap = 16 * CPM; let near = |a: &(usize, usize, usize, usize), b: &(usize, usize, usize, usize)| a.0 <= b.2 + gap && b.0 <= a.2 + gap && a.1 <= b.3 + gap && b.1 <= a.3 + gap;
-        let mut merged = true;
-        while merged { merged = false;
-            'o: for i in 0..boxes.len() { for j in i + 1..boxes.len() { if near(&boxes[i], &boxes[j]) { let b = boxes.swap_remove(j); let a = &mut boxes[i];
-                *a = (a.0.min(b.0), a.1.min(b.1), a.2.max(b.2), a.3.max(b.3)); merged = true; break 'o; } } } }
+        boxes = crate::stress::merge_boxes(boxes, 16 * CPM);
         // budget: about an eighth of the window's cells per re-solve, nearest the mole first; the rest stay
         // flagged for the next pass (6 ticks on), so a world that's settling everywhere never stalls a frame
         let (w, h) = (self.g.w, self.g.h);
         let (mx, my) = self.moles.first().map_or((w / 2, h / 2), |m| (m.x, m.y));
         let dist = |b: &(usize, usize, usize, usize)| mx.abs_diff((b.0 + b.2) / 2) + my.abs_diff((b.1 + b.3) / 2);
         boxes.sort_by_key(|b| dist(b));
-        let work = |b: &(usize, usize, usize, usize)| ((b.2 - b.0 + 1 + 72 * CPM).min(w)) * ((b.3 - b.1 + 1 + 28 * CPM).min(h));
+        let work = |b: &(usize, usize, usize, usize)| ((b.2 - b.0 + 1 + 2 * crate::stress::SIDE + 8 * CPM).min(w)) * ((b.3 - b.1 + 1 + 28 * CPM).min(h));
         let (mut f, mut spent) = (vec![], 0usize);
         for b in boxes {
             if spent > 0 && spent + work(&b) > w * h / 8 { // over budget: leave it flagged
