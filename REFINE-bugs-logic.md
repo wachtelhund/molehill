@@ -51,6 +51,11 @@ Short log of what this run changed, and what is still open.
 ## Bronze makes the drill
 * Bronze had no use in Survival. The Drill (tier 2, workshop) is now 4 bronze ingots: copper and tin alloyed at the forge, after copper and before iron (and cheaper on tin than the old 3 copper + 2 tin ingots). Bronze can also be co-smelted straight from ore ("Bronze x2": 3 copper ore + 1 tin ore), which keeps the bronze drill within the two-step chain rule. Test `bronze_makes_the_drill` (and no ingot is a dead end); `survival_ladder_is_reachable` now also checks bronze comes before the drill; scenario `craft_stations` alloys bronze and makes the drill from it.
 
+## Polish round 2: food and oil messages
+* Auto-eating was silent apart from a sound: the log now says "Ate a grub (2 left)." (the player's mole only), and once, when hunger bites with nothing in the pack, "Hungry, and nothing to eat. Dig soil for grubs or root tangles for roots." (again only after the next meal).
+* Oil: pressing says how much fungus is left; the pack's last measure (oil or fungus to press) is announced while there is still light; the dark message said "Press fungus", but pressing is automatic, so it now says to pick fungus up.
+* Scenarios `survival_food` and `survival_lamp_oil` check the log lines and that the warnings are said once; test `survival_kit_sustains_a_short_explore` runs five minutes lit and fed from the kit (budget: ~12 min food, 9 min oil). No balance change was needed. Hunger stays on by default.
+
 ## Open
 * The design's emberiron for the Bore doesn't exist, so the Bore takes iron, copper and crystal.
 * localStorage holds about 5 MB. A band is 10–40 KB, so a holt explored over a few hundred metres of depth could fill it. Bands the player never changed could be dropped and regenerated (not done: the falling-sand settling after generation would differ).

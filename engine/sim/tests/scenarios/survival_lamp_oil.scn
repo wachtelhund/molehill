@@ -1,6 +1,6 @@
 // Light costs fuel. The headlamp burns fungus oil (180 s a measure): when a measure runs out it takes the
 // next from the pack, then presses fungus into oil (2 fungus a measure), then goes dark. A torch needs a
-// measure of oil to be lit.
+// measure of oil to be lit. The log says when fungus is pressed, when the last measure goes in, and when it goes dark.
 map
 BBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
 #............................#
@@ -32,15 +32,20 @@ expect 140 oil > 178
 placetorch 150 3 -2
 expect 150 inv:Torch == 3
 expect 150 inv:FungusOil == 0
+expect 150 log:last_measure == 0     // (give is applied at the start: 2 fungus are still in the pack)
 // no oil left: fungus is pressed instead
 give Fungus 2
 set 200 oil 0.5
 expect 240 inv:Fungus == 0
 expect 240 oil > 178
+expect 240 log:pressed_2_fungus == 1
+expect 240 log:last_measure == 1     // pressed the last of it
 // nothing left to burn: the lamp goes out, and a torch won't light
 set 300 oil 0.5
 expect 340 lamp == 0
 expect 340 oil == 0
+expect 340 log:out_of_oil == 1
+expect 390 log:out_of_oil == 1     // once, not every tick
 placetorch 350 6 -2
 expect 350 inv:Torch == 3
 // switched off, the lamp burns nothing
