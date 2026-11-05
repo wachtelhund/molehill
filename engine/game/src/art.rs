@@ -132,3 +132,33 @@ pub fn station(kind: u8, built: bool) -> Image {
     }
     c.image()
 }
+/// Hotbar icons for the dig tools: 1 pickaxe, 2 drill (copperline-driven), 3 bore (heavy heat-bore).
+pub fn tool_icon(tier: u8) -> Image {
+    let mut c = Canvas::new(24, 24);
+    c.ellipse(12., 21., 9., 2., [0., 0., 0., 0.3]);
+    let wood = rgb([150, 105, 60], 1.);
+    match tier {
+        1 => { // diagonal haft + curved stone head
+            c.shape(wood, |x, y| { let d = ((x - y) / 1.414).abs() - 1.4; let t = (x + y) / 1.414; d.max((t - 30.).max(6. - t)) });
+            c.shape(rgb([150, 150, 162], 1.), |x, y| { let (dx, dy) = (x - 8., y - 15.); let r = (dx * dx + dy * dy).sqrt(); (r - 11.).abs() - 1.8_f32.max(0.) + if dx > 0. && dy < 0. { 0. } else { 9. } });
+        }
+        2 => { // copper body, crank, steel cone
+            c.rect(2., 9., 12., 16., 2., rgb([184, 115, 70], 1.)); c.rect(4., 15., 7., 20., 1., wood);
+            c.shape(rgb([170, 176, 190], 1.), |x, y| { let t = (x - 12.) / 10.; if !(0. ..=1.).contains(&t) { 9. } else { (y - 12.5).abs() - 4. * (1. - t) } });
+            c.rect(12., 11.5, 21., 12.5, 0., [80., 80., 90., 0.8]);
+        }
+        _ => { // heavy iron housing, glowing heat-coil, wide cone
+            c.rect(1., 6., 13., 19., 3., rgb([84, 86, 98], 1.)); c.rect(4., 9., 10., 16., 1., rgb([255, 120, 40], 1.));
+            c.shape(rgb([120, 124, 140], 1.), |x, y| { let t = (x - 13.) / 10.; if !(0. ..=1.).contains(&t) { 9. } else { (y - 12.5).abs() - 6.5 * (1. - t) } });
+            c.ellipse(7., 12.5, 2., 2., [255., 220., 140., 1.]);
+        }
+    }
+    c.image()
+}
+/// A soft ring used to preview the mining brush.
+pub fn ring() -> Image {
+    let mut c = Canvas::new(64, 64);
+    c.shape([255., 245., 220., 0.55], |x, y| { let r = ((x - 32.).powi(2) + (y - 32.).powi(2)).sqrt(); (r - 30.).abs() - 1.2 });
+    c.shape([255., 245., 220., 0.08], |x, y| ((x - 32.).powi(2) + (y - 32.).powi(2)).sqrt() - 29.);
+    let mut im = c.image(); im.sampler = bevy::image::ImageSampler::linear(); im
+}

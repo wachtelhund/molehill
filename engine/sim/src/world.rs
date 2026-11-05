@@ -26,12 +26,15 @@ pub struct Mole {
 }
 /// What the player is pressing this tick (the game fills it in; the sim never reads the keyboard).
 #[derive(Clone, Default, Debug)]
-pub struct Input { pub left: bool, pub right: bool, pub jump: bool, pub mine: Option<(usize, usize)> }
+pub struct Input { pub left: bool, pub right: bool, pub jump: bool, pub mine: Option<(usize, usize)>, /// dig tool in hand: 0 claws (pack tools), 1 pickaxe, 2 drill, 3 bore
+    pub tool: u8 }
 /// The player mole's platformer state (cells; velocities in cells/s).
 #[derive(Clone, Default, Debug)]
-pub struct Player { pub vy: f32, pub ax: f32, pub ay: f32, pub grounded: bool, pub fall_from: usize, pub mine: Option<(usize, u32, u32)>, pub spawn: (usize, i64), pub dead_t: u32, pub deaths: u32 }
+pub struct Player { pub vx: f32, pub vy: f32, pub ax: f32, pub ay: f32, pub grounded: bool, pub fall_from: usize, pub mine: Option<(usize, u32, u32)>, pub spawn: (usize, i64), pub dead_t: u32, pub deaths: u32 }
 pub const REACH_CELLS: f32 = 18.; // 4.5 m
-pub const WALK: f32 = 11.; pub const GRAV: f32 = 75.; pub const JUMP_V: f32 = 27.;
+/// Mining brush radius (cells) per dig tool: claws, pickaxe, drill, bore. A pickaxe bite is about a mole tall.
+pub const BITES: [f32; 4] = [1.8, 2.5, 3.2, 4.2];
+pub const WALK: f32 = 14.; pub const GRAV: f32 = 75.; pub const JUMP_V: f32 = 27.;
 #[derive(Clone)]
 pub struct Drop { pub x: usize, pub y: usize, pub item: Item, pub n: u32, pub claimed: bool }
 /// A mushroom plot: the open cell where the mushroom stands, on soil. `growth` 0..1, `why` = what's
@@ -173,7 +176,9 @@ impl World {
         }
         None
     }
-    fn tier_ok(&self, m: Mat) -> bool { m != Mat::Bedrock && m.p().tier <= tool_tier(&self.inv).max(1).min(3) + if m.p().tier <= 1 { 1 } else { 0 } }
+    /// Digging power: the tool in hand, else the best pack tools.
+    pub fn dig_power(&self) -> u8 { if self.input.tool > 0 { self.input.tool.min(3) } else { tool_tier(&self.inv) } }
+    fn tier_ok(&self, m: Mat) -> bool { m != Mat::Bedrock && m.p().tier <= self.dig_power().max(1).min(3) + if m.p().tier <= 1 { 1 } else { 0 } }
     fn diggable(&self, i: usize) -> bool { let m = self.g.m(i); matches!(m.kind(), Kind::Solid | Kind::Powder) && m != Mat::Bedrock && self.tier_ok(m) }
     #[allow(dead_code)] fn dig_target_near(&self, x: usize, y: usize) -> Option<usize> {
         let w = self.g.w; let mut best = None; let mut bd = i32::MAX;
@@ -426,7 +431,14 @@ impl World {
     /// Ticks to mine cell i with the current tools (None = can't: wrong kind or tool tier too low).
     pub fn mine_time(&self, i: usize) -> Option<u32> {
         if !self.diggable(i) { return None; }
-        let m = self.g.m(i); Some((m.p().dig as u32 * 2 / (1 + tool_tier(&self.inv) as u32)).max(2))
+        let m = self.g.m(i); Some((m.p().dig as u32 * 4 / (1 + self.dig_power() as u32) + 1).max(4))
+    }
+    /// Cells in the mining bite around (x, y): a disc of radius BITES[tool] cells.
+    pub fn bite_cells(&self, x: usize, y: usize) -> Vec<usize> {
+        let b = BITES[self.input.tool.min(3) as usize]; let r = b.ceil() as i32; let mut v = vec![];
+        for dy in -r..=r { for dx in -r..=r { if (dx * dx + dy * dy) as f32 > b * b { continue; }
+            let (nx, ny) = (x as i32 + dx, y as i32 + dy); if self.g.in_bounds(nx, ny) { v.push(self.g.idx(nx as usize, ny as usize)); } } }
+        v
     }
     fn step_player(&mut self) {
         if self.moles.is_empty() { return; }
@@ -447,15 +459,22 @@ impl World {
         // walking
         let dir = inp.right as i32 - inp.left as i32;
         if dir != 0 {
-            self.moles[0].facing = dir as i8; self.pl.ax += WALK * dt * if wet { 0.6 } else { 1. };
+            self.moles[0].facing = dir as i8;
+        }
+        // horizontal velocity eases toward the target speed (accel on the ground, less in the air)
+        let target = dir as f32 * WALK * if wet { 0.6 } else { 1. };
+        let acc = if self.pl.grounded { 90. } else { 45. } * dt;
+        self.pl.vx += (target - self.pl.vx).clamp(-acc, acc);
+        if self.pl.vx.abs() > 0.05 {
+            let sd = self.pl.vx.signum() as i32; self.pl.ax += self.pl.vx.abs() * dt; let dir = sd;
             while self.pl.ax >= 1. {
                 self.pl.ax -= 1.; let nx = (x as i32 + dir) as usize;
                 if self.fits(nx, y) { x = nx; }
                 else if self.pl.grounded && self.fits(x, y - 1) && self.fits(nx, y - 1) { x = nx; y -= 1; } // climb a 1-cell step
-                else { self.pl.ax = 0.; break; }
+                else { self.pl.ax = 0.; self.pl.vx = 0.; break; }
             }
             self.moles[0].anim += 1;
-        } else { self.pl.ax = 0.; }
+        } else { self.pl.ax = 0.; self.pl.vx = 0.; }
         // gravity / jumping
         self.pl.grounded = y + 1 < self.g.h && self.g.is_solidish(self.g.idx(x, y + 1));
         if inp.jump && (self.pl.grounded || wet) { self.pl.vy = if wet { -JUMP_V * 0.45 } else { -JUMP_V }; self.pl.grounded = false; }
@@ -468,14 +487,18 @@ impl World {
         if ground || wet || self.pl.vy < 0. { self.pl.fall_from = y; }
         self.pl.grounded = ground;
         self.moles[0].x = x; self.moles[0].y = y;
-        // mining: hold on a cell; progress resets when the target changes
+        // mining: hold on a spot; each bite clears a mole-sized disc (radius BITES[tool]) around it. Progress
+        // carries over while the cursor drags within 2 cells, so sweeping carves a tunnel smoothly.
         match inp.mine {
             Some((mx, my)) if mx < self.g.w && my < self.g.h && self.in_reach(mx, my) => {
-                let i = self.g.idx(mx, my);
-                if let Some(need) = self.mine_time(i) {
-                    let work = match self.pl.mine { Some((j, w, _)) if j == i => w + 1, _ => 1 };
+                let cells = self.bite_cells(mx, my);
+                let need = cells.iter().filter_map(|&i| self.mine_time(i)).max();
+                if let Some(need) = need {
+                    let i = self.g.idx(mx, my);
+                    let work = match self.pl.mine { Some((j, w, _)) if (j % self.g.w).abs_diff(mx) <= 2 && (j / self.g.w).abs_diff(my) <= 2 => w + 1, _ => 1 };
                     self.moles[0].facing = if mx >= x { 1 } else { -1 };
-                    if work >= need { self.pl.mine = None; self.dig_cell(i, x, y); } else { self.pl.mine = Some((i, work, need)); }
+                    if work >= need { self.pl.mine = None; for c in cells { if self.mine_time(c).is_some() { self.dig_cell(c, x, y); } } }
+                    else { self.pl.mine = Some((i, work, need)); }
                 } else { self.pl.mine = None; }
             }
             _ => self.pl.mine = None,

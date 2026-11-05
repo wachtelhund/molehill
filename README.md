@@ -36,27 +36,30 @@ Tests: `cd engine && cargo test --release -p molehill-sim`. Collapse check: `car
 
 ## Controls
 
-You play one mole, Mossy. The controls work like Terraria or Core Keeper.
+You play one mole. The controls work like Terraria or Core Keeper.
 
 | input | action |
 |---|---|
-| `A` / `D` | Walk (one-cell steps are climbed automatically) |
+| `A` / `D` | Walk (smooth acceleration; small steps are climbed automatically) |
 | `W` / `Space` | Jump |
-| `S` | Dig the cell below you |
-| Hold LMB | Mine the cell under the cursor (reach about 4.5 m). Mining time depends on hardness and tool tier |
-| RMB | Place the selected hotbar item (pillar, brick, beam, torch, copperline, device, spore, TNT, station) |
-| Ctrl+RMB | Remove wire or a device |
-| `1`-`9`, `0` / wheel | Hotbar: claws/pick, wood pillar, brick, iron beam, torch, copperline, device, spore, TNT, station |
-| `G` | Cycle the device type in slot 7 |
-| `Tab` | Cycle the station type in slot 0 (workbench, kiln, furnace, anvil) |
-| `I` | Pack and crafting. Use `Q`/`E` to choose a recipe and `Enter` to craft (needs the right station nearby) |
-| `E` / `R` | Use the device under the cursor |
-| `+`/`-` or Ctrl+wheel | Zoom |
-| `Esc` | Pause |
+| `S` | Dig down |
+| Left mouse | Use the item in hand. A dig tool carves a round, mole-sized bite under the cursor (the ring shows its size). Other items place a pillar, brick, beam, torch, copperline, device, spore, TNT or station |
+| Right mouse | Interact: flip a lever, set a thrum channel. `Ctrl`+right mouse picks up copperline or a device |
+| `1`-`0` / wheel | Select a hotbar slot |
+| `I` | Inventory grid. Click a slot to pick its item up, then click another slot to drop or swap it (the hotbar is the bottom row) |
+| `+` / `-`, `Ctrl`+wheel | Zoom |
+| `H` | Controls overlay |
+| `Esc` | Pause, or close a panel |
 | `K` / `L` | Save / load |
-| `F` | Speed · `B` disaster · `N` new world · `H` help |
+| `F3` | Developer info |
 
-Hunger, breath and HP all apply. Food is eaten automatically when you are hungry. Falls of more than 16 cells hurt, and water drowns you. When you die, you respawn in the burrow.
+There are three dig tools. Each tier gives a bigger bite, faster digging and harder rock:
+
+* **Pickaxe:** dirt and sand go almost instantly; soft stone takes about 0.3 s.
+* **Drill:** a copperline/heatstone-driven auger. It cuts granite, basalt and ore.
+* **Bore:** a heavy heat-bore with the widest bite.
+
+For testing, all three tools and generous stacks of every item start in the pack, and crafting is hidden. Hunger, breath and HP apply. When you die, you respawn in the burrow.
 
 ## Systems
 

@@ -257,3 +257,23 @@ fn player_can_dig_out_of_the_burrow() {
         assert!(best > x0 + 30, "seed {s}: tunnelled out ({x0} -> {best}, y {y})");
     }
 }
+#[test] fn dig_tools_bite_fast_and_scale() {
+    let mut w = World::new(512, 256, 11); w.disasters.enabled = false;
+    for _ in 0..30 { w.step(); }
+    let (x, y) = (w.moles[0].x, w.moles[0].y);
+    // a pickaxe bite into dirt is near-instant and clears a mole-sized disc
+    let (tx, ty) = (x + 8, y - 1);
+    for c in w.bite_cells(tx, ty) { w.g.set(c, Mat::Dirt); }
+    w.input.tool = 1; let n_bite = w.bite_cells(tx, ty).len(); assert!(n_bite >= 15, "pickaxe bite is mole-sized ({n_bite} cells)");
+    w.input.mine = Some((tx, ty)); let mut t = 0; while w.g.get(tx, ty) != Mat::Empty && t < 200 { w.step(); t += 1; }
+    assert!(t <= 9, "dirt bite took {t} ticks (want ~0.1 s)");
+    let cleared = w.bite_cells(tx, ty).iter().filter(|&&c| w.g.m(c) == Mat::Empty || w.g.m(c) == Mat::Water).count(); assert!(cleared * 10 >= n_bite * 8, "bite cleared {cleared}/{n_bite}");
+    w.input.mine = None;
+    // stone ~0.3-0.5 s with the pickaxe; granite needs the drill; the bore is bigger and faster
+    let lime = w.g.idx(tx, ty); w.g.set(lime, Mat::Limestone);
+    let tp = w.mine_time(lime).unwrap(); assert!((15..=32).contains(&tp), "limestone with pickaxe: {tp} ticks");
+    w.g.set(lime, Mat::Granite); assert!(w.mine_time(lime).is_none(), "pickaxe can't cut granite");
+    w.input.tool = 2; assert!(w.mine_time(lime).is_some(), "drill cuts granite");
+    w.input.tool = 3; let tb = w.mine_time(lime).unwrap(); w.input.tool = 2; let td = w.mine_time(lime).unwrap(); assert!(tb < td, "bore faster than drill");
+    w.input.tool = 3; assert!(w.bite_cells(tx, ty).len() > n_bite, "bore bite is bigger");
+}
