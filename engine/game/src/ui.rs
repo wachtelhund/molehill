@@ -9,7 +9,7 @@ pub const S: f32 = 44.; pub const GAP: f32 = 4.;
 #[derive(Resource)] pub struct UiFont(pub Handle<Font>);
 #[derive(Component)] pub struct Slot(pub usize);
 #[derive(Component)] pub struct SlotIcon(pub usize);
-#[derive(Component, Clone, Copy, PartialEq)] pub enum Lbl { Count(usize), Tip, Quest, Toast, Sel, Center, Dev }
+#[derive(Component, Clone, Copy, PartialEq)] pub enum Lbl { Count(usize), Tip, Quest, Toast, Sel, Center, Dev, Brush }
 #[derive(Component)] pub struct InvBg;
 #[derive(Component)] pub struct Held;
 #[derive(Component)] pub struct Bar(pub u8);
@@ -49,6 +49,8 @@ pub fn setup(commands: &mut Commands, f: &Handle<Font>) {
     });
     commands.spawn((Text::new(""), tf(f, 16.), TextColor(INK), TextShadow::default(), TextLayout { justify: Justify::Center, ..default() }, Node { position_type: PositionType::Absolute, top: Val::Px(14.), width: Val::Percent(100.), justify_content: JustifyContent::Center, ..default() }, Lbl::Toast));
     commands.spawn((Text::new(""), tf(f, 15.), TextColor(INK.with_alpha(0.85)), TextShadow::default(), TextLayout { justify: Justify::Center, ..default() }, Node { position_type: PositionType::Absolute, bottom: Val::Px(66.), width: Val::Percent(100.), ..default() }, Lbl::Sel));
+    // the brush size, written just off the brush outline
+    commands.spawn((Text::new(""), tf(f, 12.), TextColor(INK.with_alpha(0.8)), TextShadow::default(), Node { position_type: PositionType::Absolute, ..default() }, Visibility::Hidden, Lbl::Brush));
     commands.spawn((Text::new(""), tf(f, 28.), TextColor(INK), TextShadow::default(), TextLayout { justify: Justify::Center, ..default() }, Node { position_type: PositionType::Absolute, top: Val::Percent(38.), width: Val::Percent(100.), ..default() }, Lbl::Center));
     // pack background + slots
     commands.spawn((abs(0., 0.), BackgroundColor(PANEL), Visibility::Hidden, InvBg)).insert(Node { position_type: PositionType::Absolute, border_radius: BorderRadius::all(Val::Px(6.)), ..default() });
@@ -127,7 +129,10 @@ pub fn update(g: Res<Game>, sp: Res<Sprites>, time: Res<Time>, win: Query<&Windo
             Lbl::Toast => { let live: Vec<&(String, f32)> = g.toasts.iter().filter(|(_, t0)| now - t0 < 4.).collect();
                 set(&mut t, live.iter().map(|(m, _)| m.as_str()).collect::<Vec<_>>().join("\n"));
                 let age = live.last().map_or(9., |(_, t0)| now - t0); c.0 = INK.with_alpha((4. - age).clamp(0., 1.)); }
-            Lbl::Sel => { set(&mut t, if g.inv_open { String::new() } else { g.slots[g.hot].map(|th| match brush_of(Some(th)) { Some(b) => format!("{}   brush {:.1}", thing_name(&g, th), brush_r(&g, b)), None => thing_name(&g, th) } + &{ let c = crate::thing_controls(th); if c.is_empty() { String::new() } else { format!("\n{c}") } }).unwrap_or_default() }); c.0 = INK.with_alpha(((2.2 - (now - g.sel_t)) * 1.5).clamp(0., 0.85)); }
+            Lbl::Brush => match (&g.brush_tag, cur) { (Some((s, r)), Some(c)) if !g.inv_open && hov.is_none() => { set(&mut t, s.clone());
+                    n.left = Val::Px(c.x + r * 0.72 + 4.); n.top = Val::Px(c.y + r * 0.72 + 2.); *v = Visibility::Inherited; }
+                _ => *v = Visibility::Hidden },
+            Lbl::Sel => { set(&mut t, if g.inv_open { String::new() } else { g.slots[g.hot].map(|th| match brush_of(Some(th)) { Some(b) => format!("{}   {}", thing_name(&g, th), g.sizes.label(b)), None => thing_name(&g, th) } + &{ let c = crate::thing_controls(th); if c.is_empty() { String::new() } else { format!("\n{c}") } }).unwrap_or_default() }); c.0 = INK.with_alpha(((2.2 - (now - g.sel_t)) * 1.5).clamp(0., 0.85)); }
             Lbl::Center => set(&mut t, if !me.alive { "You were lost to the deep.\nCrawling back to the burrow...".to_string() } else { String::new() }),
             Lbl::Dev => { *v = if g.show_dev { Visibility::Inherited } else { Visibility::Hidden };
                 if g.show_dev && g.frame % 10 == 0 {
