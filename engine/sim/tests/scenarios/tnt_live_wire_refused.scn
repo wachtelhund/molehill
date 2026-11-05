@@ -1,0 +1,41 @@
+// TNT isn't set down on or beside a copperline that is already live: it would go off on the next tick,
+// which is easy to do by accident. The place is refused with one line ("Can't place TNT: the copperline is
+// live (cut the power first).") and nothing goes off. On an idle line it goes down inert as before, and
+// powering the line afterwards still sets it off at once (remote detonation, as in tnt_lever).
+map
+##########################################
+#........................................#
+#........................................#
+#........................................#
+#........................................#
+#........................................#
+#.................@......................#
+##########################################
+end
+give Tnt 2
+device 3 -3 -1 Lever
+wire 4 1 -1 13 -1
+// the lever thrown: the line is live
+use 6 -3 -1
+// beside the live line's end, then on it: both refused, said once (the same words wait before repeating)
+device 10 16 -1 Tnt
+expect 11 dev:16,-1,Tnt == 0
+expect 11 log:can't_place_tnt:_the_copperline_is_live == 1
+device 20 8 -1 Tnt
+expect 21 dev:8,-1,Tnt == 0
+expect 21 inv:Tnt == 2
+expect 60 ev:Explode == 0
+expect 60 log:copperline_is_live == 1
+// power cut: the same spots take the charges, inert
+use 61 -3 -1
+device 70 8 -1 Tnt
+device 71 16 -1 Tnt
+expect 72 dev:8,-1,Tnt == 1
+expect 72 dev:16,-1,Tnt == 1
+expect 72 inv:Tnt == 0
+expect 120 ev:Explode == 0
+// power put back on charges already in place: they go off at once, as designed
+use 121 -3 -1
+expect 125 ev:Explode >= 1
+expect 125 dev:8,-1,Tnt == 0
+expect 125 dev:16,-1,Tnt == 0

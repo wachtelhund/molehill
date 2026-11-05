@@ -240,6 +240,7 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `pillar_sand_floor.scn` | A pillar built on a sand floor rests on it |
 | `beam_bridge_ledges.scn` | A wood beam bridging a 3.5 m gap between ledges high in a cave stays put |
 | `tnt_inert.scn` | Placed TNT is inert; right mouse lights a 1.5 s fuse, then it blows |
+| `tnt_live_wire_refused.scn` | TNT set down on or beside a live copperline is refused with one line and nothing goes off; on the idle line it goes down inert, and powering the line then sets it off |
 | `tnt_lever.scn` / `tnt_thrum.scn` | Remote detonation: a lever on copperline, or a thrummer knocking through 2 m of granite to a listener |
 | `pickup_tnt.scn` / `tnt_douse.scn` | E picks an unlit charge back up, not a lit one; water puts a fuse out |
 | `pickup_wire.scn` / `pickup_device.scn` | E takes up copperline one segment at a time (a device on it first), and levers, lamps, knots and torches |
