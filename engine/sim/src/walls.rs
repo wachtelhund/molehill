@@ -75,19 +75,19 @@ impl Wall {
     pub fn color(self) -> [u8; 3] {
         match self {
             Wall::None => [0, 0, 0],
-            Wall::Rock => [86, 78, 70],
-            Wall::Timber => [92, 66, 42],
-            Wall::Masonry => [96, 52, 42],
-            Wall::Beams => [78, 56, 36],
-            Wall::Pipes => [110, 70, 48],
-            Wall::Carving => [88, 82, 74],
-            Wall::Damp => [58, 70, 68],
-            Wall::Crack => [70, 64, 58],
-            Wall::Root => [64, 72, 42],
-            Wall::Gap => [40, 34, 32],
-            Wall::Salt => [140, 136, 128],
-            Wall::Crystal => [70, 104, 128],
-            Wall::Fossil => [96, 88, 72],
+            Wall::Rock => [118, 108, 96],
+            Wall::Timber => [140, 102, 66],
+            Wall::Masonry => [132, 78, 62],
+            Wall::Beams => [118, 84, 54],
+            Wall::Pipes => [148, 96, 64],
+            Wall::Carving => [124, 116, 106],
+            Wall::Damp => [78, 92, 88],
+            Wall::Crack => [96, 88, 80],
+            Wall::Root => [86, 96, 56],
+            Wall::Gap => [58, 50, 46],
+            Wall::Salt => [168, 162, 152],
+            Wall::Crystal => [92, 132, 156],
+            Wall::Fossil => [128, 116, 94],
         }
     }
     /// How much of the far parallax shows through (0 = fully covered, 1 = none of the wall).
@@ -331,6 +331,6 @@ fn shows_back(g: &Grid, i: usize) -> bool {
 pub fn wall_brush_range() -> (f32, f32, f32) { (0.5 * SF, 3.5 * SF, 1.0 * SF) }
 
 /// Contrast used when drawing a wall: darker than a real block under the same light.
-pub const WALL_K: f32 = 0.52;
-/// Floor brightness so a wall in the dark is still a shade of the rock, never a black hole.
-pub const WALL_AMIN: f32 = 0.12;
+pub const WALL_K: f32 = 0.78;
+/// Floor brightness so a lined room in the dark still reads as timber or rock, never a black hole.
+pub const WALL_AMIN: f32 = 0.34;

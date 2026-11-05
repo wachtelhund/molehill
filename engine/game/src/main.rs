@@ -687,8 +687,11 @@ fn render_world(mut gm: ResMut<Game>, bg: Res<Bg>, mut images: ResMut<Assets<Ima
                     let wl = wd.walls.get(i);
                     if wl != molehill_sim::walls::Wall::None {
                         let wc = wl.color(); let sh = wl.shade(x as u32, (y as i64 + wd.oy) as u32);
-                        let lk = (molehill_sim::walls::WALL_AMIN + (1. - molehill_sim::walls::WALL_AMIN) * lum.min(1.)) * molehill_sim::walls::WALL_K * sh;
-                        let lit = |c: u8, li: f32| c as f32 * lk * (0.55 + 0.45 * li.min(1.25));
+                        // one darker/flatter scale, same light as the open cell: no extra 0.55 multiply
+                        let lit = |c: u8, li: f32| {
+                            let face = molehill_sim::walls::WALL_AMIN + (1. - molehill_sim::walls::WALL_AMIN) * li.min(1.15);
+                            c as f32 * face * molehill_sim::walls::WALL_K * sh
+                        };
                         o = over(o, [lit(wc[0], l[0]), lit(wc[1], l[1]), lit(wc[2], l[2])], 1. - wl.see_through());
                     }
                     let tw = (lum * 0.6).min(0.5) * 0.35;

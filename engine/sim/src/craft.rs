@@ -175,7 +175,7 @@ impl Item {
             Planks => [182, 134, 84], PolishedStone => [176, 170, 160], Tiles => [190, 108, 74], CarvedPillar => [164, 158, 148],
             Ochre | Rust | Chalk | Verdigris | Woad | Soot => PIGMENTS[self.pigment().unwrap_or(0) as usize],
             Table | Stool | Shelf => [160, 112, 66], Nest => [150, 170, 110], Rug => [176, 92, 70], Banner => [200, 70, 60], Planter => [110, 200, 130], AncientBit => [150, 200, 210], GroundLens => [210, 235, 250], Rail => [150, 120, 84], Cart => [130, 96, 60], RopeLadder => [170, 140, 90], Lift => [150, 150, 160], Tube => [150, 190, 186], TubeHopper => [190, 150, 80],
-            RockWall => [86, 78, 70], TimberWall => [92, 66, 42], MasonryWall => [96, 52, 42], BeamWall => [78, 56, 36], PipeWall => [110, 70, 48], CarvedWall => [88, 82, 74],
+            RockWall => [118, 108, 96], TimberWall => [140, 102, 66], MasonryWall => [132, 78, 62], BeamWall => [118, 84, 54], PipeWall => [148, 96, 64], CarvedWall => [124, 116, 106],
         }
     }
     /// A decorative background wall: it panels the back, never the rock in front, and holds no roof.
