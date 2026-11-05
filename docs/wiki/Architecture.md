@@ -81,6 +81,7 @@ The rule is simple: **gameplay goes in the sim.** If it changes what happens in 
 | `menu.rs` | main and pause menus, settings, the shared controls table |
 | `art.rs` | pixel-art sprites and icons built in code |
 | `devart.rs` | pixel art for copperline tiles (one per neighbour mask, lit with a travelling glint), every device (off/on, animation frames) and the wiring view's schematic glyphs |
+| `hotbar.rs` | Survival's hotbar order: what you hold first, then free things, then faint slots for what you have none of; a newly gained thing fills the first faint slot (Creative keeps its fixed layout) |
 | `journal.rs` | the journal (`J`): the Lid fragments and Ancient ruin carvings found, newest first, as a plain list |
 | `decorart.rs` | pixel art for furniture (a base and a pale cloth layer the pigment tints) and the furnishing icons |
 | `wiring.rs` | draws copperline and devices as sprites over the world (one per 1 m block, cached by block), and the wiring view (`V`) |

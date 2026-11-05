@@ -1,6 +1,6 @@
 # Tools and Items
 
-> Code: `engine/sim/src/craft.rs` (items, stations, recipes, quests), `brush_range` and `place_brush` in `world.rs`, the hotbar and pack in `engine/game/src/main.rs` and `ui.rs`.
+> Code: `engine/sim/src/craft.rs` (items, stations, recipes, quests), `brush_range` and `place_brush` in `world.rs`, the hotbar and pack in `engine/game/src/main.rs`, `ui.rs` and `hotbar.rs` (Survival's hotbar order).
 
 ## Dig tools
 
@@ -49,7 +49,7 @@ Food (grubs, mushrooms, fungus) is eaten from the pack automatically when the mo
 
 ## The pack
 
-The pack (`I`) is a grid of 70 slots, and the bottom row is the hotbar (`1`–`0`). Click a slot to pick its item up, then click another to drop or swap. Counts come from one shared inventory. Hovering a slot shows its name, count and a one-line description. Resting the cursor on a seen cell for about 0.35 s explains what's there (`sim/src/tips.rs`): the material (and whether it's loose debris), a device, copperline (carrying current or idle), a station (what it makes; craft by standing at it with the pack open), a chest (opened or not) or a mushroom plot (growth % and whether it's too bright or too dry). A standing block also says how hard it is working, read from the stress solver: bearing weight, straining, overloaded, or cracking, so you can see a span is about to fail before it does.
+The pack (`I`) is a grid of 70 slots, and the bottom row is the hotbar (`1`–`0`). Click a slot to pick its item up, then click another to drop or swap. Counts come from one shared inventory. In Survival the hotbar puts what you hold first, then free things (stations to plan, devices that cost nothing); a slot for something you have none of is drawn faint, and a newly gained thing moves into the first faint slot (details on [Player and Controls](Player-and-Controls.md)). Hovering a slot shows its name, count and a one-line description. Resting the cursor on a seen cell for about 0.35 s explains what's there (`sim/src/tips.rs`): the material (and whether it's loose debris), a device, copperline (carrying current or idle), a station (what it makes; craft by standing at it with the pack open), a chest (opened or not) or a mushroom plot (growth % and whether it's too bright or too dry). A standing block also says how hard it is working, read from the stress solver: bearing weight, straining, overloaded, or cracking, so you can see a span is about to fail before it does.
 
 > **Modes:** New Holt asks for **Survival** (a small kit: a Pickaxe, 6 wood, 4 torches, 3 grubs, 2 roots, 2 fungus oil; you dig only with tools you own; the headlamp and torches burn fungus oil) or **Creative** (999 of every item). Crafting works at stations (below). **Fungus oil** is pressed from fungus (2 a measure, done by the pack when it runs out); a **root** is food from root tangles. See [Progression](Progression.md#survival-mode-today). The sim's own starting pack (used by the tests) is small: 8 wood, 6 torches, 12 pillars, 12 grubs, 40 copperline, 6 knots, 3 thrummers, 6 spores and a vent.
 
@@ -128,7 +128,7 @@ In **Survival** (see [Progression](Progression.md#survival-mode-today)) crafting
 | 2 | Drill | workshop | 4 bronze ingots | granite and iron ore |
 | 3 | Bore | forge | 6 iron ingots + 2 copper ingots + 2 crystal | basalt |
 
-In Survival a dig tool you don't own isn't in the hotbar, and holding a better tool's slot doesn't help: digging uses the best tool in the pack (`World::tool`, scenario `tool_tiers_survival`). Without any tool, claws still take soft stone, slowly.
+In Survival a dig tool you don't own sits faint in the hotbar (see [The pack](#the-pack)), and holding a better tool's slot doesn't help: digging uses the best tool in the pack (`World::tool`, scenario `tool_tiers_survival`). Without any tool, claws still take soft stone, slowly.
 
 ## Stations
 
