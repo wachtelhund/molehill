@@ -332,3 +332,19 @@ fn press(w: &mut World, n: usize, f: impl Fn(&mut Input)) -> (f32, f32) { let (m
     // a fresh world (or respawn / load) with Space already down doesn't jump either
     let (mut w, _, _) = arena(); w.pl.sync = None; let y0 = w.pl.py; let (top, _) = press(&mut w, 30, |i| i.jump = true); assert!(top >= y0 - 0.05, "held Space jumped after resync");
 }
+#[test] fn digging_and_placing_give_instant_feedback() {
+    let (mut w, x0, y0) = arena();
+    for y in y0 - 4..=y0 { for x in x0 + 4..=x0 + 9 { let i = w.g.idx(x, y); w.g.set(i, Mat::Rock); } }
+    press(&mut w, 1, |_| {});
+    // the strike is heard on the very first tick of holding the mouse, long before the rock gives
+    w.input.mine = Some((x0 + 5, y0 - 1)); w.input.tool = 1; w.step();
+    assert!(w.events.contains(&Event::Dig), "no strike on press: {:?}", w.events);
+    let mut bite = None; for _ in 0..60 { w.step(); if let Some(m) = w.marks.iter().find(|m| m.0 == 0) { bite = Some(*m); break; } }
+    let b = bite.expect("bite cleared within 1 s");
+    assert!((b.1 - (x0 + 5) as f32 - 0.5).abs() < 1e-3 && b.3 > 1., "bite mark at the aim: {b:?}");
+    assert!(w.shake > 0.2, "a bite jolts the view: {}", w.shake);
+    w.input.mine = None; press(&mut w, 120, |_| {});
+    // placing a pillar marks the cell the same tick
+    let (cx, cy) = (x0 - 3, y0); w.place_block(cx, cy, Item::WoodPillar).unwrap();
+    assert!(w.marks.iter().any(|m| m.0 == 1 && m.1 as usize == cx && m.2 as usize == cy), "place mark: {:?}", w.marks);
+}

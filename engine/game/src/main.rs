@@ -24,7 +24,11 @@ const FAR: usize = 4; // chunk rows drawn beyond each end of the simulated windo
 #[derive(Resource)] pub struct Game { pub w: World, chunks: Vec<Handle<Image>>, buf: Vec<u8>, pub uploads: usize, acc: f32, pub paused: bool, speed: u32, pub frame: u64, last_light: u64, msg: String, pub help: bool, ev: Vec<sw::Event>, shake_off: Vec2, autosave: f32, last_oy: i64, far: Vec<Handle<Image>>, far_done: Vec<bool>, pub inv_open: bool, aim: Option<(usize, usize, bool)>,
     pub slots: Vec<Option<Thing>>, pub held: Option<Thing>, pub hot: usize, pub sel_t: f32, pub toasts: Vec<(String, f32)>, log_seen: u64, pub show_dev: bool, disp: Vec2, pub seed: u32,
     /// mouse buttons held since a menu closed: ignored until released (the click that closed the menu must not dig or place)
-    pub mouse_latch: bool }
+    pub mouse_latch: bool,
+    /// in-world feedback pops: (kind 0 bite / 1 placed block, x, y, radius in cells, start time s)
+    pub pops: Vec<(u8, f32, f32, f32, f32)>,
+    /// smoothed camera lookahead (cells)
+    look: Vec2 }
 /// What an inventory slot holds. Counts come from the shared pack (`World::inv`).
 #[derive(Clone, Copy, PartialEq, Debug)] pub enum Thing { Pick(u8), Item(Item), Dev(usize), Station(usize) }
 pub const NSLOT: usize = 70;
@@ -142,7 +146,7 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, mut fonts: R
         px: images.add(art::image(1, 1, vec![255; 4], true)),
     };
     commands.insert_resource(sp);
-    let disp = Vec2::new(sx, sy + 1.5); commands.insert_resource(Game { w, chunks, buf: vec![1; W * H * 4], uploads: 0, acc: 0., paused: true, speed: 1, frame: 0, last_light: 0, msg: String::new(), help: false, ev: vec![], shake_off: Vec2::ZERO, autosave: 0., last_oy: oy0, far, far_done, inv_open: false, aim: None, slots: default_slots(), held: None, hot: 0, sel_t: 0., toasts: vec![], log_seen: 0, show_dev: false, disp, seed, mouse_latch: false });
+    let disp = Vec2::new(sx, sy + 1.5); commands.insert_resource(Game { w, chunks, buf: vec![1; W * H * 4], uploads: 0, acc: 0., paused: true, speed: 1, frame: 0, last_light: 0, msg: String::new(), help: false, ev: vec![], shake_off: Vec2::ZERO, autosave: 0., last_oy: oy0, far, far_done, inv_open: false, aim: None, slots: default_slots(), held: None, hot: 0, sel_t: 0., toasts: vec![], log_seen: 0, show_dev: false, disp, seed, mouse_latch: false, pops: vec![], look: Vec2::ZERO });
 }
 
 pub fn save_now(g: &mut Game) { let b = molehill_sim::save::save(&g.w); g.msg = match storage_put("molehill-manual", &b) { Ok(()) => "Game saved".into(), Err(e) => format!("Save failed: {e}") }; }
@@ -196,7 +200,9 @@ fn input(mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<Button
     if keys.just_pressed(KeyCode::Minus) { ct.scale = Vec3::splat((sc * 1.25).min(1.5)); }
     // render interpolation between the last two fixed sim steps; tight camera with a little lookahead
     { let a = g.acc.clamp(0., 1.); let pl = &g.w.pl; g.disp = Vec2::new(pl.ppx + (pl.px - pl.ppx) * a, pl.ppy + (pl.py - pl.ppy) * a - 1.0);
-      let look = Vec2::new(g.w.pl.vx * 0.12, g.w.pl.vy.max(0.) * 0.05);
+      // the lookahead eases (a turn doesn't whip the view); the follow itself stays tight
+      let want = Vec2::new(g.w.pl.vx * 0.14, if g.w.pl.vy > 20. { (g.w.pl.vy - 20.) * 0.08 } else { 0. });
+      let kl = 1. - (-7. * dt).exp(); let look = g.look + (want - g.look) * kl; g.look = look;
       let p = cell_to_world(g.disp.x + look.x, g.disp.y - 1.5 + look.y); let k = 1. - (-30. * dt).exp();
       let d = Vec2::new(p.x - ct.translation.x, p.y - ct.translation.y);
       if d.length() > 200. { ct.translation.x = p.x; ct.translation.y = p.y; } else { ct.translation.x += d.x * k; ct.translation.y += d.y * k; } }
@@ -255,7 +261,7 @@ fn input(mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<Button
         Some(Thing::Dev(d)) if lj => {
             let d = DEVS[d]; let cost = dev_cost(d);
             if g.w.logic.dev[blk] != 0 { g.w.logic.interact(blk); g.w.events.push(sw::Event::Click); }
-            else if cost.map_or(true, |it| g.w.inv[it as usize] > 0) { let gw = &mut g.w; if gw.logic.place(&mut gw.g, d, blk) { if let Some(it) = cost { gw.inv[it as usize] -= 1; } gw.events.push(sw::Event::Place); } else { g.msg = "Needs open space".into(); } }
+            else if cost.map_or(true, |it| g.w.inv[it as usize] > 0) { let gw = &mut g.w; if gw.logic.place(&mut gw.g, d, blk) { if let Some(it) = cost { gw.inv[it as usize] -= 1; } gw.events.push(sw::Event::Place); gw.marks.push((1, cx as f32 + 0.5, cy as f32 + 0.5, 0.5)); } else { g.msg = "Needs open space".into(); } }
         }
         Some(Thing::Station(k)) if lj => { let s = STATIONS[k]; if let Err(e) = g.w.place_building(s, cx.saturating_sub(Station::W / 2), cy) { g.msg = format!("Can't build: {e}"); } }
         _ => {}
@@ -266,7 +272,12 @@ fn simulate(mut commands: Commands, mut g: ResMut<Game>, time: Res<Time>, mut ca
     g.frame += 1;
     if !g.paused {
         g.acc += time.delta_secs().min(0.1) * 60. * g.speed as f32;
-        let mut n = 0; while g.acc >= 1. && n < 3 * g.speed { let pre = std::mem::take(&mut g.w.events); g.w.step(); let mut e = std::mem::take(&mut g.w.events); let gg = &mut *g; gg.ev.extend(pre); gg.ev.append(&mut e); g.acc -= 1.; n += 1; }
+        let now = time.elapsed_secs();
+        let mut n = 0; while g.acc >= 1. && n < 3 * g.speed {
+            let pre = std::mem::take(&mut g.w.events); let pm = std::mem::take(&mut g.w.marks); g.w.step();
+            let mut e = std::mem::take(&mut g.w.events); let m = std::mem::take(&mut g.w.marks); let gg = &mut *g; gg.ev.extend(pre); gg.ev.append(&mut e);
+            gg.pops.extend(pm.into_iter().chain(m).map(|(k, x, y, r)| (k, x, y, r, now))); g.acc -= 1.; n += 1; }
+        g.pops.retain(|p| now - p.4 < 0.25);
         g.autosave += time.delta_secs();
         if g.autosave > 30. { g.autosave = 0.; let b = molehill_sim::save::save(&g.w); let _ = storage_put("molehill-auto", &b); }
         if g.acc > 4. { g.acc = 0.; }
@@ -432,14 +443,15 @@ fn render_far(gm: &mut Game, ct: &Transform, win: &Window, images: &mut Assets<I
     }
 }
 
-fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, mut q: Query<(Entity, &Pooled, &mut Transform, &mut Sprite, &mut Visibility)>) {
-    // kind 0 moles, 1 drops, 2 chests, 3 stations, 4 torches, 5 mushroom plots
-    let w = &g.w;
+fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Res<Time>, mut q: Query<(Entity, &Pooled, &mut Transform, &mut Sprite, &mut Visibility)>) {
+    // kind 0 moles, 1 drops, 2 chests, 3 stations, 4 torches, 5 mushroom plots, 7 aim, 8 feedback pops
+    let w = &g.w; let now = time.elapsed_secs();
     let mut want: Vec<(u8, usize, Vec2, f32, Handle<Image>, Vec2, bool, Color)> = vec![];
     let lightf = |x: usize, y: usize| { let l = w.light.at(y.min(H - 1) * W + x.min(W - 1)); let v = (l[0] * 0.3 + l[1] * 0.5 + l[2] * 0.2).clamp(0.12, 1.2); Color::srgb(v.min(1.) , v.min(1.), v.min(1.)) };
     for (k, m) in w.moles.iter().enumerate() { if !m.alive { continue; }
         let walking = w.input.left || w.input.right || w.pl.mine.is_some();
-        let c = if m.hp < 40. { Color::srgb(1., 0.6, 0.6) } else { let l = lightf(m.x, m.y - 1).to_srgba(); let v = l.red.max(0.55); Color::srgb(v, v, v) };
+        let c = if k == 0 && w.pl.flash > 0. { if (w.pl.flash * 30.) as u32 % 2 == 0 { Color::srgb(6., 6., 6.) } else { Color::srgb(1.6, 0.35, 0.3) } } // hit flash: white / red strobe
+            else if m.hp < 40. { Color::srgb(1., 0.6, 0.6) } else { let l = lightf(m.x, m.y - 1).to_srgba(); let v = l.red.max(0.55); Color::srgb(v, v, v) };
         let bob = if walking && w.pl.grounded { ((m.anim as f32) * 0.45).sin().abs() * 0.35 } else { 0. };
         want.push((0, k, cell_to_world(g.disp.x, g.disp.y + 1.0 - 1.6 - bob), 5., sp.mole[if walking { ((m.anim / 6) % 2) as usize } else { 0 }].clone(), Vec2::new(26., 19.5), m.facing < 0, c)); }
     for (k, d) in w.drops.iter().enumerate() { if w.g.flags[d.y * W + d.x] & F_SEEN == 0 { continue; } want.push((1, k, cell_to_world(d.x as f32 + 0.5, d.y as f32 + 0.2), 4., sp.icons[d.item as usize].clone(), Vec2::splat(12.), false, lightf(d.x, d.y))); }
@@ -456,6 +468,10 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, mut q: Q
             want.push((7, 0, cell_to_world(x as f32 + 0.5, y as f32 + 0.5), 6., sp.ring.clone(), Vec2::splat(d * (1. - 0.15 * f)), false, c)); }
         else { let c = if reach { Color::srgba(1., 1., 0.85, 0.22) } else { Color::srgba(1., 0.4, 0.3, 0.10) }; want.push((7, 0, cell_to_world(x as f32 + 0.5, y as f32 + 0.5), 6., sp.px.clone(), Vec2::splat(CPX), false, c)); }
     }
+    // feedback pops: a bite's ring bursts outward and fades; a placed block flashes white and settles
+    for (k, &(kind, x, y, r, t0)) in g.pops.iter().enumerate() { let a = ((now - t0) / 0.2).clamp(0., 1.);
+        if kind == 0 { want.push((8, k, cell_to_world(x, y), 6.5, sp.ring.clone(), Vec2::splat(2. * r * CPX * (1. + 0.35 * a)), false, Color::srgba(1., 0.92, 0.75, 0.75 * (1. - a)))); }
+        else { want.push((8, k, cell_to_world(x, y), 6.5, sp.px.clone(), Vec2::splat(CPX * (1.7 - 0.7 * a)), false, Color::srgba(1., 1., 0.95, 0.9 * (1. - a)))); } }
     let mut used = std::collections::HashSet::new();
     for (e, p, mut t, mut s, mut vis) in &mut q {
         if let Some(wn) = want.iter().find(|wn| wn.0 == p.0 && wn.1 == p.1) {

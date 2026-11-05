@@ -29,5 +29,15 @@ Polish only: no new features or concepts. Each entry is one commit.
 4. **Air control and climbing.** `air_accel` 260 -> 480: reversing in mid-air took about 7 ticks and now takes
    about 4. A new `air_decel` (60) applies when no direction is held, so letting go in the air coasts and keeps
    wall-jump momentum instead of braking like the ground does. `climb` 9 -> 10.5. Scenario: `air_turn`.
+5. **Impacts and instant feedback.** Any knock of more than 0.5 hp in a tick (fall, lava, being buried,
+   drowning) sets `pl.flash` (0.22 s, a white/red strobe on the mole sprite) and a view shake scaled by the
+   damage. Hard landings (8+ cells) thump the view a little. Mining sounds its strike on the first tick of the
+   press and every 1/6 s after, instead of only when the rock gives. A cleared bite and a placed block (or
+   device) leave a `World::marks` entry; the game draws a ring bursting outward or a white cell flash for
+   0.2 s. Camera: the lookahead eases at 7/s, so turning doesn't whip the view; the follow stays tight, and it
+   only looks down on real falls. Test: `digging_and_placing_give_instant_feedback`; scenario: `fall_hurt`;
+   harness vars `flash`, `shake`.
 
 ## Open issues
+* No screenshot of the hit-flash, pops or camera: this run was on macOS without a capture setup. They need a
+  look in the real game.

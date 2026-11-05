@@ -19,6 +19,7 @@ impl Run {
             "dx" => (p.px - self.sx) as f64, "dy" => (p.py - self.sy) as f64, "rise" => (self.sy - self.top) as f64,
             "grounded" => p.grounded as u8 as f64, "cling" => p.cling as f64, "hp" => m.hp as f64, "breath" => m.breath as f64,
             "deaths" => p.deaths as f64, "crumbled" => self.w.crumbled as f64, "tick" => self.w.tick as f64,
+            "flash" => p.flash as f64, "shake" => self.w.shake as f64,
             _ if v.starts_with("count:") => { let mt = mat_by_name(&v[6..])?; let mut n = 0; for y in self.oy..self.oy + self.mh { for x in self.ox..self.ox + self.mw { if self.w.g.get(x, y) == mt { n += 1; } } } n as f64 }
             _ if v.starts_with("is:") => { // is:DX,DY,Mat  (relative to @)
                 let a: Vec<&str> = v[3..].split(',').collect(); let (dx, dy): (i32, i32) = (a.get(0)?.parse().ok()?, a.get(1)?.parse().ok()?);

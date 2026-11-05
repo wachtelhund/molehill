@@ -63,6 +63,7 @@ Map legend: `.` empty, `#` granite, `B` bedrock, `r` rock, `d` dirt, `c` clay, `
 
 | variable | meaning |
 |---|---|
+| `flash` `shake` | Hit-flash time left (s); view-shake strength (decays each tick) |
 | `px` `py` `vx` `vy` | Player body (cells; py is the feet). Velocities are in cells/s; +y is down |
 | `dx` `dy` | Offset from the start position (dy < 0 means higher) |
 | `rise` | Highest point reached so far, measured above the start |
@@ -80,6 +81,7 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | file | checks |
 |---|---|
 | `air_turn.scn` | Reversing in mid-air takes under 5 ticks; letting go in the air coasts instead of braking |
+| `fall_hurt.scn` | A 30-cell fall hurts, flashes the mole and jolts the view; a normal jump landing doesn't |
 | `run_jump.scn` | Top speed in under 8 ticks; full-jump height 4.5-9 cells; lands |
 | `coyote.scn` / `coyote_late.scn` | A jump 4 ticks after leaving a ledge works; 12 ticks after, it doesn't |
 | `wall_climb.scn` | Cling to a wall, then climb more than 6 cells with W |

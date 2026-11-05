@@ -30,7 +30,9 @@ pub struct Input { pub left: bool, pub right: bool, pub jump: bool, pub up: bool
     pub tool: u8 }
 /// The player mole's platformer state (cells; velocities in cells/s).
 #[derive(Clone, Default, Debug)]
-pub struct Player { pub px: f32, pub py: f32, pub ppx: f32, pub ppy: f32, pub sync: Option<(usize, usize)>, pub coyote: f32, pub buffer: f32, pub lock: f32, pub cling: i8, pub jump_was: bool, pub vx: f32, pub vy: f32, pub ax: f32, pub ay: f32, pub grounded: bool, pub fall_from: usize, pub mine: Option<(usize, u32, u32)>, pub spawn: (usize, i64), pub dead_t: u32, pub deaths: u32 }
+pub struct Player { pub px: f32, pub py: f32, pub ppx: f32, pub ppy: f32, pub sync: Option<(usize, usize)>, pub coyote: f32, pub buffer: f32, pub lock: f32, pub cling: i8, pub jump_was: bool, pub vx: f32, pub vy: f32, pub ax: f32, pub ay: f32, pub grounded: bool, pub fall_from: usize, pub mine: Option<(usize, u32, u32)>, pub spawn: (usize, i64), pub dead_t: u32, pub deaths: u32,
+    /// hit flash (s left) after taking a knock; `hp_was` = hp after the last tick, to spot the knock
+    pub flash: f32, pub hp_was: f32 }
 pub const REACH_CELLS: f32 = 18.; // 4.5 m
 /// Mining brush radius (cells) per dig tool: claws, pickaxe, drill, bore. A pickaxe bite is about a mole tall.
 pub const BITES: [f32; 4] = [1.8, 2.5, 3.2, 4.2];
@@ -65,6 +67,9 @@ pub struct World {
     pub quest: usize, pub log: Vec<(u64, String)>, pub discovered: [bool; NMAT], pub chests_opened: u32, pub pillars: u32,
     pub max_depth: f32, pub craft_queue: Vec<usize>, pub day: f32, pub crumbled: u64, pub light_rect: (usize, usize, usize, usize),
     pub events: Vec<Event>, pub react_pending: bool,
+    /// where this tick's feedback happened, for in-world pops: (kind, x, y, radius in cells); kind 0 = a bite
+    /// cleared, 1 = a block placed. Cleared every step like `events`.
+    pub marks: Vec<(u8, f32, f32, f32)>,
     pub logic: Logic, pub disasters: Disasters, pub shake: f32,
     pub air: Air, pub farms: Vec<Farm>, pub harvested: u32,
     /// Endless vertical world: the grid is a window; `oy` = absolute row of window row 0.
@@ -85,7 +90,7 @@ impl World {
             st: Stress::new(w * h), light: Light::new(w, h), tick: 0, inv: [0; NITEM], dig_acc: [0; NMAT], place_acc: [0; 8], desig: vec![0; w * h],
             moles: vec![], drops: vec![], stockpile: (0, 0, 0, 0), buildings: vec![], torches: vec![], chests: vec![],
             quest: 0, log: vec![], discovered: [false; NMAT], chests_opened: 0, pillars: 0, max_depth: 0., craft_queue: vec![], day: 0., crumbled: 0,
-            light_rect: (0, 0, w - 1, h - 1), events: vec![], react_pending: false, logic: Logic::new(w, h), disasters: Disasters::new(seed), shake: 0., air: Air::new(w, h), farms: vec![], harvested: 0, input: Input::default(), pl: Player::default(), gen: gn, oy, cache: Default::default(), opened: Default::default(), info, g,
+            light_rect: (0, 0, w - 1, h - 1), events: vec![], marks: vec![], react_pending: false, logic: Logic::new(w, h), disasters: Disasters::new(seed), shake: 0., air: Air::new(w, h), farms: vec![], harvested: 0, input: Input::default(), pl: Player::default(), gen: gn, oy, cache: Default::default(), opened: Default::default(), info, g,
         };
         wd.refresh_chests();
         let (sx, sy) = (wd.info.start.0 * 4, wd.info.start.1 * 4);
@@ -254,7 +259,7 @@ impl World {
     }
 
     pub fn step(&mut self) {
-        self.tick += 1; self.events.clear();
+        self.tick += 1; self.events.clear(); self.marks.clear();
         self.g.step_ca();
         if self.g.reactions.swap(0, Relaxed) != 0 { self.react_pending = true; }
         if (self.tick % 6 == 0 && self.g.struct_dirty.is_some()) || (self.tick % 24 == 0 && self.react_pending) {
@@ -267,6 +272,10 @@ impl World {
         for &i in &crumble { let i = i as usize; let c = self.g.m(i).p().crumbles_to; self.g.set(i, c); if c.kind() == Kind::Solid { self.g.set_loose(i); } self.crumbled += 1; }
         self.step_player();
         if self.tick % 2 == 0 { self.step_moles(); }
+        // a knock (fall, lava, being buried, drowning) flashes the mole and jolts the view in proportion
+        if let Some(m) = self.moles.first() { let dmg = self.pl.hp_was - m.hp;
+            if m.alive && dmg > 0.5 && self.pl.hp_was > 0. { self.pl.flash = 0.22; self.shake = self.shake.max((0.6 + dmg * 0.08).min(2.5)); }
+            self.pl.hp_was = m.hp; }
         // wiring / logic / Thrumming
         let mp: Vec<(usize, usize)> = self.moles.iter().filter(|m| m.alive).map(|m| (m.x, m.y)).collect();
         self.logic.step(&mut self.g, &mp, self.tick);
@@ -515,6 +524,7 @@ impl World {
         }
         let inp = self.input.clone();
         let t = TUNE;
+        self.pl.flash = (self.pl.flash - dt).max(0.);
         // keep the float body in sync when something else moved the mole (respawn, window shift, load)
         { let m = &self.moles[0]; if self.pl.sync != Some((m.x, m.y)) { self.pl.jump_was = inp.jump; self.pl.px = m.x as f32 + 0.5; self.pl.py = m.y as f32 + 1.0; self.pl.vx = 0.; self.pl.vy = 0.; self.pl.ppx = self.pl.px; self.pl.ppy = self.pl.py; } }
         self.pl.ppx = self.pl.px; self.pl.ppy = self.pl.py;
@@ -585,7 +595,7 @@ impl World {
         self.pl.px = self.pl.px.clamp(2., self.g.w as f32 - 2.); self.pl.py = self.pl.py.clamp(BODY_H + 1., self.g.h as f32 - 2.);
         let (x, y) = (self.pl.px as usize, (self.pl.py - 0.001) as usize);
         let landed = self.box_hits(self.pl.px, self.pl.py + 0.05);
-        if landed && !self.pl.grounded && !wet { let f = y.saturating_sub(self.pl.fall_from); if f > t.safe_fall { self.moles[0].hp -= (f - t.safe_fall) as f32 * 3.; self.events.push(Event::Hurt); } }
+        if landed && !self.pl.grounded && !wet { let f = y.saturating_sub(self.pl.fall_from); if f >= 8 { self.shake = self.shake.max(0.25 + f as f32 * 0.02); } if f > t.safe_fall { self.moles[0].hp -= (f - t.safe_fall) as f32 * 3.; self.events.push(Event::Hurt); } }
         if landed || wet || self.pl.cling != 0 || self.pl.vy < 0. { self.pl.fall_from = y; }
         let _ = airfall;
         self.pl.grounded = landed;
@@ -602,7 +612,9 @@ impl World {
                     let i = self.g.idx(mx, my);
                     let work = match self.pl.mine { Some((j, w, _)) if (j % self.g.w).abs_diff(mx) <= 2 && (j / self.g.w).abs_diff(my) <= 2 => w + 1, _ => 1 };
                     self.moles[0].facing = if mx >= x { 1 } else { -1 };
-                    if work >= need { self.pl.mine = None; for c in cells { if self.mine_time(c).is_some() { self.dig_cell(c, x, y); } } }
+                    if work % 10 == 1 { self.events.push(Event::Dig); } // the strike is heard on press, then every 1/6 s
+                    if work >= need { self.pl.mine = None; for c in cells { if self.mine_time(c).is_some() { self.dig_cell(c, x, y); } }
+                        let b = BITES[self.input.tool.min(3) as usize]; self.marks.push((0, mx as f32 + 0.5, my as f32 + 0.5, b)); self.shake = self.shake.max(0.3 + 0.1 * self.input.tool as f32); }
                     else { self.pl.mine = Some((i, work, need)); }
                 } else { self.pl.mine = None; }
             }
@@ -624,7 +636,7 @@ impl World {
         if self.moles.iter().any(|m| m.alive && m.x == x && y <= m.y && y + MOLE_H > m.y) { return Err("you are standing there"); }
         if !self.g.n4(x, y).any(|j| self.g.is_solidish(j)) { return Err("needs something to rest on"); }
         if self.place_acc[d as usize] == 0 && self.inv[it as usize] == 0 { return Err("none left"); }
-        self.place_cell(i, d); Ok(())
+        self.place_cell(i, d); self.marks.push((1, x as f32 + 0.5, y as f32 + 0.5, 0.5)); Ok(())
     }
     /// Craft one recipe at once; needs the right station built within 16 cells of the mole.
     pub fn craft_now(&mut self, r: usize) -> Result<(), String> {
