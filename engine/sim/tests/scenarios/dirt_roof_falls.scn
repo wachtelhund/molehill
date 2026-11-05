@@ -1,0 +1,18 @@
+// Control for pillar_holds_roof: a 20-wide room under a 4-deep dirt roof, nothing holding it up. The roof falls.
+map
+######################
+#dddddddddddddddddddd#
+#dddddddddddddddddddd#
+#dddddddddddddddddddd#
+#dddddddddddddddddddd#
+#....................#
+#....................#
+#....................#
+#....................#
+#....................#
+#....................#
+#....................#
+#.@..................#
+######################
+end
+expect 400 crumbled > 0

@@ -1,0 +1,21 @@
+// A single wood beam bridging a 30-wide pit under a deep sand heap is overloaded: it cracks,
+// breaks into debris and the sand pours through.
+map
+########################################
+#......................................#
+#....ssssssssssssssssssssssssssssss....#
+#....ssssssssssssssssssssssssssssss....#
+#....ssssssssssssssssssssssssssssss....#
+#....ssssssssssssssssssssssssssssss....#
+#....ssssssssssssssssssssssssssssss....#
+#....ssssssssssssssssssssssssssssss....#
+#....ssssssssssssssssssssssssssssss....#
+#....ssssssssssssssssssssssssssssss....#
+#.@..bbbbbbbbbbbbbbbbbbbbbbbbbbbbbb....#
+#####..............................#####
+#####..............................#####
+#####..............................#####
+########################################
+end
+expect 1 count:WoodBeam == 30
+expect 300 count:WoodBeam < 30

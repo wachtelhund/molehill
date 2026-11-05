@@ -1,0 +1,30 @@
+// Wood beams placed one by one across an 8-wide pit (anchored at both ends, light load) stay put:
+// placed structure is rigid, it doesn't flow or roll like powder.
+map
+######################
+#....................#
+#....................#
+#....................#
+#....................#
+#.@..................#
+#####........#########
+#####........#########
+#####........#########
+######################
+end
+place 2 3 1 WoodPillar
+place 3 4 1 WoodPillar
+place 4 5 1 WoodPillar
+place 5 6 1 WoodPillar
+place 6 7 1 WoodPillar
+place 7 8 1 WoodPillar
+place 8 9 1 WoodPillar
+place 9 10 1 WoodPillar
+// a cantilever stub of iron off the far wall too
+place 10 3 0 IronBeam
+place 11 4 0 IronBeam
+give IronBeam 4
+expect 10 count:WoodBeam == 8
+expect 400 count:WoodBeam == 8
+expect 400 count:IronBeam == 2
+expect 400 crumbled == 0

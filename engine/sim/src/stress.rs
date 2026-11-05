@@ -1,7 +1,10 @@
 //! Structural solver. Physically-motivated, cheap enough to run on 0.5M cells every few ticks.
 //!
 //! Units: cell edge s = 0.25 m, unit depth b = 1 m, g = 9.81 m/s², ρ in kg/m³, stresses in kPa.
-//! 1. Overburden: P(x,y) = Σ_{cells above, not empty/gas} ρ·g·s / 1000          [kPa]
+//! 1. Overburden: P(x,y) = Σ ρ·g·s / 1000 over the unbroken stack of cells resting on (x,y) [kPa].
+//!    A void interrupts it: rock above an opening is carried by the roof (bending, 3.), not by
+//!    whatever stands below the opening. The load *through* a void (T) is kept separately: it is
+//!    the roof load a wall or pillar beside the void takes as tributary load (4.).
 //! 2. Connectivity: static solids not 4-connected to bedrock have no load path → fail.
 //! 3. Bending (roofs): every maximal horizontal run of static cells with no support directly
 //!    below is a beam of span L = n·s. Its depth h = min static thickness above the run, capped
@@ -13,8 +16,10 @@
 //!      strength along the bottom fibre (the run itself). Wood/iron roof linings raise it.
 //! 4. Compression (walls/pillars): every horizontal run of static cells of width w carries its
 //!    own overburden plus half of the overburden of the voids beside it (tributary area):
-//!      σ_c = (Σ_run P + ½Σ_left void P + ½Σ_right void P) / w, compared with compressive
-//!      each cell's own compressive strength (a weak cell in a wide wall crushes alone).
+//!      σ_c = (Σ_run P + ½Σ_left void T + ½Σ_right void T) / w, compared with each cell's own
+//!      compressive strength (a weak cell in a wide wall crushes alone). A run only takes a void's
+//!      tributary load if it reaches that void's roof: a half-built pillar or a floor bump carries
+//!      nothing but what rests on it.
 //! Utilisation u = σ / strength. u > 1 → the cells crack (visible) and crumble into the
 //! falling-sand sim after a short delay unless the load is relieved (e.g. a pillar is built).
 use crate::grid::Grid;
@@ -26,6 +31,8 @@ pub struct Stress {
     pub pending: Vec<u8>,   // crack countdown
     pub cracking: Vec<u32>, // indices with pending > 0
     pub overburden: Vec<f32>,
+    /// load passing through a cell (not interrupted by voids): roof load used for tributary areas
+    pub through: Vec<f32>,
     pub last_fail: usize,
     pub reach: Vec<bool>,
     /// failure threshold on utilisation (1.0 at runtime; gen uses a safety factor)
@@ -34,7 +41,7 @@ pub struct Stress {
 pub const CRACK_TICKS: u8 = 40;
 
 impl Stress {
-    pub fn new(n: usize) -> Self { Stress { util: vec![0; n], pending: vec![0; n], cracking: vec![], overburden: vec![0.; n], last_fail: 0, reach: vec![], thr: 1.0 } }
+    pub fn new(n: usize) -> Self { Stress { util: vec![0; n], pending: vec![0; n], cracking: vec![], overburden: vec![0.; n], through: vec![0.; n], last_fail: 0, reach: vec![], thr: 1.0 } }
 
     /// Full solve. Returns indices with u > 1.
     /// Height of the load-bearing column above any cell (16 m), the pressure-arch height.
@@ -45,15 +52,20 @@ impl Stress {
         let st = |i: usize| g.is_static(i);
         let supports = |i: usize| { let k = g.m(i).kind(); k == Kind::Powder || (k == Kind::Solid) };
         // 1. overburden
-        let p = &mut self.overburden;
+        let (p, t) = (&mut self.overburden, &mut self.through);
         for x in 0..w {
-            let mut acc = 0f32;
+            let (mut acc, mut thru, mut top) = (0f32, 0f32, 0usize);
             // Ground arching (Terzaghi): load deeper than ARCH cells above is carried by the rock arch
             // around the opening, so only a sliding column of ARCH cells bears down on a cell.
-            let cw = |y: usize| { let m = g.m(y * w + x); if matches!(m.kind(), Kind::Empty | Kind::Gas) { 0. } else { PROPS[m as usize].density * G * CELL_M / 1000. } };
-            for y in 0..h { let i = y * w + x; p[i] = acc; acc += cw(y); if y >= ARCH { acc -= cw(y - ARCH); } }
+            let void = |y: usize| matches!(g.m(y * w + x).kind(), Kind::Empty | Kind::Gas);
+            let cw = |y: usize| { let m = g.m(y * w + x); if void(y) { 0. } else { PROPS[m as usize].density * G * CELL_M / 1000. } };
+            for y in 0..h {
+                let i = y * w + x; p[i] = acc; t[i] = thru;
+                if void(y) { acc = 0.; top = y + 1; } else { acc += cw(y); if y >= ARCH && y - ARCH >= top { acc -= cw(y - ARCH); } }
+                thru += cw(y); if y >= ARCH { thru -= cw(y - ARCH); }
+            }
         }
-        let p = &self.overburden;
+        let (p, t) = (&self.overburden, &self.through);
         let mut util = vec![0f32; n];
         // 2. connectivity (BFS from bedrock)
         let mut reach = vec![false; n]; let mut q: Vec<u32> = Vec::with_capacity(n / 4);
@@ -101,8 +113,15 @@ impl Stress {
                 let xa = x; while x < w && st(y * w + x) { x += 1; } let xb = x - 1;
                 let mut load: f32 = (xa..=xb).map(|xx| p[y * w + xx]).sum();
                                 // left void run
-                let mut l = xa; let mut vl = 0f32; let mut nl = 0; while l > 0 && !st(y * w + l - 1) { l -= 1; vl += p[y * w + l]; nl += 1; if nl > 400 { break; } }
-                let mut r = xb; let mut vr = 0f32; let mut nr = 0; while r + 1 < w && !st(y * w + r + 1) { r += 1; vr += p[y * w + r]; nr += 1; if nr > 400 { break; } }
+                // does the run's edge column stay solid from row y up to the roof of the void beside it?
+                let bears = |edge: usize, side: usize| -> bool {
+                    let mut yy = y; while yy > 0 && y - yy < ARCH && !g.is_solidish((yy - 1) * w + side) { yy -= 1; }
+                    (yy.saturating_sub(1)..=y).all(|r| st(r * w + edge))
+                };
+                let mut l = xa; let mut vl = 0f32; let mut nl = 0; while l > 0 && !st(y * w + l - 1) { l -= 1; vl += t[y * w + l]; nl += 1; if nl > 400 { break; } }
+                let mut r = xb; let mut vr = 0f32; let mut nr = 0; while r + 1 < w && !st(y * w + r + 1) { r += 1; vr += t[y * w + r]; nr += 1; if nr > 400 { break; } }
+                if xa > 0 && vl > 0. && !bears(xa, xa - 1) { vl = 0.; }
+                if xb + 1 < w && vr > 0. && !bears(xb, xb + 1) { vr = 0.; }
                 load += 0.5 * (vl + vr);
                 let wid = (xb - xa + 1) as f32;
                 let sigma = load / wid;

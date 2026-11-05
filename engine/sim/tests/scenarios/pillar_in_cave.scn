@@ -1,0 +1,31 @@
+// A wood pillar built up from the floor of a wide granite cave stands, both while it is still
+// short (not yet touching the roof) and once it reaches the roof.
+map
+##########################################
+#........................................#
+#........................................#
+#........................................#
+#........................................#
+#........................................#
+#........................................#
+#........................................#
+#........................................#
+#.@......................................#
+##########################################
+end
+place 2 8 0 WoodPillar
+place 3 8 -1 WoodPillar
+place 4 8 -2 WoodPillar
+place 5 8 -3 WoodPillar
+expect 200 count:WoodBeam == 4
+place 210 14 0 WoodPillar
+place 211 14 -1 WoodPillar
+place 212 14 -2 WoodPillar
+place 213 14 -3 WoodPillar
+place 214 14 -4 WoodPillar
+place 215 14 -5 WoodPillar
+place 216 14 -6 WoodPillar
+place 217 14 -7 WoodPillar
+place 218 14 -8 WoodPillar
+expect 500 count:WoodBeam == 13
+expect 500 crumbled == 0
