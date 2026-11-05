@@ -39,3 +39,17 @@ impl Wheel {
         if self.acc.abs() >= WHEEL_PX { let n = if self.acc > 0. { 1 } else { -1 }; self.acc = 0.; self.spent = true; n } else { 0 }
     }
 }
+
+/// Modifier keys held when the wheel turns. `shift` is sprint: it never changes what the wheel does.
+#[derive(Clone, Copy, Default, Debug)]
+pub struct Mods { pub shift: bool, pub ctrl: bool, pub cmd: bool, pub alt: bool }
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum WheelUse { Hotbar, Zoom, Brush }
+/// What a wheel notch does: `Ctrl`/`Cmd` + wheel zooms (a trackpad pinch arrives as Ctrl + wheel in browsers),
+/// `Alt`/`Option` + wheel sizes the brush of the tool or block in hand, the plain wheel picks a hotbar slot.
+pub fn wheel_use(m: Mods, has_brush: bool) -> WheelUse {
+    if m.ctrl || m.cmd { WheelUse::Zoom } else if m.alt && has_brush { WheelUse::Brush } else { WheelUse::Hotbar }
+}
+/// The scroll amount to use. With Shift held, browsers and macOS turn a vertical wheel into a horizontal
+/// one, so while sprinting a sideways-only scroll counts as the wheel.
+pub fn wheel_delta(dx: f32, dy: f32, m: Mods) -> f32 { if dy == 0. && m.shift { -dx } else { dy } }

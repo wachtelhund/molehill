@@ -50,11 +50,11 @@ You play one mole. The controls work like Terraria or Core Keeper.
 | Water / lava | `W` / `Space` swim up (water); lava burns |
 | `S` | Dig down (on the ground) |
 | Left mouse | Use the item in hand. A dig tool carves a round bite under the cursor and a block (pillar, brick, beam) places a round brush; the ring shows its size. Other items place a torch, copperline, device, spore, TNT or station. TNT goes down inert |
-| `[` / `]`, `Ctrl`+wheel | Brush size for the dig tool or block in hand, within that item's range (bigger tools allow bigger bites) |
+| `[` / `]`, `Alt`+wheel | Brush size for the dig tool or block in hand, within that item's range (bigger tools allow bigger bites) |
 | Right mouse | Interact: flip a lever, set a thrum channel, light a TNT charge (1.5 s fuse) or a fuse cord. `Ctrl`+right mouse picks up copperline or a device (a lit charge is defused) |
-| `1`-`0` / wheel | Select a hotbar slot |
+| `1`-`0` / wheel | Select a hotbar slot (also while sprinting) |
 | `I` | Inventory grid. Click a slot to pick its item up, then click another slot to drop or swap it (the hotbar is the bottom row) |
-| `+` / `-`, `Shift`+wheel | Zoom (also in Settings; clamped and saved) |
+| `+` / `-`, `Ctrl`/`Cmd`+wheel | Zoom (also in Settings; clamped and saved) |
 | `H` | Controls overlay |
 | `Esc` | Pause menu (Resume, Restart same seed, New Holt, Save, Load, Settings, Controls, Main Menu), or close a panel |
 | `K` / `L` | Save / load |

@@ -509,3 +509,21 @@ fn press(w: &mut World, n: usize, f: impl Fn(&mut Input)) -> (f32, f32) { let (m
     let banned = ["radio", "electric", "signal", "sensor", "sky", "sun", "surface", "magic"];
     for (n, l) in [(t.name.clone(), t.lines.join(" "))] { let l = l.to_lowercase(); for b in banned { assert!(!l.contains(b), "{n}: {l}"); } }
 }
+
+/// Shift is sprint: scrolling while sprinting changes the hotbar slot like a plain wheel (it used to zoom).
+#[test] fn wheel_modifiers_sprint_does_not_zoom() {
+    use molehill_sim::view::{wheel_use, wheel_delta, Mods, WheelUse::*};
+    let sprint = Mods { shift: true, ..Default::default() };
+    for brush in [false, true] {
+        assert_eq!(wheel_use(Mods::default(), brush), Hotbar);
+        assert_eq!(wheel_use(sprint, brush), Hotbar, "sprinting keeps the wheel on the hotbar");
+        assert_eq!(wheel_use(Mods { ctrl: true, ..Default::default() }, brush), Zoom);
+        assert_eq!(wheel_use(Mods { cmd: true, shift: true, ..Default::default() }, brush), Zoom);
+    }
+    assert_eq!(wheel_use(Mods { alt: true, ..Default::default() }, true), Brush, "brush size has its own modifier");
+    assert_eq!(wheel_use(Mods { alt: true, shift: true, ..Default::default() }, true), Brush);
+    assert_eq!(wheel_use(Mods { alt: true, ..Default::default() }, false), Hotbar, "no brush in hand: the wheel stays on the hotbar");
+    // Shift turns a vertical wheel sideways on macOS / in browsers: it still counts, the same way round
+    assert_eq!(wheel_delta(-100., 0., sprint), 100.); assert_eq!(wheel_delta(0., -3., sprint), -3.);
+    assert_eq!(wheel_delta(-100., 0., Mods::default()), 0., "a sideways swipe without Shift is not the wheel");
+}

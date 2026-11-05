@@ -12,6 +12,7 @@ use molehill_sim::disasters::{Phase, Kind2};
 use bevy::prelude::*;
 use bevy::input::mouse::{AccumulatedMouseScroll, MouseScrollUnit};
 use bevy::window::PrimaryWindow;
+use molehill_sim::view as sv;
 use molehill_sim::craft::{self, Item, Station, ITEMS, NITEM, QUESTS, RECIPES, STATIONS};
 use molehill_sim::grid::{hash3, F_SEEN};
 use molehill_sim::mat::{Kind, Mat, PROPS};
@@ -298,16 +299,19 @@ fn input(mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<Button
     g.jump_key = jk; g.w.input.jump = jk || g.jump_tap;
     g.w.input.mine = None;
     let sel0 = g.hot;
-    // wheel: hotbar; Ctrl+wheel: brush size with a brush item in hand, else zoom; Shift+wheel: zoom.
-    // + / - zoom too; [ / ] resize the brush. Zoom is shared with Settings (clamped, saved).
-    let shift = keys.pressed(KeyCode::ShiftLeft) || keys.pressed(KeyCode::ShiftRight);
+    // wheel: hotbar (Shift is sprint and changes nothing); Ctrl/Cmd+wheel: zoom; Alt/Option+wheel: brush size.
+    // + / - zoom too; [ / ] resize the brush. Zoom is shared with Settings (clamped, saved). See `view::wheel_use`.
+    let mods = sv::Mods { shift: keys.pressed(KeyCode::ShiftLeft) || keys.pressed(KeyCode::ShiftRight), ctrl,
+        cmd: keys.pressed(KeyCode::SuperLeft) || keys.pressed(KeyCode::SuperRight), alt: keys.pressed(KeyCode::AltLeft) || keys.pressed(KeyCode::AltRight) };
     let held_brush = brush_of(g.slots[g.hot]);
-    let notch = g.wheel.feed(scroll.delta.y, scroll.unit == MouseScrollUnit::Pixel, time.delta_secs()) as f32;
+    let notch = g.wheel.feed(sv::wheel_delta(scroll.delta.x, scroll.delta.y, mods), scroll.unit == MouseScrollUnit::Pixel, time.delta_secs()) as f32;
     let mut resize = if keys.just_pressed(KeyCode::BracketRight) { 1. } else if keys.just_pressed(KeyCode::BracketLeft) { -1. } else { 0. };
     if notch != 0. {
-        if ctrl && held_brush.is_some() { resize += notch; }
-        else if ctrl || shift { menu.zoom_by(notch, &mut ct); }
-        else { g.hot = (g.hot as i32 - notch as i32).rem_euclid(10) as usize; }
+        match sv::wheel_use(mods, held_brush.is_some()) {
+            sv::WheelUse::Brush => resize += notch,
+            sv::WheelUse::Zoom => menu.zoom_by(notch, &mut ct),
+            sv::WheelUse::Hotbar => g.hot = (g.hot as i32 - notch as i32).rem_euclid(10) as usize,
+        }
     }
     if keys.just_pressed(KeyCode::Equal) || keys.just_pressed(KeyCode::NumpadAdd) { menu.zoom_by(1., &mut ct); }
     if keys.just_pressed(KeyCode::Minus) || keys.just_pressed(KeyCode::NumpadSubtract) { menu.zoom_by(-1., &mut ct); }
