@@ -128,19 +128,20 @@ impl Grid {
         if powder {
             if y + 1 >= self.h { return; }
             let d = i + w; let kd = self.kind_at(d);
-            let above_powder = y > 0 && { let a = i - w; self.kind_at(a) == Kind::Powder || (self.loose(a) && self.kind_at(a) == Kind::Solid) };
-            if kd == Kind::Empty || kd == Kind::Gas || (kd == Kind::Liquid && !above_powder && self.rnd(x, y, 1) & 1 == 0) { self.swap(i, d, stamp); return; }
+            // grains sink through a liquid lighter than themselves (sand, gravel, scoria in water)
+            // and float on a denser one (sand on lava); drag makes sinking slower than falling
+            let rho = m.p().density;
+            let sinks = |j: usize| PROPS[self.mat[j] as usize].kind == Kind::Liquid && PROPS[self.mat[j] as usize].density < rho;
+            if kd == Kind::Empty || kd == Kind::Gas { self.swap(i, d, stamp); return; }
+            if sinks(d) { if self.rnd(x, y, 1) & 1 == 0 { self.swap(i, d, stamp); } else { self.wake(x, y); } return; }
             // a grain that can't slide anywhere rests without keeping its chunk awake
-            let open = |s: i32| { let nx = x as i32 + s; nx >= 0 && (nx as usize) < w && self.mat[(i as i32 + s) as usize] == 0 && self.mat[(d as i32 + s) as usize] == 0 };
+            let pass = |j: usize| self.mat[j] == 0 || sinks(j);
+            let open = |s: i32| { let nx = x as i32 + s; nx >= 0 && (nx as usize) < w && pass((i as i32 + s) as usize) && pass((d as i32 + s) as usize) };
             let rep = m.p().repose;
             if rep >= 1. || (!open(-1) && !open(1)) { return; } // never slides / nowhere to slide
             if rep > 0. && (self.rnd(x, y, 2) & 1023) as f32 / 1024. < rep { self.wake(x, y); return; }
             let dir: i32 = if self.rnd(x, y, 3) & 1 == 0 { -1 } else { 1 };
-            for s in [dir, -dir] {
-                let nx = x as i32 + s; if nx < 0 || nx as usize >= w { continue; }
-                let (side, diag) = ((i as i32 + s) as usize, (d as i32 + s) as usize);
-                if self.mat[side] == 0 && self.mat[diag] == 0 { self.swap(i, diag, stamp); return; }
-            }
+            for s in [dir, -dir] { if open(s) { self.swap(i, (d as i32 + s) as usize, stamp); return; } }
             return;
         }
         match kind {

@@ -30,6 +30,10 @@ Polish only: no new features. Each item has a scenario in `engine/sim/tests/scen
   sim test suite 125 s → 9 s. (`water_levels`, `lava_flows`, `lava_meets_water`; `wakediag` example)
 * CA `moved` stamps wrapped every 255 ticks, so some cells skipped a tick; cleared on wrap.
 * Harness: `awake` variable, `a` = basalt in maps.
+* **Sand floated on water.** A grain only sank into liquid with no powder above it, so any slab
+  rested on a pool forever. Grains now sink by density (sand, gravel, scoria through water; sand
+  floats on lava) and can slide diagonally into lighter liquid, so underwater piles spread.
+  (`sand_sinks`, `sand_floats_lava`)
 
 ## Open issues
 * A resting pool can keep a 1-cell step if the lower spot is more than 48 cells away.

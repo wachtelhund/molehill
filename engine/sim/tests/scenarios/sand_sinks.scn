@@ -1,0 +1,23 @@
+// A slab of sand dropped on a pool sinks (sand is denser than water) and piles on the bottom;
+// the water it displaces rises, and everything settles.
+map
+##############################
+#.........ssssss.............#
+#.........ssssss.............#
+#.........ssssss.............#
+#............................#
+#wwwwwwwwwwwwwwwwwwwwwwwwwwww#
+#wwwwwwwwwwwwwwwwwwwwwwwwwwww#
+#wwwwwwwwwwwwwwwwwwwwwwwwwwww#
+#wwwwwwwwwwwwwwwwwwwwwwwwwwww#
+##############################
+#...######################
+#...######################
+#.@.######################
+##########################
+end
+expect 300 is:9,-4,Sand == 1     // a pile on the pool floor
+expect 300 is:11,-10,Sand == 0   // nothing left floating on top
+expect 300 count:Sand == 18
+expect 300 count:Water == 112
+expect 900 awake == 0
