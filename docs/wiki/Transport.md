@@ -1,6 +1,6 @@
 # Transport
 
-The deeper the holt goes, the further its Delvers haul, so getting about is a ladder of machines you build. They run on weight, slope, friction and current, like everything else (see [Lore](Lore.md): no magic, nothing modern). The code is `engine/sim/src/transport.rs` (carts), `lifts.rs` (ladders and lifts) and `tubes.rs` (pressure tubes).
+The deeper the holt goes, the further its Delvers haul, so getting about is a ladder of machines you build. They run on weight, slope, friction and current, like everything else (see [Lore](Lore.md): nothing supernatural, nothing modern). The code is `engine/sim/src/transport.rs` (carts), `lifts.rs` (ladders and lifts) and `tubes.rs` (pressure tubes).
 
 | tier | machine | state |
 |---|---|---|
