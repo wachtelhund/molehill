@@ -40,13 +40,13 @@ Each tier is gated by a material from a deeper or harder band, and unlocks the n
 | tier | key material | you can dig | you can make | where it comes from |
 |---|---|---|---|---|
 | **1. Wood and stone** | wood, stone | dirt, clay, sand, limestone (**Pickaxe**) | wood pillars, planks, workbench, torches, simple furniture | the holt layers and the first grottos |
-| **2. Copper** | copper ore | (same, faster) | **copperline**, levers, doors, plates, knots, **thrummers** | copper seams just below the holt |
+| **2. Copper** | copper ore, tin ore | (same, faster) | **copperline**, levers, doors, plates, knots, **thrummers**; **bronze** (copper and tin) for the **Drill** | copper seams just below the holt |
 | **3. Iron** | iron ore | granite, iron ore (**Drill**) | iron beams, stronger props, the forge's better recipes | about 40–85 m, in granite |
 | **4. Power** | heat and flowing water | (same) | **water wheels**, **heatstones**, **pumps**, **fans**, powered lamps and doors | lava and water pockets: hazards turned to current |
 | **5. Heat-proof** | basalt and a heat-resistant alloy (working name *emberiron*) from the lava layer | basalt (**Bore**) | the Bore, lava-proof walls and pipes, deep outposts | below ~70 m, where lava dominates |
 | **6. Ancient relics** | found, never made | – | nothing: relics are unique and **can't be crafted** | Ancient facilities and ruins (see below) |
 
-The tool ladder matches the rock: the **Pickaxe** for soft ground, the **Drill** (a copperline-driven auger) for granite, and the **Bore** (a heavy heat-bore) for basalt. The digging model already gates material by tool tier (see [Tools and Items](Tools-and-Items.md)).
+The tool ladder matches the rock: the **Pickaxe** for soft ground, the **Drill** (a bronze-toothed auger driven by copperline) for granite, and the **Bore** (a heavy heat-bore) for basalt. The digging model already gates material by tool tier (see [Tools and Items](Tools-and-Items.md)).
 
 ### Crafting
 
@@ -124,7 +124,7 @@ The first slice of Survival is in the game (`sim/src/survival.rs`); the rest of 
 
 * **New Holt** asks for a mode: **Survival** or **Creative**. The mode is kept in the save; a save from before modes loads as Creative.
 * **Start kit:** a Pickaxe, 6 wood (enough for a workbench: wood is scarce near most burrows), 4 torches, 3 grubs, 2 roots and 2 measures of fungus oil. Nothing else.
-* **Tools you own:** you dig only with tools in the pack; a tool you don't own isn't in the hotbar. The Drill is made at the workshop and the Bore at the forge (see [Crafting](#crafting)).
+* **Tools you own:** you dig only with tools in the pack; a tool you don't own is drawn faint in the hotbar, after what you hold. The Drill is made at the workshop and the Bore at the forge (see [Crafting](#crafting)).
 * **Food:** hunger drains; below 40 the Delver eats from the pack on its own (grub 45, mushroom 35, root 30, fungus 25). Root tangles turn up edible **roots** when dug, soil turns up grubs, and fungus is food too. Starving hurts. **Hunger can be turned off** for a holt: a New Holt option, also in Settings for the current holt, and saved with it. Then food never drains and the food bar is hidden.
 * **Light costs fuel:** a lit headlamp burns a measure of **fungus oil** every 3 minutes, and placing a torch soaks up a measure. With no oil left the pack presses 2 fungus into a measure; with neither, the headlamp goes dark and torches won't light.
 * **Crafting:** recipes appear as you pick up their ingredients, and you make things standing at a working station: see [Crafting](#crafting).

@@ -129,16 +129,16 @@ impl Item {
     pub fn desc(self) -> &'static str {
         ["Loose earth. Packs into burrow walls; weak under load.", "Stiff, wet earth. Holds a little better than dirt; fired into brick.",
          "Flows like water when nothing holds it. Melts into glass.", "Rubble. Shifts when disturbed.", "Broken rock. Builds kilns; cut into brick.",
-         "Burns hot. Lights torches and feeds the furnace.", "Green-flecked rock. Smelted into copper for copperline.", "Pale ore. Smelted into tin for bronze.",
+         "Burns hot. Lights torches and feeds the furnace.", "Green-flecked rock. Smelted into copper for copperline.", "Pale ore. Alloyed with copper into bronze.",
          "Heavy red ore. Smelted into iron for beams and heatstones.", "Clear stone that lets light through.", "Glowing stone from deep down. Lights the dark.",
          "Roots and timber. Pillars, torches and workbenches.", "Soft glowing growth. Edible in a pinch.",
          "Fired stone block. Strong in a wall, heavy on a roof.", "Clear pane. Lets light through a wall.", "Wood baked black. Burns cleaner than wood.",
-         "Drawn into copperline.", "Alloyed with copper into bronze.", "Tough metal for better tools.", "Strongest metal. Beams and heatstones.",
+         "Drawn into copperline.", "Alloyed with copper into bronze.", "Tough metal: the drill's teeth are bronze.", "Strongest metal. Beams and heatstones.",
          "Lights a few metres around it. Breathes the air stale over time.", "Wooden prop. Holds up a roof or spans a short gap.",
          "Iron girder. Spans wide gaps and carries heavy roofs.", "Copper wire. Carries current between levers, knots and lamps.",
          "Knocks a pattern into the rock for a listener to hear. Stone carries it; dirt and water muffle it.",
          "Mechanical knot: joins two lines into one answer (both, either, turn, odd, catch).", "Blasting charge. Shatters rock in a wide round.",
-         "Lights when current flows through it.", "Stone pick: breaks soil and soft stone (limestone, sandstone, coal, copper and tin ore).", "Copperline-driven auger: cuts granite and iron ore.", "Heavy heat-bore: grinds through basalt.",
+         "Lights when current flows through it.", "Stone pick: breaks soil and soft stone (limestone, sandstone, coal, copper and tin ore).", "Bronze-toothed auger driven by copperline: cuts granite and iron ore.", "Heavy heat-bore: grinds through basalt.",
          "Fat burrowing larva. A good meal.", "Mushroom spore. Plant it on soil to grow food.", "A ripe mushroom. Fills the belly.",
          "Draws stale air out of the tunnels around it.", "A glowmite caught in a jar. Glows softly, needs no fuel.",
          "Pressed from fungus. Fuels the headlamp and soaks a torch so it burns.", "A fat, starchy root from a root tangle. A fair meal.",
@@ -254,7 +254,7 @@ pub static RECIPES: &[Recipe] = &[
     Recipe { name: "Pipe wall x4", station: Station::Forge, inputs: &[(Item::CopperIngot, 1)], out: (Item::PipeWall, 4), ticks: 90 },
     Recipe { name: "Rope ladder", station: Station::Workbench, inputs: &[(Item::Wood, 2), (Item::Fungus, 2)], out: (Item::RopeLadder, 1), ticks: 90 },
     Recipe { name: "TNT", station: Station::Workbench, inputs: &[(Item::Coal, 2), (Item::Sand, 2)], out: (Item::Tnt, 1), ticks: 90 },
-    // forge: heat. Smelting, firing, metalwork (tier 2 copper, tier 3 iron, and the Bore)
+    // forge: heat. Smelting, firing, metalwork (tier 2 copper and bronze, tier 3 iron, and the Bore)
     Recipe { name: "Brick x4", station: Station::Forge, inputs: &[(Item::Clay, 2)], out: (Item::Brick, 4), ticks: 120 },
     Recipe { name: "Glass x2", station: Station::Forge, inputs: &[(Item::Sand, 2)], out: (Item::Glass, 2), ticks: 120 },
     Recipe { name: "Charcoal x2", station: Station::Forge, inputs: &[(Item::Wood, 2)], out: (Item::Charcoal, 2), ticks: 90 },
@@ -262,6 +262,8 @@ pub static RECIPES: &[Recipe] = &[
     Recipe { name: "Tin ingot", station: Station::Forge, inputs: &[(Item::TinOre, 2)], out: (Item::TinIngot, 1), ticks: 150 },
     Recipe { name: "Iron ingot", station: Station::Forge, inputs: &[(Item::IronOre, 2), (Item::Coal, 1)], out: (Item::IronIngot, 1), ticks: 200 },
     Recipe { name: "Bronze x4", station: Station::Forge, inputs: &[(Item::CopperIngot, 3), (Item::TinIngot, 1)], out: (Item::BronzeIngot, 4), ticks: 150 },
+    // co-smelted straight from the ores: bronze stays one step from the ground, so the bronze drill is two
+    Recipe { name: "Bronze x2", station: Station::Forge, inputs: &[(Item::CopperOre, 3), (Item::TinOre, 1)], out: (Item::BronzeIngot, 2), ticks: 150 },
     Recipe { name: "Copperline x8", station: Station::Forge, inputs: &[(Item::CopperIngot, 1)], out: (Item::CopperWire, 8), ticks: 80 },
     Recipe { name: "Iron beam x4", station: Station::Forge, inputs: &[(Item::IronIngot, 1)], out: (Item::IronBeam, 4), ticks: 120 },
     Recipe { name: "Lamp", station: Station::Forge, inputs: &[(Item::Glass, 1), (Item::Fungus, 2)], out: (Item::Lamp, 1), ticks: 90 },
@@ -275,7 +277,7 @@ pub static RECIPES: &[Recipe] = &[
     // pressure tubes (the top of the ladder for now): glass pipe banded with iron, and hoppers with blowers
     Recipe { name: "Tube hopper", station: Station::Workshop, inputs: &[(Item::IronIngot, 2), (Item::CopperIngot, 2), (Item::Glass, 1)], out: (Item::TubeHopper, 1), ticks: 240 },
     Recipe { name: "Lift", station: Station::Workshop, inputs: &[(Item::IronIngot, 2), (Item::Wood, 4), (Item::CopperIngot, 1)], out: (Item::Lift, 1), ticks: 240 },
-    Recipe { name: "Drill", station: Station::Workshop, inputs: &[(Item::CopperIngot, 3), (Item::TinIngot, 2)], out: (Item::Drill, 1), ticks: 240 },
+    Recipe { name: "Drill", station: Station::Workshop, inputs: &[(Item::BronzeIngot, 4)], out: (Item::Drill, 1), ticks: 240 },
     Recipe { name: "Knot", station: Station::Workshop, inputs: &[(Item::CopperIngot, 1), (Item::Quartz, 1)], out: (Item::Gate, 1), ticks: 100 },
     Recipe { name: "Thrummer", station: Station::Workshop, inputs: &[(Item::Crystal, 2), (Item::CopperIngot, 2), (Item::Glass, 1)], out: (Item::Thrummer, 1), ticks: 200 },
 ];

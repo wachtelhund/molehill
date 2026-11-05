@@ -889,6 +889,21 @@ mod progression {
         }
         for t in [Item::Pickaxe, Item::Drill, Item::Bore, Item::IronIngot, Item::CopperWire, Item::IronBeam] { assert!(have[t as usize], "{t:?} is out of reach in Survival (made: {order:?})"); }
         assert!(!iron_before_drill, "iron ore needs the drill, so the drill can't need iron");
+        // bronze is the drill's metal: alloyed after copper, before iron
+        let pos = |n: &str| order.iter().position(|&o| o == n);
+        let bronze = [pos("Bronze x2"), pos("Bronze x4")].into_iter().flatten().min();
+        assert!(bronze.is_some() && pos("Drill") > bronze, "bronze comes before the drill (made: {order:?})");
+    }
+    /// Every metal made in Survival is wanted by something past it: bronze makes the drill, so no ingot is a dead end.
+    #[test] fn bronze_makes_the_drill() {
+        let drill = &RECIPES[recipe_by_name("Drill").unwrap()];
+        assert!(drill.inputs.iter().any(|&(it, _)| it == Item::BronzeIngot), "the drill is bronze");
+        assert!(drill.inputs.iter().all(|&(it, _)| !matches!(it, Item::IronIngot | Item::IronOre)), "and needs no iron");
+        let ore = &RECIPES[recipe_by_name("Bronze x2").unwrap()];
+        assert_eq!((ore.station, ore.inputs.iter().map(|&(it, _)| it).collect::<Vec<_>>()), (Station::Forge, vec![Item::CopperOre, Item::TinOre]), "co-smelted from ore");
+        for m in [Item::CopperIngot, Item::TinIngot, Item::BronzeIngot, Item::IronIngot] {
+            assert!(RECIPES.iter().any(|r| r.inputs.iter().any(|&(it, _)| it == m)), "{m:?} has no use");
+        }
     }
     #[test] fn survival_starts_bare_and_learns() {
         use molehill_sim::survival::Mode;

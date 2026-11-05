@@ -79,6 +79,8 @@ impl Run {
             _ if v.starts_with("strain:") => { // strain:DX,DY  hover strain level: 0 idle, 1 bearing, 2 straining, 3 overloaded, 4 cracking
                 let a: Vec<&str> = v[7..].split(',').collect(); let (dx, dy): (i32, i32) = (a.get(0)?.parse().ok()?, a.get(1)?.parse().ok()?);
                 self.tile(dx, dy).map(|i| molehill_sim::tips::strain_at(&self.w, i)).max()? as f64 }
+            // log:WORD = lines in the message log containing WORD (case-insensitive; _ stands for a space)
+            _ if v.starts_with("log:") => { let k = v[4..].replace('_', " ").to_lowercase(); self.w.log.iter().filter(|(_, l)| l.to_lowercase().contains(&k)).count() as f64 }
             _ if v.starts_with("is:") => { // is:DX,DY,Mat  (relative to @)
                 let a: Vec<&str> = v[3..].split(',').collect(); let (dx, dy): (i32, i32) = (a.get(0)?.parse().ok()?, a.get(1)?.parse().ok()?);
                 let mt = mat_by_name(a.get(2)?)?; (2 * self.tile(dx, dy).filter(|&i| self.w.g.m(i) == mt).count() >= K * K) as u8 as f64 } // most of the tile
