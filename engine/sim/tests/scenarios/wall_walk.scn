@@ -1,0 +1,18 @@
+// A Delver walks in front of lining. Empty cells with timber on the back are not collision.
+map
+########################
+#......................#
+#......................#
+#......................#
+#......................#
+#..@...................#
+########################
+end
+wall 2 4 0 timber
+wall 2 5 0 timber
+wall 2 6 0 timber
+wall 2 7 0 timber
+hold 3-40 right
+expect 45 dx >= 6
+expect 45 grounded == 1
+expect 45 hp == 100

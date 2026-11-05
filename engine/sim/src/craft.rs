@@ -17,8 +17,10 @@ pub enum Item {
     AncientBit, GroundLens,
     // transport (transport.rs)
     Rail, Cart, RopeLadder, Lift, Tube, TubeHopper,
+    // decorative background walls (see walls.rs): they hold no roof
+    RockWall, TimberWall, MasonryWall, BeamWall, PipeWall, CarvedWall,
 }
-pub const NITEM: usize = 63;
+pub const NITEM: usize = 69;
 /// What an item can do in the world (see `Item::uses`).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Uses { pub place: bool, pub throw: bool, pub pick_up: bool }
@@ -33,6 +35,7 @@ pub const ITEMS: [Item; NITEM] = [
     Item::Table, Item::Stool, Item::Nest, Item::Shelf, Item::Rug, Item::Banner, Item::Planter,
     Item::AncientBit, Item::GroundLens,
     Item::Rail, Item::Cart, Item::RopeLadder, Item::Lift, Item::Tube, Item::TubeHopper,
+    Item::RockWall, Item::TimberWall, Item::MasonryWall, Item::BeamWall, Item::PipeWall, Item::CarvedWall,
 ];
 /// Paint colours by pigment index (0 = unpainted): ochre, rust, chalk, verdigris, woad, soot.
 pub const PIGMENTS: [[u8; 3]; 7] = [[0, 0, 0], [206, 160, 70], [164, 70, 46], [232, 226, 210], [84, 162, 132], [74, 112, 190], [50, 46, 52]];
@@ -70,7 +73,7 @@ impl Item {
     /// (a crafting material). Blocks, copperline, devices, torches and tools are never thrown.
     pub fn uses(self) -> Uses {
         use Item::*;
-        let place = matches!(self, WoodPillar | Brick | IronBeam | CopperWire | Torch | Tnt | Lamp | Vent | Spore) || self.block().is_some() || self.pigment().is_some() || self.furn().is_some() || matches!(self, Cart | RopeLadder | Lift | TubeHopper);
+        let place = matches!(self, WoodPillar | Brick | IronBeam | CopperWire | Torch | Tnt | Lamp | Vent | Spore) || self.block().is_some() || self.pigment().is_some() || self.furn().is_some() || self.is_wall() || matches!(self, Cart | RopeLadder | Lift | TubeHopper);
         let throw = matches!(self, Dirt | Clay | Sand | Gravel | Stone | Coal | CopperOre | TinOre | IronOre | Quartz | Crystal | Wood | Fungus
             | Charcoal | CopperIngot | TinIngot | BronzeIngot | IronIngot | Grub | Spore | Mushroom | Tnt | FungusOil | Root);
         Uses { place, throw, pick_up: matches!(self, CopperWire | Torch | Tnt | Lamp | Vent | Cart | RopeLadder | Lift | TubeHopper) || self.furn().is_some() }
@@ -81,6 +84,7 @@ impl Item {
         match self {
             Tnt => "Left/right mouse: set down unlit · right mouse on it: light · Q: throw lit · E: pick up",
             WoodPillar | Brick | IronBeam | Planks | PolishedStone | Tiles | CarvedPillar => "Left mouse: build (hold to keep building)",
+            RockWall | TimberWall | MasonryWall | BeamWall | PipeWall | CarvedWall => "Left mouse: panel the back (hold) · right mouse: scrape lining · never edits the rock in front",
             Rail => "Left mouse: lay track (X: snap to a straight line) · carts run along its top",
             Cart => "Left mouse: set on the track · right mouse: get in · walk into it: push · E: unload, then pick up",
             RopeLadder => "Left mouse in a drop: hang from the rock above or a ledge's lip · W/S: climb · E: take down",
@@ -118,7 +122,8 @@ impl Item {
          "Pickaxe", "Drill", "Bore", "Grub", "Spore", "Mushroom", "Vent", "Glowmite", "Fungus oil", "Root",
          "Planks", "Polished stone", "Tiles", "Carved pillar",
          "Ochre", "Rust", "Chalk", "Verdigris", "Woad", "Soot",
-         "Table", "Stool", "Nest", "Shelf", "Rug", "Banner", "Fungus planter", "Ancient bit", "Ground lens", "Rail", "Mine cart", "Rope ladder", "Lift", "Pressure tube", "Tube hopper"][self as usize]
+         "Table", "Stool", "Nest", "Shelf", "Rug", "Banner", "Fungus planter", "Ancient bit", "Ground lens", "Rail", "Mine cart", "Rope ladder", "Lift", "Pressure tube", "Tube hopper",
+         "Rock wall", "Timber wall", "Masonry wall", "Beam wall", "Pipe wall", "Carved wall"][self as usize]
     }
     /// One plain line for the hover tooltip: what it is and what it's for.
     pub fn desc(self) -> &'static str {
@@ -150,7 +155,13 @@ impl Item {
          "Fungus-fibre rope and wooden rungs. Hang it from a ledge: it unrolls up to 8 m. Slow, but needs no power.",
          "A cage on a rope with a counterweight. Load stone on to lift the cage, or wind it with current.",
          "Iron-banded glass pipe. Lay a line of it between tube hoppers to blow capsules along.",
-         "A mouth and a blower on a pressure tube. Items dropped in are blown along the line to another hopper."][self as usize]
+         "A mouth and a blower on a pressure tube. Items dropped in are blown along the line to another hopper.",
+         "Carved rock lining for the back of a room. Walk in front of it; it holds no roof.",
+         "Timber panelling for the back of a holt. Walk in front of it; it holds no roof.",
+         "Brick lining for the back of a room. Walk in front of it; it holds no roof.",
+         "Decorative beams on the back. They hold no weight.",
+         "Old copper pipes on the back. They carry nothing.",
+         "Carved marks on the back. They hold no roof."][self as usize]
     }
     pub fn color(self) -> [u8; 3] {
         use Item::*;
@@ -164,7 +175,12 @@ impl Item {
             Planks => [182, 134, 84], PolishedStone => [176, 170, 160], Tiles => [190, 108, 74], CarvedPillar => [164, 158, 148],
             Ochre | Rust | Chalk | Verdigris | Woad | Soot => PIGMENTS[self.pigment().unwrap_or(0) as usize],
             Table | Stool | Shelf => [160, 112, 66], Nest => [150, 170, 110], Rug => [176, 92, 70], Banner => [200, 70, 60], Planter => [110, 200, 130], AncientBit => [150, 200, 210], GroundLens => [210, 235, 250], Rail => [150, 120, 84], Cart => [130, 96, 60], RopeLadder => [170, 140, 90], Lift => [150, 150, 160], Tube => [150, 190, 186], TubeHopper => [190, 150, 80],
+            RockWall => [86, 78, 70], TimberWall => [92, 66, 42], MasonryWall => [96, 52, 42], BeamWall => [78, 56, 36], PipeWall => [110, 70, 48], CarvedWall => [88, 82, 74],
         }
+    }
+    /// A decorative background wall: it panels the back, never the rock in front, and holds no roof.
+    pub fn is_wall(self) -> bool {
+        matches!(self, Item::RockWall | Item::TimberWall | Item::MasonryWall | Item::BeamWall | Item::PipeWall | Item::CarvedWall)
     }
 }
 /// What digging a cell yields (one item per `CELLS_PER_ITEM` cells of that material).
@@ -230,6 +246,12 @@ pub static RECIPES: &[Recipe] = &[
     Recipe { name: "Rug", station: Station::Workbench, inputs: &[(Item::Fungus, 4)], out: (Item::Rug, 1), ticks: 90 },
     Recipe { name: "Banner", station: Station::Workbench, inputs: &[(Item::Fungus, 2), (Item::Wood, 1)], out: (Item::Banner, 1), ticks: 90 },
     Recipe { name: "Fungus planter", station: Station::Workbench, inputs: &[(Item::Wood, 2), (Item::Fungus, 2), (Item::Dirt, 2)], out: (Item::Planter, 1), ticks: 90 },
+    Recipe { name: "Rock wall x8", station: Station::Workbench, inputs: &[(Item::Stone, 2)], out: (Item::RockWall, 8), ticks: 60 },
+    Recipe { name: "Timber wall x8", station: Station::Workbench, inputs: &[(Item::Wood, 2)], out: (Item::TimberWall, 8), ticks: 60 },
+    Recipe { name: "Carved wall x4", station: Station::Workbench, inputs: &[(Item::Stone, 2)], out: (Item::CarvedWall, 4), ticks: 90 },
+    Recipe { name: "Beam wall x4", station: Station::Workbench, inputs: &[(Item::WoodPillar, 1)], out: (Item::BeamWall, 4), ticks: 60 },
+    Recipe { name: "Masonry wall x8", station: Station::Forge, inputs: &[(Item::Brick, 2)], out: (Item::MasonryWall, 8), ticks: 90 },
+    Recipe { name: "Pipe wall x4", station: Station::Forge, inputs: &[(Item::CopperIngot, 1)], out: (Item::PipeWall, 4), ticks: 90 },
     Recipe { name: "Rope ladder", station: Station::Workbench, inputs: &[(Item::Wood, 2), (Item::Fungus, 2)], out: (Item::RopeLadder, 1), ticks: 90 },
     Recipe { name: "TNT", station: Station::Workbench, inputs: &[(Item::Coal, 2), (Item::Sand, 2)], out: (Item::Tnt, 1), ticks: 90 },
     // forge: heat. Smelting, firing, metalwork (tier 2 copper, tier 3 iron, and the Bore)

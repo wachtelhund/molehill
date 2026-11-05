@@ -72,7 +72,7 @@ pub fn encode(w: &World, y0: usize) -> Vec<u8> {
     let lg = &w.logic; let blk = (y0 / B) * lg.bw..(y1 / B) * lg.bw;
     let ab = (y0 / AB) * w.air.bw..(y1 / AB) * w.air.bw;
     let mut o = Wr(vec![]);
-    o.rle(&w.g.mat[cells.clone()]); o.rle(&w.g.flags[cells]);
+    o.rle(&w.g.mat[cells.clone()]); o.rle(&w.g.flags[cells.clone()]);
     o.rle(&lg.wire[blk.clone()]); o.rle(&lg.dev[blk.clone()]); o.rle(&lg.dev_s[blk.clone()]); o.rle16(&lg.dev_p[blk.clone()]); o.rle16(&lg.burn[blk]);
     o.rle(&w.air.to_bytes()[ab]);
     let inb = |y: usize| y >= y0 && y < y1;
@@ -87,6 +87,7 @@ pub fn encode(w: &World, y0: usize) -> Vec<u8> {
     // furniture (an optional trailing section: blobs written before it simply end here)
     let fu: Vec<&crate::world::Furniture> = w.furniture.iter().filter(|f| inb(f.y)).collect();
     o.u32(fu.len() as u32); for f in fu { o.u8(f.item as u8); o.u32(f.x as u32); o.u32((f.y - y0) as u32); o.u8(f.tint); }
+    o.rle(&w.walls.cell[cells]);
     o.0
 }
 
@@ -97,7 +98,9 @@ pub fn cells(blob: &[u8], gw: usize) -> Option<(Vec<u8>, Vec<u8>)> {
 
 /// Unpack a blob into window rows `y0 .. y0+BH`, adding its anchored things. `remap` translates
 /// material ids from an older material table. Fails cleanly (and leaves the rows untouched) on a damaged blob.
-pub fn decode(w: &mut World, y0: usize, blob: &[u8], remap: Option<&[u8]>) -> R<()> {
+/// `Ok(true)` if the blob carried a wall layer (keep it, including scraped zeros). `Ok(false)` if it
+/// is an older band: the caller should infer lining for those rows.
+pub fn decode(w: &mut World, y0: usize, blob: &[u8], remap: Option<&[u8]>) -> R<bool> {
     let (gw, gh) = (w.g.w, w.g.h); if y0 + BH > gh { return Err("band outside the window".into()); }
     let (bw, abw) = (w.logic.bw, w.air.bw); let nb = bw * (BH / B);
     let mut r = Rd { b: blob, p: 0 };
@@ -113,6 +116,8 @@ pub fn decode(w: &mut World, y0: usize, blob: &[u8], remap: Option<&[u8]>) -> R<
     let mut furn = vec![];
     if r.p < r.b.len() { for _ in 0..r.len(1 << 16)? { let (it, x, y, t) = (r.u8()?, r.u32()? as usize, r.u32()? as usize, r.u8()?);
         if (it as usize) < NITEM && ITEMS[it as usize].furn().is_some() && x < gw && y < BH { furn.push(crate::world::Furniture { item: ITEMS[it as usize], x, y: y0 + y, tint: t.min(6) }); } } }
+    let walls = if r.p < r.b.len() { Some(r.rle(gw * BH)?) } else { None };
+    let had_walls = walls.is_some();
     // all read: apply
     let c0 = y0 * gw; w.g.mat[c0..c0 + gw * BH].copy_from_slice(&mat); w.g.flags[c0..c0 + gw * BH].copy_from_slice(&flags);
     let ndev = crate::logic::DEVS.len() as u8; let b0 = (y0 / B) * bw; let lg = &mut w.logic;
@@ -124,7 +129,8 @@ pub fn decode(w: &mut World, y0: usize, blob: &[u8], remap: Option<&[u8]>) -> R<
     lg.invalidate();
     let a0 = (y0 / AB) * abw; for (k, &v) in air.iter().enumerate() { w.air.co2[a0 + k] = v as f32 / 255. * 1.5; }
     w.drops.extend(drops); w.torches.extend(torches); w.buildings.extend(blds); w.farms.extend(farms); w.furniture.extend(furn);
-    Ok(())
+    if let Some(wl) = walls { w.walls.cell[c0..c0 + gw * BH].copy_from_slice(&wl); }
+    Ok(had_walls)
 }
 
 /// A blob with only cells (older saves cached rows without devices or things): empty block layers, still air.

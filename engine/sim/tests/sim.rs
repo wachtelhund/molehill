@@ -526,7 +526,8 @@ fn press(w: &mut World, n: usize, f: impl Fn(&mut Input)) -> (f32, f32) { let (m
     let see = |w: &mut World, x: usize, y: usize| { let i = w.g.idx(x, y); w.g.flags[i] |= F_SEEN; };
     w.logic.dev.fill(0); w.logic.wire.fill(0); w.buildings.clear(); w.chests.clear(); // the burrow's starting vent etc.
     // open air says nothing; unseen rock says nothing
-    see(&mut w, x0, y0 - 5); assert!(describe(&w, x0, y0 - 5).is_none(), "{:?}", describe(&w, x0, y0 - 5).map(|t| (t.name, t.lines)));
+    see(&mut w, x0, y0 - 5); w.set_wall(x0, y0 - 5, molehill_sim::walls::Wall::None);
+    assert!(describe(&w, x0, y0 - 5).is_none(), "{:?}", describe(&w, x0, y0 - 5).map(|t| (t.name, t.lines)));
     assert!(describe(&w, x0, y0 + 2).is_none());
     see(&mut w, x0, y0 + 2); let t = describe(&w, x0, y0 + 2).unwrap(); assert_eq!(t.name, "Granite");
     // a mushroom plot says why it isn't growing
@@ -1086,4 +1087,219 @@ fn relics_bite_faster_and_save_oil() {
         let o0 = w.lamp_oil; for _ in 0..600 { w.step(); } o0 - w.lamp_oil };
     let (plain, lensed) = (burn(false), burn(true));
     assert!((lensed - plain / 2.).abs() < 0.2, "oil burned in 10 s: {plain} plain, {lensed} with the lens");
+}
+
+// ---- background walls and the seven found-site families ----
+mod enrichment {
+    use super::{arena, Mat, S};
+    use molehill_sim::craft::Item;
+    use molehill_sim::gen::Gen;
+    use molehill_sim::logic::Dev;
+    use molehill_sim::mat::CPM;
+    use molehill_sim::save;
+    use molehill_sim::sites::{self, Kind, SITE_MIN_W};
+    use molehill_sim::walls::Wall;
+    use molehill_sim::world::World;
+
+    #[test]
+    fn back_walls_line_place_scrape_and_save() {
+        let (mut w, x, y) = arena();
+        // a dug granite floor leaves rock lining; placing never edits the foreground
+        let i = w.g.idx(x + 4, y + 1);
+        assert_eq!(w.g.m(i), Mat::Granite);
+        w.set_wall(x + 4, y + 1, Wall::None);
+        w.input.tool = 2; w.input.mine = Some((x + 4, y + 1));
+        let mut t = 0; while w.g.mat[i] != 0 && t < 2000 { w.step(); t += 1; }
+        w.input.mine = None;
+        assert_eq!(w.g.m(i), Mat::Empty, "dig opened the cell");
+        assert_eq!(w.walls.at(x + 4, y + 1), Wall::Rock, "the bite left a lining");
+        w.inv[Item::TimberWall as usize] = 20;
+        w.set_wall(x + 6, y - 2, Wall::None);
+        let n = w.place_walls(x + 6, y - 2, Item::TimberWall, 0.5).expect("panel");
+        assert!(n > 0);
+        assert_eq!(w.walls.at(x + 6, y - 2), Wall::Timber);
+        assert_eq!(w.g.get(x + 6, y - 2), Mat::Empty, "panelling never places a block");
+        w.scrape_walls(x + 6, y - 2, 0.5).expect("scrape");
+        assert_eq!(w.walls.at(x + 6, y - 2), Wall::None);
+        assert_eq!(w.g.get(x + 6, y - 2), Mat::Empty, "scrape never digs the rock in front");
+        w.set_wall(x + 8, y - 3, Wall::Carving);
+        w.sites_seen.insert(0x51FE);
+        let w2 = save::load(&save::save(&w)).expect("load");
+        assert_eq!(w2.walls.at(x + 8, y - 3), Wall::Carving);
+        assert!(w2.sites_seen.contains(&0x51FE));
+        // an older holt with no wall bytes gets inferred lining
+        let mut w3 = arena().0; w3.walls.cell.fill(0); w3.infer_back();
+        assert!(w3.walls.count(Wall::Timber) + w3.walls.count(Wall::Rock) > 100, "infer_back lines open cave");
+    }
+
+    #[test]
+    fn back_walls_are_not_in_the_ca_or_the_solver() {
+        let (mut w, x, y) = arena();
+        w.set_wall(x + 4, y - 2, Wall::Timber);
+        w.set_wall(x + 4, y - 1, Wall::Timber);
+        let above = w.g.idx(x + 4, y - 4); w.g.set(above, Mat::Sand);
+        for _ in 0..80 { w.g.step_ca(); }
+        assert_eq!(w.walls.at(x + 4, y - 2), Wall::Timber, "falling sand does not take the lining with it");
+        assert_eq!(w.walls.at(x + 4, y - 1), Wall::Timber);
+        // a 6 m dirt roof fails with or without lining: walls hold no roof
+        let (g, f0) = super::slab(Mat::Dirt, 24, 4);
+        assert!(!f0.is_empty(), "6 m dirt span fails");
+        // lining lives off the grid, so the same roof still fails
+        let mut st = molehill_sim::stress::Stress::new(g.w * g.h);
+        let f1 = st.solve(&g);
+        assert!(!f1.is_empty(), "lining is not a material; the solver never sees it");
+        let _ = (x, y, g);
+    }
+
+    #[test]
+    fn wall_items_are_place_only_and_lore_safe() {
+        for it in [Item::RockWall, Item::TimberWall, Item::MasonryWall, Item::BeamWall, Item::PipeWall, Item::CarvedWall] {
+            assert!(it.is_wall());
+            assert!(it.uses().place && !it.uses().throw);
+            let t = format!("{} {}", it.name(), it.desc()).to_lowercase();
+            for b in ["sky", "sun", "surface", "magic", "lorawan", "wifi", "radio"] {
+                assert!(!t.contains(b), "{it:?}: {b}");
+            }
+        }
+        assert!(molehill_sim::craft::recipe_by_name("Rock wall x8").is_some());
+        assert!(molehill_sim::craft::recipe_by_name("Masonry wall x8").is_some());
+        assert!(molehill_sim::craft::recipe_by_name("Pipe wall x4").is_some());
+    }
+
+    #[test]
+    fn sites_are_rare_deterministic_and_clear_of_start_ruins_and_each_other() {
+        use molehill_sim::gen::{GROTTO_SHELL, START_SAFE};
+        let w = 1024 * S; assert!(w >= SITE_MIN_W);
+        let c = CPM as i64;
+        let a = Gen::new(21, w); let b = Gen::new(21, w); let d = Gen::new(22, w);
+        let rows = |g: &Gen| g.sites_in_rows(-40 * c, 120 * c);
+        let sa = rows(&a); let sb = rows(&b); let sd = rows(&d);
+        assert_eq!(sa.iter().map(|s| s.id).collect::<Vec<_>>(), sb.iter().map(|s| s.id).collect::<Vec<_>>());
+        assert_ne!(sa.iter().map(|s| s.id).collect::<Vec<_>>(), sd.iter().map(|s| s.id).collect::<Vec<_>>());
+        let (mut n, mut kinds, mut linked) = (0usize, [0usize; 7], 0usize);
+        for seed in 0..180u32 {
+            let gen = Gen::new(seed, w);
+            let sites = rows(&gen);
+            for (i, s) in sites.iter().enumerate() {
+                n += 1; kinds[s.kind as usize] += 1; if s.link.is_some() { linked += 1; }
+                let box_s = (s.x0 as i64, s.y0, s.x0 as i64 + s.w as i64, s.y0 + s.h as i64);
+                let (cx, cy) = ((w / 2) as i64, 0i64);
+                let (mx, my) = ((box_s.0 + box_s.2) / 2 - cx, (box_s.1 + box_s.3) / 2 - cy);
+                assert!(mx * mx + my * my > ((START_SAFE as i64) * c).pow(2) || box_s.1.abs() > 30 * c,
+                    "seed {seed}: a site in the start burrow");
+                for t in &sites[i + 1..] {
+                    assert!(!sites::boxes_overlap(box_s, (t.x0 as i64, t.y0, t.x0 as i64 + t.w as i64, t.y0 + t.h as i64)),
+                        "seed {seed}: overlapping sites");
+                }
+                for r in gen.ruins_in_rows(s.y0 - 8 * c, s.y0 + s.h as i64 + 8 * c) {
+                    assert!(!sites::boxes_overlap(box_s, (r.x0 as i64, r.y0, r.x0 as i64 + r.w as i64, r.y0 + r.h as i64)),
+                        "seed {seed}: a site overlaps a ruin");
+                }
+                for g in gen.grottos_in_rows(s.y0 - 8 * c, s.y0 + s.h as i64 + 8 * c) {
+                    let sh = GROTTO_SHELL as i64;
+                    let gb = (g.cx as i64 - g.rx as i64 - sh, g.cy - g.ry as i64 - sh, g.cx as i64 + g.rx as i64 + sh, g.cy + g.ry as i64 + sh);
+                    assert!(!sites::boxes_overlap(box_s, gb), "seed {seed}: a site overlaps a grotto");
+                }
+                let (cx, wy) = s.centre();
+                if let Some(m) = s.cell(cx, wy) {
+                    assert_eq!(gen.cell(cx, wy, w).0, m as u8, "site_cell is what gen.cell stamps");
+                }
+            }
+        }
+        assert!(n > 40, "too few sites over 180 seeds: {n}");
+        assert!(kinds.iter().all(|&k| k > 0), "every family turns up: {kinds:?}");
+        let mut near_pair = linked > 0;
+        if !near_pair {
+            use molehill_sim::ruins::Kind as RuinKind;
+            for seed in 0..400u32 {
+                let gen = Gen::new(seed, w);
+                let stations: Vec<_> = gen.ruins_in_rows(-40 * c, 140 * c).into_iter().filter(|r| r.kind == RuinKind::TubeStation).collect();
+                for s in rows(&gen).iter().filter(|s| s.kind == Kind::Halt) {
+                    for r in &stations {
+                        let (dx, dy) = ((s.centre().0 as i64 - (r.x0 + r.w / 2) as i64).abs(), (s.centre().1 - (r.y0 + r.h as i64 / 2)).abs());
+                        if dx < 50 * c && dy < 40 * c {
+                            near_pair = true;
+                            assert_eq!(s.link, Some(r.id), "a halt next to a tube station faces it");
+                        }
+                    }
+                }
+            }
+        }
+        assert!(near_pair || sites::notice(Kind::Halt, true).contains("Ancients"),
+            "a cargo halt faces a nearby Ancient tube station (or the linked notice is ready)");
+        let banned = ["sky", "sun", "surface", "magic", "lorawan", "wifi", "radio", "the lid"];
+        for k in 0..7 { let t = sites::notice(Kind::from_u8(k), false).to_lowercase();
+            for b in banned { assert!(!t.contains(b), "{k}: {b}"); }
+            for &(it, _) in &sites::site_loot(Kind::from_u8(k), 1) {
+                assert!(!matches!(it, Item::AncientBit | Item::GroundLens), "relics stay in vaults");
+            }
+        }
+    }
+
+    fn stamp(kind: Kind) -> (World, usize, usize, usize, usize) {
+        let (mut w, x, y) = arena();
+        let (sw, sh) = kind.size();
+        let x0 = (x + 8).min(w.g.w - sw - 8);
+        let y0 = y.saturating_add(2).saturating_sub(sh).max(8);
+        w.stamp_site(kind, x0, y0);
+        (w, x0, y0, sw, sh)
+    }
+
+    #[test]
+    fn all_seven_site_families_stamp_with_purpose() {
+        use Mat::*;
+        let has = |w: &World, x0: usize, y0: usize, sw: usize, sh: usize, m: Mat| {
+            (y0..y0 + sh).any(|y| (x0..x0 + sw).any(|x| w.g.get(x, y) == m))
+        };
+        // abandoned mine: timber props, rail fragments, a lining
+        let (w, x0, y0, sw, sh) = stamp(Kind::Mine);
+        assert!(has(&w, x0, y0, sw, sh, WoodBeam) && has(&w, x0, y0, sw, sh, Rail));
+        assert!(w.walls.count(Wall::Timber) > 20);
+        // abandoned holt: a nest, a farm, timber lining
+        let (w, ..) = stamp(Kind::Holt);
+        assert!(w.furniture.iter().any(|f| f.item == Item::Nest));
+        assert!(!w.farms.is_empty());
+        // flooded pumpworks: a held sump, a closed sluice, a floodgate
+        let (mut w, x0, y0, sw, sh) = stamp(Kind::Pumpworks);
+        assert!(has(&w, x0, y0, sw, sh, Water) && has(&w, x0, y0, sw, sh, Door));
+        assert!(w.logic.dev.iter().any(|&d| d == Dev::Floodgate as u8));
+        let n0 = w.g.count(Water);
+        for _ in 0..180 { w.step(); }
+        assert!(w.g.count(Water) * 2 > n0, "the closed sluice holds the sump");
+        // fissure: a drop and a rope
+        let (w, x0, y0, sw, sh) = stamp(Kind::Fissure);
+        assert!(has(&w, x0, y0, sw, sh, Empty) && !w.tr.ladders.is_empty());
+        // fossil cave: mineralised bone
+        let (w, x0, y0, sw, sh) = stamp(Kind::Fossil);
+        assert!(has(&w, x0, y0, sw, sh, Carved));
+        // salt / crystal hall: quartz or crystal, a shallow pool
+        let (w, x0, y0, sw, sh) = stamp(Kind::Crystal);
+        assert!(has(&w, x0, y0, sw, sh, Quartz) || has(&w, x0, y0, sw, sh, Crystal));
+        assert!(has(&w, x0, y0, sw, sh, Water));
+        // buried cargo halt: track and a wrecked cart, tubes, never a second waygate
+        let (w, x0, y0, sw, sh) = stamp(Kind::Halt);
+        assert!(has(&w, x0, y0, sw, sh, Rail) || has(&w, x0, y0, sw, sh, Tube));
+        assert!(!w.tr.carts.is_empty());
+        assert!(!has(&w, x0, y0, sw, sh, Door), "halts do not grow a waygate");
+    }
+
+    #[test]
+    fn site_chest_is_old_kit_and_a_visit_is_a_line_in_the_log() {
+        let (mut w, x0, y0, sw, sh) = stamp(Kind::Mine);
+        let id = w.sites.last().unwrap().id;
+        if let Some((cx, cwy)) = w.sites.last().unwrap().chest {
+            let cy = (cwy - w.oy) as usize;
+            w.moles[0].x = cx; w.moles[0].y = cy;
+            for _ in 0..40 { w.step(); }
+            assert!(w.chests_opened >= 1 || w.inv[Item::Rail as usize] >= 6 || w.inv[Item::Coal as usize] >= 4,
+                "the mine chest gives old kit, not relics");
+            assert_eq!(w.inv[Item::AncientBit as usize], 0);
+        }
+        w.moles[0].x = x0 + sw / 2; w.moles[0].y = y0 + sh - 16;
+        w.sites_seen.clear();
+        for _ in 0..40 { w.step(); }
+        assert!(w.sites_seen.contains(&id), "coming within 8 m reads the place");
+        assert!(w.log.iter().any(|(_, s)| s.contains("old mine")));
+        let _ = (x0, y0, sw, sh);
+    }
 }

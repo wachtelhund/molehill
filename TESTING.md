@@ -70,6 +70,9 @@ snap 4 on               // grid snap; line 5 DX1 DY1 DX2 DY2 Brick drags a snapp
 slide 60                // slide the window away until only its bottom band is left, and back (things go into bands and return)
 put 2 8 0 WoodPillar    // put exactly one block cell at (dx,dy) at tick T, no reach check (scripted building)
 ruin 1 vault 2 -17      // stamp a ruin of the Ancients (hall | vault | tube, `left` for a tube running left) with its top-left on tile (dx,dy); a vault's chest is registered
+wall 2 4 -2 timber      // set the back wall of tile (dx,dy) (none|rock|timber|masonry|beams|pipes|carved|damp|crack|root|gap|salt|crystal|fossil)
+scrape 3 4 -2           // scrape lining with the current brush (never the rock in front)
+site 2 mine 4 -24       // stamp a found place (mine|holt|pump|fissure|fossil|crystal|halt) with its top-left on tile (dx,dy)
 mode survival           // start in a game mode (survival | creative): its rules and its pack; `give` applies after
 nohunger                // the world's hunger option off (after `mode`): food never drains
 set 40 hp -1            // set a vital at tick T: hp, hunger, breath, or oil (headlamp oil, seconds)
@@ -136,6 +139,9 @@ Map legend: `t` roots (a root tangle), `f` fungus, `.` empty, `#` granite, `B` b
 | `dev:DX,DY,<Dev>` | 1 if the 1 m block at that offset holds that device |
 | `lit:DX,DY` / `on:DX,DY` / `wire:DX,DY` | The block's fuse is burning / its device is powered / it has copperline |
 | `ev:<Event>` | How many of that event (Explode, Click, Place, ...) happened so far |
+| `sites` `sites_seen` | Found places touching the window; how many have been visited |
+| `walls:Kind` | Cells of that back wall in the window (rock, timber, masonry, …) |
+| `wall:DX,DY,Kind` | 1 if the tile's centre cell has that lining |
 
 Devices sit on a 1 m (4×4-cell) block grid. The spawn cell is block-aligned, so blocks start at offsets that are multiples of 4.
 
@@ -262,6 +268,11 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `shaft_jump.scn` | Jumping half a cell off-centre under a 2-wide shaft slides round the corner and goes up |
 | `tunnel_mouth.scn` | Jumping at a tunnel mouth 3 cells up a wall slots the mole in on the way up |
 | `dig_tunnel.scn` / `dig_tunnel_high.scn` | Walking right while pointing at the rock ahead (foot / head height) tunnels through |
+| `wall_place_scrape.scn` | A timber wall panels the back; scrape takes it off; neither edits the granite in front |
+| `wall_saveload.scn` | Lining and a scrape survive save/load and a window slide |
+| `wall_no_support.scn` | A 20-wide clay roof still falls when the back is timbered |
+| `wall_walk.scn` | The mole walks through a timber-lined corridor, unhurt |
+| `site_mine.scn` / `site_holt.scn` / `site_pumpworks.scn` / `site_fissure.scn` / `site_fossil.scn` / `site_crystal.scn` / `site_halt.scn` | Each found-place family stamps with its materials, lining and interaction (rails, furniture, a held sump, a rope, carved bone, quartz pools, a wrecked cart and no waygate) |
 
 ### Writing a new scenario (for agents)
 

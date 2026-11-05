@@ -66,7 +66,7 @@ const FAR: usize = 4; // chunk rows drawn beyond each end of the simulated windo
 #[derive(Clone, Copy, PartialEq, Debug)] pub enum Thing { Pick(u8), Item(Item), Dev(usize), Station(usize) }
 pub const NSLOT: usize = 90;
 /// The round brush an inventory thing uses, if any (dig tools and placeable blocks).
-pub fn brush_of(t: Option<Thing>) -> Option<sw::Brush> { match t { Some(Thing::Pick(n)) => Some(sw::Brush::Dig(n)), Some(Thing::Item(it)) if sw::block_code(it).is_some() || it.pigment().is_some() => Some(sw::Brush::Place(it)), _ => None } }
+pub fn brush_of(t: Option<Thing>) -> Option<sw::Brush> { match t { Some(Thing::Pick(n)) => Some(sw::Brush::Dig(n)), Some(Thing::Item(it)) if sw::block_code(it).is_some() || it.pigment().is_some() || it.is_wall() => Some(sw::Brush::Place(it)), _ => None } }
 /// The radius the brush of this thing will actually use (the player's choice, clamped to the item's range).
 pub fn brush_r(g: &Game, b: sw::Brush) -> f32 { g.sizes.radius(b) }
 pub fn thing_name(g: &Game, t: Thing) -> String { match t { Thing::Pick(_) if !thing_usable(g, t) => "Claws".into(), Thing::Pick(n) => ["Pickaxe", "Drill", "Bore"][(n as usize - 1).min(2)].into(), Thing::Item(it) => it.name().into(), Thing::Dev(d) => DEVS[d].name().into(), Thing::Station(s) => STATIONS[s].name().into() } }
@@ -545,7 +545,14 @@ fn input(mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<Button
     // right mouse: interact (lever, thrum channel, ticker, light a fuse or TNT); on an empty spot it sets down
     // the device (or TNT, unlit) in hand
     // (a glowmite under the cursor goes in a jar first)
-    if mouse.just_pressed(MouseButton::Right) && !g.w.catch_glowmite(cx, cy) && !g.w.use_device(cx, cy) {
+    let wall_hand = matches!(sel, Some(Thing::Item(it)) if it.is_wall());
+    if wall_hand && mouse.pressed(MouseButton::Right) && !latched {
+        if mouse.just_pressed(MouseButton::Right) && (g.w.catch_glowmite(cx, cy) || g.w.use_device(cx, cy)) {}
+        else if let Some(Thing::Item(it)) = sel {
+            let r = brush_r(&g, sw::Brush::Place(it));
+            if let Err(e) = g.w.scrape_walls(cx, cy, r) { if mouse.just_pressed(MouseButton::Right) { g.msg = format!("Can't scrape: {e}"); } }
+        }
+    } else if mouse.just_pressed(MouseButton::Right) && !g.w.catch_glowmite(cx, cy) && !g.w.use_device(cx, cy) {
         let d = match sel { Some(Thing::Dev(d)) => Some(DEVS[d]), Some(Thing::Item(Item::Tnt)) => Some(Dev::Tnt), Some(Thing::Item(Item::Lamp)) => Some(Dev::Lamp), Some(Thing::Item(Item::Vent)) => Some(Dev::Vent), _ => None };
         if let Some(d) = d { if let Err(e) = g.w.place_device(d, cx, cy) { g.msg = format!("Can't place: {e}"); } }
     }
@@ -553,6 +560,10 @@ fn input(mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<Button
     let (lp, lj) = (mouse.pressed(MouseButton::Left) && !latched, mouse.just_pressed(MouseButton::Left) && !latched);
     match sel {
         Some(Thing::Pick(_)) if lp => g.w.input.mine = Some((cx, cy)),
+        Some(Thing::Item(it)) if lp && it.is_wall() => {
+            let r = if g.sizes.snapping(sw::Brush::Place(it)) { let a = *g.drag.get_or_insert((cx, cy)); let n = g.sizes.snap_cells(); g.w.place_wall_line(a, (cx, cy), n, it) }
+                else { let r = brush_r(&g, sw::Brush::Place(it)); g.w.place_walls(cx, cy, it, r) };
+            if let Err(e) = r { if lj { g.msg = format!("Can't panel: {e}"); } } }
         Some(Thing::Item(it)) if lp && sw::block_code(it).is_some() => {
             let r = if g.sizes.snapping(sw::Brush::Place(it)) { let a = *g.drag.get_or_insert((cx, cy)); let n = g.sizes.snap_cells(); g.w.place_line(a, (cx, cy), n, it) }
                 else { let r = brush_r(&g, sw::Brush::Place(it)); g.w.place_brush(cx, cy, it, r) };
@@ -666,10 +677,18 @@ fn render_world(mut gm: ResMut<Game>, bg: Res<Bg>, mut images: ResMut<Assets<Ima
             match p.kind {
                 Kind::Empty | Kind::Gas => {
                     // the parallax rock shows through: darkened by the light here (never pure black), with a faint
-                    // wash of coloured light, stale-air haze and steam laid over it
+                    // wash of coloured light, stale-air haze and steam laid over it. A background wall sits
+                    // in front of that far rock and behind the player: darker, flatter, same light.
                     let lum = (l[0] * 0.3 + l[1] * 0.5 + l[2] * 0.2).min(1.3);
                     let k = (0.16 + 0.84 * (lum * 0.8).min(1.)) * 0.72;
                     let mut o = ([0.; 3], 1. - k.powf(2.2));
+                    let wl = wd.walls.get(i);
+                    if wl != molehill_sim::walls::Wall::None {
+                        let wc = wl.color(); let sh = wl.shade(x as u32, (y as i64 + wd.oy) as u32);
+                        let lk = (molehill_sim::walls::WALL_AMIN + (1. - molehill_sim::walls::WALL_AMIN) * lum.min(1.)) * molehill_sim::walls::WALL_K * sh;
+                        let lit = |c: u8, li: f32| c as f32 * lk * (0.55 + 0.45 * li.min(1.25));
+                        o = over(o, [lit(wc[0], l[0]), lit(wc[1], l[1]), lit(wc[2], l[2])], 1. - wl.see_through());
+                    }
                     let tw = (lum * 0.6).min(0.5) * 0.35;
                     if tw > 0.01 { let mx = l[0].max(l[1]).max(l[2]).max(1e-3); o = over(o, [l[0] / mx * 150. * k, l[1] / mx * 150. * k, l[2] / mx * 150. * k], tw); }
                     let co2 = wd.air.at(x, y); if co2 > 0.2 { o = over(o, [96. * k + 20., 104. * k + 20., 52. * k + 10.], ((co2 - 0.2) * 0.9).min(0.55)); }

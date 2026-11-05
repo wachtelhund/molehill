@@ -78,7 +78,7 @@ pub fn setup(commands: &mut Commands, f: &Handle<Font>) {
 /// Every control, as (action, keys). Shown as a two-column table on the Controls screen and the H overlay.
 pub const CONTROL_ROWS: &[(&str, &str)] = &[
     ("Move", "A / D  (Shift: sprint)"), ("Jump", "Space  (or W off a wall)"), ("Walls", "hold into a wall: W / S climb, Space wall-jump"),
-    ("Dig down", "S"), ("Use item", "Left mouse"), ("Interact", "Right mouse  (levers, light TNT; on an empty spot: set down a device or TNT)"), ("Throw", "hold Q, release  (TNT goes out lit)"), ("Pick up", "E  (devices, unlit TNT, torches; hold and sweep for copperline)"),
+    ("Dig down", "S"), ("Use item", "Left mouse"), ("Interact", "Right mouse  (levers, light TNT; on an empty spot: set down a device or TNT)"), ("Back walls", "wall item in hand: left mouse panels the back, right mouse scrapes; never the rock in front"), ("Throw", "hold Q, release  (TNT goes out lit)"), ("Pick up", "E  (devices, unlit TNT, torches; hold and sweep for copperline)"),
     ("Brush size", "[ / ]  or  Option/Alt + wheel"), ("Grid snap", "X  (blocks in squares; a drag lays a line)"), ("Hotbar", "1 - 0  or  wheel"), ("Pack / craft", "I  (at a station: its recipes, click to make)"), ("Headlamp", "G"), ("Wiring view", "V"), ("Journal", "J"), ("Zoom", "+ / -  or  Ctrl + wheel"),
     ("Pause", "Esc"), ("Save / load", "K / L"), ("Controls", "H"), ("Dev info", "F3"),
 ];

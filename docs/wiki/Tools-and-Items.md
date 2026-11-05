@@ -65,6 +65,7 @@ One table (`Item::uses` in `craft.rs`) says whether an item is **set down**, **t
 |---|---|---|---|
 | TNT | left/right mouse, unlit | yes, lit | while unlit |
 | Wood pillar, brick, iron beam | left mouse (brush) | no | no (dig it) |
+| Rock / timber / masonry / beam / pipe / carved wall | left mouse panels the back (hold; `X` snaps a line); right mouse scrapes | no | no (scrape it) |
 | Copperline | left mouse (drag) | no | one segment, sweep for a run |
 | Torch | left mouse | no | yes |
 | Rail | left mouse (brush; `X` snaps a straight run) | no | no (dig it) |
@@ -105,7 +106,22 @@ Making the holt look like home: decorative blocks, paint and furniture. In Survi
 | Banner | 0.75 × 1.5 m | hangs from the ceiling | takes dye |
 | Fungus planter | 1.25 m | on the floor | glows soft green (a ray-cast light) |
 
-Furniture finds the floor below the cursor, or the ceiling above it for a banner. It needs two thirds of its width supported and room for its whole footprint, and pieces can't overlap (except a rug). If its floor or ceiling is dug or blasted away, it falls loose as its item. Back walls (panelling behind open cells) are designed in [PROGRESSION](../../PROGRESSION.md) but not built yet.
+Furniture finds the floor below the cursor, or the ceiling above it for a banner. It needs two thirds of its width supported and room for its whole footprint, and pieces can't overlap (except a rug). If its floor or ceiling is dug or blasted away, it falls loose as its item.
+
+### Back walls
+
+A **background wall** panels the back of a room. It is not a block: you walk in front of it, it never collides, and it holds no roof (see [World and Generation](World-and-Generation.md#background-walls)). The six pack items are crafted; scraping returns the nearest made wall.
+
+| wall | station | from | look |
+|---|---|---|---|
+| Rock wall ×8 | workbench | 2 stone | carved host rock |
+| Timber wall ×8 | workbench | 2 wood | panelling, board seams |
+| Carved wall ×4 | workbench | 2 stone | fluting and marks |
+| Beam wall ×4 | workbench | 1 wood pillar | decorative beams (no weight) |
+| Masonry wall ×8 | forge | 2 brick | brick courses |
+| Pipe wall ×4 | forge | 1 copper ingot | old copper pipes (they carry nothing) |
+
+With a wall item in hand, left mouse panels (the same round brush as a plank; `X` snaps a line). Right mouse scrapes lining. Neither edits the rock in front. Digging a solid cell that has no lining leaves one that matches what you cut. Shift is sprint, never a wall modifier. Creative has 999 of each; Survival crafts them. Saves from before format 10 infer lining on load.
 
 ## Relics
 
@@ -158,6 +174,9 @@ Chains are short: nothing is more than two steps from the ground (ore → ingot 
 | | vent | 2 wood + 2 stone |
 | | TNT | 2 coal + 2 sand |
 | | rope ladder | 2 wood + 2 fungus |
+| | 8 rock wall / 8 timber wall | 2 stone / 2 wood |
+| | 4 carved wall | 2 stone |
+| | 4 beam wall | 1 wood pillar |
 | Forge | 4 brick | 2 clay |
 | | 2 glass | 2 sand |
 | | 2 charcoal | 2 wood |
@@ -170,6 +189,8 @@ Chains are short: nothing is more than two steps from the ground (ore → ingot 
 | | 8 rail | 1 copper ingot + 1 wood |
 | | mine cart | 2 copper ingots + 4 wood |
 | | lamp | 1 glass + 2 fungus |
+| | 8 masonry wall | 2 brick |
+| | 4 pipe wall | 1 copper ingot |
 | | Bore | 6 iron ingots + 2 copper ingots + 2 crystal |
 | Workshop | Drill | 3 copper ingots + 2 tin ingots |
 | | knot | 1 copper ingot + 1 quartz |
