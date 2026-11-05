@@ -84,7 +84,7 @@ impl Grid {
     pub fn set(&mut self, i: usize, m: Mat) {
         let was = self.m(i);
         self.mat[i] = m as u8; self.flags[i] &= !F_LOOSE;
-        self.life[i] = match m { Mat::Steam => 90, Mat::Fire => 70, _ => 0 };
+        self.life[i] = m.p().life;
         let (x, y) = (i % self.w, i / self.w);
         // structural change, or something that held up static rock above just went away
         let undermines = y > 0 && matches!(was.kind(), Kind::Solid | Kind::Powder) && !matches!(m.kind(), Kind::Solid | Kind::Powder) && self.is_static(i - self.w);
@@ -171,17 +171,18 @@ impl Grid {
         }
         match kind {
             Kind::Liquid => {
-                if m == Mat::Lava {
+                let p = m.p();
+                if p.heat > 0 {
                     for n in self.n4(x, y) {
                         let nm = self.m(n);
                         // quenched lava shatters into loose scoria (F_LOOSE) instead of a free-floating crust
-                        if nm == Mat::Water { self.mat[i] = Mat::Basalt as u8; self.flags[i] = F_LOOSE; self.mat[n] = Mat::Steam as u8; self.life[n] = 90; self.moved[i] = stamp; self.moved[n] = stamp; self.wake(x, y); self.reactions.store(1, Relaxed); self.note_struct(i, 2); return; }
-                        if matches!(nm, Mat::WoodBeam | Mat::Roots | Mat::Fungus | Mat::Coal | Mat::Door) && self.rnd(x, y, 4) % 40 == 0 { self.mat[n] = Mat::Fire as u8; self.life[n] = 70; self.reactions.store(1, Relaxed); self.note_struct(n, 2); }
+                        if nm == Mat::Water { self.mat[i] = p.cools_to as u8; self.flags[i] = F_LOOSE; self.mat[n] = Mat::Steam as u8; self.life[n] = Mat::Steam.p().life; self.moved[i] = stamp; self.moved[n] = stamp; self.wake(x, y); self.reactions.store(1, Relaxed); self.note_struct(i, 2); return; }
+                        if nm.lit_by(p.heat) && self.rnd(x, y, 4) % 40 == 0 { self.mat[n] = Mat::Fire as u8; self.life[n] = Mat::Fire.p().life; self.reactions.store(1, Relaxed); self.note_struct(n, 2); }
                     }
                 }
                 if let Some(j) = self.liquid_target(x, y, m) {
-                    // lava is viscous: it only gets going on ~30% of ticks (but stays awake meanwhile)
-                    if m == Mat::Lava && self.rnd(x, y, 5) % 10 >= 3 { self.wake(x, y); return; }
+                    // a viscous liquid (lava) only gets going on some ticks (but stays awake meanwhile)
+                    if self.rnd(x, y, 5) % 10 >= p.flow_in_10 as u32 { self.wake(x, y); return; }
                     self.swap(i, j, stamp);
                 }
             }
@@ -198,8 +199,8 @@ impl Grid {
                     self.wake(x, y);
                     for n in self.n4(x, y) {
                         let nm = self.m(n);
-                        if nm == Mat::Water { self.mat[i] = Mat::Steam as u8; self.life[i] = 60; return; }
-                        if matches!(nm, Mat::WoodBeam | Mat::Roots | Mat::Fungus | Mat::Door) && self.rnd(x, y, 9) % 30 == 0 { self.mat[n] = Mat::Fire as u8; self.life[n] = 70; self.reactions.store(1, Relaxed); self.note_struct(n, 2); }
+                        if nm == Mat::Water { self.mat[i] = m.p().cools_to as u8; self.life[i] = 60; return; } // a short puff
+                        if nm.lit_by(m.p().heat) && self.rnd(x, y, 9) % 30 == 0 { self.mat[n] = Mat::Fire as u8; self.life[n] = Mat::Fire.p().life; self.reactions.store(1, Relaxed); self.note_struct(n, 2); }
                     }
                     self.life[i] = self.life[i].saturating_sub(1);
                     if self.life[i] == 0 { self.mat[i] = 0; self.reactions.store(1, Relaxed); self.note_struct(i, 2); }
@@ -229,7 +230,7 @@ impl Grid {
         // or liquid is pressing on it from above (a heap levelling out). A resting surface
         // with a part-filled top row then stays put instead of sloshing forever, so settled
         // pools let their chunks sleep.
-        let disp = if m == Mat::Water { 6 * S as i32 } else { 2 * S as i32 };
+        let disp = m.p().spread as i32 * S as i32;
         let pressed = y > 0 && self.kind_at(i - w) == Kind::Liquid;
         let dir: i32 = if (self.tick as usize + x) & 1 == 1 { 1 } else { -1 };
         // how far a surface cell looks along its row for a lower spot. Reads stay < 64+48 cells from
