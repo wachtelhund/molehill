@@ -69,7 +69,8 @@ The rule is simple: **gameplay goes in the sim.** If it changes what happens in 
 | `ui.rs` | the HUD: vitals, quest line, toasts, hotbar, pack grid, tooltips, dev text |
 | `menu.rs` | main and pause menus, settings, the shared controls table |
 | `art.rs` | pixel-art sprites and icons built in code |
-| `audio.rs` | procedural sound (web only) |
+| `audio.rs` | procedural sound and the music synth (web only) |
+| `music.rs` | the generative music composer: pure Rust, unit-tested natively, writes timed notes for `audio.rs` |
 
 **Fixed step with interpolation.** Each frame adds `delta × 60` to an accumulator and runs `World::step()` once per whole tick, at most 3 a frame, discarding the backlog after a hitch. The mole is drawn interpolated between its last two positions, so movement is smooth at any refresh rate while the sim stays at exactly 60 Hz. Menus set `Game.paused`, which stops stepping.
 
@@ -83,7 +84,7 @@ The rule is simple: **gameplay goes in the sim.** If it changes what happens in 
 | target | Linux / macOS (x11, wayland) | `wasm32-unknown-unknown`, WebGL2, `wasm-bindgen` 0.2.130 |
 | sim threads | rayon (`parallel` feature) | single-threaded (feature off) |
 | saves | files next to the binary | localStorage (base64) |
-| sound | silent | procedural WebAudio, starts after the first input |
+| sound | silent | procedural WebAudio effects and generative music, starts after the first input |
 | seeds and flags | `--fresh`, `--seed=`, `--shot=`, `--dump-art=`, `--scene=` | `?fresh`, `?seed=` |
 
 On the web, `console_error_panic_hook` is installed, so a panic prints its message and source line in the browser console instead of a bare `unreachable`.
@@ -103,3 +104,16 @@ A save starts with the bytes `MOLEHILL`, a format version (3), followed by lengt
 ## Working on the code
 
 See [`AGENTS.md`](../../AGENTS.md) for the loop: change the sim, add a scenario, run tests and scenarios, build the game, rebuild `site/` if the game changed, then commit and push. **Merges that change behaviour must update the matching page in `docs/wiki/`.**
+
+## Music
+
+The music is generated while you play; no audio files ship. `music.rs` is a slow composer. It plays a piece of 70–130 s, then rests for 40–95 s of near-silence (it also opens with 12 s of quiet). Each piece picks a texture: pads with plucks, a lone kalimba, pads with bells, or a drone with the odd pluck. It also picks a mood from where the mole is:
+
+| mood | where | key | feel |
+|---|---|---|---|
+| Seep | above −15 m (wet layers) | D major pentatonic | bright, open, higher |
+| Loam | home layers | A minor pentatonic, dorian sixth | earthy |
+| Deep | below 25 m | E minor pentatonic | lower, darker filter, drone |
+| Ember | below 70 m, or lava around the mole | C# with a flat second | low and slow, strong drone |
+
+Melodies walk gently on the scale at a slow pulse (0.85–1.3 s), with long gaps. A big change of place winds the current piece down early, so the next one starts in the new mood. `audio.rs` plays the notes with WebAudio: pads and drones go through a lowpass set by the mood; plucks (a sine with a short 4th-harmonic tick, like a kalimba or marimba) also go into a 0.62 s darkening echo; everything goes into a 3.5 s generated cave reverb. Music has its own bus and volume (Settings > Music, default 35% of an already quiet level; Enter or a click mutes). The composer's tests (`cargo test --release -p molehill music`) check that it opens quietly, stays sparse, has long rests, sits higher up shallow and lower near lava, never schedules a note twice, and doesn't burst after the tab sleeps.

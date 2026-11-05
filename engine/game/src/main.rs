@@ -4,6 +4,7 @@
 //! stations and torches.
 mod art;
 mod audio;
+mod music;
 mod ui;
 mod menu;
 use molehill_sim::logic::{Dev, DEVS, B as LB};
@@ -681,9 +682,16 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
     for wn in want { if !used.contains(&(wn.0, wn.1)) { commands.spawn((Sprite { image: wn.4, custom_size: Some(wn.5), flip_x: wn.6, color: wn.7, ..default() }, Transform::from_translation(wn.2.extend(wn.3)), Pooled(wn.0, wn.1))); } }
 }
 
-fn sound(mut g: ResMut<Game>, mut au: NonSendMut<audio::Audio>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<ButtonInput<MouseButton>>) {
+fn sound(mut g: ResMut<Game>, mut au: NonSendMut<audio::Audio>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<ButtonInput<MouseButton>>, menu: Res<menu::Menu>, mut place: Local<(f32, f32)>) {
     if keys.get_just_pressed().next().is_some() || mouse.get_just_pressed().next().is_some() { au.unlock(); }
+    au.set_volume(menu.volume); au.set_music(menu.music);
     let ev = std::mem::take(&mut g.ev);
     for e in ev { au.play(e, if e == sw::Event::Dig { 0.6 } else { 1. }); }
     if g.frame % 30 == 0 { let d = g.w.max_depth / 60.; au.ambient(d); }
+    // where the music thinks we are: the mole's depth, and how much lava is around it (sampled every second)
+    if g.frame % 60 == 0 { if let Some(m) = g.w.moles.first() {
+        let (mx, my) = (m.x as i32, m.y as i32); let (mut lava, mut n) = (0, 0);
+        for y in (my - 40..=my + 40).step_by(4) { for x in (mx - 60..=mx + 60).step_by(4) { if x < 0 || y < 0 || x >= W as i32 || y >= H as i32 { continue; } n += 1; if g.w.g.m(y as usize * W + x as usize) == Mat::Lava { lava += 1; } } }
+        *place = (g.w.depth_m(m.x, m.y), lava as f32 / n.max(1) as f32); } }
+    au.music(place.0, place.1);
 }
