@@ -20,7 +20,11 @@ stale air as is, and death leaving the pack where you fell. Minimal UI. See PROG
 6. **Creative:** vitals held full and nothing kills (also no hurt flash).
 7. **Game:** New Holt opens a small screen: Survival, Creative, Seed, Back. Restart keeps the mode. The
    background world at start is Survival.
-Scenarios: `survival_kit`, `survival_food`, `survival_lamp_oil`, `survival_death_drop`, `creative_harmless`.
+8. **Hunger off (addition from Hampus).** `Rules.no_hunger`, set by `World::set_hunger`: food never drains
+   (held full), so nothing is eaten and nobody starves. A New Holt option (Hunger on/off, Survival) and a
+   Settings row for the current holt; saved (v5 flag). The food bar is hidden while it's off (`ui::BarRow`).
+   Scenario: `survival_no_hunger`.
+Scenarios: `survival_kit`, `survival_no_hunger`, `survival_food`, `survival_lamp_oil`, `survival_death_drop`, `creative_harmless`.
 Harness: `mode`, `set`, `placetorch`; vars `hunger`, `oil`, `lamp`, `mode`; map `R` roots, `f` fungus.
 
 ## Open

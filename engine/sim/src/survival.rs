@@ -16,7 +16,7 @@ impl Mode {
     pub fn rules(self) -> Rules {
         match self {
             Mode::Plain => Rules::default(),
-            Mode::Survival => Rules { tools: true, fuel: true, drop_pack: true, harmless: false },
+            Mode::Survival => Rules { tools: true, fuel: true, drop_pack: true, ..Rules::default() },
             Mode::Creative => Rules { harmless: true, ..Rules::default() },
         }
     }
@@ -32,6 +32,8 @@ pub struct Rules {
     pub drop_pack: bool,
     /// nothing hurts: vitals stay full and nothing kills
     pub harmless: bool,
+    /// hunger off (a Survival option, saved with the world): food never drains
+    pub no_hunger: bool,
 }
 
 /// Seconds of headlamp light in one measure of fungus oil.
@@ -52,6 +54,8 @@ impl World {
         }
         self.lamp_dry = false;
     }
+    /// Turn hunger on or off for this world (a Survival option; Creative never hungers anyway).
+    pub fn set_hunger(&mut self, on: bool) { self.rules.no_hunger = !on; if !on { for m in self.moles.iter_mut() { m.hunger = 100.; } } }
     /// Is the headlamp shining? It has to be on, and (in Survival) have oil in it.
     pub fn lamp_lit(&self) -> bool { self.gear.lamp && (!self.rules.fuel || self.lamp_oil > 0.) }
     /// Take one measure of fungus oil from the pack, pressing fungus into oil if there's none. False if

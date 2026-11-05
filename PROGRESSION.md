@@ -119,7 +119,7 @@ The first slice of Survival is in the game (`sim/src/survival.rs`); the rest of 
 * **New Holt** asks for a mode: **Survival** or **Creative**. The mode is kept in the save; a save from before modes loads as Creative.
 * **Start kit:** stone tools (the Pickaxe), 4 torches, 3 grubs, 2 roots and 2 measures of fungus oil. Nothing else.
 * **Tools you own:** you dig only with tools in the pack. The hotbar's Drill and Bore act as your best tool until you have them.
-* **Food:** hunger drains; below 40 the Delver eats from the pack on its own (grub 45, mushroom 35, root 30, fungus 25). Root tangles turn up edible **roots** when dug, soil turns up grubs, and fungus is food too. Starving hurts.
+* **Food:** hunger drains; below 40 the Delver eats from the pack on its own (grub 45, mushroom 35, root 30, fungus 25). Root tangles turn up edible **roots** when dug, soil turns up grubs, and fungus is food too. Starving hurts. **Hunger can be turned off** for a holt: a New Holt option, also in Settings for the current holt, and saved with it. Then food never drains and the food bar is hidden.
 * **Light costs fuel:** a lit headlamp burns a measure of **fungus oil** every 3 minutes, and placing a torch soaks up a measure. With no oil left the pack presses 2 fungus into a measure; with neither, the headlamp goes dark and torches won't light.
 * **Stale air** works as before.
 * **Death:** you wake in the burrow with an empty pack. Everything you carried lies where you fell as loose items (a pile you can walk back over). Items that burn are lost if that was in lava or fire.

@@ -24,7 +24,7 @@ impl Run {
             "dx" => (p.px - self.sx) as f64 / kf, "dy" => (p.py - self.sy) as f64 / kf, "rise" => (self.sy - self.top) as f64 / kf,
             "grounded" => p.grounded as u8 as f64, "cling" => p.cling as f64, "hp" => m.hp as f64, "breath" => m.breath as f64,
             "deaths" => p.deaths as f64, "awake" => self.awake() as f64, "crumbled" => self.w.crumbled as f64 / (kf * kf), "tick" => self.w.tick as f64,
-            "hunger" => m.hunger as f64, "oil" => self.w.lamp_oil as f64, "lamp" => self.w.lamp_lit() as u8 as f64, "mode" => self.w.mode as u8 as f64,
+            "hunger" => m.hunger as f64, "oil" => self.w.lamp_oil as f64, "lamp" => self.w.lamp_lit() as u8 as f64, "mode" => self.w.mode as u8 as f64, "hungeron" => !self.w.rules.no_hunger as u8 as f64,
             "flash" => p.flash as f64, "shake" => self.w.shake as f64,
             // how far the body moved this tick, in tiles (catches teleport pops a velocity check misses)
             "step" => ((p.px - p.ppx).powi(2) + (p.py - p.ppy).powi(2)).sqrt() as f64 / kf,
@@ -96,7 +96,7 @@ impl Run {
 
 fn run_file(path: &str, json: bool) -> bool {
     let src = std::fs::read_to_string(path).unwrap_or_else(|e| panic!("{path}: {e}"));
-    let (mut seed, mut map, mut acts, mut gives, mut ticks) = (11u32, Vec::<String>::new(), Vec::new(), Vec::<(String, u32)>::new(), 0u64); let mut mode = None;
+    let (mut seed, mut map, mut acts, mut gives, mut ticks) = (11u32, Vec::<String>::new(), Vec::new(), Vec::<(String, u32)>::new(), 0u64); let mut mode = None; let mut nohunger = false;
     let mut lines = src.lines().enumerate();
     let rng = |s: &str| -> (u64, u64) { match s.split_once('-') { Some((a, b)) => (a.parse().unwrap(), b.parse().unwrap()), None => { let a = s.parse().unwrap(); (a, a) } } };
     while let Some((ln, l)) = lines.next() {
@@ -107,6 +107,8 @@ fn run_file(path: &str, json: bool) -> bool {
             "map" => { for (_, ml) in lines.by_ref() { if ml.trim() == "end" { break; } map.push(ml.trim_end().to_string()); } }
             // mode survival|creative: start in that game mode (its rules and its pack; `give` lines apply after)
             "mode" => mode = Some(match t[1] { "survival" => molehill_sim::survival::Mode::Survival, "creative" => molehill_sim::survival::Mode::Creative, o => panic!("{path}: unknown mode {o}") }),
+            // nohunger: the world's hunger option off (food never drains), applied after `mode`
+            "nohunger" => nohunger = true,
             // set T hp|hunger|breath|oil V: set a vital (or the headlamp's oil, in seconds) at tick T
             "set" => acts.push(Act::Set(t[1].parse().unwrap(), t[2].into(), t[3].parse().unwrap())),
             // placetorch T DX DY: place a torch from the pack, as a click (refused: NOTE)
@@ -155,6 +157,7 @@ fn run_file(path: &str, json: bool) -> bool {
         let m = mat_char(c).unwrap_or_else(|| panic!("{path}: unknown map char '{c}'"));
         for j in 0..K * K { let i = w.g.idx(ox + x * K + j % K, oy + y * K + j / K); w.g.set(i, m); w.g.flags[i] = 0; } } }
     if let Some(m) = mode { w.set_mode(m); }
+    if nohunger { w.set_hunger(false); }
     for (n, k) in gives { let i = molehill_sim::craft::ITEMS.iter().position(|it| format!("{it:?}").eq_ignore_ascii_case(&n)).unwrap_or_else(|| panic!("unknown item {n}")); w.inv[i] = k; }
     // the mole stands centred on the '@' tile, feet on its bottom edge
     let (ax, ay) = (ox + ax * K, oy + ay * K); // '@' tile's top-left cell

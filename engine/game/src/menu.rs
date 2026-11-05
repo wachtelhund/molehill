@@ -7,10 +7,12 @@ use crate::{Game, audio::Audio};
 use molehill_sim::survival::Mode;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)] pub enum Screen { Off, Main, Pause, Settings, Controls, NewHolt }
-#[derive(Clone, Copy, PartialEq, Debug)] enum Item { Continue, NewHolt, Survival, Creative, Seed, Settings, Controls, Quit, Resume, Restart, Save, Load, MainMenu, Volume, Music, Zoom, Headlamp, Fullscreen, Back }
+#[derive(Clone, Copy, PartialEq, Debug)] enum Item { Continue, NewHolt, Survival, Creative, NewHunger, Hunger, Seed, Settings, Controls, Quit, Resume, Restart, Save, Load, MainMenu, Volume, Music, Zoom, Headlamp, Fullscreen, Back }
 
-#[derive(Resource)] pub struct Menu { pub screen: Screen, back: Screen, sel: usize, pub seed_text: String, pub volume: f32, pub music: f32, music_on: f32, pub zoom: f32, pub headlamp: bool, pub fullscreen: bool, has_save: bool }
-impl Default for Menu { fn default() -> Self { Menu { screen: Screen::Main, back: Screen::Main, sel: 0, seed_text: String::new(), volume: 0.8, music: MUSIC_DEFAULT, music_on: MUSIC_DEFAULT, zoom: molehill_sim::view::ZOOM_DEFAULT, headlamp: true, fullscreen: false, has_save: false } } }
+#[derive(Resource)] pub struct Menu { pub screen: Screen, back: Screen, sel: usize, pub seed_text: String, pub volume: f32, pub music: f32, music_on: f32, pub zoom: f32, pub headlamp: bool, pub fullscreen: bool, has_save: bool,
+    /// New Holt option: hunger on (Survival); `world_hunger` mirrors the current world's setting for Settings
+    pub hunger: bool, world_hunger: bool, world_survival: bool }
+impl Default for Menu { fn default() -> Self { Menu { screen: Screen::Main, back: Screen::Main, sel: 0, seed_text: String::new(), volume: 0.8, music: MUSIC_DEFAULT, music_on: MUSIC_DEFAULT, zoom: molehill_sim::view::ZOOM_DEFAULT, headlamp: true, fullscreen: false, has_save: false, hunger: true, world_hunger: true, world_survival: false } } }
 impl Menu {
     pub fn open(&self) -> bool { self.screen != Screen::Off }
     fn items(&self) -> Vec<Item> {
@@ -18,15 +20,16 @@ impl Menu {
         match self.screen {
             Screen::Main => { let mut v = vec![]; if self.has_save { v.push(Continue); } v.extend([NewHolt, Settings, Controls]); if cfg!(not(target_arch = "wasm32")) { v.push(Quit); } v }
             Screen::Pause => vec![Resume, Restart, NewHolt, Save, Load, Settings, Controls, MainMenu],
-            Screen::Settings => { let mut v = vec![Volume, Music, Zoom, Headlamp]; if cfg!(not(target_arch = "wasm32")) { v.push(Fullscreen); } v.push(Back); v }
+            Screen::Settings => { let mut v = vec![Volume, Music, Zoom, Headlamp]; if self.world_survival { v.push(Hunger); } if cfg!(not(target_arch = "wasm32")) { v.push(Fullscreen); } v.push(Back); v }
             // New Holt: pick the mode (Survival is the game; Creative has everything and nothing hurts)
-            Screen::NewHolt => vec![Survival, Creative, Seed, Back],
+            Screen::NewHolt => vec![Survival, Creative, NewHunger, Seed, Back],
             Screen::Controls => vec![Back], Screen::Off => vec![],
         }
     }
     fn label(&self, it: Item) -> String {
         match it {
             Item::Continue => "Continue".into(), Item::NewHolt => "New Holt".into(), Item::Survival => "Survival".into(), Item::Creative => "Creative".into(),
+            Item::NewHunger => format!("Hunger   {}  (Survival)", if self.hunger { "on" } else { "off" }), Item::Hunger => format!("Hunger       {}  (this holt)", if self.world_hunger { "on" } else { "off" }),
             Item::Seed => format!("Seed  {}", if self.seed_text.is_empty() { "random  (type digits)".into() } else { self.seed_text.clone() + "_" }),
             Item::Settings => "Settings".into(), Item::Controls => "Controls".into(), Item::Quit => "Quit".into(),
             Item::Resume => "Resume".into(), Item::Restart => "Restart (same seed)".into(), Item::Save => "Save".into(), Item::Load => "Load".into(), Item::MainMenu => "Main Menu".into(),
@@ -96,6 +99,7 @@ pub fn update(mut m: ResMut<Menu>, mut g: ResMut<Game>, keys: Res<ButtonInput<Ke
     } else {
         g.paused = true;
         if keys.get_just_pressed().next().is_some() || mouse.get_just_pressed().next().is_some() { au.unlock(); }
+        m.world_hunger = !g.w.rules.no_hunger; m.world_survival = g.w.mode == Mode::Survival;
         let items = m.items(); let n = items.len(); let (sel0, scr0) = (m.sel, m.screen);
         if keys.just_pressed(KeyCode::ArrowDown) || keys.just_pressed(KeyCode::KeyS) { m.sel = (m.sel + 1) % n; }
         if keys.just_pressed(KeyCode::ArrowUp) || keys.just_pressed(KeyCode::KeyW) { m.sel = (m.sel + n - 1) % n; }
@@ -123,8 +127,8 @@ pub fn update(mut m: ResMut<Menu>, mut g: ResMut<Game>, keys: Res<ButtonInput<Ke
             _ if act => match it {
                 Item::Continue => { if crate::load_saved(&mut g, &mut commands) { m.go(Screen::Off); } }
                 Item::NewHolt => m.go(Screen::NewHolt),
-                Item::Survival | Item::Creative | Item::Seed => { let mode = if it == Item::Creative { Mode::Creative } else { Mode::Survival }; let seed = m.seed_text.parse().unwrap_or_else(|_| crate::seed_now() % 100000); crate::begin(&mut g, &mut commands, seed, mode); m.seed_text.clear(); m.go(Screen::Off); if let Ok(mut ct) = cam.single_mut() { ct.scale = Vec3::splat(m.zoom); } }
-                Item::Restart => { let (s, mode) = (g.seed, g.w.mode); crate::begin(&mut g, &mut commands, s, mode); m.go(Screen::Off); }
+                Item::Survival | Item::Creative | Item::Seed => { let mode = if it == Item::Creative { Mode::Creative } else { Mode::Survival }; let seed = m.seed_text.parse().unwrap_or_else(|_| crate::seed_now() % 100000); crate::begin(&mut g, &mut commands, seed, mode); if mode == Mode::Survival && !m.hunger { g.w.set_hunger(false); } m.seed_text.clear(); m.go(Screen::Off); if let Ok(mut ct) = cam.single_mut() { ct.scale = Vec3::splat(m.zoom); } }
+                Item::Restart => { let (s, mode, nh) = (g.seed, g.w.mode, g.w.rules.no_hunger); crate::begin(&mut g, &mut commands, s, mode); if nh { g.w.set_hunger(false); } m.go(Screen::Off); }
                 Item::Resume => m.go(Screen::Off),
                 Item::Save => { crate::save_now(&mut g); m.go(Screen::Off); }
                 Item::Load => { if crate::load_saved(&mut g, &mut commands) { m.go(Screen::Off); } }
@@ -132,6 +136,8 @@ pub fn update(mut m: ResMut<Menu>, mut g: ResMut<Game>, keys: Res<ButtonInput<Ke
                 Item::MainMenu => { crate::save_auto(&mut g); m.go(Screen::Main); }
                 Item::Quit => { crate::save_auto(&mut g); exit.write(AppExit::Success); }
                 Item::Headlamp => { m.headlamp = !m.headlamp; m.persist(); }
+                Item::NewHunger => m.hunger = !m.hunger,
+                Item::Hunger => { let on = g.w.rules.no_hunger; g.w.set_hunger(on); m.world_hunger = on; }
                 Item::Fullscreen => { m.fullscreen = !m.fullscreen; if let Ok(mut w) = win.single_mut() { w.mode = if m.fullscreen { WindowMode::BorderlessFullscreen(MonitorSelection::Current) } else { WindowMode::Windowed }; } m.persist(); }
                 Item::Back => { let b = m.back; m.go(b); }
                 _ => {}

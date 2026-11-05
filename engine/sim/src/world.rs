@@ -549,12 +549,14 @@ impl World {
         let (x, y) = (self.moles[k].x, self.moles[k].y);
         let head = self.g.idx(x, y - S); let hm = self.g.m(head);
         let in_lava = (0..MOLE_H).any(|j| self.g.get(x, y - j).p().heat > 0 && !(k == 0 && self.g.get(x, y - j) == Mat::Lava));
+        let no_hunger = self.rules.no_hunger;
         let m = &mut self.moles[k];
         if in_lava { m.hp -= 4.; }
         // needs (rates per second at 60 tps; step_moles runs every 2nd tick → dt = 1/30 s)
         let dt = 1. / 30.; let busy = matches!(m.job, Some(Job::Dig) | Some(Job::Build) | Some(Job::Craft(_)) | Some(Job::Station(_)) | Some(Job::Haul(_)) | Some(Job::Deliver));
         let mult = if busy { 1.5 } else { 1. };
-        m.hunger = (m.hunger - 0.33 * mult * dt).max(0.);
+        // (hunger off, a Survival option: the belly stays full)
+        m.hunger = if no_hunger { 100. } else { (m.hunger - 0.33 * mult * dt).max(0.) };
         if m.job == Some(Job::Sleep) { m.sleep = (m.sleep + 2.5 * dt).min(100.); } else { m.sleep = 100.; /* one mole, no bedtime for now */ }
         if m.hunger <= 0. { m.hp -= 1. * dt; }
         if m.hunger > 60. && m.sleep > 50. && m.breath > 80. { m.hp = (m.hp + 0.5 * dt).min(100.); }
