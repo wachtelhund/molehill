@@ -70,6 +70,14 @@ Polish only: no new features. Each item has a scenario in `engine/sim/tests/scen
   its thin front. (`lava_cools`; `lava_flows` now allows for the crust)
 
 ## Open issues
+* No liquid pressure: water held in a column doesn't push through a U-bend under a wall (a full
+  column beside a tunnel just stands there). It spreads sideways only when pressed from directly
+  above. A first try at it (rise when liquid joined below stands 2+ higher) sloshed forever,
+  because the risen cell fell back into its own gap. The better fix is to move liquid out of the
+  high column (2 rows above our surface, within 16 cells, so parallel-safe) onto the low surface.
+  Parked for after the cell resize.
+* Resting lava never ignites wood next to it (its chunk sleeps); the lava cooling sweep is the
+  natural place to add a slow heat check.
 * A resting pool can keep a 1-cell step if the lower spot is more than 48 cells away.
 * Thin roofs are still judged only by their bottom fibre's tensile strength (a 1-cell clay skin
   under granite limits the whole roof).
