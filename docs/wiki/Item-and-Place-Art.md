@@ -75,6 +75,10 @@ The pack, the hotbar, the item in the mole's paws and anything lying loose all u
 | Lift | a cage hung from a sheave | lift head frame, rope and cage |
 | Pressure tube | a pressure-tube length with flanged ends | placed cells of its material |
 | Tube hopper | a brass funnel mouth on a stub of tube | brass hopper mouth |
+| Chute | a timber trough running down to the right, a lump sliding down it | placed cells of its material |
+| Shaker screen | an iron grating in a timber frame, the mesh open between the bars | placed cells of its material |
+| Bumper | a buffer stop: a squat timber post with a red pad, on a rail end | placed cells of its material |
+| Ore hopper | a timber bin heaped with ore, tapering to a spout, on two splayed legs | ore hopper bin |
 | Rock wall | a rough slab of scraped host rock with tool marks | background lining |
 | Timber wall | boards standing on end, uneven tops, gaps between | background lining |
 | Masonry wall | laid courses with the joints staggered, a stepped edge | background lining |
