@@ -80,6 +80,9 @@ One row per item in the item registry (`ITEM_DEFS` in `craft.rs`, read through `
 | Boiler | left mouse: stand it in a sump or by water; drop coal, charcoal or wood on it to feed it | no | `E` rakes out its fuel, then picks it up |
 | Steam engine, steam pipe | left mouse (brush; `X` snaps a pipe's straight run): an engine against a boiler or at a pipe's end, joined to a shaft, gear or belt | no | no (dig it) |
 | Ash, slag | what a boiler leaves at its ash door: haul it off (ash is light, so water washes it away and a screen lets it through) | yes | yes |
+| Stamp mill, washer, smelter | left mouse: stand it on a level floor (a stamp mill or washer against a turning gear or shaft, a washer by water); drop lumps on its top to feed it | no | `E` empties it, then picks it up |
+| Bellows, ingot mould | left mouse (brush): build against a smelter (bellows joined to a turning shaft or gear) | no | no (dig it; bellows give wood back) |
+| Copper, tin or iron concentrate | what a stamp mill makes from ore: wash it, then smelt it for more metal than raw ore gives | yes | yes |
 | Ore hopper | left mouse over the track: both legs need a floor | no | `E` empties its load into the pack, then picks up the empty hopper |
 | Tube hopper | left mouse on a tube (drop items in to send; right mouse: ride, or pick where it sends) | no | yes |
 | Lift | left mouse in a shaft: the head hangs under its ceiling (right mouse on head or cage: stone ballast on or off) | no | yes, with its ballast |
@@ -203,6 +206,8 @@ Chains are short: nothing is more than two steps from the ground (ore → ingot 
 | | 8 chute | 2 wood |
 | | 2 bumper | 2 wood + 1 stone |
 | | 8 riffle bar | 2 wood |
+| | washer | 6 wood + 2 clay |
+| | 4 bellows / 4 ingot mould | 2 wood + 2 fungus / 2 sand + 1 clay |
 | | 2 gear / 8 water wheel | 2 wood / 4 wood |
 | | 8 belt | 2 wood + 2 fungus |
 | | 2 fungus oil / 1 fungus oil | 3 fungus / 2 mushrooms (the oil press: better than the pack's 2 fungus a measure) |
@@ -228,6 +233,8 @@ Chains are short: nothing is more than two steps from the ground (ore → ingot 
 | | boiler | 4 iron ingots + 6 brick |
 | | 4 steam engine | 3 iron ingots + 1 copper ingot |
 | | 8 steam pipe | 1 copper ingot |
+| | stamp mill | 4 iron ingots + 4 wood |
+| | smelter | 10 brick + 4 clay |
 | | lamp | 1 glass + 2 fungus |
 | | 8 masonry wall | 2 brick |
 | | 4 pipe wall | 1 copper ingot |

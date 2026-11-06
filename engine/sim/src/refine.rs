@@ -121,6 +121,11 @@ impl World {
         let Some((s, ax)) = self.spout(wk, prefer).filter(|&(s, _)| wk.kind != WorkKind::Washer || s == prefer) else { return false };
         let (_, _, _, y1) = wk.rect(); let mut d = Drop::at(ax, y1 - ITEM_HW - 0.05, it, 1); d.vx = s * 0.8 * CPM as f32; self.drops.push(d); true
     }
+    /// Say (once every 10 s) that a works can't empty: rock against its spout.
+    fn walled(&mut self, wk: &Works) {
+        let s = format!("The {}'s spout is walled in: it needs room at its foot to let out what it's done.", wk.kind.name());
+        if !self.log.iter().rev().take(20).any(|(t, l)| *l == s && self.tick < t + 600) { self.say(s); }
+    }
     /// How fast the train turning a works' shell turns (0..1): its fastest cell.
     fn works_turning(&self, wk: &Works) -> f32 {
         let (x0, y0, x1, y1) = wk.rect(); let gw = self.g.w;
@@ -179,7 +184,10 @@ impl World {
                     if wk.load() > 0 && sp > 0.05 {
                         // a blow a second at full speed, each stamp lifted and let fall
                         let before = wk.stroke; wk.stroke += sp * dt; if wk.stroke >= 1. { wk.stroke -= 1.; wk.work += 1; if before < 1. { self.events.push(Event::Click); self.shake = self.shake.max(0.03); } }
-                        if wk.work >= BLOWS { wk.work = 0; if let Some(it) = pop(&mut wk.input) { for &o in crushed(it).unwrap_or(&[]) { if !self.spill(&wk, o, 1.) { push(&mut wk.input, o, 1); } } } }
+                        // a lump broken goes out of its spout; with no room at either side it waits, unbroken
+                        if wk.work >= BLOWS { wk.work = BLOWS;
+                            if self.spout(&wk, 1.).is_some() { wk.work = 0; if let Some(it) = pop(&mut wk.input) { for &o in crushed(it).unwrap_or(&[]) { self.spill(&wk, o, 1.); } } }
+                            else { self.walled(&wk); } }
                     }
                 }
                 WorkKind::Washer => {
@@ -188,9 +196,11 @@ impl World {
                     if wk.water < 1. { let ring = self.ring(&wk); if let Some(&i) = ring.iter().find(|&&i| self.g.m(i) == Mat::Water) { self.g.set(i, Mat::Empty); wk.water += 1.; } }
                     if wk.load() > 0 && sp > 0.05 && wk.water > 0. {
                         wk.work += (sp * ticks as f32).round() as u32;
-                        if wk.work >= WASH_TICKS { wk.work = 0; if let Some(it) = pop(&mut wk.input) {
-                            let heavy = it.density() >= HEAVY_KG_M3; if !self.spill(&wk, it, if heavy { -1. } else { 1. }) { push(&mut wk.input, it, 1); }
-                            wk.washed += 1; if wk.washed >= WASH_PER_CELL { wk.washed = 0; wk.water -= 1.; } } }
+                        if wk.work >= WASH_TICKS { wk.work = WASH_TICKS;
+                            // out of its own side only: with that spout walled in it waits
+                            let it = wk.input[0].0; let side = if it.density() >= HEAVY_KG_M3 { -1. } else { 1. };
+                            if self.spill(&wk, it, side) { wk.work = 0; pop(&mut wk.input); wk.washed += 1; if wk.washed >= WASH_PER_CELL { wk.washed = 0; wk.water -= 1.; } }
+                            else { self.walled(&wk); } }
                     }
                 }
                 WorkKind::Smelter => {

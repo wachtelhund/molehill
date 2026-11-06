@@ -116,7 +116,7 @@ A boiler burns real lumps, boils real water out of the ground, and its steam dri
 
 Ore is crushed under falling stamps, washed apart by weight, smelted in a fire blown by bellows, and poured into moulds where it sets into ingots (`refine.rs`). Every lump goes in and comes out as a loose item. The power comes off drive trains and the heat from burning real fuel.
 
-The three works stand on a level floor on the tile grid. Their bodies are solid shell cells, like a boiler's, so a broken shell wrecks them. They are fed by dropping lumps on their tops and emptied through a spout at the floor on one side (the other if rock is against it).
+The three works stand on a level floor on the tile grid. Their bodies are solid shell cells, like a boiler's, so a broken shell wrecks them. They are fed by dropping lumps on their tops and emptied through a spout at the floor on one side (the other if rock is against it). With no room at either side, a works holds the lump it has done and the log says its spout is walled in (`stamp_mill_walled_in`).
 
 * **Stamp mill** (`Item::StampMill`): machinery that joins the train it touches. A cam lifts two 50 kg iron stamps 0.3 m and drops them on what lies in its mortar, a blow a second at full speed. That is m·g·h ≈ 300 W, which the train pays while it works. Six blows break a lump:
   * copper, tin or iron ore → its **concentrate** plus a lump of **sand** (the rock it was in)
@@ -132,7 +132,7 @@ The three works stand on a level floor on the tile grid. Their bodies are solid 
 * **Smelter** (`Item::Smelter`): coal or charcoal dropped in burns a lump at a time, with ore or concentrate.
   * **Heat:** it tends to 800 °C. **Bellows** (`Mat::Bellows`, machinery) touching it raise that up to 1350 °C with full air. They take 10 W a cell from their train while it's lit, and blow in proportion to how fast they turn; 8 turning cells (the whole bellows block touching it counts) is full air.
   * **Melting:** at copper's or tin's 1100 °C, or iron's 1250 °C, a lump melts in 10 s.
-  * **Yield:** raw ore gives half an ingot and half a lump of **slag**; washed concentrate gives three quarters and a quarter, so crushing and washing pay. Slag comes out of its spout.
+  * **Yield:** raw ore gives half an ingot and half a lump of **slag**; washed concentrate gives three quarters and a quarter, so crushing and washing pay. Slag comes out of its spout (`smelter_iron_slag`: raw iron ore waits until the heat passes 1250 °C, then casts an iron ingot and leaves a lump of slag).
 * **Ingot mould** (`Mat::Mould`): a tile of mould built against a smelter is filled when it holds an ingot's worth of molten metal. It glows as it sets (`Mat::MouldHot`, a flame's heat) for 15 s, then it is empty again and the ingot lies on top (`smelter_bellows_mould`).
 
 ## How they look
