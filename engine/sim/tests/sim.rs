@@ -1736,11 +1736,25 @@ fn found_places_entrances_reach_every_room_and_the_chest() {
         Kind::Fossil, Kind::Crystal, Kind::Halt,
     ];
     let mut bad = vec![];
+    // The seed's own layout nibble, then seeded variations of it (`templates::Variation`) picked so that
+    // each family is walked mirrored and not, and with each random zone on and off.
+    let variants = |kind: Kind, seed: u32| -> Vec<u32> {
+        let t = molehill_sim::templates::get(kind);
+        let base = seed & 7;
+        let feats = |v: u32| -> Vec<bool> { let mut f = vec![t.mirrored(v)]; f.extend((0..t.variation.zones.len()).map(|z| t.zone_on(z, v))); f };
+        let mut seen: Vec<(usize, bool)> = vec![];
+        let mut out = vec![base];
+        for k in 1..400u32 {
+            let v = ((k + seed) << 8) | base;
+            let new: Vec<(usize, bool)> = feats(v).into_iter().enumerate().filter(|p| !seen.contains(p)).collect();
+            if !new.is_empty() { seen.extend(new); out.push(v); }
+        }
+        out
+    };
     for seed in [1u32, 11, 4242] {
         for &kind in &kinds {
             let lefts: &[bool] = if kind == Kind::Halt { &[false, true] } else { &[false] };
-            for &left in lefts {
-                let var = seed & 7;
+            for (left, var) in lefts.iter().flat_map(|&l| variants(kind, seed).into_iter().map(move |v| (l, v))) {
                 let mut w = World::new(1024, 512, seed);
                 w.disasters.enabled = false;
                 let (sw, sh) = kind.size();

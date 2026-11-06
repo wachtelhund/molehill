@@ -91,7 +91,7 @@ fn input(mut ed: ResMut<Ed>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<ButtonI
     let shift = keys.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]);
     for (code, name) in [(KeyCode::Digit1, "1"), (KeyCode::Digit2, "2"), (KeyCode::Digit3, "3"), (KeyCode::Digit4, "4"), (KeyCode::Digit5, "5"), (KeyCode::Digit6, "6"), (KeyCode::Digit7, "7"),
         (KeyCode::KeyM, "m"), (KeyCode::KeyL, "l"), (KeyCode::KeyT, "t"), (KeyCode::KeyC, "c"), (KeyCode::BracketLeft, "["), (KeyCode::BracketRight, "]"),
-        (KeyCode::Comma, ","), (KeyCode::Period, "."), (KeyCode::KeyV, "v"), (KeyCode::KeyB, "b"), (KeyCode::KeyN, "n"), (KeyCode::KeyR, "r"), (KeyCode::KeyP, "p"),
+        (KeyCode::Comma, ","), (KeyCode::Period, "."), (KeyCode::KeyV, "v"), (KeyCode::KeyB, "b"), (KeyCode::KeyN, "n"), (KeyCode::KeyE, "e"), (KeyCode::KeyR, "r"), (KeyCode::KeyP, "p"),
         (KeyCode::KeyG, "g"), (KeyCode::Escape, "esc"), (KeyCode::KeyF, "f"), (KeyCode::KeyS, "s"), (KeyCode::KeyZ, "z"), (KeyCode::KeyY, "y")] {
         if !keys.just_pressed(code) { continue; }
         let mut k = if shift && name.len() == 1 && name.as_bytes()[0].is_ascii_lowercase() { name.to_uppercase() } else { name.to_string() };

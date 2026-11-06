@@ -2009,5 +2009,14 @@
     {"tag":"entrance","side":"east","at":48,"len":24},
     {"tag":"entrance","side":"east","at":144,"len":24},
     {"tag":"shaft","side":"north","at":384,"len":16}
-  ]
+  ],
+  "variation": {
+    "mirror": true,
+    "remap": [
+      {"from":"Rock","to":"Granite","deeper_than":40}
+    ],
+    "zones": [
+      {"tag":"may-collapse","chance":0.35,"rect":[20,152,40,16],"fill":"Gravel"}
+    ]
+  }
 }

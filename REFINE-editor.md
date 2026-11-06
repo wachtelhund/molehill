@@ -45,3 +45,11 @@ External cave/site editor (dev-only, never shipped) plus data-driven found-place
 * Undo snapshots held whole grids as 4-byte chars plus the whole file, 200 deep (about 1 MB a step on the mine). Now bytes and only what an edit changes, 100 deep (about 0.2 MB).
 * Thing and chest markers are drawn over a check's tint, not under it. The walk message no longer says "1 way(s) in" (it counted connected spaces, not mouths) and says gravity is ignored.
 * Seen with `P`: the mine's upper deck between the chute and the shaft, posts included, is over capacity (most of its 2583 cells). That's pre-existing and not changed here; flagged for the layout owner.
+
+## Stage 3: seeded assembler variation (`refine/cave-assembler`)
+* Format: `SiteFile::variation` (mirror; depth remaps; zones `chest` / `furniture` / `may-collapse`). Carried over by `export_sites`, ignored by the golden check, so `Template::cell` stays the exported layout.
+* Placed lookups in templates.rs (`placed_cell`, `placed_lining`, `placed_chest`, `placed_things`, `Thing::mirrored`); `Site::placement()` and four one-line call changes in sites.rs, no layout code. Variation only from `var` 256 (`VARY_FROM`); rolls are `hash3(var >> 8, k)`.
+* Data: mine flips, granite below 40 m, face caves in 35 %; holt flips, banner sets; pumpworks flips; fissure and fossil flip, basalt below 60 m; salt hall flips, chest 75 %; halt doesn't flip (tube link), chest 50 %. Mines and holts keep their chest (the first-hour find).
+* Tests: `found_places_entrances_reach_every_room_and_the_chest` now walks seeded variants per family and seed (chosen to cover flipped and not, each zone on and off), 54 s; `tests/variation.rs` (5); `stamp_template_matches_the_game_stamp` with varied vars.
+* Editor: previews and checks through the placed lookups at a chosen depth (`E`), shows what varied, paints a flipped preview on the template's own side; Shift+V/B steps 256. Palette now 9 rows (`panel_fits`).
+* Not in this PR: stitching extra pieces at connectors. It changes a site's box (Kind::size and the site grid assume it's fixed) and there are no extra pieces yet; follow-up once pieces are painted.

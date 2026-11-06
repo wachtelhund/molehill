@@ -179,6 +179,15 @@ Polish only: no new systems, lore names kept. Each entry lists what changed and 
 * Riffle bar (from #33): cell pattern of upright slats with a dark gap every half metre and pale water-worn tops;
   added to `--scene=production` and to `production_blocks_have_their_own_look`. Tests `rope_gun_art_is_drawn`.
 
+## Rope gun art: polish (branch `refine/rope-gun-art-polish`)
+* Evidence: the wiki's icon sheet (`docs/wiki/images/item-icons.png`) still showed 69 items. The chute, shaker
+  screen, bumper, ore hopper, rope gun, hook rope and riffle bar were missing. It was regenerated from a fresh
+  `--dump-art` sprite dump: all 76 items, then the 21 devices as the hotbar shows them.
+* Read back on the sheet, the new icons sit with the rest (same scale, outline and lighting). No art change was needed.
+* `site/` rebuilt on main 99ec464 (the rope gun art and riffles had merged without a web rebuild).
+* Not seen in a live window: everything was checked through dump stills. The gun in the paws isn't in any still
+  (the scenes hand the mole a pickaxe); its loaded/empty sprites were checked in the sprite dump and by test.
+
 ## Open issues
 * `--shot` writes an empty frame on macOS when the game is launched from a background shell (the surface is
   never presented). It needs a visible window, or Linux with Xvfb.

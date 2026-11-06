@@ -673,5 +673,11 @@
     {"tag":"entrance","side":"east","at":111,"len":13},
     {"tag":"entrance","side":"east","at":168,"len":20},
     {"tag":"shaft","side":"north","at":12,"len":120}
-  ]
+  ],
+  "variation": {
+    "mirror": true,
+    "remap": [
+      {"from":"Rock","to":"Basalt","deeper_than":60}
+    ]
+  }
 }

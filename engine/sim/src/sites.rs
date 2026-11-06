@@ -273,7 +273,7 @@ impl Site {
     pub fn new(id: u32, kind: Kind, x0: usize, y0: i64, var: u32, left: bool, link: Option<u32>) -> Site {
         let (w, h) = kind.size();
         let mut s = Site { id, kind, x0, y0, w, h, var, left, chest: None, link };
-        s.chest = crate::templates::get(kind).chest(var, left).map(|(cx, cy)| (x0 + cx, y0 + cy as i64));
+        s.chest = crate::templates::get(kind).placed_chest(s.placement()).map(|(cx, cy)| (x0 + cx, y0 + cy as i64));
         s
     }
     /// The procedural reference chest (see `cell_reference`), as an offset from the box's top-left.
@@ -297,13 +297,17 @@ impl Site {
     }
     /// The ore an abandoned mine followed: copper three times in four (it's the shallow ore), else coal.
     pub fn mine_ore(&self) -> Mat { Knobs::of(self.var).ore }
+    /// How this site is placed (its knobs and the depth of its middle), for the template's seeded variation.
+    pub fn placement(&self) -> crate::templates::Placement {
+        crate::templates::Placement { var: self.var, left: self.left, depth: self.centre().1 as f32 * CELL_M }
+    }
     pub fn centre(&self) -> (usize, i64) { (self.x0 + self.w / 2, self.y0 + self.h as i64 / 2) }
     /// Material this site stamps at (x, wy), or None to leave the host rock: read from its template
     /// (`templates.rs`, the data under `assets/sites/`).
     pub fn cell(&self, x: usize, wy: i64) -> Option<Mat> {
         let (dx, dy) = (x as i64 - self.x0 as i64, wy - self.y0);
         if dx < 0 || dy < 0 || dx >= self.w as i64 || dy >= self.h as i64 { return None; }
-        crate::templates::get(self.kind).cell(dx as usize, dy as usize, self.var, self.left)
+        crate::templates::get(self.kind).placed_cell(dx as usize, dy as usize, self.placement())
     }
     /// The procedural reference layout the templates were exported from (`examples/export_sites.rs`),
     /// with explicit layout knobs. The golden test `templates_match_the_procedural_sites` keeps the two equal.
@@ -846,7 +850,7 @@ impl Site {
         let (dx, dy) = (x as i64 - self.x0 as i64, wy - self.y0);
         if dx < 0 || dy < 0 || dx >= self.w as i64 || dy >= self.h as i64 { return None; }
         if self.cell(x, wy).is_none() { return None; }
-        crate::templates::get(self.kind).lining_with(dx as usize, dy as usize, self.var, self.left, hash3(x as u32, wy as u32, self.id))
+        crate::templates::get(self.kind).placed_lining(dx as usize, dy as usize, self.placement(), hash3(x as u32, wy as u32, self.id))
     }
     /// The procedural reference lining (see `cell_reference`): wall at (x, wy) in the variant `k`.
     #[doc(hidden)]
@@ -1031,7 +1035,7 @@ impl World {
         let y0 = (s.y0 - self.oy) as i64;
         if y0 < 4 || y0 + s.h as i64 >= self.g.h as i64 - 4 { return; }
         let (x0, y0) = (s.x0, y0 as usize);
-        for t in crate::templates::get(s.kind).things(s.var, s.left) { self.set_thing(t.offset(x0, y0)); }
+        for t in crate::templates::get(s.kind).placed_things(s.placement()) { self.set_thing(t.offset(x0, y0)); }
     }
     /// Set one site thing down at its window cell. Each is skipped if it doesn't fit or is already there.
     pub(crate) fn set_thing(&mut self, t: Thing) {
