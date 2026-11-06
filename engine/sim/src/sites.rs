@@ -605,28 +605,31 @@ impl Site {
         let span = |gap: i64| (dx - (left + right) / 2).abs() > gap;
         let west_rope = left + 2 * c;
         let east_rope = right - 2 * c;
-        let mid_rope = (left + right) / 2;
-        // decks stop half a metre short of the wall so a climber can pass the lip
-        let inset = dx >= left + c / 2 && dx < right - c / 2;
-        if inset && ledge(8 * c) { return Some(if dx < left + 5 * c { WoodBeam } else if dx >= right - 4 * c { IronBeam } else if span(c) { WoodBeam } else { Empty }); }
+        // every deck is keyed into both walls, so each half holds as a cantilever off its wall (one that
+        // stopped short of the rock floated and came down); the broken middles stay open
+        let inset = dx >= left && dx < right;
+        // each half of a deck is one material: a mixed span is only as strong as its wood and as heavy as its iron
+        let mid = (left + right) / 2;
+        if inset && ledge(8 * c) { return Some(if !span(c) { Empty } else if dx < mid { WoodBeam } else { IronBeam }); }
         if inset && ledge(16 * c) { return Some(if span(2 * c) { WoodBeam } else { Empty }); }
-        // the 24 m deck runs right up to the east wall: no slot to step into from the east mouth
-        if dx >= left + c / 2 && dx < right && ledge(24 * c) { return Some(if dx < left + 6 * c { WoodBeam } else if dx >= right - 3 * c { IronBeam } else if span(c) { IronBeam } else { Empty }); }
+        if inset && ledge(24 * c) { return Some(if !span(c) { Empty } else if dx < mid { WoodBeam } else { IronBeam }); }
         if inset && ledge(32 * c) { return Some(if dx >= (left + right) / 2 { WoodBeam } else { Empty }); }
         // small rubble against the wall, leaving a walkway along the deck
         if dy >= 8 * c - c / 2 && dy < 8 * c && dx > left + c && dx < left + 2 * c { return Some(Gravel); }
         if dy >= 24 * c - c / 2 && dy < 24 * c && dx > right - 2 * c && dx < right - c { return Some(Rock); }
-        // rope segments hang in the voids and stop 2 m above the next deck, so a mole
+        // rope segments hang under each deck (not from the rock ceiling, where the open span's load would
+        // crush them) and stop 2 m above the next deck, so a mole
         // can walk each deck past them and drop through the designed gaps
         let rope_at = |x: i64| (dx - x).abs() < c / 3;
         let hanging = |from: i64, to: i64| dy >= from + c / 2 && dy < to - 2 * c;
-        if (rope_at(west_rope) || rope_at(east_rope) || rope_at(mid_rope))
-            && (hanging(0, 8 * c) || hanging(8 * c, 16 * c) || hanging(16 * c, 24 * c)
-                || hanging(24 * c, 32 * c) || hanging(32 * c, floor))
+        // (none in the broken middles: a cord there hangs from nothing)
+        if (rope_at(west_rope) || rope_at(east_rope))
+            && (hanging(8 * c, 16 * c) || hanging(16 * c, 24 * c)
+                || hanging(24 * c, 32 * c) || (hanging(32 * c, floor) && rope_at(east_rope)))
         {
-            return Some(if rope_at(west_rope) { WoodBeam } else { Roots });
+            // old timber cords (root cords couldn't carry their own hang)
+            return Some(WoodBeam);
         }
-        if dy < 6 * c && (dx / c) % 5 == 2 { return Some(Roots); }
         if dy >= floor { return Some(if dx % c < c / 2 { Gravel } else { Rock }); }
         if dy >= floor - c && (dx + dy) % (3 * c) < c * 2 { return Some(Water); }
         Some(Empty)
