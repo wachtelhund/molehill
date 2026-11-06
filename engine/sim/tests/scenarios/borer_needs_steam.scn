@@ -1,0 +1,35 @@
+// A borer needs steam. The same borer, ridden into the same face with water in its tank but no fuel in its firebox:
+// it raises no steam, can't drive, and the granite is untouched.
+map
+########################################
+########################################
+########################################
+########################################
+########################################
+########################################
+#............###########################
+#............###########################
+#............###########################
+#............###########################
+#..@.........###########################
+########################################
+########################################
+########################################
+end
+give SteamBorer 1
+hold 1-1 right
+place 2 5 0 SteamBorer
+pour 4 -1 0 Water
+pour 4 0 0 Water
+pour 4 1 0 Water
+pour 4 2 0 Water
+pour 4 3 0 Water
+pour 4 4 0 Water
+pour 4 5 0 Water
+pour 4 6 0 Water
+use 14 5 -1                           // get on (empty paw)
+expect 15 onborer == 1
+hold 300-900 right
+expect 900 borersteam == 0
+expect 900 borerx < 8.8               // it never moved (it stands at 8.75)
+expect 900 static:Granite == 500

@@ -238,3 +238,25 @@ I playtested the trains in context and probed the edges:
   side sat just outside. Scenario `ore_hopper_rod`.
 * `site/` is rebuilt on main after #57.
 * **Not tested live:** headless only.
+
+## Steam borer (branch `refine/production-borer`)
+
+* **The borer** (`borer.rs`): an entity body 1.5 × 1 m with the boiler's firebox numbers, a 16-cell tank and 300 kJ of
+  steam. Fed by hand (fuel in paw + right mouse), ridden (empty paw), A/D to drive (300 W, 0.5 m/s), climbs a tile,
+  falls. It bores the way it faces: 1.5 kW, a column in 0.15 s × the rock's dig time.
+  - Spoil goes as loose crumbles_to rubble into the nearest open cell 0.5 to 4 m behind; with no room it jams.
+  - Saved in transport encoding v10.
+* **Found while building it:**
+  - It ground an empty column forever: it stops a hair short of the face, so the column "in front" was still in the
+    chamber. Fixed: it grinds the column its front edge is about to enter.
+  - It stalled after one cut: the spoil, dropped right behind it, slid under its own body and blocked its wheels. Fixed:
+    loose grains don't block it and are shoved back, and spoil goes half a metre back.
+  - The water ring included its own bottom row, not the floor under its wheels.
+  - Its placeholder sprites first used ids 82–85, which p3's art already uses; they're now 120–123.
+* Scenarios `borer_bores`, `borer_needs_steam`, `borer_jams`. Harness vars `borers`, `borerx`, `borersteam`,
+  `borerwater`, `borerfuel`, `onborer`.
+* For p3: **Steam borer** (`Item::SteamBorer`; `tr.borers`): body, bore head facing `dir`, wheels, a fire glow while
+  `burning`, the rider on top. It has a placeholder in `main.rs` and a placeholder pack icon.
+* For p7: workshop: steam borer (8 iron ingots + 4 bronze ingots + 4 brick).
+* **Not tested live:** headless only. Driving feel (0.5 m/s, no ramp), climbing and falling aren't covered by a
+  scenario; nor is boring left.
