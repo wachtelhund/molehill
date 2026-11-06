@@ -165,6 +165,8 @@ A boiler is drawn over its shell cells: a riveted drum with a steam dome and chi
 
 The refinement works are drawn over their shell cells. A stamp mill's two stamps rise slowly on the cam and drop fast, half a stroke apart. A washer's tub rocks while its train turns, with water in it while it has some. A smelter's fire mouth goes from dark through dull red and orange to white-hot with its heat, and smoke rises while it burns. Bellows' pleats squeeze and open with their train, and a setting mould's hollow glows. `--scene=refine` stamps a counterweight driving a stamp mill, a washer and bellows on a lit smelter, with an empty and a setting mould.
 
+Linkage parts show their state. A pulled rod's brass collar slides past its guide, and a pressed tread plate sinks with a dark gap along its top. A lifted float's highlight bobs, and a clutch's teeth mesh and turn when it's in, with a dark gap between when it's out. A lifted sluice gate's leaf is drawn raised out of the opening, and the lever on its head points down when it's turned round. A tipping scale has a post, a beam that tips and a counter-pan showing its stones. `--scene=logic` stamps every part: a tread plate rodded to a gate holding a pool, a turned-round gate standing lifted, a scale with three stones, and a float in a tank rodded to a clutch in a drive train.
+
 ## Hover tips
 
 The chute, screen (shaking or not) and bumper say what moves things along them. The ore hopper's tip gives its load and capacity, and says whether the gate is held open or opens for a cart (test `production_hover_tips_say_what_to_do`).

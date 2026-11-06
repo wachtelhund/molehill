@@ -283,6 +283,31 @@ Polish only: no new systems, lore names kept. Each entry lists what changed and 
   and concentrate icons read as before.
 * Not tested: a live window.
 
+## Non-electric logic art (branch `refine/logic-art`, on #57/#60)
+* `art::mat_color` takes `on` (pulled, pressed or lifted, from `World::pulled`) for the LINK cells. A float's
+  `turn` is a tick phase, so it bobs.
+* Cells:
+  * Pull-rod: an iron rod through timber guides, oriented like shafts, its brass collar sliding past the guide when pulled.
+  * Tread plate: studded chequer plate; pressed, a dark gap opens along its top.
+  * Float: a tarred timber barrel whose highlight bobs when lifted.
+  * Sluice gate leaf: planks with iron straps.
+  * Scale pan: an iron pan with a rim.
+  * Clutch: two halves with a dark gap out, and meshed teeth turning in.
+* Sprites:
+  * A lifted sluice gate's leaf is drawn raised out of the opening (its cells are open then).
+  * The gate lever points up, or down when turned round.
+  * Tipping scale: a post at the pan's end, a beam tipping pan-down once the pan outweighs the stones, a rod
+    down to the pan, and the counter-pan with up to 8 stones.
+* Icons: the placeholders were kept apart from the pull-rod, which read like the iron shaft (rods on a bracket).
+  It's now a bell crank. Icon sheet: 100 items, 21 devices.
+* `--scene=logic` at frame 90: the shut gate with the pool behind and its lever up, the turned-round gate standing
+  lifted with its lever down, the tread plate's edge, and the scale (beam pan-side up, empty pan, three stones) all
+  read. The rod's collars show over the tank. The float and clutch sit dim in the scene light, so their pulled
+  states were checked by the `cells-*` swatches (second frame pulled) and the test.
+* Not tested: a live window; a gate actually lifting and dropping, a scale tipping under load, and a plate pressed
+  by the mole in a still (each state was drawn from staged data, with motion from swatches and tests).
+* Test `linkage_parts_show_their_state`.
+
 ## Open issues
 * `--shot` writes an empty frame on macOS when the game is launched from a background shell (the surface is
   never presented). It needs a visible window, or Linux with Xvfb.

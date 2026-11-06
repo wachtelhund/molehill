@@ -135,7 +135,7 @@ const BG_BASE: [f32; 3] = [44., 34., 30.];
 #[inline] fn srgb(l: f32) -> f32 { l.max(0.).powf(1. / 2.2) * 255. }
 #[derive(Component)] pub struct WorldSprite;
 #[derive(Component)] struct Pooled(u8, usize);
-#[derive(Resource)] pub struct Sprites { pub rope: [Handle<Image>; 2], pub weight: Handle<Image>, pub boiler: [Handle<Image>; 2], pub stamp: [Handle<Image>; 2], pub tub: [Handle<Image>; 2], pub smelter: [Handle<Image>; 4], pub props: Vec<Handle<Image>>, pub cart: Handle<Image>, pub bin: Vec<Handle<Image>>, pub clue: Vec<Handle<Image>>, pub furn: Vec<Option<(Handle<Image>, Option<Handle<Image>>)>>, pub tools: [Handle<Image>; 3], pub dev: Vec<Handle<Image>>, pub ring: Handle<Image>, pub mole: Vec<Handle<Image>>, pub mole_out: Vec<Handle<Image>>, pub held: Vec<Handle<Image>>, pub icons: Vec<Handle<Image>>, pub chest: [Handle<Image>; 2], pub station: Vec<[Handle<Image>; 2]>, pub torch: Handle<Image>, pub torch_f: Vec<Handle<Image>>, pub glow: Handle<Image>, pub shroom: [Handle<Image>; 3], pub px: Handle<Image> }
+#[derive(Resource)] pub struct Sprites { pub leaf: Handle<Image>, pub lever: [Handle<Image>; 2], pub scale: [Handle<Image>; 4], pub rope: [Handle<Image>; 2], pub weight: Handle<Image>, pub boiler: [Handle<Image>; 2], pub stamp: [Handle<Image>; 2], pub tub: [Handle<Image>; 2], pub smelter: [Handle<Image>; 4], pub props: Vec<Handle<Image>>, pub cart: Handle<Image>, pub bin: Vec<Handle<Image>>, pub clue: Vec<Handle<Image>>, pub furn: Vec<Option<(Handle<Image>, Option<Handle<Image>>)>>, pub tools: [Handle<Image>; 3], pub dev: Vec<Handle<Image>>, pub ring: Handle<Image>, pub mole: Vec<Handle<Image>>, pub mole_out: Vec<Handle<Image>>, pub held: Vec<Handle<Image>>, pub icons: Vec<Handle<Image>>, pub chest: [Handle<Image>; 2], pub station: Vec<[Handle<Image>; 2]>, pub torch: Handle<Image>, pub torch_f: Vec<Handle<Image>>, pub glow: Handle<Image>, pub shroom: [Handle<Image>; 3], pub px: Handle<Image> }
 
 /// `?seed=N` (web) / `--seed=N` (native) was given: the game opens straight into that holt.
 fn seed_pinned() -> bool {
@@ -307,6 +307,7 @@ fn dev_dump(n: Local<u32>, g: Res<Game>, sp: Res<Sprites>, images: Res<Assets<Im
         for (k, h) in sp.tools.iter().enumerate() { list.push((format!("tool{k}"), h.clone())); }
         list.push(("cart".into(), sp.cart.clone())); list.push(("rope".into(), sp.rope[0].clone())); list.push(("hook".into(), sp.rope[1].clone())); list.push(("weight".into(), sp.weight.clone())); list.push(("boiler0".into(), sp.boiler[0].clone())); list.push(("boiler1".into(), sp.boiler[1].clone()));
         for (k, h) in sp.stamp.iter().chain(sp.tub.iter()).chain(sp.smelter.iter()).enumerate() { list.push((format!("works{k}"), h.clone())); }
+        list.push(("gate-leaf".into(), sp.leaf.clone())); for (k, h) in sp.lever.iter().chain(sp.scale.iter()).enumerate() { list.push((format!("logic{k}"), h.clone())); }
         for (k, h) in sp.bin.iter().enumerate() { list.push((format!("orebin{k}"), h.clone())); }
         for (k, h) in sp.props.iter().enumerate() { list.push((format!("prop-{:?}", props::PROPS[k]), h.clone())); }
         for (k, h) in sp.icons.iter().enumerate() { list.push((format!("icon-{:?}", ITEMS[k]), h.clone())); }
@@ -315,7 +316,7 @@ fn dev_dump(n: Local<u32>, g: Res<Game>, sp: Res<Sprites>, images: Res<Assets<Im
         for (k, h) in sp.chest.iter().enumerate() { list.push((format!("chest{k}"), h.clone())); }
         for (name, h) in list { if let Some(im) = images.get(&h) { if let Some(d) = im.data.as_ref() { bmp(&format!("{dir}/sprite-{name}.bmp"), im.width() as usize, im.height() as usize, d, false, 8); } } }
         // the production and machinery cells' own art, unlit, at rest and 1.5 cells of travel in
-        for m in [Mat::Bellows, Mat::Mould, Mat::MouldHot, Mat::Engine, Mat::SteamPipe, Mat::Shaft, Mat::Gear, Mat::Wheel, Mat::Belt, Mat::BeltL, Mat::Drum, Mat::Chute, Mat::Screen, Mat::Bumper, Mat::Riffle] { for (j, t) in [0f32, 1.5].into_iter().enumerate() {
+        for m in [Mat::Rod, Mat::TreadPlate, Mat::Float, Mat::SluiceGate, Mat::ScalePan, Mat::Clutch, Mat::Bellows, Mat::Mould, Mat::MouldHot, Mat::Engine, Mat::SteamPipe, Mat::Shaft, Mat::Gear, Mat::Wheel, Mat::Belt, Mat::BeltL, Mat::Drum, Mat::Chute, Mat::Screen, Mat::Bumper, Mat::Riffle] { for (j, t) in [0f32, 1.5].into_iter().enumerate() {
             let im = art::swatch(m, t); if let Some(d) = im.data.as_ref() { bmp(&format!("{dir}/cells-{m:?}-{j}.bmp"), im.width() as usize, im.height() as usize, d, false, 8); } } }
         info!("dumped art to {dir}");
     }
@@ -383,6 +384,44 @@ fn stage_scene(w: &mut World) {
                 for k in 0..6u8 { put(w, ClueKind::Relic, x0 + 14 * S + k as usize * 4 * S, my, k); }
                 put(w, ClueKind::Draft, x0 + 45 * S, my, 0);
                 for k in 0..3 { w.torches.push((x0 + (6 + k * 20) * S, my - 4 * S)); }
+            }
+            "logic" => { // a sealed hall east of the burrow with every linkage part: a tread plate in the floor rodded to a sluice gate
+                // holding back a pool, a turned-round gate standing lifted, a tipping scale with three stones on its
+                // counter-pan, and a float in a tank rodded to a clutch in a counterweight's drive train down to a belt
+                use molehill_sim::{mat::CPM, power::Weight, linkage::{Gate, Scale}};
+                let (x0, x1, y0) = (mx + 4 * S, mx + 64 * S, my - 26 * S);
+                for x in x0 - 2 * S..x1 + 2 * S { for y in y0 - 4 * S..my + 1 + 2 * S { set(w, x, y, Mat::Bedrock); } }
+                for x in x0..x1 { for y in y0..=my { set(w, x, y, Mat::Empty); } }
+                let at = |k: usize| x0 + k;
+                // the pool, its sluice gate, the rod from the gate down under the floor to the tread plate
+                for x in at(4)..at(6) { for y in my - 10..=my { set(w, x, y, Mat::Bedrock); } }
+                for x in at(6)..at(16) { for y in my - 8..=my { set(w, x, y, Mat::Water); } }
+                let mut cells = vec![]; for x in at(16)..at(18) { for y in my - 15..=my { set(w, x, y, Mat::SluiceGate); cells.push(w.g.idx(x, y)); } }
+                w.tr.links.gates.push(Gate { cells, open: false, invert: false });
+                for y in my - 14..my + 4 { set(w, at(18), y, Mat::Rod); set(w, at(19), y, Mat::Rod); }
+                for x in at(18)..at(36) { for y in my + 3..my + 5 { set(w, x, y, Mat::Rod); } }
+                for x in at(28)..at(36) { for y in my + 1..my + 3 { set(w, x, y, Mat::TreadPlate); } }
+                // a turned-round gate on no rod: slack, it stands lifted
+                let cells: Vec<usize> = (at(22)..at(24)).flat_map(|x| (my - 15..=my).map(move |y| (x, y))).map(|(x, y)| w.g.idx(x, y)).collect();
+                w.tr.links.gates.push(Gate { cells, open: true, invert: true });
+                // the tipping scale
+                for x in at(40)..at(48) { for y in my - 1..=my { set(w, x, y, Mat::ScalePan); } }
+                w.tr.links.scales.push(Scale { x: at(44), y: my + 1, ballast: 3, tipped: false });
+                // the drive train with its clutch, and the float that pulls it in
+                let (xd, xs) = (at(60), at(80)); set(w, xd, y0, Mat::Drum);
+                for x in xd + 1..xs { for y in y0..y0 + 2 { set(w, x, y, Mat::Shaft); } }
+                for x in xs..xs + 2 { for y in y0..y0 + 2 { set(w, x, y, Mat::Gear); } for y in y0 + 2..my - 12 { set(w, x, y, Mat::Shaft); } for y in my - 8..my - 1 { set(w, x, y, Mat::Shaft); } for y in my - 1..=my { set(w, x, y, Mat::Gear); } }
+                for x in xs - 1..xs + 3 { for y in my - 12..my - 8 { set(w, x, y, Mat::Clutch); } }
+                for x in xs + 2..xs + 2 + 3 * CPM { for y in my - 1..=my { set(w, x, y, Mat::Belt); } }
+                let y0w = (y0 + 2) as f32; w.tr.power.weights.push(Weight { x: xd, drum: y0, y: y0w, py: y0w, bottom: (my + 1 - CPM / 2) as f32 });
+                let (tx0, tx1) = (at(92), at(104));
+                for y in my - 14..=my - 4 { set(w, tx0, y, Mat::Bedrock); set(w, tx1, y, Mat::Bedrock); } for x in tx0..=tx1 { set(w, x, my - 4, Mat::Bedrock); }
+                for x in tx0 + 1..tx1 { for y in my - 8..my - 4 { set(w, x, y, Mat::Water); } }
+                for x in tx0 + 3..tx0 + 7 { for y in my - 12..my - 8 { set(w, x, y, Mat::Float); } }
+                for x in xs + 2..tx0 + 5 { set(w, x, my - 13, Mat::Rod); }
+                molehill_sim::light::reveal_box(&mut w.g, mx, y0 - 10 * S, x1 + 10 * S, my + 10 * S);
+                for k in 0..4 { w.torches.push((x0 + (6 + k * 16) * S, y0 + 4 * S)); }
+                for tx in [at(26), at(52), at(88)] { w.torches.push((tx, my - 2 * CPM)); }
             }
             "refine" => { // a sealed refinery east of the burrow: a counterweight under the roof drives a shaft and gears down to a
                 // stamp mill crushing copper ore, a washer with water in it and a block of bellows blowing a lit smelter;
@@ -676,7 +715,7 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, mut fonts: R
         mole_out: art::mole_sheet(false).into_iter().map(|i| images.add(i)).collect(),
         held: [art::Held::Pick, art::Held::Drill, art::Held::Bore, art::Held::Charge, art::Held::Block(Item::WoodPillar.color()), art::Held::Block(Item::Brick.color()), art::Held::Block(Item::IronBeam.color()), art::Held::RopeGun(true), art::Held::RopeGun(false)]
             .into_iter().map(|h| images.add(art::held_sprite(h))).collect(),
-        clue: (0..9).map(|k| images.add(decorart::clue(k))).collect(), props: props::PROPS.iter().map(|&p| images.add(props::image(p))).collect(), cart: images.add(art::cart()), rope: [images.add(art::rope_seg()), images.add(art::rope_hook())], weight: images.add(art::weight()), boiler: [images.add(art::boiler(false)), images.add(art::boiler(true))], stamp: [images.add(art::stamp_mill(0)), images.add(art::stamp_mill(1))], tub: [images.add(art::washer_tub(false)), images.add(art::washer_tub(true))], smelter: [0, 1, 2, 3].map(|k| images.add(art::smelter(k))), bin: (0..5).map(|k| images.add(art::ore_bin(k))).collect(),
+        clue: (0..9).map(|k| images.add(decorart::clue(k))).collect(), props: props::PROPS.iter().map(|&p| images.add(props::image(p))).collect(), cart: images.add(art::cart()), leaf: images.add(art::gate_leaf()), lever: [images.add(art::gate_lever(false)), images.add(art::gate_lever(true))], scale: [0, 1, 2, 3].map(|k| images.add(art::scale_part(k))), rope: [images.add(art::rope_seg()), images.add(art::rope_hook())], weight: images.add(art::weight()), boiler: [images.add(art::boiler(false)), images.add(art::boiler(true))], stamp: [images.add(art::stamp_mill(0)), images.add(art::stamp_mill(1))], tub: [images.add(art::washer_tub(false)), images.add(art::washer_tub(true))], smelter: [0, 1, 2, 3].map(|k| images.add(art::smelter(k))), bin: (0..5).map(|k| images.add(art::ore_bin(k))).collect(),
         furn: ITEMS.iter().map(|&it| it.furn().map(|_| { let (b, c) = decorart::furniture(it); (images.add(decorart::finish(b)), c.map(|c| images.add(decorart::cloth(c)))) })).collect(),
         icons: ITEMS.iter().map(|&it| images.add(itemart::icon(it))).collect(),
         chest: [images.add(art::chest(false)), images.add(art::chest(true))],
@@ -1038,10 +1077,11 @@ fn render_world(mut gm: ResMut<Game>, bg: Res<Bg>, mut images: ResMut<Assets<Ima
                         // rails and ore pockets draw their own two-tone pixel art (`art::mat_color`)
                         let above = (1..=2).take_while(|&d| y >= d && gr.m(i - d * W) == m).count() as u32;
                         // machinery moves with its drive train (`Game::turn`); a shaft or steam pipe runs the way its run is longer
-                        let (turn, horiz) = if p.flags & molehill_sim::mat::MECH != 0 || m == Mat::SteamPipe { (wd.tr.power.train.get(&i).and_then(|&t| g.turn.get(t as usize)).copied().unwrap_or(0.),
+                        let (turn, horiz) = if p.flags & molehill_sim::mat::MECH != 0 || m == Mat::SteamPipe || m == Mat::Rod { (wd.tr.power.train.get(&i).and_then(|&t| g.turn.get(t as usize)).copied().unwrap_or(0.),
                             { let run = |dx: i64, dy: i64| (1..=3i64).take_while(|&k| { let (xx, yy) = (x as i64 + dx * k, y as i64 + dy * k); xx >= 0 && yy >= 0 && (xx as usize) < W && (yy as usize) < H && gr.m(yy as usize * W + xx as usize) == m }).count();
                               run(-1, 0) + run(1, 0) >= run(0, -1) + run(0, 1) }) } else { (0., true) };
-                        art::mat_color(m, x as u32, wy, above, turn, horiz).unwrap_or(p.color.map(|v| v as f32)) };
+                        let on = p.flags & molehill_sim::mat::LINK != 0 && wd.pulled(i); let turn = if m == Mat::Float { wd.tick as f32 / 9. } else { turn }; // a lifted float bobs
+                        art::mat_color(m, x as u32, wy, above, turn, horiz, on).unwrap_or(p.color.map(|v| v as f32)) };
                     let mut c = [lm(base[0] * k, l[0]), lm(base[1] * k, l[1]), lm(base[2] * k, l[2])];
                     let mut alpha = 255.;
                     if m == Mat::Water { c = [lm(40. + 30. * v2, l[0]), lm(90. + 20. * v2, l[1]), lm(170., l[2])]; alpha = 255.; }
@@ -1385,6 +1425,33 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
                     want.push((90, k * 3 + j as usize, cell_to_world(xc + f * 2. + hh - 0.5, y0 - f * 2.5 * CPM as f32), 4.45, sp.glow.clone(), Vec2::splat(5. + 9. * f), false, Color::srgba(0.4, 0.38, 0.38, 0.45 * (1. - f)))); } }
             }
         }
+    }
+    // sluice gates: lifted, the leaf is drawn raised out of the opening (its cells are open then); its lever on the head
+    // shows which way round it is (up: lifts when pulled; down: shuts when pulled)
+    for (k, gt) in w.tr.links.gates.iter().enumerate() {
+        let (mut x0, mut y0, mut x1, mut y1) = (usize::MAX, usize::MAX, 0, 0);
+        for &i in &gt.cells { let (x, y) = (i % W, i / W); x0 = x0.min(x); y0 = y0.min(y); x1 = x1.max(x + 1); y1 = y1.max(y + 1); }
+        if x0 == usize::MAX || w.g.flags[y0.min(H - 1) * W + x0.min(W - 1)] & F_SEEN == 0 { continue; }
+        let lt = lightf(x0, y0.saturating_sub(1)).to_srgba(); let lit = Color::srgb(lt.red, lt.green, lt.blue);
+        let (wd_, ht) = ((x1 - x0) as f32, (y1 - y0) as f32); let xc = (x0 + x1) as f32 / 2.;
+        let lift = if gt.open { ht } else { 0. };
+        if gt.open { want.push((91, k, cell_to_world(xc, y0 as f32 - lift + ht / 2.), 3.9, sp.leaf.clone(), Vec2::new(wd_ * CPX, ht * CPX), false, lit)); }
+        want.push((92, k, cell_to_world(xc + 1.5, y0 as f32 - lift - 1.5), 4.0, sp.lever[gt.invert as usize].clone(), Vec2::new(8., 6.), false, lit));
+    }
+    // tipping scales: a post at the pan's end, the beam on it tipping (pan side down once what's on the pan outweighs the
+    // stones), a rod from the beam down to the pan, and the counter-pan hanging off the far end with its stones
+    for (k, sc) in w.tr.links.scales.iter().enumerate() {
+        if w.g.flags[sc.y.saturating_sub(2).min(H - 1) * W + sc.x.min(W - 1)] & F_SEEN == 0 { continue; }
+        let (px0, px1, top) = sc.pan(); let lt = lightf(sc.x, sc.y.saturating_sub(4)).to_srgba(); let lit = Color::srgb(lt.red, lt.green, lt.blue);
+        let post_x = px1 as f32 + 1.5; let pivot = cell_to_world(post_x, sc.y as f32 - 9.5);
+        want.push((93, k, cell_to_world(post_x, sc.y as f32 - 5.), 3.9, sp.scale[0].clone(), Vec2::new(6., 20.), false, lit));
+        let a = if sc.tipped { 0.22 } else { -0.22 }; rot.insert((94, k), a);
+        want.push((94, k, pivot, 3.95, sp.scale[1].clone(), Vec2::new(20., 3.), false, lit));
+        let (l, r) = (pivot + Vec2::from_angle(a) * -10., pivot + Vec2::from_angle(a) * 10.);
+        let pan_top = cell_to_world((px0 + px1) as f32 / 2., top as f32); let rod_len = (l.y - pan_top.y).max(0.);
+        want.push((95, k, Vec2::new(l.x, (l.y + pan_top.y) / 2.), 3.88, sp.px.clone(), Vec2::new(1., rod_len), false, Color::srgb(0.45 * lt.red, 0.46 * lt.green, 0.5 * lt.blue)));
+        let tray = r - Vec2::new(0., 4.5); want.push((96, k, tray, 3.95, sp.scale[2].clone(), Vec2::new(8., 5.), false, lit));
+        for j in 0..sc.ballast.min(8) as usize { let (col, row) = (j % 4, j / 4); want.push((97, k * 8 + j, tray + Vec2::new(-3. + col as f32 * 2., 0.5 + row as f32 * 2.), 3.97, sp.scale[3].clone(), Vec2::new(3., 2.), false, lit)); }
     }
     // ore hoppers: the bin's back boards, the heap of what it holds tinted with that item's colour, the front
     // frame (its gate shut or swung open under the spout) and two legs stretched down to the floor
