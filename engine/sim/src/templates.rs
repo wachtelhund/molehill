@@ -433,8 +433,6 @@ impl Template {
         let m = &self.mixes[c as usize];
         Some(m[h as usize % m.len()])
     }
-    /// Lining at (dx, dy) in the base layout (slots only add linings where they open cells).
-    pub fn lining(&self, dx: usize, dy: usize, h: u32) -> Option<Wall> { self.lining_with(dx, dy, 0, false, h) }
     /// The chest cell (from the box's top-left) for this variant.
     pub fn chest(&self, var: u32, left: bool) -> Option<(usize, usize)> {
         let mut c = self.chest;
@@ -446,7 +444,6 @@ impl Template {
         let ch: Vec<usize> = self.choices(var, left).collect();
         self.things.iter().filter(|(_, w)| w.map_or(true, |(s, o)| ch[s] == o)).map(|(t, _)| *t).collect()
     }
-    pub fn slot_names(&self) -> Vec<&str> { self.slots.iter().map(|s| s.name.as_str()).collect() }
 }
 
 /// The site files compiled into the game.

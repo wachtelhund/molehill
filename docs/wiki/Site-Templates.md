@@ -36,7 +36,7 @@ cargo run --release -p molehill-sim --example export_sites -- --check # SAME/STA
 
 `templates_match_the_procedural_sites` (in `cargo test`) makes the same comparison against the files compiled in, so **if you change a layout in `sites.rs`, re-run the export** or the test fails and names the first cell that differs. When the export landed, whole generated worlds (seeds 1, 11, 4242, 777, 90210 at 256 × 128 m, grid, linings, chests and every thing) hashed the same before and after the switch to templates.
 
-`template_files_round_trip_and_explain_errors` checks that a file written by `templates::to_json` parses back to the same data and that a broken file says what is wrong (row length, resolution, unknown names).
+`template_files_are_canonical_and_parse_fast` checks that every file on disk is byte for byte what `templates::to_json` writes from its data (so a diff only shows real changes) and that parsing all seven takes well under a frame budget's worth of startup (8 ms on an M4; the limit is 250 ms). The game parses them once, on first use. `template_files_round_trip_and_explain_errors` checks that a file written by `templates::to_json` parses back to the same data and that a broken file says what is wrong (row length, resolution, unknown names).
 
 ## Writing a file by hand
 
