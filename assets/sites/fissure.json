@@ -653,17 +653,17 @@
   "slots": [],
   "chest": null,
   "things": [
-    {"what":"ladder","at":[32.0,68.0],"anchor":[24,67]},
-    {"what":"ladder","at":[104.0,68.0],"anchor":[112,67]},
-    {"what":"ladder","at":[32.0,132.0],"anchor":[24,131]},
-    {"what":"ladder","at":[104.0,132.0],"anchor":[112,131]},
-    {"what":"ladder","at":[32.0,196.0],"anchor":[24,195]},
-    {"what":"ladder","at":[104.0,196.0],"anchor":[112,195]},
-    {"what":"ladder","at":[32.0,260.0],"anchor":[24,259]},
-    {"what":"ladder","at":[104.0,260.0],"anchor":[112,259]},
-    {"what":"torch","at":[40.0,64.0]},
-    {"what":"torch","at":[72.0,128.0]},
-    {"what":"torch","at":[96.0,192.0]}
+    {"what":"ladder","at":[32,68],"anchor":[24,67]},
+    {"what":"ladder","at":[104,68],"anchor":[112,67]},
+    {"what":"ladder","at":[32,132],"anchor":[24,131]},
+    {"what":"ladder","at":[104,132],"anchor":[112,131]},
+    {"what":"ladder","at":[32,196],"anchor":[24,195]},
+    {"what":"ladder","at":[104,196],"anchor":[112,195]},
+    {"what":"ladder","at":[32,260],"anchor":[24,259]},
+    {"what":"ladder","at":[104,260],"anchor":[112,259]},
+    {"what":"torch","at":[40,64]},
+    {"what":"torch","at":[72,128]},
+    {"what":"torch","at":[96,192]}
   ],
   "connectors": [
     {"tag":"entrance","side":"west","at":40,"len":42},

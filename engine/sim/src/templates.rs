@@ -223,6 +223,20 @@ pub fn to_json(f: &SiteFile) -> String {
                 }
                 out.push_str(&pad(ind)); out.push('}');
             }
+            // a whole-cell position reads 64, not 64.0
+            serde_json::Value::Number(n) if n.as_f64().is_some_and(|f| f.fract() == 0. && f.abs() < 1e15) && !n.is_i64() && !n.is_u64() => {
+                out.push_str(&(n.as_f64().unwrap() as i64).to_string())
+            }
+            serde_json::Value::Array(a) if flat(v) => {
+                out.push('[');
+                for (i, e) in a.iter().enumerate() { if i > 0 { out.push(','); } put(e, ind + 1, out); }
+                out.push(']');
+            }
+            serde_json::Value::Object(o) if flat(v) => {
+                out.push('{');
+                for (i, (k, e)) in o.iter().enumerate() { if i > 0 { out.push(','); } out.push_str(&serde_json::to_string(k).unwrap()); out.push(':'); put(e, ind + 1, out); }
+                out.push('}');
+            }
             _ => out.push_str(&serde_json::to_string(v).unwrap()),
         }
     }

@@ -269,13 +269,13 @@
   "slots": [],
   "chest": [52,115],
   "things": [
-    {"what":"torch","at":[144.0,96.0]},
-    {"what":"torch","at":[48.0,88.0]},
-    {"what":"torch","at":[208.0,88.0]},
-    {"what":"furniture","item":"Shelf","at":[40.0,112.0]},
-    {"what":"furniture","item":"Table","at":[64.0,112.0]},
-    {"what":"ladder","at":[96.0,40.0],"anchor":[88,39]},
-    {"what":"ladder","at":[96.0,64.0],"anchor":[88,63]}
+    {"what":"torch","at":[144,96]},
+    {"what":"torch","at":[48,88]},
+    {"what":"torch","at":[208,88]},
+    {"what":"furniture","item":"Shelf","at":[40,112]},
+    {"what":"furniture","item":"Table","at":[64,112]},
+    {"what":"ladder","at":[96,40],"anchor":[88,39]},
+    {"what":"ladder","at":[96,64],"anchor":[88,63]}
   ],
   "connectors": [
     {"tag":"entrance","side":"west","at":96,"len":24},

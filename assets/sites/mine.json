@@ -1993,17 +1993,17 @@
   ],
   "chest": [512,163],
   "things": [
-    {"what":"torch","at":[64.0,152.0]},
-    {"what":"torch","at":[240.0,152.0]},
-    {"what":"torch","at":[480.0,152.0]},
-    {"what":"torch","at":[160.0,64.0]},
-    {"what":"torch","at":[400.0,64.0]},
-    {"what":"torch","at":[392.0,40.0]},
-    {"what":"furniture","item":"Shelf","at":[496.0,160.0]},
-    {"what":"ladder","at":[388.0,72.0],"anchor":[380,71]},
-    {"what":"ladder","at":[388.0,128.0],"anchor":[380,127]},
-    {"what":"cart","at":[320.5,168.0]},
-    {"what":"cart","at":[416.5,168.0]}
+    {"what":"torch","at":[64,152]},
+    {"what":"torch","at":[240,152]},
+    {"what":"torch","at":[480,152]},
+    {"what":"torch","at":[160,64]},
+    {"what":"torch","at":[400,64]},
+    {"what":"torch","at":[392,40]},
+    {"what":"furniture","item":"Shelf","at":[496,160]},
+    {"what":"ladder","at":[388,72],"anchor":[380,71]},
+    {"what":"ladder","at":[388,128],"anchor":[380,127]},
+    {"what":"cart","at":[320.5,168]},
+    {"what":"cart","at":[416.5,168]}
   ],
   "connectors": [
     {"tag":"entrance","side":"east","at":48,"len":24},

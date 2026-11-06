@@ -429,9 +429,9 @@
   ],
   "chest": [144,115],
   "things": [
-    {"what":"torch","at":[112.0,96.0]},
-    {"what":"torch","at":[48.0,96.0]},
-    {"what":"torch","at":[176.0,96.0]}
+    {"what":"torch","at":[112,96]},
+    {"what":"torch","at":[48,96]},
+    {"what":"torch","at":[176,96]}
   ],
   "connectors": [
     {"tag":"entrance","side":"west","at":96,"len":24},
