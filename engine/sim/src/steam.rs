@@ -12,7 +12,8 @@
 //!   raises boils one cell away. Dry, the fire only heats iron.
 //! * **Steam:** heat into steam at `BOILER_EFF`, held up to `STEAM_MAX` kJ; past that its safety valve lifts
 //!   and the excess goes up as steam cells.
-//! * **Ash and slag:** each lump burnt drops a lump of ash out of the ash door (its right side, at the floor),
+//! * **Ash and slag:** each lump burnt drops a lump of ash out of the ash door (its right side at the floor, or its
+//!   left if rock stands against the right; walled in on both, the grate is choked),
 //!   every third lump of coal a lump of slag as well. With `ASH_CHOKE` of them lying against the door the grate
 //!   chokes and the fire is smothered until they're hauled away.
 //! * A lit firebox breathes like a few torches (air.rs).
@@ -121,11 +122,14 @@ impl World {
             let mut j = 0;
             while j < self.drops.len() { let d = &self.drops[j];
                 if d.fuse == 0 && burn_ticks(d.item).is_some() && d.px >= x0 && d.px < x1 && d.py >= y0 - 3. * ITEM_HW && d.py < y0 { let d = self.drops.swap_remove(j); b.add(d.item, d.n); } else { j += 1; } }
-            // ash and slag piled against the ash door choke the grate
-            let (dx0, dx1) = (x1, x1 + CPM as f32);
-            let heap = self.drops.iter().filter(|d| matches!(d.item, Item::Ash | Item::Slag) && d.px >= dx0 && d.px < dx1 && d.py > y1 - CPM as f32 && d.py <= y1).map(|d| d.n).sum::<u32>();
-            let was = b.choked; b.choked = heap >= ASH_CHOKE;
-            if b.choked && !was { self.say("The boiler's ash door is choked: haul the ash and slag away.".into()); }
+            // the ash door opens on the right, or on the left if rock stands against the right; ash and slag piled
+            // against it choke the grate, and with rock against both sides it can't be raked out at all
+            let ay = y1 - ITEM_HW - 0.05;
+            let door = [(1f32, x1 + ITEM_HW + 0.2), (-1f32, x0 - ITEM_HW - 0.2)].into_iter().find(|&(_, ax)| !self.item_box_hits_pub(ax, ay, Item::Ash));
+            let heap = door.map_or(0, |(s, _)| { let (dx0, dx1) = if s > 0. { (x1, x1 + CPM as f32) } else { (x0 - CPM as f32, x0) };
+                self.drops.iter().filter(|d| matches!(d.item, Item::Ash | Item::Slag) && d.px >= dx0 && d.px < dx1 && d.py > y1 - CPM as f32 && d.py <= y1).map(|d| d.n).sum::<u32>() });
+            let was = b.choked; b.choked = door.is_none() || heap >= ASH_CHOKE;
+            if b.choked && !was { self.say(if door.is_none() { "The boiler's ash door is walled in: it needs room at one side to rake the ash out.".into() } else { "The boiler's ash door is choked: haul the ash and slag away.".to_string() }); }
             // the fire: a lump at a time
             let ticks = (dt * 60.) as u32;
             if !b.choked {
@@ -137,10 +141,10 @@ impl World {
                     if b.burn == 0 {
                         b.burning = None;
                         // what's left of the lump falls through the grate and out of the ash door
-                        let (ax, ay) = (x1 + ITEM_HW + 0.2, y1 - ITEM_HW - 0.05);
+                        let (s, ax) = door.unwrap_or((1., x1 + ITEM_HW + 0.2));
                         let mut out = vec![Item::Ash];
                         if it == Item::Coal { b.burnt += 1; if b.burnt % 3 == 0 { out.push(Item::Slag); } }
-                        for o in out { let mut d = Drop::at(ax, ay, o, 1); d.vx = 0.8 * CPM as f32; self.drops.push(d); }
+                        for o in out { let mut d = Drop::at(ax, ay, o, 1); d.vx = s * 0.8 * CPM as f32; self.drops.push(d); }
                     }
                 }
             }

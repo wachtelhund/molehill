@@ -281,6 +281,8 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `counterweight_stops_on_build.scn` | A pillar built under a counterweight stops it on the pillar's top, not at the floor it had when hung |
 | `boiler_drives_belt.scn` | Coal on a boiler by a sump: water drawn, steam up, an engine on the boiler drives a belt; ash and slag come out the ash door; saved |
 | `boiler_ash_chokes.scn` | Ash piled at the ash door chokes the grate (logged); the mole picks it up and the fire catches |
+| `boiler_ash_door_side.scn` | Rock against a boiler's right side: its ash comes out on the left, not into the rock |
+| `boiler_walled_in.scn` | Rock against both sides: the grate counts as choked (logged) and the coal waits unlit |
 | `boiler_dry.scn` | No water: the coal burns, no steam, the belt stays still |
 | `steam_pipe_feeds_engine.scn` | Steam goes along a pipe to an engine 3.5 m off; cut the pipe and the belt stops |
 | `shaker_sorts.scn` | Gravel drops through a 1-in-4 shaker screen; ore lies on it until current shakes it, then walks off the end into its own pit |
