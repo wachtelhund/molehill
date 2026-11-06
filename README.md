@@ -73,7 +73,7 @@ There are three dig tools. Each tier gives a bigger bite, faster digging and har
 * **Drill:** a copperline/heatstone-driven auger. It cuts granite, basalt and ore.
 * **Bore:** a heavy heat-bore with the widest bite.
 
-New Holt asks for a mode. **Survival** starts with a small kit: you dig with the tools you own, find food, and burn fungus oil for light, and when you die your pack stays where you fell. **Creative** has every item and nothing hurts. Crafting is still hidden.
+New Holt asks for a mode. **Survival** starts with a small kit: you dig with the tools you own, find food, and burn fungus oil for light, and when you die your pack stays behind on the last dry ground near where you fell. **Creative** has every item and nothing hurts. Crafting is still hidden.
 
 ## Systems
 
