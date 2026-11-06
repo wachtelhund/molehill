@@ -128,6 +128,17 @@ Polish only: no new systems, lore names kept. Each entry lists what changed and 
 * Not seen in a live window: the props' scale against the mole in play, and whether the cold lamps read as
   lamps at play zoom. The holt is crowded, so its kitchen stands on the table and its pantry hangs.
 
+## Spawn fog stays local (branch `refine/spawn-fog-local`, playtest bug)
+
+* Cause confirmed: `World::new` marked a 30 × 23.5 m box around the burrow seen with `light::reveal_box`, which
+  ignores rock, so the whole start chunk opened on the first frame and every material in it counted as
+  discovered.
+* Now: `light::reveal` raycasts from three spots inside the chamber (6 m, stopping at the first rock), then
+  `light::reveal_skin` marks a 1 m skin around the open cells that saw. The rest stays dark until vision,
+  digging or the headlamp finds it. The discovered-materials loop runs on that, so it only counts what's in
+  sight.
+* Test `spawn_reveals_only_burrow_neighbourhood` (five seeds). Wiki World and Generation, TESTING.md.
+
 ## Open issues
 * `--shot` writes an empty frame on macOS when the game is launched from a background shell (the surface is
   never presented). It needs a visible window, or Linux with Xvfb.
