@@ -184,7 +184,7 @@ The holt begins in a **domed chamber about 7.75 m wide**, carved at depth 0 in t
 
 * the roof is limestone and steps down toward the walls (a parabola, 3 m of drop), so no roof run is long enough to fail in bending;
 * side walls tie the dome to a clay floor, and if a cavern lies underneath, limestone legs drop down to the next solid ground;
-* water and lava near the burrow are dried to clay, and nothing that flows in during the settling pass stays inside;
+* water and lava near the burrow are dried to clay, and so is any pocket in the dig-down column 6 m under its floor, 3 m either side (`gen::DRY_UNDER`): a held S doesn't drain a pocket into the shaft and drop the Delver down it (`digging_straight_down_never_kills`, seed 6). Nothing that flows in during the settling pass stays inside;
 * the floor stays soil, so mushrooms can grow there, and nothing just below it is granite, so even claws can dig out;
 * a **vent** is placed above the burrow and two torches inside it;
 * only the burrow starts out seen: what a mole sees from inside the chamber (rays from three spots stop at the first rock, up to `SPAWN_SIGHT_M` = 6 m) and a 1 m skin of its walls. Everything else (caves, ore, the rock around) stays dark until vision, digging or the headlamp finds it, and only materials in sight count as discovered (`spawn_reveals_only_burrow_neighbourhood`, over five seeds). Before, a 30 × 23.5 m box was marked seen straight through rock.

@@ -49,6 +49,8 @@ pub fn near_start(w: usize, x: usize, wy: i64, r: f32) -> bool {
 /// facing an open cave into sandstone, so early tunnels don't run into a steady rain of loose ground. It fades
 /// back to the ordinary ground by SETTLED.1 m. Deeper and further out the lenses stay, as the hazard they are.
 pub const SETTLED: (f32, f32) = (40., 70.);
+/// Metres under the burrow floor, 3 m either side of its middle, kept free of water and lava pockets.
+pub const DRY_UNDER: usize = 6;
 /// How settled (cell x, wy) is: 1 within SETTLED.0 m of the burrow, easing to 0 at SETTLED.1 m.
 pub fn settled_at(w: usize, x: usize, wy: i64) -> f32 {
     let (dx, dy) = ((x as f32 - (w / 2) as f32) / CPM as f32, wy as f32 / CPM as f32);
@@ -350,6 +352,9 @@ pub fn generate(g: &mut Grid, seed: u32, oy: i64) -> (Gen, GenInfo) {
     let sx = w / 2; let cy1 = (-oy) as usize; // window row of the starting layer
     let (cx0, cx1, cy0) = (sx - 15 * S, sx + 15 * S, cy1 - 12 * S);
     for y in cy0 - 6 * S..cy1 + 6 * S { for x in cx0 - 8 * S..=cx1 + 8 * S { let i = y * w + x; if g.mat[i] == Mat::Water as u8 || g.mat[i] == Mat::Lava as u8 { g.mat[i] = Mat::Clay as u8; } } }
+    // ...and the dig-down column under the burrow is dry for DRY_UNDER m: a held S doesn't drain a pocket into
+    // the shaft and drop the Delver down it (the settled ground no longer leaves sand there to plug one)
+    for y in cy1..(cy1 + DRY_UNDER * CPM).min(h) { for x in sx - 3 * CPM..=sx + 3 * CPM { let i = y * w + x; if g.mat[i] == Mat::Water as u8 || g.mat[i] == Mat::Lava as u8 { g.mat[i] = Mat::Clay as u8; } } }
     // a domed burrow: the roof steps down toward the walls so no roof run spans more than a few cells
     let top = |x: usize| { let t = (x as f32 - sx as f32) / (15. * SF); cy0 + (12. * SF * t * t).round() as usize };
     for x in cx0 - 3 * S..=cx1 + 3 * S { let t = top(x.clamp(cx0, cx1)); for y in t.saturating_sub(5 * S)..t { g.mat[y * w + x] = Mat::Limestone as u8; } }
