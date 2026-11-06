@@ -250,7 +250,7 @@ fn dev_dump(n: Local<u32>, g: Res<Game>, sp: Res<Sprites>, images: Res<Assets<Im
             "mine" | "holt" | "pump" | "pumpworks" | "fissure" | "fossil" | "crystal" | "salt" | "halt"
             | "site-mine" | "site-holt" | "site-pump" | "site-fissure" | "site-fossil" | "site-crystal" | "site-halt"
             | "walls" | "wall"));
-        let (cw, chh, x0, y0) = if let Some(st) = g.w.sites.last() {
+        let (cw, chh, x0, y0) = if let Some(st) = g.w.sites.last().filter(|_| site_dump) { // only a stamped scene crops to its site; a plain holt crops round the mole
             let pad = 8 * CPM;
             let yw0 = (st.y0 - g.w.oy).max(0) as usize;
             let cw = (st.w + 2 * pad).min(W);
