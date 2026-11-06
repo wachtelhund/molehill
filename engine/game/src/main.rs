@@ -41,7 +41,7 @@ const BG_RES: usize = S;
 const FAR: usize = 4; // chunk rows drawn beyond each end of the simulated window (the camera roams there; nothing simulates)
 
 #[derive(Resource)] pub struct Game { pub w: World, /// a holt is in play (false over the empty window before the first one)
-    pub live: bool, chunks: Vec<Handle<Image>>, buf: Vec<u8>, pub uploads: usize, acc: f32, pub paused: bool, speed: u32, pub frame: u64, last_light: u64, msg: String, pub help: bool, ev: Vec<sw::Event>, shake_off: Vec2, autosave: f32, last_oy: i64, far: Vec<Handle<Image>>, far_done: Vec<bool>, far_cells: std::collections::HashMap<i64, Option<(Vec<u8>, Vec<u8>)>>, pub inv_open: bool, pub aim: Option<(usize, usize, bool)>,
+    pub live: bool, chunks: Vec<Handle<Image>>, buf: Vec<u8>, /** per drive train, how far it has run (cells of belt travel), and the tick it was advanced to */ turn: Vec<f32>, turn_tick: u64, pub uploads: usize, acc: f32, pub paused: bool, speed: u32, pub frame: u64, last_light: u64, msg: String, pub help: bool, ev: Vec<sw::Event>, shake_off: Vec2, autosave: f32, last_oy: i64, far: Vec<Handle<Image>>, far_done: Vec<bool>, far_cells: std::collections::HashMap<i64, Option<(Vec<u8>, Vec<u8>)>>, pub inv_open: bool, pub aim: Option<(usize, usize, bool)>,
     pub slots: Vec<Option<Thing>>, pub held: Option<Thing>, /** lay the hotbar out afresh for this holt (`hotbar.rs`) */ pub relayout: bool, pub hot: usize, pub sel_t: f32, pub toasts: Vec<(String, f32)>, log_seen: u64, pub show_dev: bool, disp: Vec2, pub seed: u32,
     /// brush size per brush item and grid snap (`view::BrushSizes`)
     pub sizes: sv::BrushSizes,
@@ -135,7 +135,7 @@ const BG_BASE: [f32; 3] = [44., 34., 30.];
 #[inline] fn srgb(l: f32) -> f32 { l.max(0.).powf(1. / 2.2) * 255. }
 #[derive(Component)] pub struct WorldSprite;
 #[derive(Component)] struct Pooled(u8, usize);
-#[derive(Resource)] pub struct Sprites { pub rope: [Handle<Image>; 2], pub props: Vec<Handle<Image>>, pub cart: Handle<Image>, pub bin: Vec<Handle<Image>>, pub clue: Vec<Handle<Image>>, pub furn: Vec<Option<(Handle<Image>, Option<Handle<Image>>)>>, pub tools: [Handle<Image>; 3], pub dev: Vec<Handle<Image>>, pub ring: Handle<Image>, pub mole: Vec<Handle<Image>>, pub mole_out: Vec<Handle<Image>>, pub held: Vec<Handle<Image>>, pub icons: Vec<Handle<Image>>, pub chest: [Handle<Image>; 2], pub station: Vec<[Handle<Image>; 2]>, pub torch: Handle<Image>, pub torch_f: Vec<Handle<Image>>, pub glow: Handle<Image>, pub shroom: [Handle<Image>; 3], pub px: Handle<Image> }
+#[derive(Resource)] pub struct Sprites { pub rope: [Handle<Image>; 2], pub weight: Handle<Image>, pub props: Vec<Handle<Image>>, pub cart: Handle<Image>, pub bin: Vec<Handle<Image>>, pub clue: Vec<Handle<Image>>, pub furn: Vec<Option<(Handle<Image>, Option<Handle<Image>>)>>, pub tools: [Handle<Image>; 3], pub dev: Vec<Handle<Image>>, pub ring: Handle<Image>, pub mole: Vec<Handle<Image>>, pub mole_out: Vec<Handle<Image>>, pub held: Vec<Handle<Image>>, pub icons: Vec<Handle<Image>>, pub chest: [Handle<Image>; 2], pub station: Vec<[Handle<Image>; 2]>, pub torch: Handle<Image>, pub torch_f: Vec<Handle<Image>>, pub glow: Handle<Image>, pub shroom: [Handle<Image>; 3], pub px: Handle<Image> }
 
 /// `?seed=N` (web) / `--seed=N` (native) was given: the game opens straight into that holt.
 fn seed_pinned() -> bool {
@@ -305,7 +305,7 @@ fn dev_dump(n: Local<u32>, g: Res<Game>, sp: Res<Sprites>, images: Res<Assets<Im
         for (k, h) in sp.held.iter().enumerate() { list.push((format!("held{k}"), h.clone())); }
         for (k, f) in sp.furn.iter().enumerate() { if let Some((b, c)) = f { list.push((format!("furn-{:?}", ITEMS[k]), b.clone())); if let Some(c) = c { list.push((format!("cloth-{:?}", ITEMS[k]), c.clone())); } } }
         for (k, h) in sp.tools.iter().enumerate() { list.push((format!("tool{k}"), h.clone())); }
-        list.push(("cart".into(), sp.cart.clone())); list.push(("rope".into(), sp.rope[0].clone())); list.push(("hook".into(), sp.rope[1].clone()));
+        list.push(("cart".into(), sp.cart.clone())); list.push(("rope".into(), sp.rope[0].clone())); list.push(("hook".into(), sp.rope[1].clone())); list.push(("weight".into(), sp.weight.clone()));
         for (k, h) in sp.bin.iter().enumerate() { list.push((format!("orebin{k}"), h.clone())); }
         for (k, h) in sp.props.iter().enumerate() { list.push((format!("prop-{:?}", props::PROPS[k]), h.clone())); }
         for (k, h) in sp.icons.iter().enumerate() { list.push((format!("icon-{:?}", ITEMS[k]), h.clone())); }
@@ -313,6 +313,9 @@ fn dev_dump(n: Local<u32>, g: Res<Game>, sp: Res<Sprites>, images: Res<Assets<Im
         for (k, h) in sp.shroom.iter().enumerate() { list.push((format!("shroom{k}"), h.clone())); }
         for (k, h) in sp.chest.iter().enumerate() { list.push((format!("chest{k}"), h.clone())); }
         for (name, h) in list { if let Some(im) = images.get(&h) { if let Some(d) = im.data.as_ref() { bmp(&format!("{dir}/sprite-{name}.bmp"), im.width() as usize, im.height() as usize, d, false, 8); } } }
+        // the production and machinery cells' own art, unlit, at rest and 1.5 cells of travel in
+        for m in [Mat::Shaft, Mat::Gear, Mat::Wheel, Mat::Belt, Mat::BeltL, Mat::Drum, Mat::Chute, Mat::Screen, Mat::Bumper, Mat::Riffle] { for (j, t) in [0f32, 1.5].into_iter().enumerate() {
+            let im = art::swatch(m, t); if let Some(d) = im.data.as_ref() { bmp(&format!("{dir}/cells-{m:?}-{j}.bmp"), im.width() as usize, im.height() as usize, d, false, 8); } } }
         info!("dumped art to {dir}");
     }
 }
@@ -379,6 +382,23 @@ fn stage_scene(w: &mut World) {
                 for k in 0..6u8 { put(w, ClueKind::Relic, x0 + 14 * S + k as usize * 4 * S, my, k); }
                 put(w, ClueKind::Draft, x0 + 45 * S, my, 0);
                 for k in 0..3 { w.torches.push((x0 + (6 + k * 20) * S, my - 4 * S)); }
+            }
+            "power" => { // a sealed works east of the burrow: a counterweight under the roof drives an iron shaft, a gear
+                // round the corner, a shaft down and a gear onto a belt along the floor running right; a water
+                // wheel stands at the west end (still: it has no stream)
+                use molehill_sim::{mat::CPM, power::Weight};
+                let (x0, x1, y0) = (mx + 4 * S, mx + 64 * S, my - 26 * S);
+                for x in x0 - 2 * S..x1 + 2 * S { for y in y0 - 4 * S..my + 1 + 2 * S { set(w, x, y, Mat::Limestone); } }
+                for x in x0..x1 { for y in y0..=my { set(w, x, y, Mat::Empty); } }
+                let (xd, xg) = (x0 + 24 * S, x0 + 34 * S);
+                set(w, xd, y0, Mat::Drum);
+                for x in xd + 1..xg { for y in y0..y0 + 2 { set(w, x, y, Mat::Shaft); } }
+                for x in xg..xg + 2 { for y in y0..y0 + 2 { set(w, x, y, Mat::Gear); } for y in y0 + 2..my - 1 { set(w, x, y, Mat::Shaft); } for y in my - 1..=my { set(w, x, y, Mat::Gear); } }
+                for x in xg + 2..xg + 2 + 3 * CPM { for y in my - 1..=my { set(w, x, y, Mat::Belt); } }
+                for x in x0 + 4 * S..x0 + 4 * S + 2 * CPM { for y in my + 1 - 2 * CPM..=my { set(w, x, y, Mat::Wheel); } }
+                let y0w = (y0 + 2) as f32; w.tr.power.weights.push(Weight { x: xd, drum: y0, y: y0w, py: y0w, bottom: (my + 1 - CPM / 2) as f32 });
+                molehill_sim::light::reveal_box(&mut w.g, mx, y0 - 10 * S, x1 + 10 * S, my + 10 * S);
+                for k in 0..4 { w.torches.push((x0 + (6 + k * 16) * S, y0 + 4 * S)); }
             }
             "rope" => { // a sealed hall east of the burrow: a hook rope bitten into the ceiling, hanging in a slack curve,
                 // and a hook in flight up toward the far ceiling with its rope paying out behind it
@@ -615,7 +635,7 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, mut fonts: R
         mole_out: art::mole_sheet(false).into_iter().map(|i| images.add(i)).collect(),
         held: [art::Held::Pick, art::Held::Drill, art::Held::Bore, art::Held::Charge, art::Held::Block(Item::WoodPillar.color()), art::Held::Block(Item::Brick.color()), art::Held::Block(Item::IronBeam.color()), art::Held::RopeGun(true), art::Held::RopeGun(false)]
             .into_iter().map(|h| images.add(art::held_sprite(h))).collect(),
-        clue: (0..9).map(|k| images.add(decorart::clue(k))).collect(), props: props::PROPS.iter().map(|&p| images.add(props::image(p))).collect(), cart: images.add(art::cart()), rope: [images.add(art::rope_seg()), images.add(art::rope_hook())], bin: (0..5).map(|k| images.add(art::ore_bin(k))).collect(),
+        clue: (0..9).map(|k| images.add(decorart::clue(k))).collect(), props: props::PROPS.iter().map(|&p| images.add(props::image(p))).collect(), cart: images.add(art::cart()), rope: [images.add(art::rope_seg()), images.add(art::rope_hook())], weight: images.add(art::weight()), bin: (0..5).map(|k| images.add(art::ore_bin(k))).collect(),
         furn: ITEMS.iter().map(|&it| it.furn().map(|_| { let (b, c) = decorart::furniture(it); (images.add(decorart::finish(b)), c.map(|c| images.add(decorart::cloth(c)))) })).collect(),
         icons: ITEMS.iter().map(|&it| images.add(itemart::icon(it))).collect(),
         chest: [images.add(art::chest(false)), images.add(art::chest(true))],
@@ -631,7 +651,7 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, mut fonts: R
         if let Some(k) = slots.iter().position(|s| *s == Some(Thing::Item(Item::TimberWall))) { slots.swap(0, k); hot = 0; }
         relayout = false;
     }
-    commands.insert_resource(Game { w, chunks, buf: vec![1; W * H * 4], uploads: 0, acc: 0., paused: true, speed: 1, frame: 0, last_light: 0, msg: String::new(), help: false, ev: vec![], shake_off: Vec2::ZERO, autosave: 0., last_oy: oy0, far, far_done, far_cells: Default::default(), inv_open: false, aim: None, slots, held: None, relayout, hot, sel_t: 0., toasts: vec![], log_seen: 0, show_dev: false, disp, seed, sizes: Default::default(), drag: None, brush_tag: None, demo_right: false, wheel: Default::default(), mouse_latch: false, jump_tap: false, jump_key: false, w_jump: false, charge: None, throw_aim: (1., -1.), e_latch: false, pops: vec![], look: Vec2::ZERO, live });
+    commands.insert_resource(Game { w, chunks, buf: vec![1; W * H * 4], turn: vec![], turn_tick: 0, uploads: 0, acc: 0., paused: true, speed: 1, frame: 0, last_light: 0, msg: String::new(), help: false, ev: vec![], shake_off: Vec2::ZERO, autosave: 0., last_oy: oy0, far, far_done, far_cells: Default::default(), inv_open: false, aim: None, slots, held: None, relayout, hot, sel_t: 0., toasts: vec![], log_seen: 0, show_dev: false, disp, seed, sizes: Default::default(), drag: None, brush_tag: None, demo_right: false, wheel: Default::default(), mouse_latch: false, jump_tap: false, jump_key: false, w_jump: false, charge: None, throw_aim: (1., -1.), e_latch: false, pops: vec![], look: Vec2::ZERO, live });
 }
 
 /// Saves only write a holt in play: Quit on the main menu before Continue never puts the empty window over the autosave.
@@ -902,6 +922,9 @@ fn render_world(mut gm: ResMut<Game>, bg: Res<Bg>, mut images: ResMut<Assets<Ima
     // snap the composited rect to whole chunks
     let (x0, y0) = (x0 / CH * CH, y0 / CH * CH); let (x1, y1) = (((x1 / CH) + 1) * CH - 1, ((y1 / CH) + 1) * CH - 1);
     let (x1, y1) = (x1.min(W - 1), y1.min(H - 1));
+    // how far each drive train has run (cells of belt travel), advanced by the sim ticks since the last frame
+    { let dt = gm.w.tick.saturating_sub(gm.turn_tick).min(30) as f32 / 60.; gm.turn_tick = gm.w.tick; let n = gm.w.tr.power.speed.len(); gm.turn.resize(n, 0.);
+      for t in 0..n { let s = gm.w.tr.power.speed[t]; gm.turn[t] = (gm.turn[t] + dt * s * molehill_sim::power::BELT_V).rem_euclid(840.); } }
     let mut buf = std::mem::take(&mut gm.buf);
     let mut changed = vec![false; (W / CH) * (H / CH)];
     let g = &*gm;
@@ -973,7 +996,11 @@ fn render_world(mut gm: ResMut<Game>, bg: Res<Bg>, mut images: ResMut<Assets<Ima
                     let pn = gr.paint(i); let base = if pn > 0 && p.kind == Kind::Solid { let pc = craft::PIGMENTS[pn as usize]; [0usize, 1, 2].map(|j| p.color[j] as f32 * 0.25 + pc[j] as f32 * 0.75) } else {
                         // rails and ore pockets draw their own two-tone pixel art (`art::mat_color`)
                         let above = (1..=2).take_while(|&d| y >= d && gr.m(i - d * W) == m).count() as u32;
-                        art::mat_color(m, x as u32, wy, above).unwrap_or(p.color.map(|v| v as f32)) };
+                        // machinery moves with its drive train (`Game::turn`); a shaft runs the way its run is longer
+                        let (turn, horiz) = if p.flags & molehill_sim::mat::MECH != 0 { (wd.tr.power.train.get(&i).and_then(|&t| g.turn.get(t as usize)).copied().unwrap_or(0.),
+                            { let run = |dx: i64, dy: i64| (1..=3i64).take_while(|&k| { let (xx, yy) = (x as i64 + dx * k, y as i64 + dy * k); xx >= 0 && yy >= 0 && (xx as usize) < W && (yy as usize) < H && gr.m(yy as usize * W + xx as usize) == m }).count();
+                              run(-1, 0) + run(1, 0) >= run(0, -1) + run(0, 1) }) } else { (0., true) };
+                        art::mat_color(m, x as u32, wy, above, turn, horiz).unwrap_or(p.color.map(|v| v as f32)) };
                     let mut c = [lm(base[0] * k, l[0]), lm(base[1] * k, l[1]), lm(base[2] * k, l[2])];
                     let mut alpha = 255.;
                     if m == Mat::Water { c = [lm(40. + 30. * v2, l[0]), lm(90. + 20. * v2, l[1]), lm(170., l[2])]; alpha = 255.; }
@@ -1261,13 +1288,14 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
         want.push((44, k, cell_to_world(cx, cy - n * 0.15), 3.9, sp.px.clone(), Vec2::new(n * 0.8 * CPX, n * 0.3 * CPX), false, lit(0.7, 0.52, 0.26)));
         want.push((45, k, cell_to_world(cx, cy - n * 0.32), 3.95, sp.px.clone(), Vec2::new(n * 0.6 * CPX, 1.5), false, lit(0.15, 0.13, 0.12)));
     }
-    // counterweights (placeholder until p3's art): the rope from the drum down to an iron weight
+    // counterweights: the rope paid off the drum as twisted fibre down to a cast-iron weight hanging on its eye
     for (k, wt) in w.tr.power.weights.iter().enumerate() {
         if w.g.flags[wt.drum.min(H - 1) * W + wt.x.min(W - 1)] & F_SEEN == 0 { continue; }
         let y = wt.py + (wt.y - wt.py) * a; let xc = wt.x as f32 + 0.5; let top = wt.drum as f32 + 1.;
-        let lt = lightf(wt.x, (y as usize).min(H - 1)).to_srgba(); let lit = |r: f32, gg: f32, b: f32| Color::srgb(r * lt.red, gg * lt.green, b * lt.blue);
-        want.push((80, k, cell_to_world(xc, (top + y) / 2.), 3.9, sp.px.clone(), Vec2::new(1., (y - top).max(0.) * CPX), false, lit(0.62, 0.52, 0.34)));
-        want.push((81, k, cell_to_world(xc, y + 0.25 * CPM as f32), 4.1, sp.px.clone(), Vec2::new(0.5 * CPM as f32 * CPX, 0.5 * CPM as f32 * CPX), false, lit(0.42, 0.42, 0.46)));
+        let lt = lightf(wt.x, (y as usize).min(H - 1)).to_srgba(); let lit = Color::srgb(lt.red, lt.green, lt.blue);
+        let len = (y - top).max(0.) * CPX; if len > 0.1 { rot.insert((80, k), std::f32::consts::FRAC_PI_2);
+            want.push((80, k, cell_to_world(xc, (top + y) / 2.), 3.9, sp.rope[0].clone(), Vec2::new(len, 1.6), false, lit)); }
+        want.push((81, k, cell_to_world(xc, y + 0.3125 * CPM as f32), 4.1, sp.weight.clone(), Vec2::new(0.5 * CPM as f32 * CPX, 0.625 * CPM as f32 * CPX), false, lit));
     }
     // ore hoppers: the bin's back boards, the heap of what it holds tinted with that item's colour, the front
     // frame (its gate shut or swung open under the spout) and two legs stretched down to the floor

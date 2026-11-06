@@ -83,11 +83,11 @@ The pack, the hotbar, the item in the mole's paws and anything lying loose all u
 | Shaker screen | an iron grating in a timber frame, the mesh open between the bars | placed cells: a timber top rail, iron bars every half metre, the dark mesh between |
 | Bumper | a squat timber buffer with a red pad, standing on a rail end | placed cells: red-painted timber, a brighter worn head, an iron band and bolt every metre |
 | Riffle bar | three low timber bars across a sloping floor, water running over them | placed cells: upright timber slats with a dark gap every half metre, their tops worn pale by the water |
-| Iron shaft | an iron rod in two wooden bearing blocks | placed cells |
-| Gear | a toothed wooden wheel with a hub and spokes | placed cells |
-| Water wheel | a paddle wheel dipping into blue water | placed cells |
-| Belt | a fibre belt over two rollers, stitching along it | placed cells |
-| Counterweight | a rope drum over a hanging iron weight | counterweight on its drum: the rope from the drum down to an iron block (placeholder) |
+| Iron shaft | an iron rod in two wooden bearing blocks | placed cells: a bright iron rod with a highlight along its run and a dark twist band sliding along it while its train turns (it lies the way its run is longer) |
+| Gear | a toothed wooden wheel with a hub and spokes | placed cells: a cog every half metre, an iron hub and timber teeth turning round it (neighbouring cogs turn opposite ways), dark gaps where they mesh |
+| Water wheel | a paddle wheel dipping into blue water | placed cells: a one-metre wheel per metre of block, a bright rim and four spokes ending in pale paddles that turn with its train over a darker boarded disc |
+| Belt | a fibre belt over two rollers, stitching along it | placed cells: woven fibre on top with stitched chevrons pointing the way it carries and sliding that way while it runs; under the fabric, wooden rollers with a turning spoke |
+| Counterweight | a rope drum over a hanging iron weight | its drum cell ticks between rope and iron as it turns; the rope pays out as twisted fibre down to a cast-iron weight hanging on its eye (`art::weight`) |
 | Ore hopper | a timber bin heaped with ore, tapering to a spout, on splayed legs | ore hopper sprite: back boards, the heap tinted with what it holds, the front frame open over the heap, a boarded taper to an iron spout whose gate shows shut or swung open, two legs down to the floor (`art::ore_bin`) |
 | Rock wall | a rough slab of scraped host rock with tool marks | background lining |
 | Timber wall | boards standing on end, uneven tops, gaps between | background lining |
@@ -136,6 +136,7 @@ Game-crate tests (`cargo test --release -p molehill`):
 * `every_prop_has_its_own_sprite`: every prop is mostly filled, has at least four colours and differs from the others.
 * `production_blocks_have_their_own_look`: the chute, shaker screen, bumper and riffle patterns differ from each other by at least 30 in mean colour, and riffle slats have dark gaps between them. The screen is at least 40% dark mesh with bright bars, the chute's top is a pale lip, and the bumper's head is red.
 * `rope_gun_art_is_drawn`: the loaded gun shows its hook (at least 5 more pixels than the empty one), the rope length is solid fibre whose twist spans a wide brightness range, and the hook has a point and two barbs.
+* `machinery_moves_when_its_train_turns`: the shaft, gear, water wheel, belt and drum each differ from every other in over 64 of 256 cells; each changes at least 12 cells over 1.5 cells of travel; a right belt's stitches run right and a left belt's run left; a vertical shaft is the horizontal one turned.
 * `ore_hopper_is_a_drawn_bin`: the bin's back boards fill it, the front leaves the upper part open (so the heap shows), the taper is boarded down to a spout, the open gate differs from the shut one, and the heap sprite is pale so its tint gives the ore colour.
 * `found_places_are_furnished`: each family is stamped into rock and must get its listed furnishings, all inside the site and none in rock. Every prop kind is placed somewhere.
 

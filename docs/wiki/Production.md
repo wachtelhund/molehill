@@ -99,6 +99,8 @@ Drive trains of iron and timber carry a stream's push to belts and machines (`po
 
 Chutes, screens and bumpers are cells with their own patterns (`art::mat_color`). A chute has a pale worn lip and boards along it. A screen is iron bars over a dark mesh under a timber rail. A bumper is red-painted timber with a bright head and iron bands. The ore hopper is drawn: its heap is tinted with what it holds, it shows through the open front of the bin and rises with the load, and the gate under the spout swings open when it lets a lump down. `--scene=production` stamps a small works (chute onto screen, a hopper of copper ore over track, a bumper) for stills. See [Item and Place Art](Item-and-Place-Art.md).
 
+Machinery moves with its drive train. Each train keeps how far it has run (cells of belt travel, advanced by its speed every frame), and the cells draw from that. An iron shaft's twist band slides along it, a gear's teeth turn round its hub, and a water wheel's spokes and paddles turn. A belt's stitched chevrons point the way it carries and slide that way, and the weight drum's windings creep. A still train shows them at rest. The counterweight hangs as a cast-iron weight on a fibre rope that pays out as it falls. `--scene=power` stamps a counterweight driving a shaft, gears and a belt, with a water wheel standing by. `--dump-art` also writes each production and machinery cell's art as an unlit swatch, at rest and 1.5 cells in (`cells-<Mat>-0/1.bmp`).
+
 ## Hover tips
 
 The chute, screen (shaking or not) and bumper say what moves things along them. The ore hopper's tip gives its load and capacity, and says whether the gate is held open or opens for a cart (test `production_hover_tips_say_what_to_do`).

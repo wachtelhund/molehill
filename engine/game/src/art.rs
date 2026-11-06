@@ -305,7 +305,9 @@ pub fn mat_tex(m: molehill_sim::mat::Mat, x: u32, y: u32, t: u64) -> f32 {
 ///   timber sleepers every half metre with sooty ballast between, so track never reads as a plank floor.
 /// * Ores: rounded half-metre nuggets of the ore's own colour (copper flecked green with verdigris, as the
 ///   quest line describes it; rust-red iron, pale tin, glossy coal) in a darker matrix, so a pocket stands out from the rock without glowing.
-pub fn mat_color(m: molehill_sim::mat::Mat, cx: u32, cy: u32, above: u32) -> Option<[f32; 3]> {
+/// * Machinery (shaft, gear, water wheel, belt, weight drum) moves: `turn` is how far its drive train has run
+///   (cells of belt travel, see `Game::turn`); `horiz` says a shaft runs left-right (it has a shaft beside it).
+pub fn mat_color(m: molehill_sim::mat::Mat, cx: u32, cy: u32, above: u32, turn: f32, horiz: bool) -> Option<[f32; 3]> {
     use molehill_sim::grid::hash3;
     use molehill_sim::mat::{Mat as M, CPM};
     let h = |a: u32, b: u32, s: u32| (hash3(a, b, s) & 255) as f32 / 255.;
@@ -347,8 +349,49 @@ pub fn mat_color(m: molehill_sim::mat::Mat, cx: u32, cy: u32, above: u32) -> Opt
         // pale by the water running over them
         M::Riffle => { let q = c / 2; let g = 0.9 + h(cx / q, 0, 97) * 0.16;
             Some(if cx % q == 0 { [62., 44., 30.] } else if above == 0 { [186., 150., 100.] } else { [122. * g, 88. * g, 54. * g] }) }
+        // ---- machinery (power.rs): each moves with its train, `turn` cells of belt travel so far
+        // iron shaft: a bright rod with a highlight along it and a dark twist band sliding along it as it turns
+        M::Shaft => { let (a, b) = if horiz { (cx, cy) } else { (cy, cx) }; let band = ((a as f32 - turn).rem_euclid(6.) as u32 + b % 4) % 6 == 0;
+            Some(if band { [92., 96., 108.] } else { match b % 4 { 1 => [196., 200., 212.], 3 => [104., 108., 120.], _ => [148., 152., 164.] } }) }
+        // gears: a cog every half metre, an iron hub, timber teeth round it turning, dark gaps at the corners where cogs mesh
+        M::Gear => { let q = c / 2; let (lx, ly) = ((cx % q) as f32 - 1.5, (cy % q) as f32 - 1.5); let r = (lx * lx + ly * ly).sqrt();
+            let a = ly.atan2(lx) / std::f32::consts::TAU; let dir = if (cx / q + cy / q) % 2 == 0 { 1. } else { -1. }; // meshing neighbours turn opposite ways
+            Some(if r < 0.8 { [96., 98., 110.] } else if r > 2. { [64., 46., 30.] } else if (a * 6. + dir * turn / 2.).rem_euclid(1.) < 0.5 { [182., 138., 84.] } else { [120., 86., 50.] }) }
+        // water wheel: a metre wheel per metre of block: a bright rim, four spokes ending in pale paddles turning with
+        // the train over a darker boarded disc, an iron hub
+        M::Wheel => { let (lx, ly) = ((cx % c) as f32 - 3.5, (cy % c) as f32 - 3.5); let r = (lx * lx + ly * ly).sqrt();
+            let th = turn / 3.5; let spoke = (ly.atan2(lx) - th).rem_euclid(std::f32::consts::TAU / 4.) < 0.45;
+            Some(if r < 1. { [150., 152., 164.] } else if r > 3.9 { [48., 38., 30.] } else if spoke { if r >= 2.8 { [214., 166., 104.] } else { [176., 132., 82.] } } else if r >= 3. { [150., 112., 70.] } else { [92., 68., 44.] }) }
+        // belts: woven fibre on top with stitched chevrons pointing the way it carries, sliding along while it runs; under
+        // the fabric, wooden rollers every half metre with a spoke turning
+        M::Belt | M::BeltL => { let dir = if m == M::Belt { 1. } else { -1. }; let u = cx as f32 - dir * turn;
+            Some(match above {
+                0 | 1 | 2 => { let off = if above == 1 { dir } else { 0. }; if (u - off).rem_euclid(4.) < 1. { [204., 178., 126.] } else if above == 0 { [118., 86., 58.] } else { [96., 68., 46.] } }
+                _ => { let q = c / 2; let (lx, ly) = ((cx % q) as f32 - 1.5, ((cy - 3) % q) as f32 - 1.5); let r = (lx * lx + ly * ly).sqrt();
+                    if r < 1.7 { if (ly.atan2(lx) - turn / 1.5).rem_euclid(std::f32::consts::PI) < 0.6 { [96., 70., 44.] } else { [156., 116., 72.] } } else { [52., 40., 32.] } }
+            }) }
+        // weight drum: an iron drum wound with rope, the windings creeping round as it turns (a drum is often a single
+        // cell, so the windings show as the cell ticking between rope and iron)
+        M::Drum => Some(if ((cx + cy) as f32 + turn).rem_euclid(3.) < 1. { [196., 170., 120.] } else if above == 0 { [150., 146., 142.] } else { [106., 102., 100.] }),
         _ => None,
     }
+}
+
+/// A 2 m × 1.5 m swatch of a material's own cell art, unlit, `turn` cells of travel in (for `--dump-art`): rows
+/// count `above` from the top, and a shaft lies left-right.
+pub fn swatch(m: molehill_sim::mat::Mat, turn: f32) -> Image {
+    let c = molehill_sim::mat::CPM as u32; let (w, h) = (2 * c, 3 * c / 2);
+    let col = molehill_sim::mat::PROPS[m as usize].color;
+    image(w, h, (0..h).flat_map(|y| (0..w).map(move |x| (x, y))).flat_map(|(x, y)| { let v = mat_color(m, x, y, y, turn, true).unwrap_or(col.map(|v| v as f32)); [v[0] as u8, v[1] as u8, v[2] as u8, 255] }).collect(), true)
+}
+
+/// The counterweight's iron weight (1 px = 1 world unit; half a metre square): a cast block with a lifting eye on
+/// top, a band round it and its rivets.
+pub fn weight() -> Image {
+    let mut p = Px::new(8, 10); let iron = [98, 98, 108];
+    p.rect(3, 0, 4, 0, [150, 150, 160]); p.set(2, 1, [150, 150, 160]); p.set(5, 1, [150, 150, 160]); // the eye
+    p.rect(0, 2, 7, 9, iron); p.rect(0, 2, 7, 2, shade(iron, 1.3)); p.rect(0, 5, 7, 5, shade(iron, 0.7)); for x in [1, 6] { p.set(x, 5, [176, 176, 186]); }
+    p.finish(ICON_LINE).image()
 }
 
 /// The ore hopper's parts (1 px = 1 world unit; the bin is `BIN_W`×`BIN_H` cells and the spout one cell
@@ -447,9 +490,9 @@ mod tests {
     /// and darker gaps, all far from the wood beam's colour.
     #[test] fn rails_do_not_read_as_a_wood_floor() {
         let wood = col(Mat::WoodBeam);
-        let strap: Vec<[f32; 3]> = (0..40).map(|x| mat_color(Mat::Rail, x, 7, 0).unwrap()).collect();
+        let strap: Vec<[f32; 3]> = (0..40).map(|x| mat_color(Mat::Rail, x, 7, 0, 0., true).unwrap()).collect();
         let copper = strap.iter().filter(|c| c[0] > 200. && c[0] > c[2] * 2.).count(); assert!(copper >= 30, "mostly copper on top");
-        let under: Vec<[f32; 3]> = (0..2 * CPM as u32).map(|x| mat_color(Mat::Rail, x, 9, 2).unwrap()).collect();
+        let under: Vec<[f32; 3]> = (0..2 * CPM as u32).map(|x| mat_color(Mat::Rail, x, 9, 2, 0., true).unwrap()).collect();
         assert!(under.iter().all(|&c| lum(c) < 0.6 * lum(wood) && dist(c, wood) > 90.), "sleepers and gaps are dark, not wood-beam tan");
         let (lo, hi) = under.iter().fold((f32::MAX, 0f32), |(a, b), &c| (a.min(lum(c)), b.max(lum(c)))); assert!(hi - lo > 20., "sleepers stand out from the gaps");
     }
@@ -468,7 +511,7 @@ mod tests {
     /// The production blocks read as what they are and apart from each other and from timber floors: a
     /// chute's pale lip, a screen's dark mesh between bars, a bumper's red head.
     #[test] fn production_blocks_have_their_own_look() {
-        let patch = |m: Mat| -> Vec<[f32; 3]> { (0..16u32).flat_map(|y| (0..16u32).map(move |x| (x, y))).map(|(x, y)| mat_color(m, x, y + 8, 2).unwrap()).collect() };
+        let patch = |m: Mat| -> Vec<[f32; 3]> { (0..16u32).flat_map(|y| (0..16u32).map(move |x| (x, y))).map(|(x, y)| mat_color(m, x, y + 8, 2, 0., true).unwrap()).collect() };
         let mean = |v: &[[f32; 3]]| { let n = v.len() as f32; [0, 1, 2].map(|j| v.iter().map(|c| c[j]).sum::<f32>() / n) };
         let screen = patch(Mat::Screen); let mesh = screen.iter().filter(|&&c| lum(c) < 50.).count() as f32 / screen.len() as f32;
         assert!(mesh > 0.4, "the screen's mesh is dark between the bars ({mesh:.2})");
@@ -476,9 +519,9 @@ mod tests {
         let (chute, bump, riffle) = (mean(&patch(Mat::Chute)), mean(&patch(Mat::Bumper)), mean(&patch(Mat::Riffle)));
         for (a, b, what) in [(chute, mean(&screen), "chute/screen"), (chute, bump, "chute/bumper"), (bump, mean(&screen), "bumper/screen"), (riffle, chute, "riffle/chute"), (riffle, bump, "riffle/bumper"), (riffle, mean(&screen), "riffle/screen")] { assert!(dist(a, b) > 30., "{what} too alike"); }
         let slats = patch(Mat::Riffle).iter().filter(|&&c| lum(c) < 0.6 * lum(riffle)).count(); assert!(slats >= 16, "riffle slats have dark gaps between them");
-        assert!(lum(mat_color(Mat::Chute, 3, 3, 0).unwrap()) > lum(chute) * 1.2, "a chute's top is a pale worn lip");
-        let head = mat_color(Mat::Bumper, 3, 3, 0).unwrap(); assert!(head[0] > 2.5 * head[1], "a bumper's head is painted red");
-        let seams = (0..CPM as u32).map(|y| mat_color(Mat::Chute, 4, 16 + y, 2).unwrap()).filter(|&c| lum(c) < 0.75 * lum(chute)).count(); assert!(seams >= 1, "chute boards have seams");
+        assert!(lum(mat_color(Mat::Chute, 3, 3, 0, 0., true).unwrap()) > lum(chute) * 1.2, "a chute's top is a pale worn lip");
+        let head = mat_color(Mat::Bumper, 3, 3, 0, 0., true).unwrap(); assert!(head[0] > 2.5 * head[1], "a bumper's head is painted red");
+        let seams = (0..CPM as u32).map(|y| mat_color(Mat::Chute, 4, 16 + y, 2, 0., true).unwrap()).filter(|&c| lum(c) < 0.75 * lum(chute)).count(); assert!(seams >= 1, "chute boards have seams");
     }
 
     /// The ore hopper is drawn, not boxes: back boards fill the bin, the front frame leaves its upper part
@@ -510,10 +553,29 @@ mod tests {
         assert!(px(7, 3) && px(3, 0) && px(3, 6), "a point and two barbs");
     }
 
+    /// Machinery reads as machinery and moves: each kind is unlike the others; a turning train changes what the
+    /// cells show (and a still one doesn't); a belt's chevrons slide the way it carries; a vertical shaft is drawn
+    /// across the other axis.
+    #[test] fn machinery_moves_when_its_train_turns() {
+        let at = |m: Mat, t: f32| -> Vec<[f32; 3]> { (0..16u32).flat_map(|y| (0..16u32).map(move |x| (x, y))).map(|(x, y)| mat_color(m, x, y, if m == Mat::Belt || m == Mat::BeltL { y % 3 } else { 3 }, t, true).unwrap()).collect() };
+        let mean = |v: &[[f32; 3]]| { let n = v.len() as f32; [0, 1, 2].map(|j| v.iter().map(|c| c[j]).sum::<f32>() / n) };
+        let kinds = [Mat::Shaft, Mat::Gear, Mat::Wheel, Mat::Belt, Mat::Drum];
+        for (i, &a) in kinds.iter().enumerate() { for &b in &kinds[i + 1..] { let (pa, pb) = (at(a, 0.), at(b, 0.)); let diff = pa.iter().zip(&pb).filter(|(x, y)| dist(**x, **y) > 30.).count();
+            assert!(diff > 64, "{a:?} and {b:?} look alike ({diff} of 256 cells differ)"); } }
+        for &m in &kinds { let moved = at(m, 0.).iter().zip(&at(m, 1.5)).filter(|(x, y)| dist(**x, **y) > 20.).count(); assert!(moved >= 12, "{m:?} barely moves ({moved})"); }
+        // the chevrons on a right-running belt move right: the stitch that was at x is at x+1 a cell of travel later
+        let row = |m: Mat, t: f32| -> Vec<bool> { (0..16u32).map(|x| lum(mat_color(m, x, 0, 0, t, true).unwrap()) > 150.).collect() };
+        let (r0, r1) = (row(Mat::Belt, 0.), row(Mat::Belt, 1.)); assert!((0..15).all(|x| r0[x] == r1[x + 1]), "a right belt's stitches run right");
+        let (l0, l1) = (row(Mat::BeltL, 0.), row(Mat::BeltL, 1.)); assert!((1..16).all(|x| l0[x] == l1[x - 1]), "a left belt's stitches run left");
+        let (h, v): (Vec<_>, Vec<_>) = (0..8u32).map(|k| (mat_color(Mat::Shaft, 3, k, 3, 0., true).unwrap(), mat_color(Mat::Shaft, k, 3, 3, 0., false).unwrap())).unzip();
+        assert_eq!(h, v, "a vertical shaft is the horizontal one turned");
+        let _ = mean;
+    }
+
     #[test] fn ore_pockets_stand_out_without_glowing() {
         let rock = col(Mat::Rock);
         for m in [Mat::CopperOre, Mat::IronOre, Mat::TinOre, Mat::Coal] {
-            let cells: Vec<[f32; 3]> = (0..32u32).flat_map(|y| (0..32u32).map(move |x| (x, y))).map(|(x, y)| mat_color(m, x, y, 1).unwrap()).collect();
+            let cells: Vec<[f32; 3]> = (0..32u32).flat_map(|y| (0..32u32).map(move |x| (x, y))).map(|(x, y)| mat_color(m, x, y, 1, 0., true).unwrap()).collect();
             let far = cells.iter().filter(|&&c| dist(c, rock) > 60.).count() as f32 / cells.len() as f32;
             assert!(far > 0.25, "{m:?}: only {far:.2} of the pocket stands apart from rock");
             assert!(cells.iter().all(|&c| lum(c) < 235.), "{m:?}: nothing near-white");
