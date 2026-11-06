@@ -103,7 +103,7 @@ The map is stamped with its top-left so that `@` lands on the world spawn (the m
 
 Every material counts as already discovered in a scenario (a discovery's torch reward would otherwise depend on what the generated world happened to show).
 
-Map legend: `t` roots (a root tangle), `f` fungus, `.` empty, `#` granite, `B` bedrock, `r` rock, `d` dirt, `c` clay, `s` sand, `g` gravel, `w` water, `l` lava, `o` coal, `i` iron ore, `a` basalt, `b` wood beam, `I` iron beam, `k` stone brick, `T` root-tree, `R` root-tree roots, `m` moss, `y` mycelium, `p` planks, `q` polished stone, `x` tiles, `C` carved pillar, `=` rail, `%` pressure tube, `h` chute, `H` shaker screen, `|` bumper, `z` riffle bar, `j` iron shaft, `*` gear, `O` water wheel, `>` belt (runs right), `<` belt (runs left), `U` weight drum, `E` steam engine, `P` steam pipe (`K` a boiler's shell, output only) (`~` steam, `?` other, only in output). The generated world's own grottos are left out of a scenario (`grottos` cleared).
+Map legend: `t` roots (a root tangle), `f` fungus, `.` empty, `#` granite, `B` bedrock, `r` rock, `d` dirt, `c` clay, `s` sand, `g` gravel, `w` water, `l` lava, `o` coal, `i` iron ore, `a` basalt, `b` wood beam, `I` iron beam, `k` stone brick, `T` root-tree, `R` root-tree roots, `m` moss, `y` mycelium, `p` planks, `q` polished stone, `x` tiles, `C` carved pillar, `=` rail, `%` pressure tube, `h` chute, `H` shaker screen, `|` bumper, `z` riffle bar, `j` iron shaft, `*` gear, `O` water wheel, `>` belt (runs right), `<` belt (runs left), `U` weight drum, `E` steam engine, `P` steam pipe, `Y` bellows, `V` ingot mould (output only: `K` boiler, `M` stamp mill, `W` washer, `S` smelter shells, `X` a setting mould) (`~` steam, `?` other, only in output). The generated world's own grottos are left out of a scenario (`grottos` cleared).
 
 **Assertion variables:**
 
@@ -134,6 +134,7 @@ Map legend: `t` roots (a root tangle), `f` fungus, `.` empty, `#` granite, `B` b
 | `flow:DX,DY` / `bedstress:DX,DY` | The water's current at the tile's centre (m/s, + = right) and its stress on the bed (depth·slope, m); 0 in still water or out of it |
 | `turning:DX,DY` / `supply:DX,DY` / `demand:DX,DY` | How fast the tile's drive train turns (0..1); its power to give and to do (W) |
 | `boilers` / `bsteam` / `bwater` / `bfuel` / `bburning` / `bchoked` | Boilers; the first one's steam (kJ), water (cells), fuel (lumps, the burning one too), whether it burns, whether its ash door is choked |
+| `works` / `casts` / `stampload` / `washload` / `smeltload` / `smelttemp` / `smeltair` / `molten` | Stamp mills, washers and smelters; casts setting in moulds; the first stamp mill's, washer's or smelter's load waiting; the first smelter's heat (°C), air (0..1) and molten metal (ingots) |
 | `weights` / `weighty` | Counterweights; the first one's top (tiles from the map top) |
 | `cells:Mat,DX0,DX1,DY0,DY1` | Tiles' worth of that material in those tile columns and rows from `@` |
 | `ladders` / `climbing` | Rope ladders hung; whether the mole is on one |
@@ -285,6 +286,9 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `boiler_walled_in.scn` | Rock against both sides: the grate counts as choked (logged) and the coal waits unlit |
 | `boiler_dry.scn` | No water: the coal burns, no steam, the belt stays still |
 | `steam_pipe_feeds_engine.scn` | Steam goes along a pipe to an engine 3.5 m off; cut the pipe and the belt stops |
+| `stamp_mill_crushes.scn` | Two counterweights drive a stamp mill: copper and iron ore come out as concentrate and sand, stone as gravel; the weights share the work |
+| `washer_sorts.scn` | A driven washer by a pool sorts concentrate and ore out left, sand, gravel and ash out right into the pool, using its water |
+| `smelter_bellows_mould.scn` | A smelter tops out short of copper's heat with still bellows; driven, they take it past 1100 °C, concentrate melts and a mould casts a copper ingot |
 | `shaker_sorts.scn` | Gravel drops through a 1-in-4 shaker screen; ore lies on it until current shakes it, then walks off the end into its own pit |
 | `rail_needs_support.scn` | A rail span over a drop breaks and falls; its ends on rock hold |
 | `blast_moves_sand.scn` | A charge by a sand bed throws a third of it into the air at once; the near end is scoured, and it all lands (none lost) |

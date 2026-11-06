@@ -133,6 +133,7 @@ impl World {
     pub(crate) fn step_power(&mut self) {
         if self.tick % MECH_EVERY != 0 { return; }
         self.step_boilers(MECH_EVERY as f32 / 60.);
+        self.step_works(MECH_EVERY as f32 / 60.);
         let (gw, gh) = (self.g.w, self.g.h);
         // weights whose drum is gone fall as an item
         let mut k = 0;
@@ -179,6 +180,8 @@ impl World {
                 if let Some(k) = (1..=2).find(|&k| self.g.m(i + k * gw) == Mat::Water) { supply[t] += WHEEL_K * self.stream_by_wheel(x, y + k).powi(3); } }
             for j in self.g.n4(x, y) { if self.g.m(j).has(SCREEN) { demand[t] += SCREEN_W; } }
         }
+        // stamp mills and washers at work, and the bellows of a lit smelter (refine.rs)
+        self.works_demand(&train, &mut demand);
         // what rides the belts
         for d in &self.drops { let r = (d.py + ITEM_HW + 0.05).floor() as usize; let c = d.px.floor() as usize;
             if r < gh && c < gw { if let Some(&t) = train.get(&(r * gw + c)) { if self.g.m(r * gw + c).has(BELT) { demand[t as usize] += ITEM_W * d.n as f32; } } } }
@@ -201,7 +204,8 @@ impl World {
         for w in self.tr.power.weights.iter_mut() {
             w.py = w.y;
             let Some(&t) = train.get(&(w.drum * gw + w.x)) else { continue }; let t = t as usize;
-            let short = demand[t] - supply[t];
+            // (what the weights before it on this train already give or take is already counted)
+            let short = demand[t] - supply[t] - wsup[t];
             let v = if short > 0. { (short / (WEIGHT_KG * g)).min(WEIGHT_V).min(w.room_down() / cpm / dt) } else { -((-short) / (WEIGHT_KG * g)).min(WEIGHT_V).min(w.room_up() / cpm / dt) };
             w.y += v * cpm * dt; wsup[t] += v * WEIGHT_KG * g;
         }

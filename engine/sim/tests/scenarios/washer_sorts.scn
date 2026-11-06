@@ -1,0 +1,51 @@
+// A washer sorts by weight. It stands on the floor with a gear on its top, turned by counterweights, and a pool of
+// water against its right side (poured in once it stands there, so the washer holds it in). Copper concentrate, sand,
+// iron ore, gravel and ash dropped into it are rocked in its water one at a time and come out sorted: the heavy ones
+// (concentrate, ore) out of its left spout onto the floor, the light ones (sand, gravel, ash) out of its right into the
+// pool as tailings. It uses the pool's water as it works.
+map
+##################################
+##################################
+#....jj*jjjjjjj*.................#
+#..............j.................#
+#..............j.................#
+#..............j.................#
+#..............j...........#.....#
+#..............**..........#.....#
+#..........................#.....#
+#..........................#.....#
+#..........@...............#.....#
+##################################
+##################################
+
+end
+give Counterweight 2
+give Washer 1
+place 2 -7 -8 Counterweight
+place 2 -4 -7 Counterweight
+place 3 8 -1 Washer
+pour 4 11 -1 Water
+pour 4 11 0 Water
+pour 4 12 -1 Water
+pour 4 12 0 Water
+pour 4 13 -1 Water
+pour 4 13 0 Water
+pour 4 14 -1 Water
+pour 4 14 0 Water
+pour 4 15 -1 Water
+pour 4 15 0 Water
+expect 5 works == 1
+drop 10 CopperFines 7 -4
+drop 15 Sand 7 -4
+drop 20 IronOre 7 -4
+drop 25 Gravel 7 -4
+drop 30 Ash 7 -4
+expect 60 washload == 5
+expect 60 turning:7,-2 == 1
+expect 900 washload == 0
+expect 900 zone:CopperFines,-6,4,-3,0 == 1   // heavy: out of the left spout
+expect 900 zone:IronOre,-6,4,-3,0 == 1
+expect 900 zone:Sand,10,16,-3,0 == 1          // light: out of the right, into the pool
+expect 900 zone:Gravel,10,16,-3,0 == 1
+expect 900 zone:Ash,10,16,-4,0 == 1
+expect 900 count:Water < 10                   // it used some of the pool

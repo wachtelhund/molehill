@@ -1,6 +1,6 @@
 # Production
 
-A mine's output moves as **real loose items**: every lump is a loose item in the world, in a cart, or in an ore hopper's bin (drawn as its heap). Nothing teleports and nothing is stored out of sight. Lumps get from the face to where they are wanted by falling, sliding and rolling, so a line can jam, spill and pile up. The code is `engine/sim/src/production.rs`, `sluice.rs`, `power.rs` and `steam.rs`; carts are in [Transport](Transport.md).
+A mine's output moves as **real loose items**: every lump is a loose item in the world, in a cart, or in an ore hopper's bin (drawn as its heap). Nothing teleports and nothing is stored out of sight. Lumps get from the face to where they are wanted by falling, sliding and rolling, so a line can jam, spill and pile up. The code is `engine/sim/src/production.rs`, `sluice.rs`, `power.rs`, `steam.rs` and `refine.rs`; carts are in [Transport](Transport.md).
 
 | stage | what | state |
 |---|---|---|
@@ -8,7 +8,7 @@ A mine's output moves as **real loose items**: every lump is a loose item in the
 | 2 | Water sluicing: running water carries fines off, riffle bars catch heavy lumps, water drains through screens | **built** |
 | 3 | Mechanical power: water wheels, shafts, gears, belts that carry and queue real lumps, counterweights | **built** |
 | 4 | Coal power: a boiler raises steam from coal and real water; a steam engine drives a train; ash and slag come out to haul away | **built** |
-| 5 | Refinement: stamp mill, washer, bellows smelter, foundry | design |
+| 5 | Refinement: a stamp mill crushes ore under falling stamps, a washer sorts by weight, a smelter blown by bellows melts it, moulds cast ingots | **built** |
 | 6 | Non-electric logic: plates, tipping scales, float valves, gates | design |
 
 ## Chutes
@@ -83,7 +83,7 @@ Drive trains of iron and timber carry a stream's push to belts and machines (`po
   * **Water wheel:** undershot. (This is the timber paddle-wheel block that turns a drive train. The copperline device of the same name makes current instead: see [Devices and Copperline](Devices-and-Copperline.md#sources).) Its bottom paddles reach a quarter metre down into a stream running under it. The current, read just beside the wheel where the water's surface is free (see [Sluicing](#sluicing)), pushes them with ½·ρ·A·v³·η: about 150 W per paddle cell in a 2 m/s stream.
   * **Belt:** costs 2 W a cell to keep rolling, and 5 W for each lump riding on it.
   * **Shaker screen:** a turning train within a tile of one shakes it, as copperline current does, for 3 W a cell.
-  * **Counterweight:** a drum under a roof and a 200 kg iron weight on up to 8 m of rope. When the train is short, the weight falls (m·g·v, up to 0.25 m/s) and makes up the difference. Spare power winds it back up. A metre of fall is about 2 kJ. Its floor is whatever lies under it now: build under it and it stops on top, and clear the way and it can go further (`counterweight_stops_on_build`).
+  * **Counterweight:** a drum under a roof and a 200 kg iron weight on up to 8 m of rope. When the train is short, the weight falls (m·g·v, up to 0.25 m/s) and makes up the difference. Spare power winds it back up. A metre of fall is about 2 kJ. Several on one train share the shortfall: each covers only what the ones before it leave. Its floor is whatever lies under it now: build under it and it stops on top, and clear the way and it can go further (`counterweight_stops_on_build`).
 * **Belts** (`Mat::Belt`, which runs right, and `Mat::BeltL`, which runs left): a woven fungus-fibre belt over wooden rollers. A belt runs the way the mole faces as it is laid, and right mouse turns a whole run round (test `right_mouse_turns_a_belt_run_round`).
   * A loose item lying on a turning belt is gripped by it and carried at the belt's speed. A still belt holds it like any floor.
   * **Lumps queue:** one can't pass the lump ahead of it on the same belt. So a blocked end backs the line up, one lump to a tile, and a full belt pushes its tail off the back. If there's no room behind, the lump stays wedged: a jam. An open end drops them off.
@@ -112,6 +112,29 @@ A boiler burns real lumps, boils real water out of the ground, and its steam dri
   * `boiler_dry`: no water, no steam.
   * `steam_pipe_feeds_engine`: steam goes along a pipe to an engine 3.5 m away. Cut the pipe and the belt stops.
 
+## Refinement
+
+Ore is crushed under falling stamps, washed apart by weight, smelted in a fire blown by bellows, and poured into moulds where it sets into ingots (`refine.rs`). Every lump goes in and comes out as a loose item. The power comes off drive trains and the heat from burning real fuel.
+
+The three works stand on a level floor on the tile grid. Their bodies are solid shell cells, like a boiler's, so a broken shell wrecks them. They are fed by dropping lumps on their tops and emptied through a spout at the floor on one side (the other if rock is against it).
+
+* **Stamp mill** (`Item::StampMill`): machinery that joins the train it touches. A cam lifts two 50 kg iron stamps 0.3 m and drops them on what lies in its mortar, a blow a second at full speed. That is m·g·h ≈ 300 W, which the train pays while it works. Six blows break a lump:
+  * copper, tin or iron ore → its **concentrate** plus a lump of **sand** (the rock it was in)
+  * stone and slag → gravel
+  * anything else stays on its top
+
+  A 200 kg counterweight's 2 m fall crushes about two lumps; a mill wants a water wheel or an engine (`stamp_mill_crushes`).
+* **Washer** (`Item::Washer`): a tub of water that a train rocks (80 W). It needs water touching it and uses a cell every 4 lumps. Lumps come out sorted by weight, and each only ever leaves by its own side, so a blocked spout jams rather than mixing:
+  * 2500 kg/m³ or more (ore, concentrate, slag) → out of its **left** spout
+  * lighter (sand, gravel, coal, ash) → out of its **right**
+
+  (`washer_sorts`)
+* **Smelter** (`Item::Smelter`): coal or charcoal dropped in burns a lump at a time, with ore or concentrate.
+  * **Heat:** it tends to 800 °C. **Bellows** (`Mat::Bellows`, machinery) touching it raise that up to 1350 °C with full air. They take 10 W a cell from their train while it's lit, and blow in proportion to how fast they turn; 8 turning cells (the whole bellows block touching it counts) is full air.
+  * **Melting:** at copper's or tin's 1100 °C, or iron's 1250 °C, a lump melts in 10 s.
+  * **Yield:** raw ore gives half an ingot and half a lump of **slag**; washed concentrate gives three quarters and a quarter, so crushing and washing pay. Slag comes out of its spout.
+* **Ingot mould** (`Mat::Mould`): a tile of mould built against a smelter is filled when it holds an ingot's worth of molten metal. It glows as it sets (`Mat::MouldHot`, a flame's heat) for 15 s, then it is empty again and the ingot lies on top (`smelter_bellows_mould`).
+
 ## How they look
 
 Chutes, screens and bumpers are cells with their own patterns (`art::mat_color`). A chute has a pale worn lip and boards along it. A screen is iron bars over a dark mesh under a timber rail. A bumper is red-painted timber with a bright head and iron bands. The ore hopper is drawn: its heap is tinted with what it holds, it shows through the open front of the bin and rises with the load, and the gate under the spout swings open when it lets a lump down. `--scene=production` stamps a small works (chute onto screen, a hopper of copper ore over track, a bumper) for stills. See [Item and Place Art](Item-and-Place-Art.md).
@@ -129,11 +152,16 @@ The chute, screen (shaking or not) and bumper say what moves things along them. 
 | Workbench | 8 chute | 2 wood |
 | Workbench | 2 bumper | 2 wood + 1 stone |
 | Workbench | 8 riffle bar | 2 wood |
+| Workbench | washer | 6 wood + 2 clay |
+| Workbench | 4 bellows | 2 wood + 2 fungus |
+| Workbench | 4 ingot mould | 2 sand + 1 clay |
 | Workbench | 2 gear | 2 wood |
 | Workbench | 8 water wheel | 4 wood |
 | Workbench | 8 belt | 2 wood + 2 fungus |
 | Forge | 8 iron shaft | 1 iron ingot |
 | Forge | boiler | 4 iron ingots + 6 brick |
+| Forge | stamp mill | 4 iron ingots + 4 wood |
+| Forge | smelter | 10 brick + 4 clay |
 | Forge | 4 steam engine | 3 iron ingots + 1 copper ingot |
 | Forge | 8 steam pipe | 1 copper ingot |
 | Forge | counterweight | 4 iron ingots + 2 wood |

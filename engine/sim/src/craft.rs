@@ -29,8 +29,10 @@ pub enum Item {
     Shaft, Gear, WaterWheel, Belt, Counterweight,
     // coal power (steam.rs): the boiler, a steam engine and its pipe, and what burning leaves
     Boiler, Engine, SteamPipe, Ash, Slag,
+    // refinement (refine.rs): the works, bellows, ingot moulds, and the concentrates a stamp mill and washer make
+    StampMill, Washer, Smelter, Bellows, Mould, CopperFines, TinFines, IronFines,
 }
-pub const NITEM: usize = 86;
+pub const NITEM: usize = 94;
 /// What an item can do in the world (see `Item::uses`).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Uses { pub place: bool, pub throw: bool, pub pick_up: bool }
@@ -321,6 +323,27 @@ const ITEM_DEFS_CONST: [ItemDef; NITEM] = {
        "Fine grey ash from a firebox. Light: water washes it off and a screen lets it through.").size(0.001).dens(600.0).throw(),
     it(Slag, "Slag", [70, 66, 74],
        "A glassy lump of fused clinker from burnt coal. Heavy, and it has to be hauled off.").size(0.08).dens(2500.0).throw(),
+    it(StampMill, "Stamp mill", [112, 100, 92],
+       "Iron stamps on a cam, over a mortar. Turned by a drive train, they crush ore into concentrate and sand.").dens(4000.0).place().pick_up()
+       .controls("Left mouse: stand it on a floor, against a turning gear or shaft · drop ore on it · E: empty, then pick up"),
+    it(Washer, "Washer", [104, 112, 120],
+       "A rocking tub. Stood in water and turned, it sorts lumps by weight: heavy out left, light out right.").dens(1200.0).place().pick_up()
+       .controls("Left mouse: stand it by water, against a turning gear · drop crushed ore in · E: empty, then pick up"),
+    it(Smelter, "Smelter", [136, 70, 54],
+       "A brick stack for melting ore. Coal and ore go in at the top; bellows beside it make it hot enough.").dens(2400.0).place().pick_up()
+       .controls("Left mouse: stand it on a floor · drop coal and ore in · bellows and an ingot mould against it · E: empty, then pick up"),
+    it(Bellows, "Bellows", [140, 108, 72],
+       "Leaf-and-board bellows on a crank. Built against a smelter and turned by a drive train, they blow its fire.").lump(Mat::Bellows).block(Mat::Bellows).place()
+       .controls("Left mouse: build against a smelter · join them to a turning shaft or gear"),
+    it(Mould, "Ingot mould", [150, 128, 96],
+       "A sand-and-clay mould. Built against a smelter, it's filled with molten metal and gives an ingot.").lump(Mat::Mould).block(Mat::Mould).place()
+       .controls("Left mouse: build a tile of it against a smelter's side"),
+    it(CopperFines, "Copper concentrate", [176, 140, 100],
+       "Crushed and washed copper ore. Heavy and fine; it smelts to more copper than raw ore does.").size(0.005).dens(4200.0).throw(),
+    it(TinFines, "Tin concentrate", [160, 160, 168],
+       "Crushed and washed tin ore. Very heavy and fine; it smelts to more tin than raw ore does.").size(0.005).dens(6900.0).throw(),
+    it(IronFines, "Iron concentrate", [140, 76, 64],
+       "Crushed and washed iron ore. Heavy and fine; it smelts to more iron than raw ore does.").size(0.005).dens(5200.0).throw(),
     ]
 };
 /// Every item, in order.
@@ -374,7 +397,7 @@ pub fn drop_of(m: Mat) -> Option<Item> {
         Dirt | Grass => Item::Dirt, Clay => Item::Clay, Sand => Item::Sand, Gravel => Item::Gravel,
         Granite | Rock | Limestone | Basalt | StoneBrick => Item::Stone, Coal => Item::Coal, CopperOre => Item::CopperOre, TinOre => Item::TinOre,
         IronOre => Item::IronOre, Quartz => Item::Quartz, Crystal => Item::Crystal, Roots | WoodBeam | Door | RootTree | TreeRoot => Item::Wood, Fungus | Mycelium => Item::Fungus, Moss => Item::Dirt,
-        IronBeam => Item::IronIngot, Glass => Item::Glass, Planks | Chute | Bumper | Riffle | Gear | Wheel | Belt | BeltL => Item::Wood, Polished | Carved => Item::Stone, Tiles => Item::Clay,
+        IronBeam => Item::IronIngot, Glass => Item::Glass, Planks | Chute | Bumper | Riffle | Gear | Wheel | Belt | BeltL | Bellows => Item::Wood, Polished | Carved => Item::Stone, Tiles => Item::Clay,
         _ => return None,
     })
 }
@@ -443,6 +466,9 @@ pub static RECIPES: &[Recipe] = &[
     // pack takes 2 a measure), and a mushroom farm's crop can feed the lamp instead of the belly
     Recipe { name: "Fungus oil x2", station: Station::Workbench, inputs: &[(Item::Fungus, 3)], out: (Item::FungusOil, 2), ticks: 60 },
     Recipe { name: "Chute x8", station: Station::Workbench, inputs: &[(Item::Wood, 2)], out: (Item::Chute, 8), ticks: 60 },
+    Recipe { name: "Washer", station: Station::Workbench, inputs: &[(Item::Wood, 6), (Item::Clay, 2)], out: (Item::Washer, 1), ticks: 200 },
+    Recipe { name: "Bellows x4", station: Station::Workbench, inputs: &[(Item::Wood, 2), (Item::Fungus, 2)], out: (Item::Bellows, 4), ticks: 120 },
+    Recipe { name: "Ingot mould x4", station: Station::Workbench, inputs: &[(Item::Sand, 2), (Item::Clay, 1)], out: (Item::Mould, 4), ticks: 90 },
     Recipe { name: "Gear x2", station: Station::Workbench, inputs: &[(Item::Wood, 2)], out: (Item::Gear, 2), ticks: 90 },
     Recipe { name: "Belt x8", station: Station::Workbench, inputs: &[(Item::Wood, 2), (Item::Fungus, 2)], out: (Item::Belt, 8), ticks: 120 },
     Recipe { name: "Water wheel x8", station: Station::Workbench, inputs: &[(Item::Wood, 4)], out: (Item::WaterWheel, 8), ticks: 150 },
@@ -469,6 +495,9 @@ pub static RECIPES: &[Recipe] = &[
     // production: the ore hopper is timber bound with copper; the shaker screen is an iron grating
     // mechanical power: an iron shaft and a counterweight cast in iron (gears, wheels and belts are workbench timber)
     // coal power: an iron drum on a brick firebox, an iron engine, copper steam pipe
+    // refinement: an iron-stamped mill, a timber washer tub, a brick smelter, bellows and sand moulds
+    Recipe { name: "Stamp mill", station: Station::Forge, inputs: &[(Item::IronIngot, 4), (Item::Wood, 4)], out: (Item::StampMill, 1), ticks: 300 },
+    Recipe { name: "Smelter", station: Station::Forge, inputs: &[(Item::Brick, 10), (Item::Clay, 4)], out: (Item::Smelter, 1), ticks: 300 },
     Recipe { name: "Boiler", station: Station::Forge, inputs: &[(Item::IronIngot, 4), (Item::Brick, 6)], out: (Item::Boiler, 1), ticks: 300 },
     Recipe { name: "Steam engine x4", station: Station::Forge, inputs: &[(Item::IronIngot, 3), (Item::CopperIngot, 1)], out: (Item::Engine, 4), ticks: 240 },
     Recipe { name: "Steam pipe x8", station: Station::Forge, inputs: &[(Item::CopperIngot, 1)], out: (Item::SteamPipe, 8), ticks: 90 },
