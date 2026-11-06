@@ -683,17 +683,19 @@ fn material_table_is_consistent() {
     assert!(Mat::Coal.lit_by(lava) && Mat::WoodBeam.lit_by(lava) && Mat::WoodBeam.lit_by(fire) && !Mat::Coal.lit_by(fire) && !Mat::Granite.lit_by(lava));
 }
 
-/// After a slide the stress state moves with the rock and only the entering rows are re-solved: the
-/// result matches a full solve of the new window (both ways, fresh rows and stored ones).
+/// After a slide the stress state moves with the rock and only the entering rows are re-solved (in 32 m
+/// boxes, a box a tick over the next ticks: `finish_seam` runs the rest at once): the result matches a
+/// full solve of the new window (both ways, fresh rows and stored ones): the same cells fail, and no
+/// cell's utilisation is off by more than a quarter (a box sees only its own margins, as any region solve).
 #[test] fn slide_keeps_stress_state() {
     let mut w = World::new(512 * S, 256 * S, 9); w.disasters.enabled = false;
     for _ in 0..60 { w.step(); }
     for rows in [SLIDE as i64, -(SLIDE as i64)] {
-        w.shift(rows);
+        w.shift(rows); w.finish_seam();
         let mut full = Stress::new(w.g.w * w.g.h); let mut want = full.solve(&w.g); want.sort();
-        let diff = (0..w.g.mat.len()).filter(|&i| w.st.util[i] != full.util[i]).count();
+        let diff = (0..w.g.mat.len()).filter(|&i| (w.st.util[i] as i32 - full.util[i] as i32).abs() > 32).count();
         let mut have: Vec<u32> = (0..w.g.mat.len() as u32).filter(|&i| w.st.util[i as usize] > 128 && w.g.mat[i as usize] != Mat::Bedrock as u8).collect(); have.sort();
-        assert!(diff * 1000 <= w.g.mat.len(), "slide {rows}: utilisation differs in {diff} cells");
+        assert_eq!(diff, 0, "slide {rows}: utilisation off by more than 0.25 in {diff} cells");
         assert_eq!(have.len(), want.len(), "slide {rows}: failing cells");
     }
 }
@@ -773,7 +775,7 @@ fn material_table_is_consistent() {
 #[test] fn slides_leave_nothing_failing() {
     for seed in [777u32, 11] {
         let mut w = World::new(1024 * S, 512 * S, seed); w.disasters.enabled = false;
-        for rows in [SLIDE as i64, -(SLIDE as i64)] { w.shift(rows); let f = Stress::new(w.g.w * w.g.h).solve(&w.g); assert!(f.is_empty(), "seed {seed}, slide {rows}: {} cells fail", f.len()); }
+        for rows in [SLIDE as i64, -(SLIDE as i64)] { w.shift(rows); w.finish_seam(); let f = Stress::new(w.g.w * w.g.h).solve(&w.g); assert!(f.is_empty(), "seed {seed}, slide {rows}: {} cells fail", f.len()); }
     }
 }
 /// Glowmites drift inside their grotto, light it, and can be caught one at a time; a caught one is back later.

@@ -26,3 +26,4 @@ pub mod walls;
 pub mod sites;
 pub mod templates;
 pub mod lore;
+pub mod stream;

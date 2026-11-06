@@ -249,6 +249,8 @@ pub struct World {
     pub sites: Vec<crate::sites::Site>, pub sites_seen: std::collections::HashSet<u32>,
     /// grottos the player has come near (the discovery line is said once each); saved
     pub grottos_seen: std::collections::HashSet<u32>,
+    /// fresh bands built ahead of the window, a step at a time (`stream.rs`); never saved
+    pub stream: crate::stream::BandCache,
 }
 /// For audio / UI feedback.
 /// What `World::pick_up` took back into the pack.
@@ -280,7 +282,7 @@ impl World {
             moles: vec![], drops: vec![], stockpile: (0, 0, 0, 0), buildings: vec![], torches: vec![], chests: vec![], furniture: vec![], paint_acc: 0,
             quest: 0, log: vec![], discovered: [false; NMAT], chests_opened: 0, pillars: 0, max_depth: 0., craft_queue: vec![], gear: Gear::default(), known: [false; NITEM], mode: Default::default(), rules: Default::default(), lamp_oil: 0., lamp_dry: false, lamp_low: false, ruins: vec![], ruins_seen: Default::default(), relics: 0, crumbled: 0,
             light_rect: (0, 0, w - 1, h - 1), events: vec![], marks: vec![], react_pending: false, logic: Logic::new(w, h), disasters: Disasters::new(seed), shake: 0., air: Air::new(w, h), farms: vec![], harvested: 0, input: Input::default(), pl: Player::default(), gen: gn, oy, bands: Default::default(), opened: Default::default(), clues: vec![], found_clues: Default::default(), journal: vec![], grottos: vec![], caught: Default::default(), keep_blast_field: false, blast_field: vec![], debris: vec![], waves: vec![], strain: vec![], strain_creak: 0, tr: Default::default(), blasts_run: 0, info, g,
-            walls: crate::walls::Walls::new(w, h), sites: vec![], sites_seen: Default::default(), grottos_seen: Default::default(),
+            walls: crate::walls::Walls::new(w, h), sites: vec![], sites_seen: Default::default(), grottos_seen: Default::default(), stream: Default::default(),
         }
     }
     pub fn new(w: usize, h: usize, seed: u32) -> World { let mut b = NewHolt::new(w, h, seed); while b.step().is_none() {} b.take() }
@@ -397,31 +399,24 @@ impl World {
         let sp = self.stockpile; if let (Some(a), Some(b)) = (dy(sp.1), dy(sp.3)) { self.stockpile = (sp.0, a, sp.2, b); }
         self.logic.shift_rows(rows / crate::logic::B as i64);
         self.air.shift_rows(rows / air::AB as i64);
-        // entering rows: generate the never-visited ones, then unpack the stored bands over them
-        let fresh: Vec<usize> = (en..en + s).step_by(BH).filter(|&y0| !self.bands.contains_key(&(self.oy + y0 as i64))).collect();
-        if let (Some(&a), Some(&b)) = (fresh.first(), fresh.last()) { let b = b + BH; self.gen.fill_rows(&mut self.g, self.oy, a, b); let (gn, oy) = (&self.gen, self.oy); let m = 32 * CPM; // the old rows next to the new ones may now roof a fresh cave: stabilise into them too
-            gen::stabilize_soft(&mut self.g, &mut self.st, a.saturating_sub(m), (b + m).min(h), &|x, y| gn.in_grotto_void(x, oy + y as i64), &|x, y| gen::in_start_zone(gn.biome.len(), x, oy + y as i64)); }
+        // entering rows: unpack the stored bands; the never-visited ones come built and shored from the
+        // stream (built ahead, or now if the window got there first: `stream.rs`)
         for y0 in (en..en + s).step_by(BH) {
-            if let Some(b) = self.bands.remove(&(self.oy + y0 as i64)) {
-                match band::decode(self, y0, &b.blob, None) {
-                    Ok(true) => {}
-                    Ok(false) => self.line_back(y0, y0 + BH), // older blob: no wall bytes
-                    Err(_) => { self.gen.fill_rows(&mut self.g, self.oy, y0, y0 + BH); self.line_back(y0, y0 + BH); }
-                }
-            } else {
-                self.line_back(y0, y0 + BH);
-            }
+            let fresh = match self.bands.remove(&(self.oy + y0 as i64)) {
+                Some(b) => match band::decode(self, y0, &b.blob, None) { Ok(true) => false, Ok(false) => { self.line_back(y0, y0 + BH); false } Err(_) => true }, // (false: older blob, no wall bytes)
+                None => true,
+            };
+            if fresh { self.put_fresh_band(y0); self.line_back(y0, y0 + BH); }
         }
         self.disasters.y = (self.disasters.y as i64 - rows).clamp(8, h as i64 - 8) as usize;
         self.refresh_chests();
-        self.g.life.iter_mut().for_each(|v| *v = 0); self.g.wake_all();
+        crate::stream::shift_wake(&mut self.g, rows, en, en + s); // only the entering chunks (and their edge) wake
         // structure: the solver's state moved with the rock, so only the entering rows (plus 16 m into the
         // old ones: built supports can cross the band edge) and the edge the window left (its anchors and
         // overburden change) are re-solved
         let m = 16 * crate::mat::CPM;
         let (ent, far) = if rows > 0 { ((0, en.saturating_sub(m), w - 1, h - 1), (0, 0, w - 1, m)) } else { ((0, 0, w - 1, (en + s + m).min(h - 1)), (0, h - 1 - m, w - 1, h - 1)) };
-        let mut f = self.st.solve_rect(&self.g, Some(ent)); f.extend(self.st.solve_rect(&self.g, Some(far)));
-        self.st.crack(&self.g, &f); self.g.clear_struct();
+        self.start_seam(rows, ent, far); self.g.clear_struct(); // solved over the next ticks (`stream.rs`)
         self.light = Light::new(w, h);
         self.pl.mine = None; if let Some(m) = self.moles.first() { self.pl.fall_from = m.y; }
     }
@@ -568,7 +563,8 @@ impl World {
         // re-solve covers only the regions around them; reactions are batched every 24 ticks
         if self.g.reactions.swap(0, Relaxed) != 0 { self.react_pending = true; }
         self.g.undermined.swap(0, Relaxed);
-        if (self.tick % 6 == 0 && self.g.struct_dirty.is_some() || self.tick % 6 == 0 && self.g.sdirty.iter().any(|f| f.load(Relaxed) & 1 != 0)) || (self.tick % 24 == 0 && self.react_pending) {
+        let seam = self.seam_step(); // after a slide, its region solve a box a tick; the regular pass waits for it
+        if !seam && ((self.tick % 6 == 0 && self.g.struct_dirty.is_some() || self.tick % 6 == 0 && self.g.sdirty.iter().any(|f| f.load(Relaxed) & 1 != 0)) || (self.tick % 24 == 0 && self.react_pending)) {
             let bits = if self.tick % 24 == 0 && self.react_pending { 3 } else { 1 };
             self.react_pending = false; self.g.struct_dirty = None;
             let boxes = self.g.take_struct(bits);
