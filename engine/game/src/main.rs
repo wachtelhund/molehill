@@ -1375,7 +1375,9 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
                 want.push((87, k, cell_to_world(xc, yc), 3.9, sp.tub[(wk.water > 0.) as usize].clone(), size, false, lit));
             }
             WorkKind::Smelter => {
-                let heat = if wk.temp < 300. { 0 } else if wk.temp < 800. { 1 } else if wk.temp < 1150. { 2 } else { 3 };
+                // white-hot from the heat copper and tin smelt at (`refine::charge`); orange below the 800 °C an unblown fire settles at,
+                // so it doesn't flicker on a step
+                let heat = if wk.temp < 300. { 0 } else if wk.temp < 700. { 1 } else if wk.temp < 1100. { 2 } else { 3 };
                 want.push((88, k, cell_to_world(xc, yc), 3.9, sp.smelter[heat].clone(), size, false, if heat >= 2 { Color::WHITE } else { lit }));
                 if heat > 0 { let fl = 0.85 + 0.1 * (now * 13.).sin() + 0.05 * (now * 29.).sin(); let a = [0., 0.2, 0.35, 0.5][heat];
                     want.push((89, k, cell_to_world(xc, y1 - (y1 - y0) * 0.3), 4.4, sp.glow.clone(), Vec2::splat(20. * fl), false, Color::srgba(1., 0.55, 0.22, a * fl))); }

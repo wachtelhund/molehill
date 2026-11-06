@@ -391,8 +391,9 @@ pub fn mat_color(m: molehill_sim::mat::Mat, cx: u32, cy: u32, above: u32, turn: 
         // the works' shell cells sit under their drawn sprites: a dark backing, so a rocking tub's corners show shadow
         M::StampMill | M::Washer | M::Smelter => Some([40., 36., 34.]),
         // bellows: boards top and bottom and pleated leather between, the pleats squeezing and opening as the train turns
-        M::Bellows => { let k = 1. + 0.35 * (turn * 1.2).sin(); let row = cy % c;
-            Some(if row == 0 || row == c - 1 { [156., 116., 72.] } else if ((row as f32 / (1.5 * k)).floor() as i32) % 2 == 0 { [126., 88., 58.] } else { [86., 60., 40.] }) }
+        // (the creases slide a whole cell each way as they squeeze and open, so even a half-metre block shows it)
+        M::Bellows => { let p = (turn * 1.2).sin();
+            Some(if above == 0 || cy % c == c - 1 { [156., 116., 72.] } else if (above as f32 - p).rem_euclid(2.) < 1. { [132., 92., 60.] } else { [80., 56., 38.] }) }
         // ingot moulds: sand and clay, an ingot-shaped hollow in each half-metre tile; setting, the hollow is full of glowing metal
         M::Mould | M::MouldHot => { let q = c / 2; let (lx, ly) = (cx % q, cy % q); let hollow = (1..=2).contains(&lx) && (1..=2).contains(&ly);
             let fleck = h(cx, cy, 99) > 0.85;
