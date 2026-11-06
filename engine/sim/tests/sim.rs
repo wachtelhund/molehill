@@ -1926,7 +1926,9 @@ fn staged_new_holt_matches_and_climbs() {
 fn loading_prefetch_finishes_the_ground_ahead() {
     let w = World::new(512 * S, 256 * S, 4242);
     let w2 = molehill_sim::save::load(&molehill_sim::save::save(&w)).unwrap();
-    for mut w in [w, w2] {
+    // the third goes the web's way: slices on the calling thread (`stream.sliced`), no worker
+    let mut w3 = molehill_sim::save::load(&molehill_sim::save::save(&w)).unwrap(); w3.stream.sliced = true;
+    for mut w in [w, w2, w3] {
         let mut last = w.stream_progress(); let t = std::time::Instant::now();
         while w.prefetch_step() { let p = w.stream_progress(); assert!(p >= last, "progress went {last} -> {p}"); last = p;
             assert!(t.elapsed().as_secs() < 120, "prefetch never finished"); std::thread::yield_now(); }
