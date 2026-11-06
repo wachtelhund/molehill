@@ -388,7 +388,7 @@ fn stage_scene(w: &mut World) {
             }
             "climb" | "climb-rope" => { // a tall hall east of the burrow with a rope ladder and a hook rope hanging from its roof;
                 // the mole holds the ladder halfway up (`climb`), or hangs on the rope two metres below the hook, swinging
-                // (`climb-rope`). With `--shot-up` / `--shot-down` (movement's dev flags) it climbs or slides.
+                // (`climb-rope`). Movement's `--shot-up` / `--shot-down` (in their lift PR) will make it climb or slide.
                 use molehill_sim::{mat::CPM, lifts::Ladder, ropes::{Rope, NSEG, SEG}, world::BODY_H};
                 let (x0, x1, y0) = (mx + 4 * S, mx + 40 * S, my - 26 * S);
                 for x in x0 - 2 * S..x1 + 2 * S { for y in y0 - 4 * S..my + 1 + 2 * S { set(w, x, y, Mat::Bedrock); } }
