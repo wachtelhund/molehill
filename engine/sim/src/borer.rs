@@ -53,6 +53,7 @@ impl World {
         let (y0, y1) = ((y - BORER_H).floor() as i32, (y - 1e-3).floor() as i32);
         (y0..=y1).any(|r| (x0..=x1).any(|c| self.borer_cell_blocks(c, r)))
     }
+    /// Is there ground under any of its wheels?
     fn borer_grounded(&self, x: f32, y: f32) -> bool {
         let (x0, x1) = ((x - BORER_W / 2. + 1.).floor() as i32, (x + BORER_W / 2. - 1.).floor() as i32);
         (x0..=x1).any(|c| self.borer_cell_blocks(c, y.floor() as i32))
@@ -140,6 +141,9 @@ impl World {
             // falling
             if !self.borer_grounded(b.x, b.y) { b.vy = (b.vy + crate::world::TUNE.gravity * dt).min(crate::world::TUNE.terminal);
                 let ny = b.y + b.vy * dt; if !self.borer_hits(b.x, ny) { b.y = ny; } else { b.vy = 0.; b.y = b.y.floor(); } }
+            // tipping: with nothing under its middle half and a real drop (deeper than a tile) on one side, its weight takes it
+            // over the edge: it slides that way until it falls (a step under it is no drop: it rests on it)
+            else if let Some(s) = self.borer_tips(&b) { let nx = b.x + s * BORER_V * 2. * dt; if !self.borer_hits(nx, b.y) { b.x = nx; } }
             else { b.vy = 0.; }
             // driving: the throttle from the rider's keys, paid in steam
             let throttle = if riding { self.input.right as i32 - self.input.left as i32 } else { 0 } as f32;
@@ -182,6 +186,15 @@ impl World {
             if b.x < 2. || b.x > gw as f32 - 2. || b.y > gh as f32 - 2. { b.x = b.x.clamp(2., gw as f32 - 2.); b.y = b.y.min(gh as f32 - 2.); }
             self.tr.borers[k] = b;
         }
+    }
+    /// Which way it tips, if its weight is over a drop: no ground under its middle half, and on that side open space more
+    /// than a tile deep under its outer edge.
+    fn borer_tips(&self, b: &Borer) -> Option<f32> {
+        let r = b.y.floor() as i32; let ground = |c: i32| self.borer_cell_blocks(c, r);
+        let (m0, m1) = ((b.x - BORER_W / 4.).floor() as i32, (b.x + BORER_W / 4. - 1e-3).floor() as i32);
+        if (m0..=m1).any(ground) { return None; }
+        [1f32, -1.].into_iter().find(|&s| { let edge = if s > 0. { (b.x + BORER_W / 2. - 1.).floor() as i32 } else { (b.x - BORER_W / 2.).floor() as i32 };
+            !(0..=S as i32 + 1).any(|k| self.borer_cell_blocks(edge, r + k)) })
     }
     /// Is only the bottom tile of its front blocked at nx (a step it can climb)?
     fn front_low_only(&self, b: &Borer, nx: f32) -> bool {

@@ -136,7 +136,7 @@ Map legend: `t` roots (a root tangle), `f` fungus, `.` empty, `#` granite, `B` b
 | `boilers` / `bsteam` / `bwater` / `bfuel` / `bburning` / `bchoked` | Boilers; the first one's steam (kJ), water (cells), fuel (lumps, the burning one too), whether it burns, whether its ash door is choked |
 | `works` / `casts` / `stampload` / `washload` / `smeltload` / `smelttemp` / `smeltair` / `molten` | Stamp mills, washers and smelters; casts setting in moulds; the first stamp mill's, washer's or smelter's load waiting; the first smelter's heat (°C), air (0..1) and molten metal (ingots) |
 | `gates` / `gateopen` / `scales` / `tipped` / `pulled:DX,DY` | Sluice gates and whether the first is lifted; tipping scales and whether the first has tipped; whether the tile's linkage is pulled |
-| `borers` / `borerx` / `borersteam` / `borerwater` / `borerfuel` / `onborer` | Steam borers; the first one's middle (tiles from the map's left), steam (kJ), water (cells), fuel (lumps); whether the mole rides one |
+| `borers` / `borerx` / `borery` / `borersteam` / `borerwater` / `borerfuel` / `onborer` | Steam borers; the first one's middle (tiles from the map's left) and wheels' row (tiles from the map top), steam (kJ), water (cells), fuel (lumps); whether the mole rides one |
 | `weights` / `weighty` | Counterweights; the first one's top (tiles from the map top) |
 | `cells:Mat,DX0,DX1,DY0,DY1` | Tiles' worth of that material in those tile columns and rows from `@` |
 | `ladders` / `climbing` | Rope ladders hung; whether the mole is on one |
@@ -301,6 +301,7 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `borer_bores.scn` | A steam borer fed coal by hand and filled from a puddle bores into granite when ridden; as much gravel as it cut lies behind it; Space gets off; saved |
 | `borer_needs_steam.scn` | With no fuel a ridden borer raises no steam and doesn't move |
 | `borer_jams.scn` | In a dead end with no room behind it for its spoil, a borer jams and says so |
+| `borer_left_step_fall.scn` | A borer bores left into granite, climbs a tile-high step onto a ledge, then tips off the ledge's end into a pit, the mole on it |
 | `shaker_sorts.scn` | Gravel drops through a 1-in-4 shaker screen; ore lies on it until current shakes it, then walks off the end into its own pit |
 | `rail_needs_support.scn` | A rail span over a drop breaks and falls; its ends on rock hold |
 | `blast_moves_sand.scn` | A charge by a sand bed throws a third of it into the air at once; the near end is scoured, and it all lands (none lost) |
