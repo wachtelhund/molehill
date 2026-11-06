@@ -143,6 +143,8 @@ Machinery moves with its drive train. Each train keeps how far it has run (cells
 
 A boiler is drawn over its shell cells: a riveted drum with a steam dome and chimney over a brick firebox. While it burns, the fire shows through the door, a warm glow flickers round it and smoke puffs from the chimney. A steam engine's crank pin goes round with its train and the connecting rod swings to it. Steam pipes are copper with brass flanges. `--scene=steam` stamps a lit boiler piping steam to an engine that drives a belt.
 
+The refinement works are drawn over their shell cells. A stamp mill's two stamps rise slowly on the cam and drop fast, half a stroke apart. A washer's tub rocks while its train turns, with water in it while it has some. A smelter's fire mouth goes from dark through dull red and orange to white-hot with its heat, and smoke rises while it burns. Bellows' pleats squeeze and open with their train, and a setting mould's hollow glows. `--scene=refine` stamps a counterweight driving a stamp mill, a washer and bellows on a lit smelter, with an empty and a setting mould.
+
 ## Hover tips
 
 The chute, screen (shaking or not) and bumper say what moves things along them. The ore hopper's tip gives its load and capacity, and says whether the gate is held open or opens for a cart (test `production_hover_tips_say_what_to_do`).
