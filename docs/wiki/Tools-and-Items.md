@@ -205,6 +205,9 @@ Chains are short: nothing is more than two steps from the ground (ore → ingot 
 | | 8 riffle bar | 2 wood |
 | | 2 gear / 8 water wheel | 2 wood / 4 wood |
 | | 8 belt | 2 wood + 2 fungus |
+| | washer | 6 wood + 2 clay |
+| | 4 bellows | 2 wood + 2 fungus |
+| | 4 ingot mould | 2 sand + 1 clay |
 | | 2 fungus oil / 1 fungus oil | 3 fungus / 2 mushrooms (the oil press: better than the pack's 2 fungus a measure) |
 | | 8 rock wall / 8 timber wall | 2 stone / 2 wood |
 | | 4 carved wall | 2 stone |
@@ -228,6 +231,8 @@ Chains are short: nothing is more than two steps from the ground (ore → ingot 
 | | boiler | 4 iron ingots + 6 brick |
 | | 4 steam engine | 3 iron ingots + 1 copper ingot |
 | | 8 steam pipe | 1 copper ingot |
+| | stamp mill | 4 iron ingots + 4 wood |
+| | smelter | 10 brick + 4 clay |
 | | lamp | 1 glass + 2 fungus |
 | | 8 masonry wall | 2 brick |
 | | 4 pipe wall | 1 copper ingot |
@@ -239,6 +244,8 @@ Chains are short: nothing is more than two steps from the ground (ore → ingot 
 | | tube hopper | 2 iron ingots + 2 copper ingots + 1 glass |
 
 The chain is the design: wood and stone give a bench and a pickaxe; heat (fire at first, lava deeper) lights a forge for copper and iron; copper and tin alloy into bronze, and copperline and a lever power a workshop to make the bronze drill; and iron, copper and crystal from the deep make the bore.
+
+The refinement works ([Production](Production.md#refinement)) sit beside the forge, not above it. A smelter turns raw ore into ingots at the forge's yield (2 ore an ingot) on half the coal of a warm forge and a quarter of a cold one's (one lump burns through four charges, half a coal an ingot), but takes 20 s an ingot where the forge takes about 3, and it needs bellows on a turning train. It is the patient way to metal, and the forge is the quick one. The better yield, three quarters of an ingot a lump of concentrate, needs the stamp mill, which is iron, so it comes after the drill. The smelter (10 clay and 4 coal from the ground), bellows, moulds and washer are all made from what the pickaxe digs (test `the_smelter_is_patient_not_a_shortcut`).
 
 **Adding a recipe** (furniture, decor): add the item at the **end** of `Item` (saves store items by index) with its name, description, colour and `uses`, then one `Recipe` line with its station. Unlocking and the crafting list need nothing more.
 
