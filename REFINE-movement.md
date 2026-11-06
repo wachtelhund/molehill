@@ -114,6 +114,9 @@ Polish only: no new features or concepts. Each entry is one commit.
     burial check, so the mole passes and drops through a pour unhurt. Grains rolling down a pile have the pile
     under them and still carry the mole, as do settled heaps. No shared flag: the grid already stamps each move.
     Scenarios `falling_loose_no_climb` and `falling_loose_walk_under` (both fail with the rule off).
+    Polish run (headless playtest): digging up through a dirt ceiling into sand, the pour comes down past the
+    mole unhurt and it shoves through the settled heap (about 0.5 s) and on; standing still under a pour, it
+    rides up on the growing pile (at most 1 hp from a grain settling in it, regained). No change needed.
 
 ## Open issues
 * Walking off a ledge you dug open is still a free choice: a dug-open cave shows itself, and run/stop is
