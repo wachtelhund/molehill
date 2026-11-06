@@ -52,6 +52,13 @@ which works against early discovery. Next slice candidate.
 Tests: `the_drill_costs_a_first_hour_haul`, `the_bench_presses_oil_better_than_the_pack`.
 Scenario: `craft_oil_press`.
 
+## Polish after merge (#7)
+* Main after the merge is green: 97 tests, 180 scenarios, game and web build.
+* The bench press was invisible in play: only the recipe list showed it. The "last measure" warning and the
+  lamp-oil hover tip now say a workbench presses 3 fungus into 2 measures (scenario `survival_lamp_oil`
+  checks the line).
+* `site/` rebuilt with the oil press. While #7 was open it kept main's copy, because every merge of main
+  re-conflicted the wasm.
 ## Dig tempo (branch `refine/dig-tempo`, Hampus playtest)
 
 Feel: digging was too fast; clearing a base didn't feel like an accomplishment. The rule is unchanged (a
