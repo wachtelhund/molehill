@@ -26,8 +26,10 @@ pub enum Mat {
     Engine, SteamPipe, Boiler,
     // refinement (refine.rs): the works' shells, bellows, and foundry moulds (empty and setting)
     StampMill, Washer, Smelter, Bellows, Mould, MouldHot,
+    // non-electric logic (linkage.rs): pull-rods, a tread plate, a float, a sluice gate's leaf, a scale's pan, a clutch
+    Rod, TreadPlate, Float, SluiceGate, ScalePan, Clutch,
 }
-pub const NMAT: usize = 57;
+pub const NMAT: usize = 63;
 
 /// Everything the simulation knows about a material, in one row. Rules read these fields instead of
 /// naming materials, so a new material (or a retuned one) is a single table edit.
@@ -95,6 +97,8 @@ pub const HUB: u16 = 4096;
 pub const BELT: u16 = 8192;
 /// Carries a boiler's steam (a steam pipe, and the steam engine it feeds; steam.rs).
 pub const STEAMLINE: u16 = 16384;
+/// Part of a mechanical linkage: it carries a pull along pull-rods, without current (linkage.rs).
+pub const LINK: u16 = 32768;
 const BASE: Props = Props { name: "", desc: "", kind: Kind::Solid, density: 0., tensile: 0., compressive: 0., dig: 0, tier: 0, blast: 0,
     emit: [0, 0, 0], opacity: 0, color: [0, 0, 0], crumbles_to: Mat::Empty, repose: 0., heat: 0, ignite: 0, cools_to: Mat::Empty, life: 0,
     spread: 0, flow_in_10: 10, bounce: 0.35, friction: 0.5, flags: 0 };
@@ -160,6 +164,12 @@ pub static PROPS: [Props; NMAT] = [
     Props { name: "Bellows", desc: "Leaf-and-board bellows on a crank. Turned by a drive train, they blow a smelter's fire.", kind: Solid, density: 700., tensile: 2000., compressive: 5000., dig: 4, blast: 3, opacity: 170, color: [140, 108, 72], crumbles_to: X::Bellows, repose: 0.3, ignite: 1, flags: BUILT | MECH | HUB, bounce: 0.3, friction: 0.55, ..BASE },
     Props { name: "Ingot mould", desc: "A sand-and-clay mould. Built against a smelter, it's filled when an ingot's worth is molten.", kind: Solid, density: 1800., tensile: 300., compressive: 4000., dig: 3, blast: 3, opacity: 160, color: [150, 128, 96], crumbles_to: X::Sand, flags: BUILT, bounce: 0.1, friction: 0.8, ..BASE },
     Props { name: "Setting mould", desc: "A mould full of molten metal, glowing as it sets. An ingot pops out when it's cool.", kind: Solid, density: 4000., tensile: 300., compressive: 4000., dig: 3, blast: 3, emit: [200, 90, 30], opacity: 160, color: [220, 110, 50], crumbles_to: X::Sand, heat: 1, flags: BUILT, bounce: 0.1, friction: 0.8, ..BASE },
+    Props { name: "Pull-rod", desc: "An iron rod on guides. Carries a pull from a plate, scale or float to a gate or clutch.", kind: Solid, density: 7800., tensile: 20000., compressive: 60000., dig: 16, tier: 2, blast: 9, opacity: 190, color: [128, 120, 116], crumbles_to: X::Rod, flags: BUILT | LINK, bounce: 0.45, friction: 0.35, ..BASE },
+    Props { name: "Tread plate", desc: "A sprung iron plate in the floor. A mole, a few lumps or a cart on it pulls its rods.", kind: Solid, density: 7000., tensile: 20000., compressive: 60000., dig: 14, tier: 1, blast: 9, opacity: 200, color: [150, 140, 128], crumbles_to: X::TreadPlate, flags: BUILT | LINK, bounce: 0.4, friction: 0.5, ..BASE },
+    Props { name: "Float", desc: "A sealed timber float on a rod. Water reaching it lifts it and pulls its rods.", kind: Solid, density: 500., tensile: 2000., compressive: 5000., dig: 3, blast: 3, opacity: 150, color: [184, 150, 96], crumbles_to: X::Float, repose: 0.3, ignite: 1, flags: BUILT | LINK, bounce: 0.3, friction: 0.55, ..BASE },
+    Props { name: "Sluice gate", desc: "A timber gate across a channel. Its rods lift it to let water and lumps through.", kind: Solid, density: 700., tensile: 3000., compressive: 8000., dig: 4, blast: 3, opacity: 160, color: [116, 86, 58], crumbles_to: X::WoodBeam, repose: 0.3, ignite: 1, flags: BUILT | LINK, bounce: 0.3, friction: 0.55, ..BASE },
+    Props { name: "Scale pan", desc: "A tipping scale's pan. What lies on it is weighed against the stones on its counter-pan.", kind: Solid, density: 3000., tensile: 9000., compressive: 30000., dig: 8, tier: 1, blast: 6, opacity: 190, color: [168, 140, 88], crumbles_to: X::Gravel, flags: BUILT | LINK, bounce: 0.3, friction: 0.5, ..BASE },
+    Props { name: "Clutch", desc: "A dog clutch in a drive. It joins the train only while its rod is pulled.", kind: Solid, density: 7000., tensile: 20000., compressive: 60000., dig: 16, tier: 2, blast: 9, opacity: 200, color: [110, 116, 126], crumbles_to: X::Clutch, flags: BUILT | MECH | HUB | LINK, bounce: 0.4, friction: 0.4, ..BASE },
 ];
 impl Mat {
     #[inline] pub fn from_u8(v: u8) -> Mat { if (v as usize) < NMAT { unsafe { std::mem::transmute(v) } } else { Mat::Empty } }

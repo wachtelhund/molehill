@@ -156,7 +156,7 @@ impl World {
         let state = |w: &World, i: usize, a: u8| if w.g.m(i).has(HUB) { (i, 2u8) } else { (i, a) };
         let mut n = 0u32;
         for &s in &cells {
-            if train.contains_key(&s) { continue; }
+            if train.contains_key(&s) || self.g.m(s) == Mat::Clutch && !self.pulled(s) { continue; }
             let mut todo: Vec<(usize, u8)> = if self.g.m(s).has(HUB) { vec![(s, 2)] } else { vec![(s, 0), (s, 1)] };
             for &st in &todo { seen.insert(st); }
             while let Some((i, ax)) = todo.pop() {
@@ -166,6 +166,8 @@ impl World {
                 for &(dx, dy, a) in dirs {
                     let (nx, ny) = (x as i32 + dx, y as i32 + dy); if !self.g.in_bounds(nx, ny) { continue; }
                     let j = ny as usize * gw + nx as usize; if !self.g.m(j).has(MECH) { continue; }
+                    // a clutch joins the drive only while its pull-rod is pulled (linkage.rs)
+                    if self.g.m(j) == Mat::Clutch && !self.pulled(j) { continue; }
                     let st = state(self, j, a); if seen.insert(st) { todo.push(st); }
                 }
             }
@@ -173,7 +175,8 @@ impl World {
         }
         let nt = n as usize;
         let (mut supply, mut demand) = (vec![0f32; nt], vec![0f32; nt]);
-        for &i in &cells { let t = train[&i] as usize; let m = self.g.m(i); let (x, y) = (i % gw, i / gw);
+        // (a clutch let out is in no train)
+        for &i in &cells { let Some(&t) = train.get(&i) else { continue }; let t = t as usize; let m = self.g.m(i); let (x, y) = (i % gw, i / gw);
             if m.has(BELT) { demand[t] += BELT_W; }
             // a bottom paddle (open or water under it) reaches down a quarter metre into a stream running under the wheel
             if m == Mat::Wheel && y + 3 < gh && self.g.m(i + gw) != Mat::Wheel {

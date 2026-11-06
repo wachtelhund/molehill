@@ -34,13 +34,14 @@ pub const D_RAIL: u8 = 9; pub const D_TUBE: u8 = 10;
 /// The build code for a block item (structural or decorative).
 /// Block items and the cells they build, in build-code order from `D_WOOD` (code = index + 2; codes 2..=10 are
 /// fixed: saves keep designations by code). A new block item is a new row here.
-pub const BUILDS: [(Item, Mat); 21] = [
+pub const BUILDS: [(Item, Mat); 25] = [
     (Item::WoodPillar, Mat::WoodBeam), (Item::Brick, Mat::StoneBrick), (Item::IronBeam, Mat::IronBeam), (Item::Planks, Mat::Planks),
     (Item::PolishedStone, Mat::Polished), (Item::Tiles, Mat::Tiles), (Item::CarvedPillar, Mat::Carved), (Item::Rail, Mat::Rail), (Item::Tube, Mat::Tube),
     // production (production.rs, sluice.rs, power.rs)
     (Item::Chute, Mat::Chute), (Item::Screen, Mat::Screen), (Item::Bumper, Mat::Bumper), (Item::Riffle, Mat::Riffle),
     (Item::Shaft, Mat::Shaft), (Item::Gear, Mat::Gear), (Item::WaterWheel, Mat::Wheel), (Item::Belt, Mat::Belt),
     (Item::Engine, Mat::Engine), (Item::SteamPipe, Mat::SteamPipe), (Item::Bellows, Mat::Bellows), (Item::Mould, Mat::Mould),
+    (Item::Rod, Mat::Rod), (Item::TreadPlate, Mat::TreadPlate), (Item::Float, Mat::Float), (Item::Clutch, Mat::Clutch),
 ];
 /// Number of build codes (`place_acc` slots).
 pub const NBUILD: usize = BUILDS.len() + 2;
@@ -617,6 +618,7 @@ impl World {
         self.step_items();
         self.belt_queue();
         self.step_wash();
+        self.step_linkage();
         self.step_debris(); let now = self.tick; self.waves.retain(|v| v.live(now));
         if self.tick % 2 == 0 { self.step_moles(); }
         // a knock (fall, lava, being buried, drowning) flashes the mole and jolts the view in proportion
