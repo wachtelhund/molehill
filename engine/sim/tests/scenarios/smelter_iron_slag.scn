@@ -1,0 +1,37 @@
+// Iron needs more heat, and raw ore leaves slag. Two lumps of raw iron ore in a smelter with its bellows driven by two
+// counterweights: the heat climbs past iron's 1250 °C (copper's 1100 isn't enough for it), the ore melts to an
+// ingot's worth (half an ingot a lump, raw), the mould against it casts an iron ingot, and the smelter lets out a
+// lump of slag (half a lump for each lump of raw ore).
+map
+##################################
+##################################
+#....jj*jjjjjjj*.................#
+#..............j.................#
+#..............j.................#
+#..............*.................#
+#..............Y.................#
+#..............Y.................#
+#................................#
+#................................#
+#..........@........V............#
+##################################
+##################################
+
+end
+give Counterweight 2
+give Smelter 1
+place 2 -7 -8 Counterweight
+place 2 -4 -7 Counterweight
+place 3 7 -1 Smelter
+drop 10 Coal 6 -7
+drop 15 Coal 6 -7
+drop 20 Coal 6 -7
+drop 25 IronOre 6 -7
+drop 30 IronOre 6 -7
+expect 1200 smelttemp > 900
+expect 1200 smelttemp < 1250          // not yet hot enough for iron...
+expect 1200 smeltload == 2            // ...so the ore waits
+expect 2400 smelttemp > 1250
+expect 3600 smeltload == 0            // both melted
+expect 3600 items:Slag == 1           // and the slag let out
+expect 4800 items:IronIngot == 1      // cast and set

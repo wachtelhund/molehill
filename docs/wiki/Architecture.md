@@ -49,6 +49,7 @@ The rule is simple: **gameplay goes in the sim.** If it changes what happens in 
 | `production.rs` | a mine's output as real loose items: chutes, shaker screens, bumpers that tip carts, ore hoppers that fill them (see [Production](Production.md)) |
 | `power.rs` | mechanical power: drive trains of shafts, gears, water wheels, belts and counterweights, balanced in watts per train; belts carry and queue loose lumps (see [Production](Production.md#mechanical-power)) |
 | `steam.rs` | coal power: a boiler burns real fuel lumps and boils water from the ground it stands in, its steam drives an engine on a drive train (touching it or along a steam pipe), and the ash and slag it leaves are loose items (see [Production](Production.md)) |
+| `refine.rs` | refinement: a stamp mill crushes ore into concentrate and sand, a washer sorts lumps by weight, a smelter blown by bellows melts them, and ingot moulds cast the metal; every lump in and out is a loose item (see [Production](Production.md#refinement)) |
 | `sluice.rs` | sluicing: the current read from the water surface's slope, which washes light loose items and grains downstream and leaves heavy lumps behind riffle bars (see [Production](Production.md)) |
 | `lifts.rs` | rope ladders and counterweighted lifts, balanced with stone or wound up by current |
 | `ropes.rs` | the rope gun: a thrown hook that bites solid rock or a block, and its 16 m verlet rope to climb and swing on (the way up, since there is no wall climbing) |

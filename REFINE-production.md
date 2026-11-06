@@ -188,3 +188,15 @@ I playtested the trains in context and probed the edges:
   please weigh it against the forge's ore → ingot rows.
 * **Not tested live:** headless scenarios only. Iron smelting at 1250 °C isn't covered by a scenario; neither is tin, nor
   slag coming out of a smelter.
+
+## Stage 5 polish (branch `refine/production-refine-polish`, after PR #52)
+
+* **A walled-in stamp mill lost what it crushed (fixed).** With rock at one foot and its drive gear at the other, it had
+  no spout; its output went back into the mortar, and the non-crushable sand and concentrate were deleted as they came up
+  again. A works now checks its spout before letting out a lump. With no room it holds the lump, unbroken or unwashed, and
+  the log says its spout is walled in (at most every 10 s). Nothing is ever pushed back into it. The washer does the same
+  per side. Scenario `stamp_mill_walled_in`.
+* **Iron and slag (newly covered, no change needed).** Raw iron ore waits at about 1200 °C, melts past 1250 °C, casts an
+  iron ingot and lets out a lump of slag. Scenario `smelter_iron_slag`.
+* `site/` is rebuilt on main after #52.
+* **Not tested live:** headless only; tin smelting has no scenario.
