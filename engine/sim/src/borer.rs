@@ -81,7 +81,7 @@ impl World {
         else { self.tr.borer_ride = Some(k); self.say("On the borer. A/D: drive and bore · Space: get off.".into()); }
         self.events.push(Event::Click); true
     }
-    fn leave_borer(&mut self) {
+    pub(crate) fn leave_borer(&mut self) {
         if let Some(k) = self.tr.borer_ride.take() { let b = &self.tr.borers[k]; let (x0, y0, _, _) = b.rect();
             self.pl.px = b.x; self.pl.py = y0; self.pl.vx = 0.; self.pl.vy = 0.; self.pl.sync = None;
             if self.box_hits(self.pl.px, self.pl.py) { self.pl.px = x0 - crate::world::BODY_HW - 0.5; self.pl.py = b.y; }
@@ -127,6 +127,8 @@ impl World {
         for k in 0..self.tr.borers.len() {
             let mut b = self.tr.borers[k].clone(); b.px = b.x; b.py = b.y;
             let riding = self.tr.borer_ride == Some(k);
+            // its train of wagons (wagon.rs): they cost more to drive, and its spoil belt runs back over them to the tail
+            let train = self.train(k); let (tail, _) = self.train_tail(k, &train); let (ox, oy) = (b.x, b.y);
             // the firebox and the tank
             if b.burning.is_none() { if let Some(f) = b.fuel.first_mut() { let it = f.0; f.1 -= 1; if f.1 == 0 { b.fuel.remove(0); } b.burning = Some(it); b.burn = burn_ticks(it).unwrap_or(0); } }
             if let Some(_) = b.burning { b.burn = b.burn.saturating_sub(1);
@@ -148,7 +150,7 @@ impl World {
             // driving: the throttle from the rider's keys, paid in steam
             let throttle = if riding { self.input.right as i32 - self.input.left as i32 } else { 0 } as f32;
             let want = throttle * BORER_V;
-            let drive_kj = DRIVE_W * dt / 1000.;
+            let drive_kj = (DRIVE_W + crate::wagon::WAGON_DRIVE_W * train.len() as f32) * dt / 1000.;
             b.vx = if throttle != 0. && b.steam >= drive_kj { b.steam -= drive_kj; want } else { 0. };
             if b.vx != 0. {
                 let nx = b.x + b.vx * dt;
@@ -167,7 +169,7 @@ impl World {
                         b.steam -= grind_kj; b.grind += dt / (GRIND_S * hard);
                         if self.tick % 10 == 0 { self.shake = self.shake.max(0.05); self.events.push(Event::Click); }
                         if b.grind >= 1. {
-                            let rear = if b.dir > 0 { b.x - BORER_W / 2. } else { b.x + BORER_W / 2. };
+                            let rear = tail;
                             let mut cut_all = true;
                             for &(r, m) in &col { let i = self.g.idx(face as usize, r as usize);
                                 let spoil = if m.kind() == Kind::Solid && !self.g.loose(i) { m.p().crumbles_to } else { m };
@@ -178,12 +180,19 @@ impl World {
                 }
             }
             // loose grains it has rolled over are shoved back along its spoil belt
-            { let (x0, y0, x1, y1) = b.rect(); let rear = if b.dir > 0 { x0 } else { x1 };
+            { let (x0, y0, x1, y1) = b.rect(); let rear = tail;
                 for r in y0.floor() as i32..y1.ceil() as i32 { for c in x0.floor() as i32..x1.ceil() as i32 {
                     if self.g.in_bounds(c, r) && !self.g.get(c as usize, r as usize).passable() && self.borer_shoves(c, r) {
                         let i = self.g.idx(c as usize, r as usize); let m = self.g.m(i);
                         if self.spoil(m, rear, y0 as i32, y1 as i32 - 1, b.dir) { self.g.set(i, Mat::Empty); } } } } }
             if b.x < 2. || b.x > gw as f32 - 2. || b.y > gh as f32 - 2. { b.x = b.x.clamp(2., gw as f32 - 2.); b.y = b.y.min(gh as f32 - 2.); }
+            // the train follows on its coupling bars; if any wagon can't, the borer can't move either
+            if !train.is_empty() && b.x != ox {
+                match self.haul(b.x, b.dir, &train) {
+                    Some(pos) => for (&j, (x, y)) in train.iter().zip(pos) { let w = &mut self.tr.wagons[j]; w.x = x; w.y = y; },
+                    None => { b.x = ox; if b.y < oy { b.y = oy; } b.vx = 0.; if riding && self.tick % 120 == 0 { self.say("The train is stuck: a wagon behind can't follow.".into()); } }
+                }
+            }
             self.tr.borers[k] = b;
         }
     }

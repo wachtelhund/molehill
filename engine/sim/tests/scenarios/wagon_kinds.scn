@@ -1,0 +1,66 @@
+// What the wagons are for (standing loose here: they work the same coupled).
+// * Store wagon: stone dropped over it falls in and stays in it. Climbed into (empty paw, right mouse), the wood in
+//   paw is stowed in it (right mouse); Space gets out; E takes it all out into the pack.
+// * Bunk wagon: climbing in is going to sleep: the wake point moves to it and the game is asked to save. After a death
+//   the mole wakes in the tunnel by the bunk wagon, not back where it started.
+// * Workshop wagon: outside it there's no workbench and the pickaxe can't be made; inside, it can.
+// (bedrock roof: the long room would cave in otherwise)
+map
+BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+#.................................................
+#.................................................
+#.................................................
+#.................................................
+#.................................................
+#...........@.....................................
+##################################################
+##################################################
+end
+mode survival
+nohunger
+give StoreWagon 1
+give BunkWagon 1
+give WorkshopWagon 1
+give Wood 10
+give Stone 12
+place 2 -6 0 StoreWagon
+place 3 8 0 BunkWagon
+place 4 14 0 WorkshopWagon
+expect 6 wagons == 3
+drop 10 Stone -6 -4
+drop 12 Stone -6 -4
+expect 120 wagonload == 2             // the stones fell in
+use 130 -6 -1                         // climb in
+expect 131 inwagon == 1
+wield 132 Wood
+use 133 -6 -1                         // stow the wood
+expect 134 wagonload == 12
+expect 134 inv:Wood == 0
+hold 140-142 jump                     // out
+expect 150 inwagon == 0
+pickup 160 -6 0                       // E: unload
+expect 161 inv:Wood == 10
+expect 161 wagonload == 0
+// the bunk
+wield 170 none
+use 171 8 -1
+expect 172 inwagon == 1
+expect 172 slept == 1
+expect 172 spawnx > 18
+expect 172 spawnx < 22
+hold 180-182 jump
+expect 190 inwagon == 0
+// the workshop
+craft 200 Pickaxe
+expect 201 inv:Pickaxe == 1           // the kit's: no bench here
+use 202 14 -1
+expect 203 atbench == 1
+craft 204 Pickaxe
+expect 205 inv:Pickaxe == 2           // made at the wagon's bench
+hold 210-212 jump
+expect 220 atbench == 0
+// a death (the pack is dropped where it fell)...
+set 230 hp -5
+expect 231 deaths == 1
+expect 460 px > 18                    // ...and it wakes by the bunk wagon (at 20), not back at 12
+expect 460 px < 23

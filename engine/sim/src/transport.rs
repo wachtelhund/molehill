@@ -64,7 +64,7 @@ impl Cart {
 }
 
 /// Pack items that go down whole as a transport machine (`World::place_transport`).
-pub fn is_machine(it: Item) -> bool { matches!(it, Item::Cart | Item::RopeLadder | Item::Lift | Item::TubeHopper | Item::OreHopper | Item::Counterweight | Item::Boiler | Item::StampMill | Item::Washer | Item::Smelter | Item::SluiceGate | Item::Scale | Item::SteamBorer) }
+pub fn is_machine(it: Item) -> bool { matches!(it, Item::Cart | Item::RopeLadder | Item::Lift | Item::TubeHopper | Item::OreHopper | Item::Counterweight | Item::Boiler | Item::StampMill | Item::Washer | Item::Smelter | Item::SluiceGate | Item::Scale | Item::SteamBorer) || crate::wagon::WagonKind::of(it).is_some() }
 
 /// Everything transport keeps between ticks.
 #[derive(Clone, Debug, Default)]
@@ -91,6 +91,9 @@ pub struct Transport {
     pub links: crate::linkage::Links,
     /// steam borers and the one the mole rides (see borer.rs)
     pub borers: Vec<crate::borer::Borer>, pub borer_ride: Option<usize>,
+    /// wagons, the one the mole is in, the workbench it stands at in a workshop wagon, and whether it has just gone to
+    /// sleep in a bunk wagon (the game saves then and clears it) (see wagon.rs)
+    pub wagons: Vec<crate::wagon::Wagon>, pub wagon_ride: Option<usize>, pub bench: Option<crate::world::Building>, pub slept: bool,
 }
 
 impl World {
@@ -145,6 +148,10 @@ impl World {
                 match it { Item::RopeLadder => self.place_ladder(x, y)?, Item::Lift => self.place_lift(x, y)?, Item::OreHopper => self.place_bin(x, y)?, Item::Counterweight => self.place_weight(x, y)?, Item::Boiler => self.place_boiler(x, y)?, Item::StampMill => self.place_works(crate::refine::WorkKind::Stamp, x, y)?, Item::Washer => self.place_works(crate::refine::WorkKind::Washer, x, y)?, Item::Smelter => self.place_works(crate::refine::WorkKind::Smelter, x, y)?, Item::SluiceGate => self.place_gate(x, y)?, Item::Scale => self.place_scale(x, y)?, Item::SteamBorer => self.place_borer(x, y)?, _ => self.place_hopper(x, y)? }
                 self.inv[it as usize] -= 1; Ok(true)
             }
+            _ if crate::wagon::WagonKind::of(it).is_some() => {
+                if self.inv[it as usize] == 0 { return Err("none left"); }
+                self.place_wagon(crate::wagon::WagonKind::of(it).unwrap(), x, y)?; self.inv[it as usize] -= 1; Ok(true)
+            }
             _ => Ok(false),
         }
     }
@@ -155,7 +162,7 @@ impl World {
             if self.tr.riding == Some(k) { self.leave_cart(); } else { self.tr.riding = Some(k); self.say("In the cart. Space to jump out.".into()); }
             self.events.push(Event::Click); return true;
         }
-        self.use_borer(x, y) || self.use_bin(x, y) || self.use_linkage(x, y) || self.turn_belt(x, y) || self.use_hopper(x, y) || self.use_lift(x, y)
+        self.use_borer(x, y) || self.use_wagon(x, y) || self.use_bin(x, y) || self.use_linkage(x, y) || self.turn_belt(x, y) || self.use_hopper(x, y) || self.use_lift(x, y)
     }
     fn leave_cart(&mut self) {
         if let Some(k) = self.tr.riding.take() { let c = &self.tr.carts[k];
@@ -164,7 +171,7 @@ impl World {
     }
     /// `E` on a cart: take its cargo into the pack; an empty cart (nobody in it) comes up itself.
     pub fn pick_up_transport(&mut self, x: usize, y: usize) -> Option<Item> {
-        let Some(k) = self.cart_at(x, y) else { return self.pick_up_borer(x, y).or_else(|| self.pick_up_bin(x, y)).or_else(|| self.pick_up_linkage(x, y)).or_else(|| self.pick_up_works(x, y)).or_else(|| self.pick_up_boiler(x, y)).or_else(|| self.pick_up_weight(x, y)).or_else(|| self.pick_up_hopper(x, y)).or_else(|| self.pick_up_lift(x, y)).or_else(|| self.pick_up_rope(x, y)) };
+        let Some(k) = self.cart_at(x, y) else { return self.pick_up_borer(x, y).or_else(|| self.pick_up_wagon(x, y)).or_else(|| self.pick_up_bin(x, y)).or_else(|| self.pick_up_linkage(x, y)).or_else(|| self.pick_up_works(x, y)).or_else(|| self.pick_up_boiler(x, y)).or_else(|| self.pick_up_weight(x, y)).or_else(|| self.pick_up_hopper(x, y)).or_else(|| self.pick_up_lift(x, y)).or_else(|| self.pick_up_rope(x, y)) };
         // unloading says what came home ("Unloaded the cart: 12 stone, 3 copper ore.")
         if !self.tr.carts[k].cargo.is_empty() { let mut got = vec![];
             for (it, n) in std::mem::take(&mut self.tr.carts[k].cargo) { self.inv[it as usize] += n; got.push(format!("{n} {}", it.name().to_lowercase())); }
@@ -179,6 +186,7 @@ impl World {
     pub(crate) fn ride_step(&mut self) -> bool {
         if self.tube_ride_step() { return true; }
         if self.borer_ride_step() { return true; }
+        if self.wagon_ride_step() { return true; }
         let Some(k) = self.tr.riding else { return false };
         if k >= self.tr.carts.len() || !self.moles[0].alive { self.tr.riding = None; return false; }
         let jump = self.input.jump && !self.pl.jump_was; self.pl.jump_was = self.input.jump;
@@ -258,6 +266,7 @@ impl World {
         self.push_carts();
         self.step_bins();
         self.step_borers();
+        self.step_wagons();
         self.step_power();
         self.step_lifts();
         self.step_tubes();
@@ -310,14 +319,14 @@ impl World {
             if riding == Some(k as i64) { new_ride = Some(keep.len()); } keep.push(c);
         }
         self.tr.carts = keep; self.tr.riding = new_ride;
-        self.shift_tubes(rows); self.shift_bins(rows, h); self.shift_ropes(rows); self.shift_power(rows, h); self.shift_boilers(rows, h); self.shift_works(rows, h); self.shift_linkage(rows); self.shift_borers(rows, h);
+        self.shift_tubes(rows); self.shift_bins(rows, h); self.shift_ropes(rows); self.shift_power(rows, h); self.shift_boilers(rows, h); self.shift_works(rows, h); self.shift_linkage(rows); self.shift_borers(rows, h); self.shift_wagons(rows, h);
         let (dr, hh) = (rows, h as i64);
         self.tr.ladders.retain_mut(|l| { let t = l.top as i64 - dr; let a = l.ay as i64 - dr; if t < 1 || a < 0 || t + l.len as i64 >= hh { return false; } l.top = t as usize; l.ay = a as usize; true });
         self.tr.lifts.retain_mut(|l| { let hd = l.head as i64 - dr; let b = l.bottom as i64 - dr; if hd < 1 || b >= hh - 1 { return false; } l.head = hd as usize; l.bottom = b as usize; l.y -= dy; l.py -= dy; true });
     }
     /// Save: the carts (window-relative cells) and their cargo.
     pub fn encode_transport(&self) -> Vec<u8> {
-        let mut o = crate::band::Wr(vec![]); o.u8(10);
+        let mut o = crate::band::Wr(vec![]); o.u8(11);
         o.u32(self.tr.carts.len() as u32);
         for c in &self.tr.carts { o.f32(c.x); o.f32(c.y); o.f32(c.v); o.u8((c.dir + 1) as u8); o.u32(c.cargo.len() as u32); for &(it, n) in &c.cargo { o.u8(it as u8); o.u32(n); } }
         // v2: ladders and lifts
@@ -339,6 +348,8 @@ impl World {
         self.encode_linkage(&mut o);
         // v10: steam borers
         self.encode_borers(&mut o);
+        // v11: wagons
+        self.encode_wagons(&mut o);
         o.0
     }
     pub fn decode_transport(&mut self, b: &[u8]) -> Result<(), String> {
@@ -363,6 +374,7 @@ impl World {
         if ver >= 8 { self.decode_works(&mut r)?; }
         if ver >= 9 { self.decode_linkage(&mut r)?; }
         if ver >= 10 { self.decode_borers(&mut r)?; }
+        if ver >= 11 { self.decode_wagons(&mut r)?; }
         Ok(())
     }
 }

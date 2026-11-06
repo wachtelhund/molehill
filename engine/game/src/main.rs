@@ -982,6 +982,8 @@ fn simulate(mut commands: Commands, mut g: ResMut<Game>, time: Res<Time>, mut ca
         g.w.prefetch_step(); // fresh ground ahead of the window: a worker thread natively, a few-ms slice on the web
         g.autosave += time.delta_secs();
         if g.autosave > 30. { g.autosave = 0.; save_auto(&mut g); }
+        // asleep in a bunk wagon: the holt is saved there (wagon.rs)
+        if g.w.tr.slept { g.w.tr.slept = false; save_now(&mut g); }
         if g.acc > 4. { g.acc = 0.; }
     }
     let (Ok((mut ct, _)), Ok(win)) = (cam.single_mut(), win.single()) else { return };
@@ -1463,6 +1465,21 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
             for j in 0..3 { let ff = ((now * 0.7 + j as f32 / 3.) % 1.) as f32; let hh = hash3(k as u32, j, 41) as f32 / u32::MAX as f32;
                 want.push((124, k * 3 + j as usize, cell_to_world(x - d * (1.75 + ff * 2.) + hh - 0.5, y - bh - ff * 2. * CPM as f32), 4.45, sp.glow.clone(), Vec2::splat(4. + 8. * ff), false, Color::srgba(0.42, 0.4, 0.4, 0.45 * (1. - ff)))); }
         }
+    }
+    // wagons (placeholder until p3's art; sprite ids 130-133): a body on two wheels coloured by kind, a coupling bar to what pulls it, and
+    // what it holds on top (coal heaped, water in the tank, the store's load)
+    for (k, wg) in w.tr.wagons.iter().enumerate() {
+        use molehill_sim::wagon::{WagonKind, WAGON_H, WAGON_W, GAP};
+        let (x, y) = (wg.px + (wg.x - wg.px) * a, wg.py + (wg.y - wg.py) * a); let (cx, cy) = (x as usize, (y as usize).saturating_sub(2));
+        if cx >= W || cy >= H || w.g.flags[cy * W + cx] & F_SEEN == 0 { continue; }
+        let lt = lightf(cx, cy).to_srgba(); let lit = |r: f32, gg: f32, bb: f32| Color::srgb(r * lt.red, gg * lt.green, bb * lt.blue);
+        let body = match wg.kind { WagonKind::Store => lit(0.50, 0.38, 0.26), WagonKind::Workshop => lit(0.55, 0.44, 0.31), WagonKind::Bunk => lit(0.47, 0.52, 0.38), WagonKind::Water => lit(0.36, 0.44, 0.52), WagonKind::Coal => lit(0.27, 0.26, 0.25) };
+        want.push((130, k, cell_to_world(x, y - WAGON_H / 2. - 0.5), 4.2, sp.px.clone(), Vec2::new(WAGON_W * CPX * 0.92, (WAGON_H - 1.5) * CPX), false, body));
+        for (j, s) in [-1f32, 1.].into_iter().enumerate() { want.push((131, k * 2 + j, cell_to_world(x + s * WAGON_W * 0.3, y - 1.), 4.22, sp.px.clone(), Vec2::splat(2. * CPX), false, lit(0.2, 0.18, 0.17))); }
+        let full = match wg.kind { WagonKind::Store => wg.load() as f32 / molehill_sim::wagon::STORE_CAP as f32, WagonKind::Coal => wg.load() as f32 / molehill_sim::wagon::COAL_CAP as f32, WagonKind::Water => wg.water / molehill_sim::wagon::WATER_CAP, _ => 0. };
+        if full > 0. { let c = match wg.kind { WagonKind::Coal => lit(0.12, 0.11, 0.11), WagonKind::Water => lit(0.25, 0.45, 0.75), _ => lit(0.55, 0.53, 0.5) };
+            want.push((132, k, cell_to_world(x, y - WAGON_H + 0.5 + (1. - full)), 4.21, sp.px.clone(), Vec2::new(WAGON_W * CPX * 0.8, (1. + full * 2.) * CPX), false, c)); }
+        if wg.coupled { want.push((133, k, cell_to_world(x + if w.tr.borers.first().map_or(1, |b| b.dir) > 0 { WAGON_W / 2. + GAP / 2. } else { -WAGON_W / 2. - GAP / 2. }, y - 2.5), 4.19, sp.px.clone(), Vec2::new(GAP * CPX, 0.7 * CPX), false, lit(0.3, 0.3, 0.32))); }
     }
     // sluice gates: lifted, the leaf is drawn raised out of the opening (its cells are open then); its lever on the head
     // shows which way round it is (up: lifts when pulled; down: shuts when pulled)

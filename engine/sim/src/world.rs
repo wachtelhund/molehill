@@ -208,7 +208,7 @@ impl Furniture {
     pub fn rect(&self) -> (usize, usize, usize, usize) { let f = self.item.furn().unwrap_or(crate::craft::Furn { w: 1, h: 1, hang: false, cloth: false }); (self.x, self.y + 1 - f.h * S, self.x + f.w * S - 1, self.y) }
     pub fn contains(&self, x: usize, y: usize) -> bool { let (x0, y0, x1, y1) = self.rect(); x >= x0 && x <= x1 && y >= y0 && y <= y1 }
 }
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Building { pub kind: Station, pub x: usize, pub y: usize, pub built: bool, pub claimed: bool }
 
 /// How far (m) a new holt can see from inside its burrow at the start: rays from the chamber stop at the first rock.
@@ -1584,6 +1584,8 @@ impl World {
     pub fn recipe_known(&self, r: usize) -> bool { !self.rules.crafting || RECIPES[r].inputs.iter().any(|&(it, _)| self.known[it as usize]) }
     /// The built station of this kind the mole is standing at (within 4 m across, 2.5 m up or down).
     pub fn station_here(&self, kind: Station) -> Option<&Building> {
+        // (inside a workshop wagon, its bench: wagon.rs)
+        if let Some(b) = self.tr.bench.as_ref().filter(|b| b.kind == kind) { return Some(b); }
         let m = self.moles.first()?;
         self.buildings.iter().find(|b| b.built && b.kind == kind && (b.x + Station::W / 2).abs_diff(m.x) <= 16 * S && b.y.abs_diff(m.y) <= 10 * S)
     }

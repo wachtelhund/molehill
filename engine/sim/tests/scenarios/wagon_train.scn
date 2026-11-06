@@ -1,0 +1,64 @@
+// A borer hauls a train of wagons. A borer is set down facing a granite face, a coal wagon set down right behind its
+// tail (it couples on: clank) and a water wagon behind that (it couples to the coal wagon). The mole shovels coal into
+// the coal wagon (fuel in paw, right mouse): its stoking chute feeds the borer's firebox a lump at a time. Water poured
+// round the water wagon goes into its tank, and from it into the borer's. The mole gets on the borer and drives: the
+// wagons follow on their coupling bars, and when the borer bores into the face its spoil comes out behind the train's
+// tail, not under the wagons. The train is saved coupled.
+map
+##################################################
+##################################################
+##################################################
+##################################################
+##################################################
+##################################################
+#.................................################
+#.................................################
+#.................................################
+#.................................################
+#...........@.....................################
+##################################################
+##################################################
+##################################################
+end
+give SteamBorer 1
+give CoalWagon 1
+give WaterWagon 1
+give Coal 8
+hold 1-1 right                        // face right: the borer's head faces the way the mole does
+place 2 8 0 SteamBorer
+place 3 2 0 CoalWagon                 // right behind its tail: couples on
+place 4 -3 0 WaterWagon               // behind the coal wagon: couples to it
+expect 8 wagons == 2
+expect 8 train == 2
+expect 8 log:couples >= 2
+wield 10 Coal
+use 11 2 -1                           // shovel the coal into the coal wagon
+expect 12 inv:Coal == 0
+expect 12 borerfuel >= 1              // the stoking chute fed the firebox
+pour 14 -6 -3 Water
+pour 14 -6 -2 Water
+pour 14 -6 -1 Water
+pour 14 -6 0 Water
+pour 14 -7 -3 Water
+pour 14 -7 -2 Water
+pour 14 -7 -1 Water
+pour 14 -7 0 Water
+expect 200 borerwater > 1             // the water wagon drew the puddle and topped up the borer
+wield 210 none
+use 211 8 -1                          // get on the borer
+expect 212 onborer == 1
+expect 300 borersteam > 2
+hold 320-900 right                    // drive: the train follows
+expect 900 train == 2
+expect 900 wagonx > 16                // the coal wagon (first set down) followed from 14
+expect 900 borerx > 26
+hold 900-2400 right                   // into the face: spoil out behind the tail
+expect 2400 borerx > 28
+expect 2400 train == 2
+expect 2400 log:jammed == 0
+expect 2400 cells:Gravel,0,9,-5,0 >= 6 // behind the water wagon (the tail, now at 9)...
+expect 2400 cells:Gravel,10,30,-5,0 == 0 // ...none under the wagons or the borer
+hold 2405-2407 jump
+saveload 2410
+expect 2411 wagons == 2
+expect 2411 train == 2
