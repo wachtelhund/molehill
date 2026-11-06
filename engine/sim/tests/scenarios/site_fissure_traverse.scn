@@ -1,8 +1,8 @@
-// Into a fissure by its east mouth (24 m down), to the mouth's inner edge, at no cost. The layout (sites.rs,
-// PR #8) joins every part of the fissure to a way in (tests/found_places.rs; floor and bridges, with ropes).
-// Not walked on from here: a running mole steps off the mouth into a 0.5 m slot before the bridge (which sits
-// 0.75 m up) and falls (in about 1 s it's 3 m down; carrying on left, 5 m more for ~21 hp). The ropes hang under
-// the bridges, so from above the way down is a drop. Movement polish item (see REFINE-movement.md).
+// Into a fissure by its east mouth (24 m down), to the mouth's inner edge, at no cost. The layout (sites.rs)
+// joins every part of the fissure to a way in (tests/found_places.rs; floor and bridges, with ropes). The
+// mouth's floor is the 24 m deck's top since the site-trap fix (it used to step into a 0.5 m slot by the
+// wall); `site_fissure_east_bridge.scn` walks on along the bridge. The ropes still hang under the bridges, so
+// from above the way down is a drop (REFINE-movement.md).
 map
 ########################################################################################
 ########################################################################################
@@ -176,6 +176,6 @@ end
 site 1 fissure -75 -95
 hold 2-14 left
 expect 20 px > 79                  // at the mouth's inner edge
-expect 40 py > 99.9
+expect 40 py == 98                 // level with the deck (the mouth's floor is its top)
 expect 40 grounded == 1
 expect 40 hp == 100

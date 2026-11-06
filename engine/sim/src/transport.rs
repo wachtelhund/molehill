@@ -202,6 +202,8 @@ impl World {
                 if c.v.abs() > f * dt { c.v -= c.v.signum() * f * dt; c.v += a * dt; } else if a.abs() > f { c.v += (a - a.signum() * f) * dt; } else { c.v = 0.; }
                 c.v = c.v.clamp(-CART_MAX, CART_MAX);
                 if c.v.abs() > 0.05 { c.dir = c.v.signum() as i8; }
+                // a loaded cart standing against a bumper tips too (eased up to it, or reloaded mid-tip: the tip isn't saved)
+                if c.v == 0. && c.load() > 0 && self.bumper_ahead(&c, c.dir) { c.tip = 1; self.tr.tips += 1; self.tr.carts[k] = c; continue; }
                 // roll along, cell by cell, following the track's height; stop at its end or at a wall
                 let dx = c.v * dt; let n = (dx.abs().ceil() as i32).max(1);
                 for _ in 0..n {

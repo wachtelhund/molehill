@@ -1,8 +1,7 @@
 // Into flooded pumpworks by the service door on its east wall, up over the pump machinery (W held climbs it)
-// onto the iron gallery, unhurt. Layout evidence (PR #8, sites.rs; see REFINE-movement.md): walking on west
-// along the gallery, it ends about 35 m in with a 7.5 m drop to the floor (16-25 hp; 10 m and 43 hp from
-// further on), before the rope that hangs from it at 28 m, so a careful mole can't get down to the chest
-// unhurt from this door; the flood fill (tests/found_places.rs) ignores gravity and counts it reachable.
+// onto the iron gallery, unhurt. Walking on west, the mole steps down onto the timber landing on the viewing
+// window's sill and takes its rope to the chest: `site_pumpworks_rope_to_chest.scn` (before the site-trap fix
+// this was a 7.5-10 m drop beside the wheel, 16-43 hp).
 map
 ################################################################################################################################################################################################################
 ################################################################################################################################################################################################################
