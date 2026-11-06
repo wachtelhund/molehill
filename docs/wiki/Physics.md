@@ -206,13 +206,13 @@ A blast (`blast.rs`) is a pressure wave, not a fixed crater. A TNT charge is **0
 
 Light is per-cell RGB, and there is no sky light and no day cycle: everything is lit by something down here. Two kinds of light are added together.
 
-**Every light casts rays**, so all of it is shadowed the same way: torches, lamps, forges, the headlamp, a held torch, and glowing materials. A glowing surface (lava, crystal, fungus, fire) that touches open air becomes a ray-cast point source in that air: one per 2 m square, coloured by the material, reaching 2–5 m by how brightly it glows (`light::surface_sources`). A lava pool therefore lights a cave with real shadows. On top of that, a faint **glow** is seeded in the glowing cells themselves and spread a short way with a two-sweep 8-neighbour chamfer pass:
+**Every light casts rays**, so all of it is shadowed the same way: torches, lamps, forges, the headlamp, a held torch, and glowing materials. A glowing surface (lava, crystal, fungus, fire) that touches open air becomes a ray-cast point source in that air: one per 2 m square, coloured by the material, reaching 2–5 m by how brightly it glows (`light::surface_sources`). A lava pool therefore lights a cave with real shadows. Molten and burning things (lava, fire) throw a hard, bright light. Glowing rock and growth (crystal, mycelium, fungus) throw a soft one, at 0.32 of lava's brightness per unit of glow, carrying 1.5 m further (`SOFT_GLOW`, `SOFT_REACH_M`), so a salt hall studded with crystal glows cold and even instead of blowing out (`crystal_glow_is_soft_mood_light_and_lava_stays_hard`). On top of that, a faint **glow** is seeded in the glowing cells themselves and spread a short way with a two-sweep 8-neighbour chamfer pass:
 
 ```
 L(i) = max(L(i), L(n) · t(i) · d)     t = 0.90 open, 0.80 liquid, ≈ 0.3 into rock (per 0.25 m);  d = 0.93 on diagonals
 ```
 
-**Sources** (`light::Source`) are torches, lit lamps, forges, the mole's headlamp, a torch or a jarred glowmite in its paws, and the glowmites drifting in grottos. Each casts rays to its radius:
+**Sources** (`light::Source`) are torches, lit lamps, forges, the mole's headlamp, a torch or a jarred glowmite in its paws, the glowmites drifting in grottos, and a blast's flash: for 0.35 s after a charge goes off, a warm light at the blast fades out as (1 − t/T)², so a charge in an unlit mine bay shows the room and the debris it throws for a moment, with ordinary shadows (`kinds::BLAST_FLASH`, scenario `blast_flash_lights_a_dark_drift`). Each casts rays to its radius:
 
 * A ray stops at the first solid or powder cell. The face it hits takes half the light, so rock throws real shadows.
 * Liquid dims a ray as it passes.
@@ -232,6 +232,7 @@ L(i) = max(L(i), L(n) · t(i) · d)     t = 0.90 open, 0.80 liquid, ≈ 0.3 into
 | glowmite (drifting) | cold green-gold | 2.5 m |
 | glowmite in a jar (held) | cold green-gold | 4 m |
 | the mole's own glow (lamp out) | faint | 2 m |
+| a charge going off | warm white, fading out over 0.35 s | 10 m |
 
 The **headlamp** sits on the mole's hard hat and points at the cursor, or ahead and a little down when nothing is aimed at. While it's lit, it also reveals fog of war along its beam. Toggle it with `G` or in Settings (saved). In Survival it burns fungus oil (see [Progression](Progression.md#survival-mode-today)).
 

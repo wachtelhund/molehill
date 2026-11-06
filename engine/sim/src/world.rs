@@ -216,6 +216,8 @@ pub struct World {
 /// What `World::pick_up` took back into the pack.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Picked { Dev(Dev), Torch, Wire, Furniture(Item), Transport(Item) }
+/// Breath (of 100) below which the mole gasps and the log warns (see `World::breath_cues`).
+pub const BREATH_LOW: f32 = 35.;
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Event { Dig, Crumble, Crack, Place, Chest, Quest, Explode, Discover, Hurt, Craft, Eat, Death, Warning, Quake, Click, Harvest, Gasp, Lore }
 
@@ -664,6 +666,10 @@ impl World {
         for b in &self.buildings { if b.built && b.kind == Station::Forge { let (x, y) = c(b.x + Station::W / 2, b.y - S); v.push(Source::point(x, y, KILN.0, KILN.1)); } }
         for &b in &self.logic.dev_list { if self.logic.dev[b] == Dev::Lamp as u8 && self.logic.dev_s[b] != 0 { let (x, y) = self.logic.centre(b); let (x, y) = c(x, y); v.push(Source::point(x, y, LAMP.0, LAMP.1)); } }
         for (x, y, _, _) in self.glowmites() { v.push(Source::point(x, y, GLOWMITE.0, GLOWMITE.1)); }
+        // a blast's flash, from its (render-only) wave record
+        for wv in &self.waves { let t = (self.tick.saturating_sub(wv.tick)) as f32 / 60. / BLAST_FLASH_S; if t >= 1. { continue; }
+            let f = (1. - t) * (1. - t); let (x, y) = c(wv.cx, wv.cy);
+            v.push(Source::point(x, y, BLAST_FLASH.0.map(|k| k * f), BLAST_FLASH.1)); }
         if self.gear.held == Some(Item::Glowmite) { v.push(Source::point(self.pl.px + self.moles.first().map_or(0., |m| m.facing as f32) * 1.6 * SF, self.pl.py - 1.4 * SF, GLOWMITE_JAR.0, GLOWMITE_JAR.1)); }
         for (k, m) in self.moles.iter().enumerate() { if !m.alive { continue; }
             if k == 0 {
@@ -711,6 +717,19 @@ impl World {
             }
         } }
     }
+    /// Breath you can hear: the mole gasps, and the log says why and what to do, when its breath first runs
+    /// short (BREATH_LOW, about 4.5 s left under water) and again when it's gone and the hurt begins. Once per
+    /// crossing, so a long swim doesn't nag.
+    fn breath_cues(&mut self, b0: f32, b1: f32, wet: bool) {
+        if b0 >= BREATH_LOW && b1 < BREATH_LOW {
+            self.events.push(Event::Gasp);
+            self.say(if wet { "Breath running short: get your head above the water." } else { "The air is stale here and your breath is running short: get back to fresh air." }.into());
+        }
+        if b0 > 0. && b1 <= 0. {
+            self.events.push(Event::Gasp);
+            self.say(if wet { "Out of breath: you're drowning. Swim up." } else { "Out of breath: the stale air is choking you." }.into());
+        }
+    }
     fn mole_physics(&mut self, k: usize) {
         let (x, y) = (self.moles[k].x, self.moles[k].y);
         let head = self.g.idx(x, y - S); let hm = self.g.m(head);
@@ -726,10 +745,12 @@ impl World {
         if m.job == Some(Job::Sleep) { m.sleep = (m.sleep + 2.5 * dt).min(100.); } else { m.sleep = 100.; /* one mole, no bedtime for now */ }
         if m.hunger <= 0. { m.hp -= 1. * dt; }
         if m.hunger > 60. && m.sleep > 50. && m.breath > 80. { m.hp = (m.hp + 0.5 * dt).min(100.); }
-        let co2 = self.air.at(x, y - S);
+        let co2 = self.air.at(x, y - S); let b0 = m.breath;
         if hm == Mat::Water { m.breath = (m.breath - 0.25).max(0.); if m.breath <= 0. { m.hp -= 0.6; } }
         else if co2 > 0.45 { m.breath = (m.breath - (co2 - 0.45) * 1.2).max(0.); if m.breath <= 0. { m.hp -= 0.4; } }
         else { m.breath = (m.breath + 2.).min(100.); }
+        let b1 = m.breath;
+        if k == 0 { self.breath_cues(b0, b1, hm == Mat::Water); }
         // (a mole sealed in a pressure-tube capsule is inside the pipe, not buried)
         let buried = !(k == 0 && self.tr.in_tube.is_some()) && (0..MOLE_H).any(|j| self.g.is_solidish(self.g.idx(x, y - j)));
         if buried {
