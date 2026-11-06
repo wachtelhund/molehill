@@ -202,6 +202,10 @@ pub fn icon_px(it: Item) -> Px {
             poly(&mut p, &[(1., 4.), (15., 4.), (11., 10.), (5., 10.)], col); p.rect(1, 4, 14, 4, WOOD_L); for y in [6, 8] { p.rect(4, y, 11, y, WOOD_D); }
             p.oval(8., 3.5, 5.5, 2.2, [130, 86, 70]); p.set(6, 2, [206, 116, 52]); p.set(10, 3, [206, 116, 52]); p.rect(7, 10, 8, 12, IRON_D);
             line(&mut p, 3., 8., 1., 15., 1, WOOD_D); line(&mut p, 13., 8., 15., 15., 1, WOOD_D); }
+        Riffle => { // three low bars across a sloping sluice floor, water running over them
+            poly(&mut p, &[(0., 6.), (16., 12.), (16., 15.), (0., 9.)], WOOD_D); for (k, x) in [2., 7., 12.].into_iter().enumerate() { let y = 6.5 + x * 0.375;
+                p.rect(x as i32, y as i32 - 3, x as i32 + 1, y as i32, if k % 2 == 0 { col } else { sh(col, 1.15) }); }
+            line(&mut p, 0., 4., 16., 10., 1, [92, 150, 210]); p.set(5, 5, [180, 210, 240]); p.set(10, 7, [180, 210, 240]); }
         // ---- background linings: a piece of each, darker, as it sits behind
         RockWall => { // a rough slab of scraped host rock with tool marks
             poly(&mut p, &[(1., 3.), (6., 1.), (14., 2.), (15., 9.), (13., 15.), (3., 14.), (1., 9.)], sh(col, 0.85)); for y in [5, 9, 12] { line(&mut p, 3., y as f32, 11., y as f32 - 2., 1, sh(col, 0.6)); } }
@@ -228,7 +232,7 @@ pub fn world_form(it: Item) -> &'static str {
     if it.furn().is_some() { return "furniture sprite"; }
     if it.is_wall() { return "background lining"; }
     match it {
-        Planks | PolishedStone | Tiles | CarvedPillar | Rail | Tube | Chute | Screen | Bumper | WoodPillar | IronBeam | Brick | Glass => "placed cells",
+        Planks | PolishedStone | Tiles | CarvedPillar | Rail | Tube | Chute | Screen | Bumper | Riffle | WoodPillar | IronBeam | Brick | Glass => "placed cells",
         Torch => "torch flame", Lamp | Thrummer | Gate | Tnt | Vent => "device sprite", CopperWire => "copperline tile",
         Cart => "cart sprite", RopeLadder => "rope ladder", Lift => "lift cage", TubeHopper => "hopper mouth", OreHopper => "ore hopper bin",
         Mushroom | Spore => "mushroom plot (planted)",

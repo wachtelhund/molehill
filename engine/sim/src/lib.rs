@@ -19,6 +19,7 @@ pub mod transport;
 pub mod lifts;
 pub mod tubes;
 pub mod production;
+pub mod sluice;
 pub mod survival;
 pub mod ruins;
 pub mod walls;

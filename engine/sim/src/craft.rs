@@ -21,8 +21,10 @@ pub enum Item {
     RockWall, TimberWall, MasonryWall, BeamWall, PipeWall, CarvedWall,
     // production (production.rs): chute and shaker screen blocks, a cart bumper, an ore hopper that feeds carts
     Chute, Screen, Bumper, OreHopper,
+    // sluicing (production.rs): riffle bars for a sluice floor
+    Riffle,
 }
-pub const NITEM: usize = 73;
+pub const NITEM: usize = 74;
 /// What an item can do in the world (see `Item::uses`).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Uses { pub place: bool, pub throw: bool, pub pick_up: bool }
@@ -277,6 +279,9 @@ const ITEM_DEFS_CONST: [ItemDef; NITEM] = {
     it(OreHopper, "Ore hopper", [140, 104, 66],
        "A timber bin on legs over the track. Fill it from above; it lets its load down into a cart.").dens(900.0).place().pick_up()
        .controls("Left mouse: stand it over the track · fill it from above · a cart under it is filled · right mouse: hold the gate open · E: empty, then pick up"),
+    it(Riffle, "Riffle bar", [122, 88, 54],
+       "Low timber bars for a sluice floor. Running water washes the fines on; heavy lumps settle behind them.").lump(Mat::Riffle).block(Mat::Riffle).place()
+       .controls("Left mouse: build bars across a sloping channel (hold) · run water down it to wash what's tipped in"),
     ]
 };
 /// Every item, in order.
@@ -330,7 +335,7 @@ pub fn drop_of(m: Mat) -> Option<Item> {
         Dirt | Grass => Item::Dirt, Clay => Item::Clay, Sand => Item::Sand, Gravel => Item::Gravel,
         Granite | Rock | Limestone | Basalt | StoneBrick => Item::Stone, Coal => Item::Coal, CopperOre => Item::CopperOre, TinOre => Item::TinOre,
         IronOre => Item::IronOre, Quartz => Item::Quartz, Crystal => Item::Crystal, Roots | WoodBeam | Door | RootTree | TreeRoot => Item::Wood, Fungus | Mycelium => Item::Fungus, Moss => Item::Dirt,
-        IronBeam => Item::IronIngot, Glass => Item::Glass, Planks | Chute | Bumper => Item::Wood, Polished | Carved => Item::Stone, Tiles => Item::Clay,
+        IronBeam => Item::IronIngot, Glass => Item::Glass, Planks | Chute | Bumper | Riffle => Item::Wood, Polished | Carved => Item::Stone, Tiles => Item::Clay,
         _ => return None,
     })
 }
@@ -396,6 +401,7 @@ pub static RECIPES: &[Recipe] = &[
     // pack takes 2 a measure), and a mushroom farm's crop can feed the lamp instead of the belly
     Recipe { name: "Fungus oil x2", station: Station::Workbench, inputs: &[(Item::Fungus, 3)], out: (Item::FungusOil, 2), ticks: 60 },
     Recipe { name: "Chute x8", station: Station::Workbench, inputs: &[(Item::Wood, 2)], out: (Item::Chute, 8), ticks: 60 },
+    Recipe { name: "Riffle bar x8", station: Station::Workbench, inputs: &[(Item::Wood, 2)], out: (Item::Riffle, 8), ticks: 60 },
     Recipe { name: "Bumper x2", station: Station::Workbench, inputs: &[(Item::Wood, 2), (Item::Stone, 1)], out: (Item::Bumper, 2), ticks: 60 },
     Recipe { name: "Fungus oil (mushroom)", station: Station::Workbench, inputs: &[(Item::Mushroom, 2)], out: (Item::FungusOil, 1), ticks: 60 },
     Recipe { name: "TNT", station: Station::Workbench, inputs: &[(Item::Coal, 2), (Item::Sand, 2)], out: (Item::Tnt, 1), ticks: 90 },

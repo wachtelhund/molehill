@@ -18,8 +18,10 @@ pub enum Mat {
     Rail, Tube,
     // production (production.rs): a timber chute items slide down, a shaker screen that sorts by size, a cart's bumper
     Chute, Screen, Bumper,
+    // sluicing (production.rs): a riffle bar across a sluice floor
+    Riffle,
 }
-pub const NMAT: usize = 41;
+pub const NMAT: usize = 42;
 
 /// Everything the simulation knows about a material, in one row. Rules read these fields instead of
 /// naming materials, so a new material (or a retuned one) is a single table edit.
@@ -128,6 +130,7 @@ pub static PROPS: [Props; NMAT] = [
     Props { name: "Chute", desc: "Smooth timber trough. Loose things slide down it if it slopes.", kind: Solid, density: 600., tensile: 2500., compressive: 6000., dig: 4, blast: 3, opacity: 150, color: [168, 128, 82], crumbles_to: X::Chute, repose: 0.3, ignite: 1, flags: BUILT | CHUTE, bounce: 0.1, friction: 0.12, ..BASE },
     Props { name: "Shaker screen", desc: "Iron grating on a timber frame. Fines drop through, lumps ride over; current shakes it.", kind: Solid, density: 1500., tensile: 4000., compressive: 8000., dig: 5, blast: 4, opacity: 90, color: [120, 116, 112], crumbles_to: X::Screen, repose: 0.3, flags: BUILT | CHUTE | SCREEN, bounce: 0.15, friction: 0.45, ..BASE },
     Props { name: "Bumper", desc: "Timber buffer at the end of the track. A loaded cart that hits it tips out.", kind: Solid, density: 700., tensile: 3000., compressive: 8000., dig: 4, blast: 3, opacity: 150, color: [150, 70, 48], crumbles_to: X::Bumper, repose: 0.3, ignite: 1, flags: BUILT | BUMPER, bounce: 0.3, friction: 0.55, ..BASE },
+    Props { name: "Riffle bar", desc: "A low timber bar across a sluice floor. Heavy lumps settle behind it.", kind: Solid, density: 700., tensile: 3000., compressive: 8000., dig: 4, blast: 3, opacity: 150, color: [122, 88, 54], crumbles_to: X::Riffle, repose: 0.3, ignite: 1, flags: BUILT, bounce: 0.2, friction: 0.6, ..BASE },
 ];
 impl Mat {
     #[inline] pub fn from_u8(v: u8) -> Mat { if (v as usize) < NMAT { unsafe { std::mem::transmute(v) } } else { Mat::Empty } }
