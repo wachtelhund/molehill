@@ -1,0 +1,17 @@
+{
+  "name": "Molehill",
+  "short_name": "Molehill",
+  "description": "A falling-sand colony sim written in Rust and Bevy. In development; downloads come later.",
+  "start_url": "/",
+  "display": "browser",
+  "background_color": "#120e0b",
+  "theme_color": "#120e0b",
+  "lang": "en",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any"
+    }
+  ]
+}
