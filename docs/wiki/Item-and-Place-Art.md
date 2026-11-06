@@ -77,10 +77,10 @@ The pack, the hotbar, the item in the mole's paws and anything lying loose all u
 | Lift | a cage hung from a sheave | lift head frame, rope and cage |
 | Pressure tube | a pressure-tube length with flanged ends | placed cells of its material |
 | Tube hopper | a brass funnel mouth on a stub of tube | brass hopper mouth |
-| Chute | a timber trough running down to the right, a lump sliding down it | placed cells of its material |
-| Shaker screen | an iron grating in a timber frame, the mesh open between the bars | placed cells of its material |
-| Bumper | a buffer stop: a squat timber post with a red pad, on a rail end | placed cells of its material |
-| Ore hopper | a timber bin heaped with ore, tapering to a spout, on two splayed legs | ore hopper bin |
+| Chute | a timber trough running downhill, a lump sliding down it | placed cells: a pale worn lip on top, boards with a dark seam every half metre |
+| Shaker screen | an iron grating in a timber frame, the mesh open between the bars | placed cells: a timber top rail, iron bars every half metre, the dark mesh between |
+| Bumper | a squat timber buffer with a red pad, standing on a rail end | placed cells: red-painted timber, a brighter worn head, an iron band and bolt every metre |
+| Ore hopper | a timber bin heaped with ore, tapering to a spout, on splayed legs | ore hopper sprite: back boards, the heap tinted with what it holds, the front frame open over the heap, a boarded taper to an iron spout whose gate shows shut or swung open, two legs down to the floor (`art::ore_bin`) |
 | Rock wall | a rough slab of scraped host rock with tool marks | background lining |
 | Timber wall | boards standing on end, uneven tops, gaps between | background lining |
 | Masonry wall | laid courses with the joints staggered, a stepped edge | background lining |
@@ -126,6 +126,8 @@ Game-crate tests (`cargo test --release -p molehill`):
 * `every_slot_icon_fills_its_slot`: every pack icon and device hotbar icon covers at least 80 of its 256 pixels. The nest (its 9 × 3-tile sprite scaled), the fuse and the plate were slivers of 64–74 px; the median icon covers 135.
 * `every_device_has_its_own_sprite`: the same pattern check for the 21 devices.
 * `every_prop_has_its_own_sprite`: every prop is mostly filled, has at least four colours and differs from the others.
+* `production_blocks_have_their_own_look`: the chute, shaker screen and bumper patterns differ from each other by at least 30 in mean colour. The screen is at least 40% dark mesh with bright bars, the chute's top is a pale lip, and the bumper's head is red.
+* `ore_hopper_is_a_drawn_bin`: the bin's back boards fill it, the front leaves the upper part open (so the heap shows), the taper is boarded down to a spout, the open gate differs from the shut one, and the heap sprite is pale so its tint gives the ore colour.
 * `found_places_are_furnished`: each family is stamped into rock and must get its listed furnishings, all inside the site and none in rock. Every prop kind is placed somewhere.
 
 `--dump-art=DIR` writes every icon (`sprite-icon-*`), device (`sprite-dev-*`), prop (`sprite-prop-*`), the cart and the rest at 8×. Its `view.bmp` now composites every visible world sprite (furniture, props, chests, torches, carts, the mole) over the cells, so stills show the furnishings; `view_cells.bmp` is the cells alone. The stills under [World and Generation](World-and-Generation.md#what-they-look-like) are these composites.

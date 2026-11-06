@@ -49,6 +49,10 @@ Scenario `production_line` runs the line end to end with nothing carried by hand
 
 The mole stands by the hopper throughout and picks up nothing, because lumps let down from a hopper or tipped from a cart can't be picked up for their first third of a second.
 
+## How they look
+
+Chutes, screens and bumpers are cells with their own patterns (`art::mat_color`). A chute has a pale worn lip and boards along it. A screen is iron bars over a dark mesh under a timber rail. A bumper is red-painted timber with a bright head and iron bands. The ore hopper is drawn: its heap is tinted with what it holds, it shows through the open front of the bin and rises with the load, and the gate under the spout swings open when it lets a lump down. `--scene=production` stamps a small works (chute onto screen, a hopper of copper ore over track, a bumper) for stills. See [Item and Place Art](Item-and-Place-Art.md).
+
 ## Hover tips
 
 The chute, screen (shaking or not) and bumper say what moves things along them. The ore hopper's tip gives its load and capacity, and says whether the gate is held open or opens for a cart (test `production_hover_tips_say_what_to_do`).

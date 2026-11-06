@@ -331,7 +331,57 @@ pub fn mat_color(m: molehill_sim::mat::Mat, cx: u32, cy: u32, above: u32) -> Opt
                 _ => [104., 90., 80.],
             })
         }
+        // chutes: a smooth timber trough, a worn pale lip on top, boards along it with a dark seam every half
+        // metre and a darker underside, so a chute reads as a trough, not a plank floor
+        M::Chute => { let g = 0.94 + h(cx / c, cy / (c / 2), 91) * 0.1;
+            Some(match above { 0 => [214., 176., 122.], 1 => [182., 140., 90.], _ => if cy % (c / 2) == 0 { [104., 74., 46.] } else { [158. * g, 116. * g, 72. * g] } }) }
+        // shaker screens: an iron grating, bars every half metre with the dark mesh between, on a timber
+        // top rail, so a screen reads as see-through
+        M::Screen => { let q = c / 2; let (bx, by) = (cx % q == 0, cy % q == 0);
+            Some(if above == 0 { [150., 108., 62.] } else if bx && by { [176., 178., 186.] } else if bx || by { [128., 130., 140.] } else { [36., 34., 36.] }) }
+        // bumpers: a stout timber buffer painted red, a brighter worn head on top, an iron band every
+        // metre with a bolt in it
+        M::Bumper => { let band = cy % c == c - 1; let g = 0.92 + h(cx, 0, 93) * 0.12;
+            Some(if above == 0 { [216., 78., 56.] } else if above == 1 { [120., 40., 32.] } else if band { if cx % 3 == 1 { [196., 196., 204.] } else { [96., 98., 110.] } } else { [152. * g, 60. * g, 42. * g] }) }
         _ => None,
+    }
+}
+
+/// The ore hopper's parts (1 px = 1 world unit; the bin is `BIN_W`×`BIN_H` cells and the spout one cell
+/// under it): 0 the bin's back boards, 1 its front frame with the gate shut, 2 with the gate swung open, 3 a
+/// leg (stretched to the floor), 4 a pale heap of lumps the game tints with what the bin holds.
+pub fn ore_bin(part: u8) -> Image {
+    use molehill_sim::production::{BIN_W, BIN_H};
+    let (w, h) = (BIN_W as i32 * 2, BIN_H as i32 * 2 + 2); let wood = [140, 100, 60]; let dark = shade(wood, 0.62); let iron = [92, 94, 106];
+    // the bin's outline: straight sides for the top 5/8, then a taper to a spout a quarter of its width
+    let half = |y: i32| -> f32 { let top = h * 5 / 8 - 1; if y <= top { w as f32 / 2. } else { let f = (y - top) as f32 / (h - 2 - top) as f32; w as f32 / 2. * (1. - f) + w as f32 / 8. * f } };
+    let inside = |x: i32, y: i32| y < h - 2 && ((x as f32 + 0.5) - w as f32 / 2.).abs() < half(y);
+    let mut p = Px::new(w, h);
+    match part {
+        0 => { for y in 0..h { for x in 0..w { if inside(x, y) { p.set(x, y, if y % 4 == 3 { shade(dark, 0.7) } else { shade(dark, 0.9 + (x % 7 == 0) as u8 as f32 * 0.1) }); } } } p.image() }
+        1 | 2 => {
+            let top = h * 5 / 8; let mid = w / 2;
+            for y in 0..h { for x in 0..w { if !inside(x, y) { continue; }
+                let edge = !inside(x - 2, y) || !inside(x + 2, y);
+                if y <= 1 { p.set(x, y, [200, 150, 82]); } // rim
+                else if edge { p.set(x, y, shade(wood, 0.85)); } // corner posts
+                else if y >= top { p.set(x, y, if (y - top) % 3 == 2 { shade(wood, 0.7) } else { wood }); } // boarded taper
+                else if y == top / 2 + 1 { p.set(x, y, shade(wood, 0.95)); } // cross brace
+            } }
+            for y in [top + 1, h - 4] { for x in [3, w - 4] { if inside(x, y) { p.set(x, y, iron); } } } // bolts
+            p.rect(mid - 2, h - 2, mid + 1, h - 2, iron); // spout collar
+            if part == 1 { p.rect(mid - 3, h - 1, mid + 2, h - 1, shade(iron, 0.8)); } else { p.rect(mid + 2, h - 2, mid + 2, h - 1, shade(iron, 0.8)); }
+            // outline the bin's silhouette only: the open window onto the heap stays open
+            let open: Vec<bool> = (0..w * h).map(|i| p.c[i as usize][3] == 0 && inside(i % w, i / w)).collect();
+            let mut p = p.finish(ICON_LINE); for (i, o) in open.into_iter().enumerate() { if o { p.c[i] = [0; 4]; } }
+            p.image() }
+        3 => { let mut p = Px::new(2, 12); p.rect(0, 0, 1, 11, shade(wood, 0.8)); for y in [3, 8] { p.set(0, y, shade(wood, 0.6)); } p.image() }
+        _ => { // a heap: a body of lumps with a humped top, pale so the tint gives its colour
+            let mut p = Px::new(w - 4, 12);
+            for y in 0..12 { for x in 0..w - 4 { let hump = 3. - 3. * (1. - ((x as f32 + 0.5) / (w - 4) as f32 * 2. - 1.).powi(2)); if (y as f32) < hump { continue; }
+                let v = (molehill_sim::grid::hash3(x as u32 / 2, y as u32 / 2, 95) & 255) as f32 / 255.; let k = if y as f32 <= hump + 1. { 1.1 } else { 0.86 + v * 0.24 };
+                p.set(x, y, [(230. * k).min(255.) as u8, (226. * k).min(255.) as u8, (220. * k).min(255.) as u8]); } }
+            p.image() }
     }
 }
 
@@ -383,6 +433,36 @@ mod tests {
         let _ = mat_tex(Mat::Planks, u32::MAX - 11, u32::MAX - 3, 0);
         let _ = mat_tex(Mat::WoodBeam, 8, u32::MAX - 5, 0);
         let _ = mat_tex(Mat::StoneBrick, 8, u32::MAX - 5, 0);
+    }
+
+    /// The production blocks read as what they are and apart from each other and from timber floors: a
+    /// chute's pale lip, a screen's dark mesh between bars, a bumper's red head.
+    #[test] fn production_blocks_have_their_own_look() {
+        let patch = |m: Mat| -> Vec<[f32; 3]> { (0..16u32).flat_map(|y| (0..16u32).map(move |x| (x, y))).map(|(x, y)| mat_color(m, x, y + 8, 2).unwrap()).collect() };
+        let mean = |v: &[[f32; 3]]| { let n = v.len() as f32; [0, 1, 2].map(|j| v.iter().map(|c| c[j]).sum::<f32>() / n) };
+        let screen = patch(Mat::Screen); let mesh = screen.iter().filter(|&&c| lum(c) < 50.).count() as f32 / screen.len() as f32;
+        assert!(mesh > 0.4, "the screen's mesh is dark between the bars ({mesh:.2})");
+        assert!(screen.iter().any(|&c| lum(c) > 150.), "the screen's bars are bright iron");
+        let (chute, bump) = (mean(&patch(Mat::Chute)), mean(&patch(Mat::Bumper)));
+        for (a, b, what) in [(chute, mean(&screen), "chute/screen"), (chute, bump, "chute/bumper"), (bump, mean(&screen), "bumper/screen")] { assert!(dist(a, b) > 30., "{what} too alike"); }
+        assert!(lum(mat_color(Mat::Chute, 3, 3, 0).unwrap()) > lum(chute) * 1.2, "a chute's top is a pale worn lip");
+        let head = mat_color(Mat::Bumper, 3, 3, 0).unwrap(); assert!(head[0] > 2.5 * head[1], "a bumper's head is painted red");
+        let seams = (0..CPM as u32).map(|y| mat_color(Mat::Chute, 4, 16 + y, 2).unwrap()).filter(|&c| lum(c) < 0.75 * lum(chute)).count(); assert!(seams >= 1, "chute boards have seams");
+    }
+
+    /// The ore hopper is drawn, not boxes: back boards fill the bin, the front frame leaves its upper part
+    /// open so the heap shows, the taper is boarded down to a spout, and the gate looks different open.
+    #[test] fn ore_hopper_is_a_drawn_bin() {
+        use super::ore_bin; use molehill_sim::production::{BIN_W, BIN_H};
+        let (w, h) = (BIN_W * 2, BIN_H * 2 + 2);
+        let px = |k: u8| ore_bin(k).data.unwrap(); let a = |d: &[u8], x: usize, y: usize| d[(y * w + x) * 4 + 3];
+        let (back, shut, open) = (px(0), px(1), px(2));
+        assert_eq!(back.len(), w * h * 4);
+        assert!(a(&back, w / 2, h / 4) > 0 && a(&shut, w / 2, 3) == 0, "the bin's upper front is open onto the back boards");
+        assert!(a(&shut, w / 2, h * 3 / 4) > 0, "the taper is boarded");
+        assert!(a(&back, 0, h - 3) == 0 && a(&shut, 1, h - 3) == 0, "it tapers to a spout");
+        assert_ne!(shut, open, "the gate shows open");
+        let heap = px(4); assert!(heap.chunks(4).filter(|c| c[3] > 0).all(|c| c[0] > 150), "the heap is pale so its tint gives the ore colour");
     }
 
     #[test] fn ore_pockets_stand_out_without_glowing() {

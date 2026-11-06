@@ -35,7 +35,7 @@ The window shows one found place at one pixel per cell (12.5 cm) as the game wou
 | right mouse | pick the material under the cursor; take the nearest thing away; remove the chest |
 | `V` / `B` (`Shift`: 16) | step the variant `var` the preview shows: slots (the mine's slump, rails and band, the salt hall's clusters) pick their options from it, as a placed site's would |
 | `N` | the halt's side (tube east or west) |
-| `R` | **can the mole walk it?** Stamps the piece in granite and flood-fills the mole's body (the found-places test's rule): green where a way in reaches, orange where a pocket is cut off; the panel names any way in that doesn't reach the chest |
+| `R` | **can the mole walk it?** Stamps the piece in granite and flood-fills the mole's body (the found-places test's rule): green where a way in reaches, orange where open space is cut off; the panel names any way in that doesn't reach the chest. Gravity is ignored here (the mole climbs walls and ropes), so a long drop still counts as a way: `G` and the scenarios catch falls |
 | `P` | **will it stand?** A full stress solve; red cells are over capacity and crack and fall in play |
 | `G` | **run it 10 s** with a mole standing at the chest: shows the piece afterwards and counts changed and crumbled cells and the mole's hp |
 | `Esc` | clear the check |
@@ -44,6 +44,14 @@ The window shows one found place at one pixel per cell (12.5 cm) as the game wou
 | wheel, `+`/`-`, arrows or `WASD`, `F` | zoom, pan, fit |
 
 Painting edits the base layer. Cells a variant patches show the variant's value in the preview (step `V`/`B` to see each). Materials and linings join the file's palette and lining mixes as they are used, and leave them when nothing uses them any more.
+
+The window opens at 1600 × 960 and can't be made shorter than the panel needs. The palette shows 11 entries at a time around the one picked; `,` `.` reach the rest.
+
+## Checking it without looking (dev)
+
+* `--canvas=FILE.bmp` writes the canvas (one pixel per cell, as drawn in the window) and quits without opening a window; add `--shot-keys=p` (or `r`, `g`, `n`, `b`, …) to run those keys first, so the file shows a check. The panel's text goes to the terminal.
+* `--shot=FILE.bmp [--shot-at=N] [--shot-keys=…]` saves one frame of the real window and quits. On macOS this only works when the window is really on screen; started from a background shell (an agent's), the frame reads back black.
+* `cargo test --release -p molehill-cave-editor --test panel` clicks every panel row at its place, presses every key and paints strokes through the same code the window calls. It shows that every control does what its row says. It can't show how the window looks: fonts, spacing and colours on screen need a person.
 
 ## Who owns a layout
 
