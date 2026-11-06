@@ -87,8 +87,8 @@ impl Run {
             "boilers" => self.w.tr.boilers.len() as f64,
             // refinement: works; the first stamp mill's / washer's load waiting; the first smelter's heat (°C), air (0..1) and molten metal (ingots); casts setting
             // linkages: gates and scales; the first gate lifted, the first scale tipped; pulled:DX,DY whether the tile's linkage is pulled
-            // steam borers: how many; the first one's middle (tiles from the map's left), steam (kJ), water (cells), fuel (lumps); whether the mole rides one
-            "borers" => self.w.tr.borers.len() as f64, "borerx" => self.w.tr.borers.first().map_or(-1., |b| (b.x - self.ox as f32) as f64 / kf),
+            // steam borers: how many; the first one's middle (tiles from the map's left) and its wheels' row (borery, tiles from the map top), steam (kJ), water (cells), fuel (lumps); whether the mole rides one
+            "borers" => self.w.tr.borers.len() as f64, "borerx" => self.w.tr.borers.first().map_or(-1., |b| (b.x - self.ox as f32) as f64 / kf), "borery" => self.w.tr.borers.first().map_or(-1., |b| (b.y - self.oy as f32) as f64 / kf),
             "borersteam" => self.w.tr.borers.first().map_or(0., |b| b.steam as f64), "borerwater" => self.w.tr.borers.first().map_or(0., |b| b.water as f64),
             "borerfuel" => self.w.tr.borers.first().map_or(0., |b| b.lumps() as f64), "onborer" => self.w.tr.borer_ride.is_some() as u8 as f64,
             "gates" => self.w.tr.links.gates.len() as f64, "scales" => self.w.tr.links.scales.len() as f64,

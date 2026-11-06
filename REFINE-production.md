@@ -260,3 +260,17 @@ I playtested the trains in context and probed the edges:
 * For p7: workshop: steam borer (8 iron ingots + 4 bronze ingots + 4 brick).
 * **Not tested live:** headless only. Driving feel (0.5 m/s, no ramp), climbing and falling aren't covered by a
   scenario; nor is boring left.
+
+## Steam borer polish (branch `refine/production-borer-polish`, after PR #62)
+
+* **It never fell off a ledge (fixed).** It counted as standing while any wheel cell touched ground, so it would hang
+  almost all the way over a drop.
+  - It now tips: with nothing under its middle half and a real drop (open more than a tile deep under its outer edge) on
+    that side, it slides that way until it falls.
+  - A step under its rear is no drop. A first try, standing only on its middle half, made it slide back off the steps it
+    climbed.
+  - Scenario `borer_left_step_fall`, which also covers boring left and climbing a step, both untested before. In that
+    scenario a drop exactly as wide as the borer wedges it; that's honest geometry, not a bug.
+* Harness var `borery`.
+* `site/` is rebuilt on main after #62.
+* **Not tested live:** headless only. Driving feel (instant start and stop at 0.5 m/s) hasn't been tried in the game.
