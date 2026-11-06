@@ -8,7 +8,7 @@ Every item has its own drawing. No two share a silhouette, and none is another i
 
 ![Every item's pack icon, then every device as the hotbar shows it](images/item-icons.png)
 
-The sheet shows all 94 items, then the 21 devices.
+The sheet shows all 100 items, then the 21 devices.
 
 The pack, the hotbar, the item in the mole's paws and anything lying loose all use the icon (a loose item is drawn at half size). Devices in the hotbar use their own in-world sprite (`devart::hotbar_icon`, switched off), so a lever, a plate and a floodgate no longer share one placeholder. The fuse and the pressure plate are the exceptions: in the world each is a thin strip along the floor of its block, so the hotbar shows a coil of fuse cord and the plate seen from above at an angle.
 
@@ -101,6 +101,12 @@ The pack, the hotbar, the item in the mole's paws and anything lying loose all u
 | Copper concentrate | washed brown grains with green flecks and copper glints, heaped in a shallow wooden pan | lies loose as its icon |
 | Tin concentrate | near-black grains with silver glints in a deep clay bowl | lies loose as its icon |
 | Iron concentrate | red-black grains with a grey shine in a wooden scoop with a handle | lies loose as its icon |
+| Pull-rod | a bell crank: a triangular iron plate on a brass pivot, a rod in from the side and one down, on clevis pins | placed cells: an iron rod (lying the way its run is longer) through timber guides every half metre, a brass collar on it that slides past its guide when pulled |
+| Tread plate | a chequered iron plate on two springs | placed cells in the floor: chequered iron with raised studs and a bright edge; pressed, a dark gap opens along its top where it sank |
+| Float | a fat sealed barrel float on its rod, in a line of water | placed cells: a sealed timber barrel, staves and two tarred bands; lifted by water, its highlight bobs |
+| Sluice gate | a planked gate leaf in a frame with a lifting rod and wheel | shut: placed leaf cells, upright planks with two iron straps; lifted: the leaf drawn raised out of the opening (`art::gate_leaf`). Its lever on the head points up (lifts when pulled) or down (turned round: shuts when pulled) (`art::gate_lever`) |
+| Tipping scale | a beam on a post with a pan of ore one side and stones the other | its pan is placed cells (an iron pan with a bright rim); drawn beside it (`art::scale_part`): a post at the pan's end, the beam on it tipping pan side down once the pan outweighs the stones, a rod down to the pan, and the counter-pan with up to 8 of its stones |
+| Clutch | two toothed iron halves on a shaft, a fork lever on one | placed cells: two iron halves with dog teeth between; out, a dark gap; in, the teeth mesh and turn with the train |
 | Ore hopper | a timber bin heaped with ore, tapering to a spout, on splayed legs | ore hopper sprite: back boards, the heap tinted with what it holds, the front frame open over the heap, a boarded taper to an iron spout whose gate shows shut or swung open, two legs down to the floor (`art::ore_bin`) |
 | Rock wall | a rough slab of scraped host rock with tool marks | background lining |
 | Timber wall | boards standing on end, uneven tops, gaps between | background lining |
@@ -152,6 +158,7 @@ Game-crate tests (`cargo test --release -p molehill`):
 * `machinery_moves_when_its_train_turns`: the shaft, gear, water wheel, belt and drum each differ from every other in over 64 of 256 cells; each changes at least 12 cells over 1.5 cells of travel; a right belt's stitches run right and a left belt's run left; a vertical shaft is the horizontal one turned.
 * `boiler_and_pipe_are_drawn`: the lit boiler shows at least 12 bright fire pixels through its door and the cold one none; a steam pipe has brass flanges on copper; a vertical pipe is the horizontal one turned. The steam engine is one of the kinds in `machinery_moves_when_its_train_turns`.
 * `refinement_works_are_drawn`: the smelter's fire mouth brightens with each heat step (none cold), water shows in the washer's tub only when it has some, the stamp mill has its frame and stamp, and a setting mould glows where an empty one's hollow is dark. The bellows are one of the kinds in `machinery_moves_when_its_train_turns`.
+* `linkage_parts_show_their_state`: the six linkage cell kinds each differ from the others in over 64 of 256 cells; a rod, tread plate, clutch and float each show being pulled (at least 8 cells change); a pressed plate's top is a dark gap; the gate lever differs turned round; the scale has its four parts.
 * `ore_hopper_is_a_drawn_bin`: the bin's back boards fill it, the front leaves the upper part open (so the heap shows), the taper is boarded down to a spout, the open gate differs from the shut one, and the heap sprite is pale so its tint gives the ore colour.
 * `found_places_are_furnished`: each family is stamped into rock and must get its listed furnishings, all inside the site and none in rock. Every prop kind is placed somewhere.
 
