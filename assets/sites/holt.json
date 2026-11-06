@@ -291,5 +291,11 @@
   "connectors": [
     {"tag":"entrance","side":"west","at":88,"len":16},
     {"tag":"entrance","side":"east","at":88,"len":16}
-  ]
+  ],
+  "variation": {
+    "mirror": true,
+    "zones": [
+      {"tag":"furniture","sets":[[8,10],[9]]}
+    ]
+  }
 }

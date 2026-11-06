@@ -33,8 +33,9 @@ The window shows one found place at one pixel per cell (12.5 cm) as the game wou
 | `[` `]` | brush radius, 0.5 to 24 cells |
 | left mouse | paint the brush, set a thing down, or set the chest |
 | right mouse | pick the material under the cursor; take the nearest thing away; remove the chest |
-| `V` / `B` (`Shift`: 16) | step the variant `var` the preview shows: slots (the mine's slump, rails and band, the salt hall's clusters) pick their options from it, as a placed site's would |
+| `V` / `B` (`Shift`: 256) | step the variant `var` the preview shows: slots (the mine's slump, rails and band, the salt hall's clusters) pick their options from it, and from 256 up the [seeded variation](Site-Templates.md#seeded-variation-variation) too (flipped, zones), as a placed site's would; the panel's `varied` row says what happened. A flipped preview is painted where you click it: the stroke lands on the template's own side |
 | `N` | the halt's side (tube east or west) |
+| `E` | the depth (10, 50 or 80 m) the preview places the piece at, for depth remaps |
 | `R` | **can the mole walk it?** Stamps the piece in granite and flood-fills the mole's body (the found-places test's rule): green where a way in reaches, orange where open space is cut off; the panel names any way in that doesn't reach the chest. Gravity is ignored here (the mole climbs walls and ropes), so a long drop still counts as a way: `G` and the scenarios catch falls |
 | `P` | **will it stand?** A full stress solve; red cells are over capacity and crack and fall in play |
 | `G` | **run it 10 s** with a mole standing at the chest: shows the piece afterwards and counts changed and crumbled cells and the mole's hp |
@@ -45,7 +46,7 @@ The window shows one found place at one pixel per cell (12.5 cm) as the game wou
 
 Painting edits the base layer. Cells a variant patches show the variant's value in the preview (step `V`/`B` to see each). Materials and linings join the file's palette and lining mixes as they are used, and leave them when nothing uses them any more.
 
-The window opens at 1600 × 960 and can't be made shorter than the panel needs. The palette shows 11 entries at a time around the one picked; `,` `.` reach the rest.
+The window opens at 1600 × 960 and can't be made shorter than the panel needs. The palette shows 9 entries at a time around the one picked; `,` `.` reach the rest.
 
 ## Checking it without looking (dev)
 
