@@ -71,3 +71,19 @@ fn template_files_round_trip_and_explain_errors() {
     assert_eq!(templates::rle_decode("3.2#o").unwrap().iter().collect::<String>(), "...##o");
     assert_eq!(templates::rle_encode("...##o".chars()), "3.2#o");
 }
+
+/// Each file in assets/sites/ is exactly what the writer makes of its data (no hand-formatting drift,
+/// so an editor save or a re-export only shows real changes in a diff), and parsing all seven is quick.
+#[test]
+fn template_files_are_canonical_and_parse_fast() {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets/sites");
+    let t0 = std::time::Instant::now();
+    for &(_, name) in &FAMILIES {
+        let text = std::fs::read_to_string(dir.join(format!("{name}.json"))).unwrap();
+        let t = Template::parse(&text).unwrap();
+        assert!(templates::to_json(&t.file) == text, "{name}.json isn't in canonical form: re-run the export_sites example");
+    }
+    let ms = t0.elapsed().as_secs_f32() * 1000.;
+    eprintln!("parsed and re-wrote seven templates in {ms:.1} ms");
+    assert!(ms < 250., "templates took {ms:.0} ms");
+}
