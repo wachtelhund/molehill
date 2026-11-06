@@ -269,6 +269,20 @@ Polish only: no new systems, lore names kept. Each entry lists what changed and 
 * Not tested: a live window; the smelter's real heat curve over a firing (the still starts it hot).
 * Test `refinement_works_are_drawn`; the bellows join `machinery_moves_when_its_train_turns`.
 
+## Refinement art: polish (branch `refine/refine-art-polish`)
+* Smelter heat steps: a headless run of the refine scene with a cold smelter (a throwaway example, since deleted)
+  climbed 667 / 1000 / 1171 / 1323 °C at 10 / 20 / 30 / 60 s with the bellows blowing, then settled toward 800 °C
+  once the weight ran out. Two rough edges: white-hot started at 1150 °C though copper and tin smelt from 1100
+  (`refine::charge`), and the unblown fire settles right on the 800 °C orange step, so it could flicker. The steps
+  are now dull red from 300, orange from 700 and white-hot from 1100 (smelting heat).
+* Bellows: in the #55 still a half-metre block changed 2 px between frames, because the pleat bands were scaled to
+  a whole metre. Its creases now slide a whole cell each way, and the same block changes 21 of 64 px between
+  frames 90 and 97 (located from the frame difference in `view.bmp`; `view_cells.bmp` is on another scale, so crop
+  boxes taken from one don't fit the other).
+* Checked and left: at rest the stamps' heads sit in the mortar's mouth; the tub tilts with its water; the moulds
+  and concentrate icons read as before.
+* Not tested: a live window.
+
 ## Open issues
 * `--shot` writes an empty frame on macOS when the game is launched from a background shell (the surface is
   never presented). It needs a visible window, or Linux with Xvfb.
