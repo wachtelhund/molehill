@@ -45,6 +45,7 @@ The rule is simple: **gameplay goes in the sim.** If it changes what happens in 
 | `logic.rs` | copperline nets, devices, knots, fuses, TNT, thrumming |
 | `blast.rs` | explosions as a pressure wave: Kinney-Graham overpressure over the volume the wave has filled, gas pressure in closed spaces, diffraction shadows, rock cracked or shattered by blast strength, loose ground, water and items thrown, moles and devices hit by overpressure |
 | `transport.rs` | rails and mine carts: track as a built block, carts rolling by slope and friction, pushed, ridden and loaded, and powered rails driven by copperline current |
+| `production.rs` | a mine's output as real loose items: chutes, shaker screens, bumpers that tip carts, ore hoppers that fill them (see [Production](Production.md)) |
 | `lifts.rs` | rope ladders and counterweighted lifts, balanced with stone or wound up by current |
 | `tubes.rs` | pressure tubes: hoppers whose current-driven blowers send capsules of items or the mole along the pipe; a breach stops and spills them |
 | `ruins.rs` | ruins of the Ancients: pumping halls, sealed vaults and tube stations placed per 160 × 80 m cell from the seed, their carvings, and the relics in vault chests |

@@ -16,8 +16,10 @@ pub enum Mat {
     Planks, Polished, Tiles, Carved,
     // transport (transport.rs): track for mine carts, pipe for pressure tubes
     Rail, Tube,
+    // production (production.rs): a timber chute items slide down, a shaker screen that sorts by size, a cart's bumper
+    Chute, Screen, Bumper,
 }
-pub const NMAT: usize = 38;
+pub const NMAT: usize = 41;
 
 /// Everything the simulation knows about a material, in one row. Rules read these fields instead of
 /// naming materials, so a new material (or a retuned one) is a single table edit.
@@ -71,6 +73,12 @@ pub const OPEN: u16 = 32;
 pub const TRACK: u16 = 64;
 /// Pressure tube: capsules are blown along it (see tubes.rs).
 pub const TUBE: u16 = 128;
+/// Chute: loose items lying on its top slide down its slope (see production.rs).
+pub const CHUTE: u16 = 256;
+/// Screen: a grating; items finer than `production::MESH_M` fall through it, lumps ride over.
+pub const SCREEN: u16 = 512;
+/// Bumper: a loaded cart that runs into it tips its load out over it.
+pub const BUMPER: u16 = 1024;
 const BASE: Props = Props { name: "", desc: "", kind: Kind::Solid, density: 0., tensile: 0., compressive: 0., dig: 0, tier: 0, blast: 0,
     emit: [0, 0, 0], opacity: 0, color: [0, 0, 0], crumbles_to: Mat::Empty, repose: 0., heat: 0, ignite: 0, cools_to: Mat::Empty, life: 0,
     spread: 0, flow_in_10: 10, bounce: 0.35, friction: 0.5, flags: 0 };
@@ -117,6 +125,9 @@ pub static PROPS: [Props; NMAT] = [
     Props { name: "Carved pillar", desc: "Fluted stone column. Very strong in compression.", kind: Solid, density: 2600., tensile: 800., compressive: 22000., dig: 14, tier: 1, blast: 7, opacity: 170, color: [164, 158, 148], crumbles_to: X::Gravel, flags: BUILT, ..BASE },
     Props { name: "Rail", desc: "Copper straps on wooden sleepers. Mine carts run along it.", kind: Solid, density: 1800., tensile: 3000., compressive: 9000., dig: 4, blast: 4, opacity: 150, color: [104, 84, 78], crumbles_to: X::Rail, repose: 0.3, flags: BUILT | TRACK, bounce: 0.3, friction: 0.35, ..BASE },
     Props { name: "Pressure tube", desc: "Iron-banded glass pipe. Capsules blow along it while it holds pressure.", kind: Solid, density: 2600., tensile: 1500., compressive: 6000., dig: 5, blast: 4, opacity: 60, color: [150, 190, 186], crumbles_to: X::Tube, repose: 0.3, flags: BUILT | TUBE, bounce: 0.4, friction: 0.3, ..BASE },
+    Props { name: "Chute", desc: "Smooth timber trough. Loose things slide down it if it slopes.", kind: Solid, density: 600., tensile: 2500., compressive: 6000., dig: 4, blast: 3, opacity: 150, color: [168, 128, 82], crumbles_to: X::Chute, repose: 0.3, ignite: 1, flags: BUILT | CHUTE, bounce: 0.1, friction: 0.12, ..BASE },
+    Props { name: "Shaker screen", desc: "Iron grating on a timber frame. Fines drop through, lumps ride over; current shakes it.", kind: Solid, density: 1500., tensile: 4000., compressive: 8000., dig: 5, blast: 4, opacity: 90, color: [120, 116, 112], crumbles_to: X::Screen, repose: 0.3, flags: BUILT | CHUTE | SCREEN, bounce: 0.15, friction: 0.45, ..BASE },
+    Props { name: "Bumper", desc: "Timber buffer at the end of the track. A loaded cart that hits it tips out.", kind: Solid, density: 700., tensile: 3000., compressive: 8000., dig: 4, blast: 3, opacity: 150, color: [150, 70, 48], crumbles_to: X::Bumper, repose: 0.3, ignite: 1, flags: BUILT | BUMPER, bounce: 0.3, friction: 0.55, ..BASE },
 ];
 impl Mat {
     #[inline] pub fn from_u8(v: u8) -> Mat { if (v as usize) < NMAT { unsafe { std::mem::transmute(v) } } else { Mat::Empty } }

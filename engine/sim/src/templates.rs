@@ -53,6 +53,7 @@ pub fn default_char(m: Mat) -> char {
         Roots => 't', Fungus => 'f', Grass => 'v', WoodBeam => 'b', StoneBrick => 'k', IronBeam => 'I', Door => 'D', Water => 'w',
         Lava => 'l', Steam => '~', Fire => '^', Glass => 'G', RootTree => 'T', TreeRoot => 'R', Moss => 'm', Mycelium => 'y',
         Planks => 'p', Polished => 'q', Tiles => 'x', Carved => 'C', Rail => '=', Tube => '%',
+        Chute => 'h', Screen => 'H', Bumper => '|',
     }
 }
 pub fn mat_named(s: &str) -> Option<Mat> { (0..NMAT as u8).map(Mat::from_u8).find(|m| format!("{m:?}") == s) }

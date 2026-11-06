@@ -26,11 +26,11 @@ impl Drop {
 }
 
 impl World {
-    /// Does an item box centred at (px, py) overlap anything solid?
-    fn item_hits(&self, px: f32, py: f32) -> bool {
+    /// Does a box of `it` centred at (px, py) overlap anything solid (to it: a screen lets fines through)?
+    fn item_hits(&self, px: f32, py: f32, it: Item) -> bool {
         let (x0, x1) = ((px - ITEM_HW).floor() as i32, (px + ITEM_HW - 1e-3).floor() as i32);
         let (y0, y1) = ((py - ITEM_HW).floor() as i32, (py + ITEM_HW - 1e-3).floor() as i32);
-        for y in y0..=y1 { for x in x0..=x1 { if !self.g.in_bounds(x, y) || !self.passable(x as usize, y as usize) { return true; } } }
+        for y in y0..=y1 { for x in x0..=x1 { if !self.g.in_bounds(x, y) || !self.item_passes(x as usize, y as usize, it) { return true; } } }
         !self.tr.lifts.is_empty() && self.platform_hits_box(px, py, ITEM_HW) // a lift's cage floor
     }
     fn mat_at(&self, px: f32, py: f32) -> Mat { let (x, y) = (px.floor() as i32, py.floor() as i32); if self.g.in_bounds(x, y) { self.g.get(x as usize, y as usize) } else { Mat::Bedrock } }
@@ -75,8 +75,9 @@ impl World {
                 if d.fuse > 0 && liq == Mat::Water && wet > 0. { d.fuse = 0; self.say("TNT fuse doused".into()); }
                 if d.fuse > 0 { d.fuse -= 1; if d.fuse == 0 { booms.push(k); self.drops[k] = d; continue; } }
             }
-            let supported = self.item_hits(d.px, d.py + 0.05);
-            if d.asleep() { if supported && wet == 0. { self.drops[k] = d; continue; } d.rest = 0; } // something gave way: wake
+            let supported = self.item_hits(d.px, d.py + 0.05, d.item);
+            // asleep until something gives way under it, or the screen it lies on starts shaking
+            if d.asleep() { if supported && wet == 0. && !self.chute_under(d.px, d.py, d.item).is_some_and(|(x, y)| self.shaking(x, y)) { self.drops[k] = d; continue; } d.rest = 0; }
             // gravity less buoyancy (by the share of the box under liquid), and drag in a liquid (thicker in lava)
             let rho = d.item.density();
             let lift = if wet > 0. { wet * liq.p().density / rho } else { 0. };
@@ -89,20 +90,24 @@ impl World {
             // surface in proportion to the knock, so a hard landing doesn't skid on for metres)
             let (mut hx, mut hy) = (mx == 0., my == 0.);
             for _ in 0..n {
-                if !hx { let nx = d.px + mx / n as f32; if !self.item_hits(nx, d.py) { d.px = nx; } else {
+                if !hx { let nx = d.px + mx / n as f32; if !self.item_hits(nx, d.py, d.item) { d.px = nx; } else {
                     hx = true; let s = self.mat_at(nx + mx.signum() * ITEM_HW, d.py).p(); let v0 = d.vx; d.vx = -v0 * s.bounce;
-                    let fx = if mx > 0. { (nx + ITEM_HW).floor() - ITEM_HW - 1e-3 } else { (nx - ITEM_HW).ceil() + ITEM_HW }; if !self.item_hits(fx, d.py) { d.px = fx; } // flush against it
+                    let fx = if mx > 0. { (nx + ITEM_HW).floor() - ITEM_HW - 1e-3 } else { (nx - ITEM_HW).ceil() + ITEM_HW }; if !self.item_hits(fx, d.py, d.item) { d.px = fx; } // flush against it
                     let f = s.friction * (v0 - d.vx).abs(); d.vy = if d.vy.abs() <= f { 0. } else { d.vy - d.vy.signum() * f }; } }
-                if !hy { let ny = d.py + my / n as f32; if !self.item_hits(d.px, ny) { d.py = ny; } else {
+                if !hy { let ny = d.py + my / n as f32; if !self.item_hits(d.px, ny, d.item) { d.py = ny; } else {
                     hy = true; let s = self.mat_at(d.px, ny + my.signum() * ITEM_HW).p(); let v0 = d.vy;
-                    let fy = if my > 0. { (ny + ITEM_HW).floor() - ITEM_HW - 1e-3 } else { (ny - ITEM_HW).ceil() + ITEM_HW }; if !self.item_hits(d.px, fy) { d.py = fy; } // flush against it
+                    let fy = if my > 0. { (ny + ITEM_HW).floor() - ITEM_HW - 1e-3 } else { (ny - ITEM_HW).ceil() + ITEM_HW }; if !self.item_hits(d.px, fy, d.item) { d.py = fy; } // flush against it
                     let b = -v0 * s.bounce; d.vy = if b.abs() < 6. * SF { 0. } else { b };
-                    let f = s.friction * (v0 - d.vy).abs(); d.vx = if d.vx.abs() <= f { 0. } else { d.vx - d.vx.signum() * f }; } }
+                    // (lying on a chute, the tick's own settling isn't a knock: the slide below takes its friction)
+                    let settling = my > 0. && v0 <= 1.5 * t.gravity * dt && self.chute_under(d.px, d.py, d.item).is_some();
+                    let f = if settling { 0. } else { s.friction * (v0 - d.vy).abs() }; d.vx = if d.vx.abs() <= f { 0. } else { d.vx - d.vx.signum() * f }; } }
             }
             // sliding friction on the ground (soft earth grabs, stone and iron let it roll on)
             let floor = self.mat_at(d.px, d.py + ITEM_HW + 0.05);
-            if self.item_hits(d.px, d.py + 0.05) && d.vy >= 0. {
-                let f = floor.p().friction * t.gravity * dt; d.vx = if d.vx.abs() <= f { 0. } else { d.vx - d.vx.signum() * f };
+            if self.item_hits(d.px, d.py + 0.05, d.item) && d.vy >= 0. {
+                // on a chute or screen it slides down the slope (production.rs); elsewhere it skids to a stop
+                if let Some((cx, cy)) = self.chute_under(d.px, d.py, d.item) { self.chute_slide(&mut d, cx, cy, dt); }
+                else { let f = floor.p().friction * t.gravity * dt; d.vx = if d.vx.abs() <= f { 0. } else { d.vx - d.vx.signum() * f }; }
                 if d.vx.abs() < 0.3 * SF && d.vy.abs() < 0.3 * SF && wet == 0. { d.rest = d.rest.saturating_add(1); if d.asleep() { d.vx = 0.; d.vy = 0.; } } else { d.rest = 0; }
             } else { d.rest = 0; }
             d.px = d.px.clamp(1., self.g.w as f32 - 2.); d.py = d.py.clamp(1., self.g.h as f32 - 2.);

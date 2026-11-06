@@ -187,6 +187,21 @@ pub fn icon_px(it: Item) -> Px {
             p.rect(2, 5, 13, 11, col); p.rect(2, 5, 13, 6, sh(col, 1.25)); for x in [0, 1, 14, 15] { p.rect(x, 3, x, 13, BRASS); } p.rect(6, 7, 9, 9, sh(col, 0.8)); }
         TubeHopper => { // a brass funnel mouth on a stub of tube
             poly(&mut p, &[(1., 2.), (15., 2.), (10., 9.), (6., 9.)], col); p.rect(1, 2, 14, 3, sh(col, 1.3)); p.rect(5, 9, 10, 15, [150, 190, 186]); p.rect(4, 11, 11, 11, BRASS_D); p.oval(8., 4.5, 4., 1., [70, 50, 30]); }
+        // ---- production (production.rs)
+        Chute => { // a timber trough running down to the right, its lip on top, a lump sliding down it
+            poly(&mut p, &[(0., 3.), (3., 3.), (16., 11.), (16., 15.), (13., 15.), (0., 7.)], col); line(&mut p, 1., 3.5, 15., 11.5, 1, WOOD_L);
+            line(&mut p, 1., 6.5, 13., 14.5, 1, WOOD_D); for (x, y) in [(4, 6), (9, 9)] { p.set(x, y, WOOD_D); } p.oval(6.5, 3.5, 1.8, 1.5, STONE); p.set(6, 3, sh(STONE, 1.3)); }
+        Screen => { // an iron grating in a timber frame, the mesh open between the bars
+            p.rect(1, 3, 14, 12, IRON); p.rect(0, 2, 15, 3, WOOD); p.rect(0, 12, 15, 13, WOOD_D);
+            for y in [5, 8, 11] { for x in [2, 5, 8, 11] { p.rect(x, y - 1, x + 1, y - 1, [0, 0, 0]); } }
+            for x in [4, 7, 10, 13] { p.rect(x, 4, x, 11, IRON_D); } p.c.iter_mut().for_each(|c| if c[0] == 0 && c[1] == 0 && c[2] == 0 { c[3] = 0; }); p.set(1, 2, WOOD_L); }
+        Bumper => { // a buffer stop: a squat timber post with a red pad on the front, standing on a rail end
+            p.rect(0, 13, 15, 14, [222, 146, 86]); p.rect(0, 15, 15, 15, [150, 86, 50]); p.rect(6, 3, 12, 12, WOOD); p.rect(6, 3, 12, 4, WOOD_L);
+            line(&mut p, 12., 4., 15., 12., 2, WOOD_D); p.rect(2, 5, 5, 9, col); p.rect(2, 5, 5, 5, sh(col, 1.3)); p.set(9, 7, IRON); p.set(9, 10, IRON); }
+        OreHopper => { // a timber bin heaped with ore, tapering to a spout, on two splayed legs
+            poly(&mut p, &[(1., 4.), (15., 4.), (11., 10.), (5., 10.)], col); p.rect(1, 4, 14, 4, WOOD_L); for y in [6, 8] { p.rect(4, y, 11, y, WOOD_D); }
+            p.oval(8., 3.5, 5.5, 2.2, [130, 86, 70]); p.set(6, 2, [206, 116, 52]); p.set(10, 3, [206, 116, 52]); p.rect(7, 10, 8, 12, IRON_D);
+            line(&mut p, 3., 8., 1., 15., 1, WOOD_D); line(&mut p, 13., 8., 15., 15., 1, WOOD_D); }
         // ---- background linings: a piece of each, darker, as it sits behind
         RockWall => { // a rough slab of scraped host rock with tool marks
             poly(&mut p, &[(1., 3.), (6., 1.), (14., 2.), (15., 9.), (13., 15.), (3., 14.), (1., 9.)], sh(col, 0.85)); for y in [5, 9, 12] { line(&mut p, 3., y as f32, 11., y as f32 - 2., 1, sh(col, 0.6)); } }
@@ -213,9 +228,9 @@ pub fn world_form(it: Item) -> &'static str {
     if it.furn().is_some() { return "furniture sprite"; }
     if it.is_wall() { return "background lining"; }
     match it {
-        Planks | PolishedStone | Tiles | CarvedPillar | Rail | Tube | WoodPillar | IronBeam | Brick | Glass => "placed cells",
+        Planks | PolishedStone | Tiles | CarvedPillar | Rail | Tube | Chute | Screen | Bumper | WoodPillar | IronBeam | Brick | Glass => "placed cells",
         Torch => "torch flame", Lamp | Thrummer | Gate | Tnt | Vent => "device sprite", CopperWire => "copperline tile",
-        Cart => "cart sprite", RopeLadder => "rope ladder", Lift => "lift cage", TubeHopper => "hopper mouth",
+        Cart => "cart sprite", RopeLadder => "rope ladder", Lift => "lift cage", TubeHopper => "hopper mouth", OreHopper => "ore hopper bin",
         Mushroom | Spore => "mushroom plot (planted)",
         _ => "loose (icon)",
     }
