@@ -264,6 +264,7 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `dig_down_shallow.scn` / `dig_down_water.scn` | A drop that only hurts (2.5 m), or a deep drop into water, isn't held back: the floor goes and the mole drops, silently |
 | `dig_refused_once.scn` | A dig the Pickaxe can't do says so once per press and material (not per cell swept), repeats the words only after 5 s, and soft rock beside it still digs |
 | `dig_refusals.scn` | Every dig refusal says why at once: out of reach ("Too far to dig"), water with nothing solid, granite too hard for the pickaxe; each once per press, the same words not again within 5 s |
+| `dig_refused_mixed_face.scn` | One held dig swept back and forth over a face of granite with iron ore in it says each refusal once in 5 s (the two lines used to take turns about four times a second) |
 | `explore_clues.scn` | A seam the tools can't cut, first seen, logs a discovery naming what to come back with; digging it refuses with the same advice; seeing it completes "Find iron ore" and names the next quest; with a drill it digs and "Go back for the iron" completes |
 | `holt_home.scn` | Wooden furniture is listed from the kit; one piece by the workbench isn't enough, two complete "Make it a holt", which pays 16 timber wall and says how to panel; a cart's cargo comes into the pack with E and the log names it |
 | `tool_tiers_survival.scn` | Survival digs with the best tool owned: claws (dirt, soft stone), pickaxe, drill (granite), bore (basalt) |

@@ -66,8 +66,10 @@ pub struct Player { pub px: f32, pub py: f32, pub ppx: f32, pub ppy: f32, pub sy
     /// the material a dig was refused on during this press (too hard for the tools owned): clinks once per
     /// press and material, not per cell swept over; cleared on release or when a bite lands
     pub deny: Option<Mat>,
-    /// the last dig refusal said aloud and its tick: the same words wait `DENY_REPEAT` ticks before repeating
-    pub deny_said: Option<(String, u64)>,
+    /// dig refusals said aloud and their ticks: the same words wait `DENY_REPEAT` ticks before repeating
+    /// (every line said in the last `DENY_REPEAT` ticks, so sweeping a face of two hard materials doesn't
+    /// make their lines take turns)
+    pub deny_said: Vec<(String, u64)>,
     /// this press was already told the spot is out of reach (once per press)
     pub far: bool,
     /// the last "can't place" line said and its tick: the same words wait `DENY_REPEAT` ticks (see `refuse_place`)
@@ -481,8 +483,9 @@ impl World {
     /// holding a brush over it, never stacks messages; a different reason speaks at once.
     /// A dig was refused: say why, unless the same words were said in the last `DENY_REPEAT` ticks.
     fn say_dig_no(&mut self, s: String) {
-        if self.pl.deny_said.as_ref().is_some_and(|(t, k)| *t == s && self.tick < k + DENY_REPEAT) { return; }
-        self.pl.deny_said = Some((s.clone(), self.tick)); self.say(s);
+        let now = self.tick; self.pl.deny_said.retain(|(_, k)| now < k + DENY_REPEAT);
+        if self.pl.deny_said.iter().any(|(t, _)| *t == s) { return; }
+        self.pl.deny_said.push((s.clone(), now)); self.say(s);
     }
     pub fn refuse_place(&mut self, what: &str, why: &str) {
         let what = if what.chars().nth(1).is_some_and(char::is_uppercase) { what.to_string() } else { what.to_lowercase() }; // TNT stays TNT
