@@ -2,7 +2,6 @@
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
 use molehill_sim::craft::{Item, ITEMS, QUESTS};
-use molehill_sim::logic::DEVS;
 use crate::{Game, Thing, Sprites, NSLOT, thing_count, thing_name, brush_of, brush_r};
 
 pub const S: f32 = 44.; pub const GAP: f32 = 4.;
@@ -173,7 +172,7 @@ pub fn icon(sp: &Sprites, t: Thing) -> Handle<Image> {
     match t {
         Thing::Pick(n) => sp.tools[(n as usize - 1).min(2)].clone(),
         Thing::Item(it) => if it == Item::Torch { sp.torch.clone() } else { sp.icons[it as usize].clone() },
-        Thing::Dev(d) => match DEVS[d] { molehill_sim::logic::Dev::Tnt => sp.icons[Item::Tnt as usize].clone(), dv if dv.is_thrum() => sp.icons[Item::Thrummer as usize].clone(), dv if dv.is_gate() => sp.icons[Item::Gate as usize].clone(), molehill_sim::logic::Dev::Lamp => sp.icons[Item::Lamp as usize].clone(), molehill_sim::logic::Dev::Vent => sp.icons[Item::Vent as usize].clone(), _ => sp.dev.clone() },
+        Thing::Dev(d) => sp.dev[d].clone(),
         Thing::Station(s) => sp.station[molehill_sim::craft::STATIONS[s].art() as usize][1].clone(),
     }
 }

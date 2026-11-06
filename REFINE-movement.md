@@ -105,7 +105,20 @@ Polish only: no new features or concepts. Each entry is one commit.
     `dig_down_shallow`, `dig_down_water`; test `tests/first_hour.rs` (fails without the rule: seed 9 burns).
     Message wording sits beside `dig_refusal` in `world.rs` (`HOLLOW`, `HOT`) for bugs-logic's message table.
 
-16. **Rope ladders feel snappy; found places walked (found-place climb).** Ladder fixes, each seen in a
+16. **Falling sand isn't a wall (Hampus's playtest, 2026-11-06).** The mole's collision box, wall-cling and
+    ledge checks treated every powder cell as solid, grains in mid-air included: a stream of sand pouring from
+    a slot could be clung to and climbed like a wall (the mole climbed it 3 m and hung there for good), stood on
+    in mid-air, and walked into as a wall (the mole stopped dead at the stream). Now `World::in_flight` (sand,
+    gravel or soil that moved in the last two CA steps, from the grid's `moved` stamps, with air or another
+    grain in flight under it) is ignored by `box_hits`, `side_wall_at` and `ledge` (`body_blocked`), and by the
+    burial check, so the mole passes and drops through a pour unhurt. Grains rolling down a pile have the pile
+    under them and still carry the mole, as do settled heaps. No shared flag: the grid already stamps each move.
+    Scenarios `falling_loose_no_climb` and `falling_loose_walk_under` (both fail with the rule off).
+    Polish run (headless playtest): digging up through a dirt ceiling into sand, the pour comes down past the
+    mole unhurt and it shoves through the settled heap (about 0.5 s) and on; standing still under a pour, it
+    rides up on the growing pile (at most 1 hp from a grain settling in it, regained). No change needed.
+
+17. **Rope ladders feel snappy; found places walked (found-place climb).** Ladder fixes, each seen in a
     scenario first:
     * holding only `W` at a ledge's ladder climbed past the lip to the knot and bobbed there for good
       (on and off the rope's end every few ticks), never stepping onto the ledge: `W` now climbs off onto the

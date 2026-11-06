@@ -81,6 +81,7 @@ Deep down (below 70 m) the rock is mostly **basalt**, with crystal and quartz on
   * There are 1–3 **root-trees**: 0.5 m trunks, 2–3.5 m tall, standing on spreading **root-tree roots**.
 * **Root-trees regrow.** Cut a trunk and it gives **wood**. While its roots stand and there's seep water within about 6 m, the trunk grows back a cell at a time, about every 6 s per column, to its old height. Dig out the roots, or drain the pool, and it never comes back. The rule reads only the grid, so it survives slides and saves (`tree_regrow`, `tree_no_seep`).
 * **Glowmites** drift through every grotto: a swarm of 4–7 small, cold green-gold lights, each on its own slow loop round the hollow. Each one is a light source. Right mouse on one catches it in a jar (a **Glowmite** in the pack, which glows when held). A grotto's swarm refills, with a caught glowmite replaced after 5 minutes (`glowmite_catch`, `glowmites_drift_glow_and_get_caught`).
+* **Discovery:** the first time you come within 8 m of a grotto's hollow, a line goes in the log, like ruins and found places: "A grotto, 22 m down: water seeps through the rock here, root-trees drink it, and glowmites drift in the hollow. Cut root-trees for wood." Once per grotto; saves remember which (format 11). No cards (scenario `grotto_discovery`).
 * Grottos are a pure function of the seed and position like the rest of the world, so a slide or a reload regenerates them identically.
 
 ## Ruins of the Ancients
@@ -126,11 +127,13 @@ Seven families of **found places**, not random loot rooms (`sim/src/sites.rs`). 
 
 Stamped sites and their interactions: `all_seven_site_families_stamp_with_purpose`, `found_places_have_open_silhouettes_not_filled_boxes` (host rock above a holt dome, a pump roof and a halt warehouse, and outside a fossil or crystal shell), `found_places_entrances_reach_every_room_and_the_chest` (from every way in, a mole body can reach the chest — or the fissure floor — and no room of 4 m² or more is cut off; salt-hall and fossil mouths keep their lintels), `site_pumpworks`, `site_mine`, `site_holt`, `site_fissure`, `site_fossil`, `site_crystal`, `site_halt`. Headless tests do not prove the rooms *look* like carved rock. Native `--scene=mine` (and the other family names, or `walls`) stamps one isolated copy in host rock next to the burrow so a `--shot` can inspect lining, props and layout.
 
+**Furnishings.** Each family is furnished with drawn props on top of the set-pieces its layout builds in cells: a winch, scaffolding and dig tools in the mine, pipes and a sluice gate in the pumpworks, broken bridge stubs and ropes in a fissure, crystal clusters in the salt hall, a railcar, bench and station sign in a halt, and a kitchen, bedroll and hanging pantry in a holt. They have no weight and can't be dug. Each is fitted against the cells actually there, so it stands on a floor or hangs from a roof. The full list and the rules are on [Item and Place Art](Item-and-Place-Art.md#found-place-furnishings).
+
 **How they read.** Rail and ore draw their own pixel art (`art::mat_color`): track is a copper strap along the top (old track flecked with verdigris) over dark timber sleepers every half metre with sooty ballast between, so it never reads as a plank floor; ore pockets and veins show rounded half-metre nuggets in the ore's own colour (copper flecked green with verdigris, rust-red iron, pale tin, glossy coal) in a darker matrix. Nothing glows: they are lit like any rock (tests `rails_do_not_read_as_a_wood_floor`, `ore_pockets_stand_out_without_glowing`).
 
 ### What they look like
 
-One still of each family, stamped with `--scene=<family>` on seed 4242 and lit by the scene's torches. These are the CPU-side composite from `--dump-art` (`view.bmp`), cropped to the site and scaled up with nearest sampling. Furniture, chests, farms, carts and rope ladders are blitted into that composite; torches show as their light.
+One still of each family, stamped with `--scene=<family>` on seed 4242 and lit by the scene's torches. These are the CPU-side composite from `--dump-art` (`view.bmp`), cropped to the site. It now carries the world sprites too (furniture, furnishings, chests, torches, carts, the mole), and the whole crop is rendered, not just the part on screen.
 
 ![Abandoned mine: a two-level sooty drift with a tall headframe, chutes and collapsed timbering](images/site-mine.png)
 *Abandoned mine* (`--scene=mine`)

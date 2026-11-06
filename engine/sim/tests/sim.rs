@@ -995,6 +995,13 @@ mod progression {
         let far = x + (HOME_M * CPM as f32) as usize + 4 * CPM; w.furniture.push(Furniture { item: Item::Table, x: far, y, tint: 0 });
         assert_eq!(w.home_furniture(), 1, "a table out past {HOME_M} m isn't the holt's");
     }
+    /// Grottos visited are saved (v11), so a reload doesn't announce them again.
+    #[test] fn grottos_seen_survive_a_save() {
+        let mut w = World::new(256 * molehill_sim::mat::S, 128 * molehill_sim::mat::S, 3);
+        w.grottos_seen.insert(0xABCD); w.grottos_seen.insert(7);
+        let l = save::load(&save::save(&w)).unwrap();
+        assert!(l.grottos_seen.contains(&0xABCD) && l.grottos_seen.contains(&7) && l.grottos_seen.len() == 2);
+    }
     #[test] fn survival_starts_bare_and_learns() {
         use molehill_sim::survival::Mode;
         let mut w = World::new(256 * molehill_sim::mat::S, 128 * molehill_sim::mat::S, 3); w.set_mode(Mode::Survival); w.step();
