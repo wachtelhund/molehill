@@ -14,6 +14,7 @@ use crate::grid::hash3;
 use crate::logic::Dev;
 use crate::mat::{Mat, CELL_M, CPM, S};
 use crate::ruins::{Kind as RuinKind, RUIN_H, RUIN_W};
+use crate::templates::Thing;
 use crate::walls::Wall;
 use crate::world::{Farm, Furniture, World};
 
@@ -96,6 +97,30 @@ pub struct Site {
     pub chest: Option<(usize, i64)>,
     /// an Ancient tube station this halt points at (the ruin's id)
     pub link: Option<u32>,
+}
+
+/// The layout knobs a site's `var` selects in the procedural reference layouts. Templates carry the
+/// same choices as data (slots and roles picked from `var`, see `templates.rs`); the exporter sets each
+/// knob on its own to cut the layout into a base and per-slot patches.
+#[doc(hidden)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Knobs {
+    /// mine: which bay (from 20 m) slumped
+    pub slump: i64,
+    /// mine: which run of track rusted away (of 4)
+    pub rails: i64,
+    /// mine: where the rock bands cross the worked face (of 8)
+    pub band: i64,
+    /// salt hall: where the hanging crystal clusters start (of 4, every 5 m)
+    pub hang: i64,
+    /// mine: the ore it followed
+    pub ore: Mat,
+}
+impl Knobs {
+    pub fn of(var: u32) -> Knobs {
+        let v = var as i64;
+        Knobs { slump: v % 6, rails: (v >> 2) % 4, band: v & 7, hang: v & 3, ore: if var & 3 != 3 { Mat::CopperOre } else { Mat::Coal } }
+    }
 }
 
 /// What a Delver reads the first time they come within 8 m. No cards, no banners: a line in the log.
@@ -244,6 +269,14 @@ impl Site {
     pub fn new(id: u32, kind: Kind, x0: usize, y0: i64, var: u32, left: bool, link: Option<u32>) -> Site {
         let (w, h) = kind.size();
         let mut s = Site { id, kind, x0, y0, w, h, var, left, chest: None, link };
+        s.chest = crate::templates::get(kind).chest(var, left).map(|(cx, cy)| (x0 + cx, y0 + cy as i64));
+        s
+    }
+    /// The procedural reference chest (see `cell_reference`), as an offset from the box's top-left.
+    #[doc(hidden)]
+    pub fn chest_reference(kind: Kind, left: bool) -> Option<(usize, usize)> {
+        let (w, h) = kind.size(); let (x0, y0) = (0usize, 0i64);
+        let mut s = Site { id: 0, kind, x0, y0, w, h, var: 0, left, chest: None, link: None };
         let c = CPM as i64;
         // chests stand in open air just above the floor so check_chests can open them
         let cy = y0 + h as i64 - 2 * c + c / 2 - 1;
@@ -256,24 +289,33 @@ impl Site {
             Kind::Halt => Some((x0 + if left { w - 5 * CPM } else { 5 * CPM }, cy)), // warehouse aisle
             Kind::Fissure => None,
         };
-        s
+        s.chest.map(|(x, y)| (x, y as usize))
     }
     /// The ore an abandoned mine followed: copper three times in four (it's the shallow ore), else coal.
-    pub fn mine_ore(&self) -> Mat { if self.var & 3 != 3 { Mat::CopperOre } else { Mat::Coal } }
+    pub fn mine_ore(&self) -> Mat { Knobs::of(self.var).ore }
     pub fn centre(&self) -> (usize, i64) { (self.x0 + self.w / 2, self.y0 + self.h as i64 / 2) }
-    /// Material this site stamps at (x, wy), or None to leave the host rock.
+    /// Material this site stamps at (x, wy), or None to leave the host rock: read from its template
+    /// (`templates.rs`, the data under `assets/sites/`).
     pub fn cell(&self, x: usize, wy: i64) -> Option<Mat> {
+        let (dx, dy) = (x as i64 - self.x0 as i64, wy - self.y0);
+        if dx < 0 || dy < 0 || dx >= self.w as i64 || dy >= self.h as i64 { return None; }
+        crate::templates::get(self.kind).cell(dx as usize, dy as usize, self.var, self.left)
+    }
+    /// The procedural reference layout the templates were exported from (`examples/export_sites.rs`),
+    /// with explicit layout knobs. The golden test `templates_match_the_procedural_sites` keeps the two equal.
+    #[doc(hidden)]
+    pub fn cell_reference(&self, x: usize, wy: i64, k: &Knobs) -> Option<Mat> {
         let (dx, dy) = (x as i64 - self.x0 as i64, wy - self.y0);
         if dx < 0 || dy < 0 || dx >= self.w as i64 || dy >= self.h as i64 { return None; }
         let c = CPM as i64; let (w, h) = (self.w as i64, self.h as i64);
         match self.kind {
-            Kind::Mine => self.carve_mine(dx, dy, w, h, c),
-            Kind::Holt => self.carve_holt(dx, dy, w, h, c),
-            Kind::Pumpworks => self.carve_pump(dx, dy, w, h, c),
-            Kind::Fissure => self.carve_fissure(dx, dy, w, h, c),
-            Kind::Fossil => self.carve_fossil(dx, dy, w, h, c),
-            Kind::Crystal => self.carve_crystal(dx, dy, w, h, c),
-            Kind::Halt => self.carve_halt(dx, dy, w, h, c),
+            Kind::Mine => self.carve_mine(k, dx, dy, w, h, c),
+            Kind::Holt => self.carve_holt(k, dx, dy, w, h, c),
+            Kind::Pumpworks => self.carve_pump(k, dx, dy, w, h, c),
+            Kind::Fissure => self.carve_fissure(k, dx, dy, w, h, c),
+            Kind::Fossil => self.carve_fossil(k, dx, dy, w, h, c),
+            Kind::Crystal => self.carve_crystal(k, dx, dy, w, h, c),
+            Kind::Halt => self.carve_halt(k, dx, dy, w, h, c),
         }
     }
     /// Two-level timbered mine: haulage drift, upper heading, a shaft house with a headframe and
@@ -301,10 +343,10 @@ impl Site {
         if dy >= floor - 4 * c { return Some(IronBeam); }
         Some(Limestone)
     }
-    fn carve_mine(&self, dx: i64, dy: i64, w: i64, h: i64, c: i64) -> Option<Mat> {
+    fn carve_mine(&self, k: &Knobs, dx: i64, dy: i64, w: i64, h: i64, c: i64) -> Option<Mat> {
         use Mat::*;
-        let ore = self.mine_ore();
-        let bay = 20 * c + (self.var as i64 % 6) * c;
+        let ore = k.ore;
+        let bay = 20 * c + k.slump * c;
         let floor = h - c;
         let face = MINE_FACE * c / 2;
         let post = c / 2;
@@ -342,7 +384,7 @@ impl Site {
             return if dy < cap - c { None } else { Some(if slump && dy >= cap - c / 2 { Gravel } else { Limestone }) };
         }
         if dy >= floor {
-            let fy = dy - floor; let gone = (dx / (3 * c) + (self.var as i64 >> 2)) % 4 == 3;
+            let fy = dy - floor; let gone = (dx / (3 * c) + k.rails) % 4 == 3;
             return Some(if fy < MINE_RAIL && !gone && dx >= face && !in_shaft { Rail }
                 else if fy < MINE_RAIL + 3 && dx >= face && dx % c < 2 { WoodBeam }
                 else if fy < MINE_RAIL + 3 && dx >= face { Gravel }
@@ -363,7 +405,7 @@ impl Site {
         }
         let xf = face - (floor - dy).max(0) * c / (floor - c / 2).max(1);
         if dx < xf {
-            let band = (dy + dx / 3 + (self.var as i64 & 7)) % (2 * c) < 2;
+            let band = (dy + dx / 3 + k.band) % (2 * c) < 2;
             return Some(if band { Rock } else { ore });
         }
         let spill = (3 * c / 2) - (dx - face) * (3 * c / 2) / (5 * c / 2);
@@ -407,7 +449,7 @@ impl Site {
     }
     /// A lived-in holt: nesting alcove, kitchen hearth and chimney, hall, a storage loft and a
     /// fungus garden. The dome leaves host rock above it, so the silhouette is a house, not a box.
-    fn carve_holt(&self, dx: i64, dy: i64, w: i64, h: i64, c: i64) -> Option<Mat> {
+    fn carve_holt(&self, _k: &Knobs, dx: i64, dy: i64, w: i64, h: i64, c: i64) -> Option<Mat> {
         use Mat::*;
         let t = (dx as f32 - w as f32 / 2.) / (w as f32 / 2.);
         let top = (2.2 * c as f32 + 3.0 * c as f32 * t * t).round() as i64;
@@ -468,7 +510,7 @@ impl Site {
     /// Brick pumpworks: canal and flooded intake, a closed sluice, a dry machine hall, a big
     /// pump wheel sitting on the floor, pipe runs hung from the roof, and a service door.
     /// No full-height colonnade: the rooms read as one works, not a grid of boxes.
-    fn carve_pump(&self, dx: i64, dy: i64, w: i64, h: i64, c: i64) -> Option<Mat> {
+    fn carve_pump(&self, _k: &Knobs, dx: i64, dy: i64, w: i64, h: i64, c: i64) -> Option<Mat> {
         use Mat::*;
         let floor = h - c;
         let split = 20 * c;
@@ -539,7 +581,7 @@ impl Site {
     }
     /// A tall split in the host rock that widens mid-drop, with broken bridges, hanging ropes,
     /// rubble-strewn ledges and a mouth on each side.
-    fn carve_fissure(&self, dx: i64, dy: i64, w: i64, h: i64, c: i64) -> Option<Mat> {
+    fn carve_fissure(&self, _k: &Knobs, dx: i64, dy: i64, w: i64, h: i64, c: i64) -> Option<Mat> {
         use Mat::*;
         let wave = ((dy as f32 / c as f32) * 0.55).sin() * (1.4 * c as f32);
         let mid = 1. - ((dy as f32 / h as f32) - 0.45).abs() * 1.6;
@@ -583,7 +625,7 @@ impl Site {
     }
     /// Oval excavation around a readable mineralised skeleton, wooden scaffold and tools, two
     /// mouths. Limestone follows the oval as a shell; the bounding-box corners stay host rock.
-    fn carve_fossil(&self, dx: i64, dy: i64, w: i64, h: i64, c: i64) -> Option<Mat> {
+    fn carve_fossil(&self, _k: &Knobs, dx: i64, dy: i64, w: i64, h: i64, c: i64) -> Option<Mat> {
         use Mat::*;
         let (cx, cy, rx, ry) = Self::oval_nav(w, h);
         let nx = (dx as f32 - cx) / rx; let ny = (dy as f32 - cy) / ry;
@@ -642,7 +684,7 @@ impl Site {
     }
     /// Salt cathedral: an oval nave (shell, not a box) with towering crystal spires, hanging
     /// clusters, quartz columns and three glow-pools.
-    fn carve_crystal(&self, dx: i64, dy: i64, w: i64, h: i64, c: i64) -> Option<Mat> {
+    fn carve_crystal(&self, k: &Knobs, dx: i64, dy: i64, w: i64, h: i64, c: i64) -> Option<Mat> {
         use Mat::*;
         let (cx, cy, rx, ry) = Self::oval_nav(w, h);
         let nx = (dx as f32 - cx) / rx; let ny = (dy as f32 - cy) / ry;
@@ -678,7 +720,7 @@ impl Site {
             return Some(Water);
         }
         let pool = dy >= floor && ((dx - w / 2).abs() < 4 * c || (dx - 6 * c).abs() < 2 * c || (dx - (w - 6 * c)).abs() < 2 * c);
-        let hang = dy < 4 * c && dy >= c && (dx / c + (self.var as i64 & 3)).rem_euclid(5) == 0;
+        let hang = dy < 4 * c && dy >= c && (dx / c + k.hang).rem_euclid(5) == 0;
         if pool { Some(Water) }
         else if hang { Some(Crystal) }
         else if dy >= floor { Some(Quartz) }
@@ -687,7 +729,7 @@ impl Site {
     /// Chunk-scale cargo halt: vaulted iron hall on rails, a derelict railcar with a cabin and
     /// stack, waiting benches and a hanging sign, a pressure tube off one side, and a lower-roofed
     /// warehouse of crates off the other. Never a waygate.
-    fn carve_halt(&self, dx: i64, dy: i64, w: i64, h: i64, c: i64) -> Option<Mat> {
+    fn carve_halt(&self, _k: &Knobs, dx: i64, dy: i64, w: i64, h: i64, c: i64) -> Option<Mat> {
         use Mat::*;
         let floor = h - c;
         let hall0 = 26 * c;
@@ -778,8 +820,20 @@ impl Site {
         let (dx, dy) = (x as i64 - self.x0 as i64, wy - self.y0);
         if dx < 0 || dy < 0 || dx >= self.w as i64 || dy >= self.h as i64 { return None; }
         if self.cell(x, wy).is_none() { return None; }
-        let h = hash3(x as u32, wy as u32, self.id);
-        Some(match self.kind {
+        crate::templates::get(self.kind).lining_with(dx as usize, dy as usize, self.var, self.left, hash3(x as u32, wy as u32, self.id))
+    }
+    /// The procedural reference lining (see `cell_reference`): wall at (x, wy) in the variant `k`.
+    #[doc(hidden)]
+    pub fn wall_reference(&self, x: usize, wy: i64, k: &Knobs) -> Option<Wall> {
+        let (dx, dy) = (x as i64 - self.x0 as i64, wy - self.y0);
+        if dx < 0 || dy < 0 || dx >= self.w as i64 || dy >= self.h as i64 { return None; }
+        if self.cell_reference(x, wy, k).is_none() { return None; }
+        Some(self.lining_reference(dx, dy, hash3(x as u32, wy as u32, self.id)))
+    }
+    /// The reference lining at box offset (dx, dy) for a cell hash `h`.
+    #[doc(hidden)]
+    pub fn lining_reference(&self, dx: i64, dy: i64, h: u32) -> Wall {
+        match self.kind {
             Kind::Mine => if (h & 7) == 0 { Wall::Gap } else if (h & 7) == 1 { Wall::Beams } else if (h & 7) == 2 { Wall::Crack } else if (h & 7) == 3 { Wall::Rock } else { Wall::Soot },
             Kind::Holt => if dy > self.h as i64 - 2 * CPM as i64 && (h & 3) == 0 { Wall::Damp }
                 else if dx > 18 * CPM as i64 && (h & 3) == 0 { Wall::Root }
@@ -792,7 +846,106 @@ impl Site {
             Kind::Fossil => if (h & 3) == 0 { Wall::Fossil } else if (h & 3) == 1 { Wall::Crack } else { Wall::Rock },
             Kind::Crystal => if (h & 3) == 0 { Wall::Salt } else if (h & 3) == 1 { Wall::Crystal } else { Wall::Damp },
             Kind::Halt => if (h & 7) == 0 { Wall::Ironclad } else if (h & 7) == 1 { Wall::Gap } else if (h & 15) == 2 { Wall::Pipes } else { Wall::Ashlar },
-        })
+        }
+    }
+    /// The procedural reference for what a site owns besides cells (see `Site::cell_reference`): its
+    /// things with the box's top-left at (x0, y0), in the order they are set down.
+    #[doc(hidden)]
+    pub fn things_reference(s: &Site, x0: usize, y0: usize) -> Vec<Thing> {
+        let c = CPM; let mut v = vec![];
+        match s.kind {
+            Kind::Holt => {
+                v.push(Thing::Furn { item: Item::Nest, at: [x0 + 3 * c, y0 + s.h - 2 * c] });
+                v.push(Thing::Furn { item: Item::Nest, at: [x0 + 5 * c, y0 + s.h - 2 * c] });
+                v.push(Thing::Furn { item: Item::Rug, at: [x0 + 3 * c, y0 + s.h - 2 * c] });
+                // the table and stools stand on the open floor between the nest niche and the plank loft
+                // (under the loft there's only half a metre of headroom)
+                v.push(Thing::Furn { item: Item::Table, at: [x0 + 8 * c + c / 2, y0 + s.h - 2 * c] });
+                v.push(Thing::Furn { item: Item::Stool, at: [x0 + 7 * c + c / 2, y0 + s.h - 2 * c] });
+                v.push(Thing::Furn { item: Item::Stool, at: [x0 + 9 * c + c / 2, y0 + s.h - 2 * c] });
+                v.push(Thing::Furn { item: Item::Rug, at: [x0 + 8 * c + c / 2, y0 + s.h - 2 * c] });
+                v.push(Thing::Furn { item: Item::Shelf, at: [x0 + 15 * c, y0 + s.h - 2 * c] });
+                v.push(Thing::Furn { item: Item::Banner, at: [x0 + 13 * c, y0 + 4 * c] });
+                v.push(Thing::Furn { item: Item::Banner, at: [x0 + 4 * c, y0 + 5 * c] });
+                v.push(Thing::Furn { item: Item::Banner, at: [x0 + 10 * c, y0 + 4 * c] });
+                v.push(Thing::Farm { at: [x0 + s.w - 7 * c, y0 + s.h - 2 * c] });
+                v.push(Thing::Farm { at: [x0 + s.w - 5 * c, y0 + s.h - 2 * c] });
+                v.push(Thing::Furn { item: Item::Planter, at: [x0 + s.w - 9 * c, y0 + s.h - 2 * c] });
+                v.push(Thing::Furn { item: Item::Planter, at: [x0 + s.w - 3 * c, y0 + s.h - 2 * c] });
+                v.push(Thing::Torch { at: [x0 + 4 * c, y0 + s.h - 4 * c] });
+                v.push(Thing::Torch { at: [x0 + 13 * c, y0 + s.h - 4 * c] });
+                v.push(Thing::Torch { at: [x0 + s.w - 6 * c, y0 + s.h - 4 * c] });
+            }
+            Kind::Mine => {
+                v.push(Thing::Torch { at: [x0 + 8 * c, y0 + s.h - 3 * c] });
+                v.push(Thing::Torch { at: [x0 + 30 * c, y0 + s.h - 3 * c] });
+                v.push(Thing::Torch { at: [x0 + 60 * c, y0 + s.h - 3 * c] });
+                v.push(Thing::Torch { at: [x0 + 20 * c, y0 + 8 * c] });
+                v.push(Thing::Torch { at: [x0 + 50 * c, y0 + 8 * c] });
+                v.push(Thing::Torch { at: [x0 + 48 * c + c, y0 + 5 * c] });
+                v.push(Thing::Furn { item: Item::Shelf, at: [x0 + s.w - 10 * c, y0 + s.h - 2 * c] });
+                let sx = x0 + 48 * c + c / 2;
+                v.push(Thing::Ladder { at: [sx, y0 + 9 * c], anchor: [sx.saturating_sub(c), (y0 + 9 * c).saturating_sub(1)] });
+                v.push(Thing::Ladder { at: [sx, y0 + 16 * c], anchor: [sx.saturating_sub(c), (y0 + 16 * c).saturating_sub(1)] });
+                v.push(Thing::Cart { at: [(x0 + 40 * c) as f32 + 0.5, (y0 + s.h - c) as f32] });
+                v.push(Thing::Cart { at: [(x0 + 52 * c) as f32 + 0.5, (y0 + s.h - c) as f32] });
+            }
+            Kind::Pumpworks => {
+                let gx = x0 + 20 * c + c / 2; let gy = y0 + s.h - 3 * c + c / 2;
+                v.push(Thing::Device { dev: Dev::Floodgate, at: [gx, gy] });
+                let lx = x0 + 22 * c; let ly = y0 + s.h - 4 * c;
+                v.push(Thing::Device { dev: Dev::Lever, at: [lx, ly] });
+                v.push(Thing::Wire { at: [lx, ly] }); v.push(Thing::Wire { at: [gx, gy] }); v.push(Thing::Wire { at: [(lx + gx) / 2, ly] }); v.push(Thing::Wire { at: [(lx + gx) / 2, gy] });
+                v.push(Thing::SwitchOn { at: [lx, ly] });
+                v.push(Thing::Device { dev: Dev::Pump, at: [x0 + 37 * c, y0 + s.h - 3 * c] });
+                v.push(Thing::Ladder { at: [x0 + 28 * c, y0 + 8 * c], anchor: [x0 + 27 * c, (y0 + 8 * c).saturating_sub(1)] });
+                v.push(Thing::Torch { at: [x0 + 10 * c, y0 + s.h - 6 * c] });
+                v.push(Thing::Torch { at: [x0 + 24 * c, y0 + s.h - 4 * c] });
+                v.push(Thing::Torch { at: [x0 + 42 * c, y0 + s.h - 8 * c] });
+                v.push(Thing::Torch { at: [x0 + s.w - 4 * c, y0 + s.h - 5 * c] });
+            }
+            Kind::Fissure => {
+                let lx = x0 + 4 * c;
+                let rx = x0 + s.w - 5 * c;
+                for top_m in [8, 16, 24, 32] {
+                    let top = y0 + top_m * c + c / 2;
+                    v.push(Thing::Ladder { at: [lx, top], anchor: [x0 + 3 * c, top.saturating_sub(1)] });
+                    v.push(Thing::Ladder { at: [rx, top], anchor: [x0 + s.w - 4 * c, top.saturating_sub(1)] });
+                }
+                v.push(Thing::Torch { at: [x0 + 5 * c, y0 + 8 * c] });
+                v.push(Thing::Torch { at: [x0 + s.w / 2, y0 + 16 * c] });
+                v.push(Thing::Torch { at: [x0 + s.w - 6 * c, y0 + 24 * c] });
+            }
+            Kind::Halt => {
+                let cx = x0 + 40 * c; let cy = y0 + s.h - c;
+                v.push(Thing::Cart { at: [cx as f32 + 0.5, cy as f32] });
+                let wx = if s.left { x0 + s.w - 16 * c } else { x0 + 8 * c };
+                v.push(Thing::Furn { item: Item::Shelf, at: [wx, y0 + s.h - 2 * c] });
+                v.push(Thing::Furn { item: Item::Shelf, at: [wx + 8 * c, y0 + s.h - 2 * c] });
+                v.push(Thing::Furn { item: Item::Table, at: [wx + 4 * c, y0 + s.h - 2 * c] });
+                v.push(Thing::Torch { at: [x0 + 40 * c, y0 + s.h - 4 * c] });
+                v.push(Thing::Torch { at: [wx + 2 * c, y0 + s.h - 4 * c] });
+                v.push(Thing::Furn { item: Item::Banner, at: [x0 + 34 * c, y0 + 5 * c] });
+                v.push(Thing::Furn { item: Item::Stool, at: [x0 + 50 * c, y0 + s.h - 2 * c] });
+                v.push(Thing::Furn { item: Item::Stool, at: [x0 + 53 * c, y0 + s.h - 2 * c] });
+            }
+            Kind::Fossil => {
+                v.push(Thing::Torch { at: [x0 + s.w / 2, y0 + s.h - 4 * c] });
+                v.push(Thing::Torch { at: [x0 + 6 * c, y0 + s.h - 5 * c] });
+                v.push(Thing::Torch { at: [x0 + s.w - 10 * c, y0 + s.h - 5 * c] });
+                v.push(Thing::Furn { item: Item::Shelf, at: [x0 + 5 * c, y0 + s.h - 2 * c] });
+                v.push(Thing::Furn { item: Item::Table, at: [x0 + 8 * c, y0 + s.h - 2 * c] });
+                // through the walk hatches at 12 m so the scaffold is a climb from the floor
+                v.push(Thing::Ladder { at: [x0 + 12 * c, y0 + 5 * c], anchor: [x0 + 11 * c, (y0 + 5 * c).saturating_sub(1)] });
+                v.push(Thing::Ladder { at: [x0 + 12 * c, y0 + 8 * c], anchor: [x0 + 11 * c, (y0 + 8 * c).saturating_sub(1)] });
+            }
+            Kind::Crystal => {
+                v.push(Thing::Torch { at: [x0 + s.w / 2, y0 + s.h - 4 * c] });
+                v.push(Thing::Torch { at: [x0 + 6 * c, y0 + s.h - 4 * c] });
+                v.push(Thing::Torch { at: [x0 + s.w - 6 * c, y0 + s.h - 4 * c] });
+            }
+        }
+        v
     }
 }
 
@@ -846,100 +999,22 @@ impl World {
         self.sites.push(s);
     }
     fn stamp_one(&mut self, s: &Site) {
-        let c = CPM; let y0 = (s.y0 - self.oy) as i64;
+        let y0 = (s.y0 - self.oy) as i64;
         if y0 < 4 || y0 + s.h as i64 >= self.g.h as i64 - 4 { return; }
         let (x0, y0) = (s.x0, y0 as usize);
-        match s.kind {
-            Kind::Holt => {
-                self.try_furn(Item::Nest, x0 + 3 * c, y0 + s.h - 2 * c);
-                self.try_furn(Item::Nest, x0 + 5 * c, y0 + s.h - 2 * c);
-                self.try_furn(Item::Rug, x0 + 3 * c, y0 + s.h - 2 * c);
-                // the table and stools stand on the open floor between the nest niche and the plank loft
-                // (under the loft there's only half a metre of headroom)
-                self.try_furn(Item::Table, x0 + 8 * c + c / 2, y0 + s.h - 2 * c);
-                self.try_furn(Item::Stool, x0 + 7 * c + c / 2, y0 + s.h - 2 * c);
-                self.try_furn(Item::Stool, x0 + 9 * c + c / 2, y0 + s.h - 2 * c);
-                self.try_furn(Item::Rug, x0 + 8 * c + c / 2, y0 + s.h - 2 * c);
-                self.try_furn(Item::Shelf, x0 + 15 * c, y0 + s.h - 2 * c);
-                self.try_furn(Item::Banner, x0 + 13 * c, y0 + 4 * c);
-                self.try_furn(Item::Banner, x0 + 4 * c, y0 + 5 * c);
-                self.try_furn(Item::Banner, x0 + 10 * c, y0 + 4 * c);
-                self.try_farm(x0 + s.w - 7 * c, y0 + s.h - 2 * c);
-                self.try_farm(x0 + s.w - 5 * c, y0 + s.h - 2 * c);
-                self.try_furn(Item::Planter, x0 + s.w - 9 * c, y0 + s.h - 2 * c);
-                self.try_furn(Item::Planter, x0 + s.w - 3 * c, y0 + s.h - 2 * c);
-                self.try_torch(x0 + 4 * c, y0 + s.h - 4 * c);
-                self.try_torch(x0 + 13 * c, y0 + s.h - 4 * c);
-                self.try_torch(x0 + s.w - 6 * c, y0 + s.h - 4 * c);
-            }
-            Kind::Mine => {
-                self.try_torch(x0 + 8 * c, y0 + s.h - 3 * c);
-                self.try_torch(x0 + 30 * c, y0 + s.h - 3 * c);
-                self.try_torch(x0 + 60 * c, y0 + s.h - 3 * c);
-                self.try_torch(x0 + 20 * c, y0 + 8 * c);
-                self.try_torch(x0 + 50 * c, y0 + 8 * c);
-                self.try_torch(x0 + 48 * c + c, y0 + 5 * c);
-                self.try_furn(Item::Shelf, x0 + s.w - 10 * c, y0 + s.h - 2 * c);
-                let sx = x0 + 48 * c + c / 2;
-                self.try_ladder(sx, y0 + 9 * c, sx.saturating_sub(c), (y0 + 9 * c).saturating_sub(1));
-                self.try_ladder(sx, y0 + 16 * c, sx.saturating_sub(c), (y0 + 16 * c).saturating_sub(1));
-                self.try_cart((x0 + 40 * c) as f32 + 0.5, (y0 + s.h - c) as f32);
-                self.try_cart((x0 + 52 * c) as f32 + 0.5, (y0 + s.h - c) as f32);
-            }
-            Kind::Pumpworks => {
-                let gx = x0 + 20 * c + c / 2; let gy = y0 + s.h - 3 * c + c / 2;
-                self.try_dev(Dev::Floodgate, gx, gy);
-                let lx = x0 + 22 * c; let ly = y0 + s.h - 4 * c;
-                self.try_dev(Dev::Lever, lx, ly);
-                self.try_wire(lx, ly); self.try_wire(gx, gy); self.try_wire((lx + gx) / 2, ly); self.try_wire((lx + gx) / 2, gy);
-                if let Some(b) = self.try_block(lx, ly) { self.logic.dev_s[b] = 1; self.logic.invalidate(); }
-                self.try_dev(Dev::Pump, x0 + 37 * c, y0 + s.h - 3 * c);
-                self.try_ladder(x0 + 28 * c, y0 + 8 * c, x0 + 27 * c, (y0 + 8 * c).saturating_sub(1));
-                self.try_torch(x0 + 10 * c, y0 + s.h - 6 * c);
-                self.try_torch(x0 + 24 * c, y0 + s.h - 4 * c);
-                self.try_torch(x0 + 42 * c, y0 + s.h - 8 * c);
-                self.try_torch(x0 + s.w - 4 * c, y0 + s.h - 5 * c);
-            }
-            Kind::Fissure => {
-                let lx = x0 + 4 * c;
-                let rx = x0 + s.w - 5 * c;
-                for top_m in [8, 16, 24, 32] {
-                    let top = y0 + top_m * c + c / 2;
-                    self.try_ladder(lx, top, x0 + 3 * c, top.saturating_sub(1));
-                    self.try_ladder(rx, top, x0 + s.w - 4 * c, top.saturating_sub(1));
-                }
-                self.try_torch(x0 + 5 * c, y0 + 8 * c);
-                self.try_torch(x0 + s.w / 2, y0 + 16 * c);
-                self.try_torch(x0 + s.w - 6 * c, y0 + 24 * c);
-            }
-            Kind::Halt => {
-                let cx = x0 + 40 * c; let cy = y0 + s.h - c;
-                self.try_cart(cx as f32 + 0.5, cy as f32);
-                let wx = if s.left { x0 + s.w - 16 * c } else { x0 + 8 * c };
-                self.try_furn(Item::Shelf, wx, y0 + s.h - 2 * c);
-                self.try_furn(Item::Shelf, wx + 8 * c, y0 + s.h - 2 * c);
-                self.try_furn(Item::Table, wx + 4 * c, y0 + s.h - 2 * c);
-                self.try_torch(x0 + 40 * c, y0 + s.h - 4 * c);
-                self.try_torch(wx + 2 * c, y0 + s.h - 4 * c);
-                self.try_furn(Item::Banner, x0 + 34 * c, y0 + 5 * c);
-                self.try_furn(Item::Stool, x0 + 50 * c, y0 + s.h - 2 * c);
-                self.try_furn(Item::Stool, x0 + 53 * c, y0 + s.h - 2 * c);
-            }
-            Kind::Fossil => {
-                self.try_torch(x0 + s.w / 2, y0 + s.h - 4 * c);
-                self.try_torch(x0 + 6 * c, y0 + s.h - 5 * c);
-                self.try_torch(x0 + s.w - 10 * c, y0 + s.h - 5 * c);
-                self.try_furn(Item::Shelf, x0 + 5 * c, y0 + s.h - 2 * c);
-                self.try_furn(Item::Table, x0 + 8 * c, y0 + s.h - 2 * c);
-                // through the walk hatches at 12 m so the scaffold is a climb from the floor
-                self.try_ladder(x0 + 12 * c, y0 + 5 * c, x0 + 11 * c, (y0 + 5 * c).saturating_sub(1));
-                self.try_ladder(x0 + 12 * c, y0 + 8 * c, x0 + 11 * c, (y0 + 8 * c).saturating_sub(1));
-            }
-            Kind::Crystal => {
-                self.try_torch(x0 + s.w / 2, y0 + s.h - 4 * c);
-                self.try_torch(x0 + 6 * c, y0 + s.h - 4 * c);
-                self.try_torch(x0 + s.w - 6 * c, y0 + s.h - 4 * c);
-            }
+        for t in crate::templates::get(s.kind).things(s.var, s.left) { self.set_thing(t.offset(x0, y0)); }
+    }
+    /// Set one site thing down at its window cell. Each is skipped if it doesn't fit or is already there.
+    pub(crate) fn set_thing(&mut self, t: Thing) {
+        match t {
+            Thing::Torch { at } => self.try_torch(at[0], at[1]),
+            Thing::Furn { item, at } => self.try_furn(item, at[0], at[1]),
+            Thing::Farm { at } => self.try_farm(at[0], at[1]),
+            Thing::Ladder { at, anchor } => self.try_ladder(at[0], at[1], anchor[0], anchor[1]),
+            Thing::Cart { at } => self.try_cart(at[0], at[1]),
+            Thing::Device { dev, at } => self.try_dev(dev, at[0], at[1]),
+            Thing::Wire { at } => self.try_wire(at[0], at[1]),
+            Thing::SwitchOn { at } => if let Some(b) = self.try_block(at[0], at[1]) { self.logic.dev_s[b] = 1; self.logic.invalidate(); },
         }
     }
     fn try_block(&self, x: usize, y: usize) -> Option<usize> {

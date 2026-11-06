@@ -49,7 +49,8 @@ The rule is simple: **gameplay goes in the sim.** If it changes what happens in 
 | `tubes.rs` | pressure tubes: hoppers whose current-driven blowers send capsules of items or the mole along the pipe; a breach stops and spills them |
 | `ruins.rs` | ruins of the Ancients: pumping halls, sealed vaults and tube stations placed per 160 × 80 m cell from the seed, their carvings, and the relics in vault chests |
 | `walls.rs` | decorative background walls: one byte per window cell, never in the CA or the stress solver; place and scrape; lining left by a dig |
-| `sites.rs` | seven found-place families (mines, holts, pumpworks, fissures, fossils, salt halls, cargo halts), placed per 96 × 48 m cell from the seed |
+| `sites.rs` | seven found-place families (mines, holts, pumpworks, fissures, fossils, salt halls, cargo halts), placed per 96 × 48 m cell from the seed; keeps the procedural reference layouts the templates are exported from |
+| `templates.rs` | found-place templates: the data files in `assets/sites/` (compiled in), their loader and lookups; see [Site templates](Site-Templates.md) |
 | `debris.rs` | blast debris: loose ground, rubble and liquid thrown as ballistic cells that land with nothing lost |
 | `lore.rs` | the Lid thread: clues (carvings, old notes, drafts, odd finds) placed per 32 m band from the seed, denser higher up, the 24 journal fragments that hint but never confirm, and the journal entries for the eight Ancient ruin carvings (`entry`) |
 | `survival.rs` | game modes and their rules: **Survival** (start kit, dig only with owned tools, fungus-oil fuel, the pack dropped at death, optional hunger off), **Creative** (999 of everything, nothing hurts) and **Plain** (no mode rules, used by tests and scenarios) |
@@ -57,7 +58,7 @@ The rule is simple: **gameplay goes in the sim.** If it changes what happens in 
 | `tips.rs` | the world hover text: what's under a cell, in plain Delver words |
 | `light.rs` | per-cell RGB light and fog of war |
 | `air.rs` | stale air on a 2 m block grid |
-| `craft.rs` | items, stations, recipes, tool tiers, quests |
+| `craft.rs` | items, stations, recipes, tool tiers, quests. Items are one registry, `ITEM_DEFS` (one `ItemDef` row per item: name, tooltip, colour, lump material, density, burning, block/pigment/furniture/wall role, what it can do, its controls line); a new item is an `Item` variant plus one row |
 | `disasters.rs` | floods, lava surges, quakes |
 | `band.rs` | the endless world off-window: 64-row bands holding cells, devices, air and things; the unit of saving |
 | `save.rs` | save/load: a manifest plus band blobs, split into parts (only changed bands are rewritten) or one blob |
