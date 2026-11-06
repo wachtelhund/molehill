@@ -262,3 +262,12 @@ u > 1, a creak on every crack start, no strain watch).
 * Scenarios: strained_roof_creaks_and_holds (new); hall_sag_arrests widened to 24 m; roof_needs_pillar and
   pillars_rock_roof at 16 m; feel_feedback's granite tile moved clear of the dirt (it had passed only because
   the dirt next to it crumbled).
+
+## Cave-ins: polish pass
+* digbot now splits the creaks heard by source. On 8 seeds × 2 min: strain reminders were 6.6/min (one every
+  ~9 s while tunnelling under strained rock: busier than a warning should be). Now a standing strain creaks again
+  every 20 s (was 10) and new strain creaks only when at least a tile of it appears (was 2 cells): 4.2/min, with
+  big cave-ins still warned 9 of 10. The refused-dig clink shares the sound; it's counted apart (up to 31/min on a
+  granite seed, feedback on the tool, not the ground). Seeds where a collapse cascades still creak often (20–32/min
+  on 2 of 8): rock really is failing there, and the game spaces the sound 0.8 s apart.
+* Not checked live or in a still: the dust motes (headless only).
