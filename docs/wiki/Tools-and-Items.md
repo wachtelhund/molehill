@@ -214,7 +214,9 @@ With only one of the two it grows at ¼ speed, and with neither it doesn't grow.
 
 ## Quests
 
-A chain of 19 quests leads through the game. Each one has an item reward. The HUD shows the current one, and the log says "Next: ..." when one is done (and at the start of a Survival holt, after a line listing the pack). The first seven are the first hour: each says what it takes, and none is already done by the Survival kit (test `survival_start_says_what_next`).
+A chain of 20 quests leads through the game. Each one has an item reward. The HUD shows the current one, and the log says "Next: ..." when one is done (and at the start of a Survival holt, after a line listing the pack). The first seven are the first hour: each says what it takes, and none is already done by the Survival kit (test `survival_start_says_what_next`).
+
+After that the chain gives a reason to come back with better gear: **find iron ore** (seeing it is enough; it sits in granite 30 to 40 m down, and the pickaxe can't cut it), then build the workshop and make the drill, then **go back for the iron**. No earlier reward hands the iron over (test `quests_send_you_back_with_a_drill`, scenario `explore_clues`).
 
 1. Dig down to 5 m
 2. Build a workbench (4 wood, 4 stone)
@@ -229,9 +231,10 @@ A chain of 19 quests leads through the game. Each one has an item reward. The HU
 11. Open a buried chest
 12. Fire 10 bricks
 13. Alloy bronze
-14. Reach 40 m
+14. Find iron ore (your pickaxe can't cut it yet)
 15. Build a workshop and power it
 16. Make a drill
-17. Assemble a thrummer
-18. Reach 80 m: the deep
-19. Open 4 chests
+17. Go back for the iron: dig 4 iron ore
+18. Assemble a thrummer
+19. Reach 80 m: the deep
+20. Open 4 chests

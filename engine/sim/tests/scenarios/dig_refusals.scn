@@ -32,4 +32,4 @@ expect 131 log:water_can't_be_dug == 1
 expect 131 inv:Stone == 0
 // granite with the kit's pickaxe: the material, the tool and what it needs
 mine 150-160 0 1
-expect 161 log:granite_is_too_hard_for_your_pickaxe:_it_needs_a_drill == 1
+expect 161 log:granite_is_too_hard_for_your_pickaxe:_come_back_with_a_drill == 1

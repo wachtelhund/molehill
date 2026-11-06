@@ -961,6 +961,22 @@ mod progression {
             assert!(cu <= 15. && fu <= 20. && rt <= 30., "seed {seed}: copper {cu:.0} m, fungus {fu:.0} m, root tangle {rt:.0} m");
         }
     }
+    /// A reason to come back with better gear: after the first hour the quests send you to find iron the
+    /// pickaxe can't cut, then make the drill, then go back for it, and no earlier reward hands over the iron.
+    /// The refusal and the discovery line name what to come back with.
+    #[test] fn quests_send_you_back_with_a_drill() {
+        use molehill_sim::{craft::{QUESTS, Goal}, mat::Mat, survival::Mode};
+        let pos = |f: &dyn Fn(&Goal) -> bool| QUESTS.iter().position(|q| f(&q.goal)).unwrap();
+        let find = pos(&|g| matches!(g, Goal::Found(Mat::IronOre))); let drill = pos(&|g| matches!(g, Goal::Have(Item::Drill, _)));
+        let back = pos(&|g| matches!(g, Goal::Have(Item::IronOre, _)));
+        assert!(find >= 7 && find < drill && drill < back, "find {find}, drill {drill}, go back {back}");
+        assert!(QUESTS[..back].iter().all(|q| q.reward.iter().all(|&(it, _)| it != Item::IronOre)), "no reward gives the iron away");
+        let mut w = World::new(256 * molehill_sim::mat::S, 128 * molehill_sim::mat::S, 3); w.set_mode(Mode::Survival);
+        assert!(w.dig_refusal(Mat::Granite).unwrap().contains("come back with a drill (bronze, made at a powered workshop)"));
+        assert!(w.dig_refusal(Mat::Basalt).unwrap().contains("come back with a bore"));
+        assert!(w.come_back_with(Mat::Limestone).is_none() && w.come_back_with(Mat::Bedrock).is_none(), "nothing to come back with for soft rock or bedrock");
+        w.inv[Item::Drill as usize] = 1; assert!(w.come_back_with(Mat::IronOre).is_none() && w.dig_refusal(Mat::Basalt).unwrap().contains("your drill: come back with a bore"));
+    }
     #[test] fn survival_starts_bare_and_learns() {
         use molehill_sim::survival::Mode;
         let mut w = World::new(256 * molehill_sim::mat::S, 128 * molehill_sim::mat::S, 3); w.set_mode(Mode::Survival); w.step();

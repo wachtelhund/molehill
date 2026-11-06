@@ -290,7 +290,8 @@ pub fn tool_tier(inv: &[u32; NITEM]) -> u8 {
 }
 
 #[derive(Clone, Copy)]
-pub enum Goal { Depth(f32), Have(Item, u32), Built(Station), Chests(u32), Pillars(u32) }
+/// `Found(m)`: material `m` seen for the first time (`World::discovered`), whether or not it can be dug yet.
+pub enum Goal { Depth(f32), Have(Item, u32), Built(Station), Chests(u32), Pillars(u32), Found(Mat) }
 pub struct Quest { pub text: &'static str, pub goal: Goal, pub reward: &'static [(Item, u32)] }
 pub static QUESTS: &[Quest] = &[
     // The first hour, in order: none is done on arrival in Survival (the kit has a pickaxe and 6 wood, so the
@@ -309,9 +310,12 @@ pub static QUESTS: &[Quest] = &[
     Quest { text: "Open a buried chest", goal: Goal::Chests(1), reward: &[(Item::Crystal, 1)] },
     Quest { text: "Fire 10 bricks", goal: Goal::Have(Item::Brick, 10), reward: &[(Item::Coal, 8)] },
     Quest { text: "Alloy bronze", goal: Goal::Have(Item::BronzeIngot, 4), reward: &[(Item::Torch, 10)] },
-    Quest { text: "Reach 40 m", goal: Goal::Depth(40.), reward: &[(Item::IronOre, 6)] },
+    // a reason to come back: find iron the pickaxe can't cut (granite country, 30-40 m), make the drill, then
+    // go back for it. The discovery line and the refusal both say "come back with a drill".
+    Quest { text: "Find iron ore (your pickaxe can't cut it yet)", goal: Goal::Found(Mat::IronOre), reward: &[(Item::Coal, 4)] },
     Quest { text: "Build a workshop and power it", goal: Goal::Built(Station::Workshop), reward: &[(Item::Quartz, 2)] },
     Quest { text: "Make a drill", goal: Goal::Have(Item::Drill, 1), reward: &[(Item::Crystal, 2)] },
+    Quest { text: "Go back for the iron: dig 4 iron ore", goal: Goal::Have(Item::IronOre, 4), reward: &[(Item::Coal, 6)] },
     Quest { text: "Assemble a thrummer", goal: Goal::Have(Item::Thrummer, 1), reward: &[(Item::CopperWire, 16)] },
     Quest { text: "Reach 80 m - the deep", goal: Goal::Depth(80.), reward: &[(Item::Crystal, 4)] },
     Quest { text: "Open 4 chests", goal: Goal::Chests(4), reward: &[(Item::IronIngot, 4)] },

@@ -165,5 +165,5 @@ They are sampled per cell at a camera-dependent offset, so they scroll slower th
 * **Stations** (craft standing at one, pack open): **workbench** (6 wood; always works), **forge** (10 stone + 4 clay; needs lava or fire within 3 m, or a lava-fed heatstone), **workshop** (4 wood + 4 stone + 6 copperline; needs a live copperline to it).
 * **Recipes unlock by touch:** a recipe appears the first time any of its ingredients reaches the pack. Chains are at most two steps (ore → ingot → tool). Full list: [Tools and Items](docs/wiki/Tools-and-Items.md#recipes).
 * **Tool tiers:** claws, then the **Pickaxe** (workbench), **Drill** (workshop: granite, iron ore) and **Bore** (forge: basalt). In Survival you dig with the best tool you own.
-* **Quests:** 19 sequential quests (reach a depth, stockpile, build, craft, open chests) with item rewards.
+* **Quests:** 20 sequential quests (reach a depth, find, stockpile, build, craft, open chests) with item rewards.
 * **Discoveries:** the first sighting of each ore, fluid or rock gives a small reward.

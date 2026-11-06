@@ -424,8 +424,15 @@ impl World {
     pub fn dig_refusal(&self, m: Mat) -> Option<String> {
         if m.kind() != Kind::Solid || self.can_dig(m) { return None; }
         if m == Mat::Bedrock { return Some("Bedrock. Nothing digs it.".into()); }
-        let have = ["claws", "pickaxe", "drill", "bore"][self.dig_power().min(3) as usize];
-        Some(match m.p().tier { 2 => format!("{} is too hard for your {have}: it needs a drill.", m.p().name), 3 => format!("{} is too hard for your {have}: it needs a bore.", m.p().name), _ => format!("{} is too hard for your {have}.", m.p().name) })
+        Some(match self.come_back_with(m) { Some(t) => format!("{} is too hard for your {}: {t}.", m.p().name, self.tool_name()), None => format!("{} is too hard for your {}.", m.p().name, self.tool_name()) })
+    }
+    /// The dig tool the mole is using, in a word (claws, pickaxe, drill, bore).
+    pub fn tool_name(&self) -> &'static str { ["claws", "pickaxe", "drill", "bore"][self.dig_power().min(3) as usize] }
+    /// For rock the tools owned can't cut: what to come back with, and how it is made (None if it can be dug,
+    /// or nothing ever digs it). Said by the refusal, the hover tip and the discovery line.
+    pub fn come_back_with(&self, m: Mat) -> Option<&'static str> {
+        if m.kind() != Kind::Solid || self.can_dig(m) || m == Mat::Bedrock { return None; }
+        match m.p().tier { 2 => Some("come back with a drill (bronze, made at a powered workshop)"), 3 => Some("come back with a bore (iron, copper and crystal, made at the forge)"), _ => None }
     }
     #[allow(dead_code)] fn dig_target_near(&self, x: usize, y: usize) -> Option<usize> {
         let w = self.g.w; let mut best = None; let mut bd = i32::MAX;
@@ -694,7 +701,9 @@ impl World {
                 if !self.discovered[m as usize] && m.has(NOTABLE) {
                     self.discovered[m as usize] = true; let d = self.depth_m(xx, yy);
                     self.inv[Item::Torch as usize] += 2; self.events.push(Event::Discover);
-                    self.say(format!("Discovery: {} at {:.0} m (+2 torches)", m.p().name, d.max(0.)));
+                    // a find the tools owned can't open yet says so, and what opens it: a reason to come back
+                    let gate = self.come_back_with(m).map_or(String::new(), |t| format!(". Your {} can't cut it: {t}", self.tool_name()));
+                    self.say(format!("Discovery: {} at {:.0} m (+2 torches){gate}", m.p().name, d.max(0.)));
                 }
             }
         } }
@@ -1465,6 +1474,7 @@ impl World {
         match QUESTS[q].goal {
             Goal::Depth(m) => self.max_depth >= m, Goal::Have(it, n) => self.inv[it as usize] >= n,
             Goal::Built(s) => self.buildings.iter().any(|b| b.built && b.kind == s), Goal::Chests(n) => self.chests_opened >= n, Goal::Pillars(n) => self.pillars >= n * (S * S) as u32,
+            Goal::Found(m) => self.discovered[m as usize],
         }
     }
     fn check_quests(&mut self) {

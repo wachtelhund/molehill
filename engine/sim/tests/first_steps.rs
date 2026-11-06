@@ -12,7 +12,7 @@ fn tip_on(w: &mut World, m: Mat) -> (String, String) {
 fn hover_tips_speak_to_the_tools_you_own() {
     let mut w = World::new(128 * S, 96 * S, 14085); w.set_mode(Mode::Survival);
     let (_, l) = tip_on(&mut w, Mat::Granite);
-    assert!(l.contains("too hard for your pickaxe: it needs a drill"), "{l}");
+    assert!(l.contains("too hard for your pickaxe: come back with a drill"), "{l}");
     assert!(!l.contains("Needs a drill."), "the table's general note doubles the line: {l}");
     let (_, l) = tip_on(&mut w, Mat::CopperOre); assert!(l.contains("Digging it gives copper ore."), "{l}");
     let (_, l) = tip_on(&mut w, Mat::Roots); assert!(l.contains("Digging it gives wood."), "{l}");
@@ -21,7 +21,7 @@ fn hover_tips_speak_to_the_tools_you_own() {
     w.inv[Item::Drill as usize] = 1;
     let (_, l) = tip_on(&mut w, Mat::Granite);
     assert!(!l.to_lowercase().contains("drill") && l.contains("Digging it gives stone."), "{l}");
-    let (_, l) = tip_on(&mut w, Mat::Basalt); assert!(l.contains("too hard for your drill: it needs a bore"), "{l}");
+    let (_, l) = tip_on(&mut w, Mat::Basalt); assert!(l.contains("too hard for your drill: come back with a bore"), "{l}");
     // bedrock keeps its one line, said once
     let (_, l) = tip_on(&mut w, Mat::Bedrock); assert_eq!(l.matches("Nothing digs it").count(), 1, "{l}");
 }

@@ -30,7 +30,7 @@ impl Run {
             "dx" => (p.px - self.sx) as f64 / kf, "dy" => (p.py - self.sy) as f64 / kf, "rise" => (self.sy - self.top) as f64 / kf,
             "grounded" => p.grounded as u8 as f64, "cling" => p.cling as f64, "hp" => m.hp as f64, "breath" => m.breath as f64,
             "deaths" => p.deaths as f64, "tier" => self.w.dig_power() as f64, "buildings" => self.w.buildings.len() as f64, "brush" => self.sizes.radius(self.held) as f64 / kf, "snapcells" => self.sizes.snap_cells() as f64 / kf, "torches" => self.w.torches.len() as f64, "awake" => self.awake() as f64, "crumbled" => self.w.crumbled as f64 / (kf * kf), "tick" => self.w.tick as f64,
-            "hunger" => m.hunger as f64, "oil" => self.w.lamp_oil as f64, "lamp" => self.w.lamp_lit() as u8 as f64, "mode" => self.w.mode as u8 as f64, "relics" => self.w.relics as f64, "ruins_seen" => self.w.ruins_seen.len() as f64, "hungeron" => !self.w.rules.no_hunger as u8 as f64,
+            "hunger" => m.hunger as f64, "oil" => self.w.lamp_oil as f64, "quest" => self.w.quest as f64, "lamp" => self.w.lamp_lit() as u8 as f64, "mode" => self.w.mode as u8 as f64, "relics" => self.w.relics as f64, "ruins_seen" => self.w.ruins_seen.len() as f64, "hungeron" => !self.w.rules.no_hunger as u8 as f64,
             "flash" => p.flash as f64, "shake" => self.w.shake as f64,
             // the last blast's wave and what it threw: cells in flight (tiles), the drawn front's radius (m),
             // the tiles in it now, and wave:DX,DY the path distance (m) the front ran to reach a tile (-1: never)
@@ -173,7 +173,7 @@ impl Run {
 
 fn run_file(path: &str, json: bool) -> bool {
     let src = std::fs::read_to_string(path).unwrap_or_else(|e| panic!("{path}: {e}"));
-    let (mut seed, mut map, mut acts, mut gives, mut ticks) = (11u32, Vec::<String>::new(), Vec::new(), Vec::<(String, u32)>::new(), 0u64); let mut mode = None; let mut nohunger = false;
+    let (mut seed, mut map, mut acts, mut gives, mut ticks) = (11u32, Vec::<String>::new(), Vec::new(), Vec::<(String, u32)>::new(), 0u64); let mut mode = None; let mut nohunger = false; let mut undisc: Vec<String> = vec![];
     let mut lines = src.lines().enumerate();
     let rng = |s: &str| -> (u64, u64) { match s.split_once('-') { Some((a, b)) => (a.parse().unwrap(), b.parse().unwrap()), None => { let a = s.parse().unwrap(); (a, a) } } };
     while let Some((ln, l)) = lines.next() {
@@ -194,6 +194,9 @@ fn run_file(path: &str, json: bool) -> bool {
             // placetorch T DX DY: place a torch from the pack, as a click (refused: NOTE)
             "placetorch" => acts.push(Act::PlaceTorch(t[1].parse().unwrap(), t[2].parse().unwrap(), t[3].parse().unwrap())),
             "give" => gives.push((t[1].into(), t[2].parse().unwrap())),
+            // undiscovered MAT: this material hasn't been seen yet (all others count as discovered), so first
+            // sight of it logs a discovery
+            "undiscovered" => undisc.push(t[1].to_string()),
             "ticks" => ticks = t[1].parse().unwrap(),
             "hold" => { let (a, b) = rng(t[1]); acts.push(Act::Hold(a, b, t[2..].iter().map(|s| s.to_string()).collect())); }
             "mine" => { let (a, b) = rng(t[1]); acts.push(Act::Mine(a, b, t[2].parse().unwrap(), t[3].parse().unwrap())); }
@@ -253,6 +256,7 @@ fn run_file(path: &str, json: bool) -> bool {
     let mut w = World::new(512 * K, 256 * K, seed); w.disasters.enabled = false; w.drops.clear(); w.torches.clear(); w.farms.clear(); w.grottos.clear(); w.keep_blast_field = true; // (the generated world's own grottos aren't part of the scenario)
     // every material counts as already discovered: a discovery's reward would depend on what the generated world showed
     w.discovered = [true; NMAT]; w.ruins.clear();
+    for n in &undisc { let m = (0..NMAT).map(|k| Mat::from_u8(k as u8)).find(|m| format!("{m:?}").eq_ignore_ascii_case(n)).unwrap_or_else(|| panic!("{path}: unknown material {n}")); w.discovered[m as usize] = false; }
     // tile-aligned spawn tile: the map is laid out in K×K tiles from here
     let (sx0, sy0) = (w.moles[0].x / K, w.moles[0].y / K);
     let mh = map.len(); let mw = map.iter().map(|l| l.chars().count()).max().unwrap_or(0);
@@ -291,7 +295,10 @@ fn run_file(path: &str, json: bool) -> bool {
                     for y in 0..ru.h { for x in 0..ru.w { if let Some(m) = ru.cell(ru.x0 + x, ru.y0 + y as i64) { let i = r.w.g.idx(ru.x0 + x, y0 as usize + y); r.w.g.set(i, m); r.w.g.flags[i] = 0; } } }
                     if let Some((cx, cwy)) = ru.chest { r.w.chests.push(molehill_sim::world::Chest { x: cx, y: (cwy - oy) as usize, opened: false, ancient: Some(ru.id) }); }
                     r.w.ruins.push(ru); }
-                Act::Set(t, v, x) if *t == tick => { let m = &mut r.w.moles[0]; match v.as_str() { "hp" => m.hp = *x, "hunger" => m.hunger = *x, "breath" => m.breath = *x, "oil" => r.w.lamp_oil = *x, o => panic!("{path}: can't set {o}") } }
+                Act::Set(t, v, x) if *t == tick => { let m = &mut r.w.moles[0]; match v.as_str() { "hp" => m.hp = *x, "hunger" => m.hunger = *x, "breath" => m.breath = *x, "oil" => r.w.lamp_oil = *x, "quest" => r.w.quest = *x as usize,
+                    // set T inv:ITEM N: the pack's count of an item, mid-run (`give` is at the start)
+                    o if o.starts_with("inv:") => { let it = item_by_name(&o[4..]).unwrap_or_else(|| panic!("{path}: unknown item {o}")); r.w.inv[it as usize] = *x as u32; }
+                    o => panic!("{path}: can't set {o}") } }
                 Act::PlaceTorch(t, dx, dy) if *t == tick => { let (x, y) = r.at(*dx, *dy); if let Err(e) = r.w.try_place_torch(x, y) { println!("  NOTE {path} tick {tick}: torch at {dx},{dy} refused: {e}"); r.w.refuse_place("torch", e); } }
                 Act::Throw(t, it, dx, dy, pw) if *t == tick => { let item = item_by_name(it).unwrap_or_else(|| panic!("{path}: unknown item {it}"));
                     if let Err(e) = r.w.throw_item(item, (*dx, *dy), *pw) { println!("  NOTE {path} tick {tick}: throw {it}: {e}"); } }

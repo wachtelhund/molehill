@@ -78,6 +78,8 @@ site 2 mine 4 -24       // stamp a found place (mine|holt|pump|fissure|fossil|cr
 mode survival           // start in a game mode (survival | creative): its rules and its pack; `give` applies after
 nohunger                // the world's hunger option off (after `mode`): food never drains
 set 40 hp -1            // set a vital at tick T: hp, hunger, breath, or oil (headlamp oil, seconds)
+set 295 inv:Drill 1     // set the pack's count of an item at tick T (`give` is at the start); `set T quest N` jumps the quest chain (read back as `quest`)
+undiscovered IronOre    // this material counts as not yet seen (all others are), so its first sight logs a discovery
 placetorch 150 3 -2     // place a torch from the pack at (dx,dy) as a click (in Survival it needs oil); a refusal prints NOTE
 grotto 2 6 -5 8 4       // at tick T a grotto's glowmite swarm centred on tile (dx,dy), radii rx ry in tiles
 catch 40 6 -5           // at tick T right-mouse the tile (dx,dy): catch the glowmite there, if any
@@ -262,6 +264,7 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `dig_down_shallow.scn` / `dig_down_water.scn` | A drop that only hurts (2.5 m), or a deep drop into water, isn't held back: the floor goes and the mole drops, silently |
 | `dig_refused_once.scn` | A dig the Pickaxe can't do says so once per press and material (not per cell swept), repeats the words only after 5 s, and soft rock beside it still digs |
 | `dig_refusals.scn` | Every dig refusal says why at once: out of reach ("Too far to dig"), water with nothing solid, granite too hard for the pickaxe; each once per press, the same words not again within 5 s |
+| `explore_clues.scn` | A seam the tools can't cut, first seen, logs a discovery naming what to come back with; digging it refuses with the same advice; seeing it completes "Find iron ore" and names the next quest; with a drill it digs and "Go back for the iron" completes |
 | `tool_tiers_survival.scn` | Survival digs with the best tool owned: claws (dirt, soft stone), pickaxe, drill (granite), bore (basalt) |
 | `forge_coal_fuel.scn` | With no lava in reach the forge burns a coal per job; with no fuel it's cold |
 | `feel_feedback.scn` | Each action answers on its tick: dig strike, refused dig (clink), throw, a 0.5 m landing bump |

@@ -1,5 +1,5 @@
 // First steps: aiming at rock the kit's Pickaxe can't dig answers at once with a clink and one plain line
-// ("Granite is too hard for your pickaxe: it needs a drill."), then stays quiet. Sweeping the held dig along
+// ("Granite is too hard for your pickaxe: come back with a drill (bronze, made at a powered workshop)."), then stays quiet. Sweeping the held dig along
 // a granite wall says it once, not once per cell; letting go and clicking again inside 5 s clinks but doesn't
 // repeat the words; after 5 s (DENY_REPEAT) it may say it again. The soft rock beside it still digs.
 map
@@ -17,7 +17,7 @@ mine 3-30 6 0
 mine 31-60 7 -1
 mine 61-90 8 0
 expect 121 log:too_hard == 1
-expect 121 log:needs_a_drill == 1
+expect 121 log:come_back_with_a_drill == 1
 expect 121 is:6,0,Granite == 1
 mine 130-140 6 0
 mine 150-160 7 0
