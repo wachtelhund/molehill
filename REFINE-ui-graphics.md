@@ -234,6 +234,22 @@ Polish only: no new systems, lore names kept. Each entry lists what changed and 
 * Not tested: a live window, and the engine actually turning under steam in a still (checked by swatch and test).
 * Test `boiler_and_pipe_are_drawn`; the engine joins `machinery_moves_when_its_train_turns`.
 
+## Steam art: polish (branch `refine/steam-art-polish`)
+* Evidence: in the `--scene=steam` still, rubble lay heaped over the boiler, pipe, engine and belt, and the engine's
+  cells didn't visibly change between frames 120 and 128. A headless copy of the scene (a throwaway example, since
+  deleted) showed the engine at full speed from tick 40 and 653 gravel cells in the hall by tick 240. My scenes'
+  limestone shell (a 15 m unsupported span) cracks under the stress sim and rains gravel; this was also the rubble on
+  the floor of the production stills. All four scenes I added (production, rope, power, steam) now use a bedrock
+  shell, and the headless copy then shows no gravel.
+* With the clutter gone, the engine region changes between frames 120 and 128 (12 cells, up to 59 levels): the
+  crank turns in the running game.
+* Boiler: shell cells showed brick at the drum's top corners (the sprite was transparent there); the sprite now
+  sets the drum against a brick back wall. Engine cells brightened (cylinder, band, wheel), and two low torches
+  added beside the engine in the scene. Inside a metre-thick block the sim's light still falls off, so the engine
+  stays dim in a still apart from its lit top and moving rod. That's the game's lighting for any thick solid, and
+  it was left alone.
+* Not tested: a live window.
+
 ## Open issues
 * `--shot` writes an empty frame on macOS when the game is launched from a background shell (the surface is
   never presented). It needs a visible window, or Linux with Xvfb.
