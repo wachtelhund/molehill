@@ -11,7 +11,7 @@ The deeper the holt goes, the further its Delvers haul, so getting about is a la
 | 3+ | **Pressure tubes** (the top of the ladder for now) | **built** |
 
 **Hover tips.** Rest the cursor on a machine and its tip says what it's doing and the one or two inputs that matter (`tips::transport_tip`, test `transport_hover_tips_say_what_to_do`):
-* **Cart:** get in or push it; how much cargo it carries (`E` unloads it), or that it's empty (throw things in, `E` picks it up); off the rails. While riding, how to jump out.
+* **Cart:** get in or push it; how much cargo it carries (`E` unloads it into the pack, and the log says what came: "Unloaded the cart: 6 stone, 3 copper ore.", scenario `holt_home`), or that it's empty (throw things in, `E` picks it up); off the rails. While riding, how to jump out.
 * **Rope ladder:** climb, or let go while on it; `E` takes it down.
 * **Lift:** the counterweight and cage in kg and whether it rises or sinks, or that current winds it; stone on or off.
 * **Tube hopper:** blowing (drop items in to send, ride with an empty paw) or receiving only; which hopper it sends to.

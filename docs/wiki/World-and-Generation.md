@@ -100,7 +100,7 @@ The first time you come within 8 m of a ruin, its **carving** is read out: one o
 A **background wall** is a Terraria-style lining behind the player and the falling sand (`sim/src/walls.rs`). It is **not** a material: it never enters the CA, the stress solver or collision. You walk in front of it. It holds up nothing. It exists so a dug room reads as carved rock or a timbered holt instead of a hole in the far parallax.
 
 * **Storage:** one byte per window cell, packed as an optional trailing RLE on each band (save format 10). Older saves load and then `infer_back`: open cave is lined the way a fresh holt would be, and the start burrow is timbered.
-* **Look:** darker and flatter than a real block under the same light (`WALL_K` = 0.78, floor `WALL_AMIN` = 0.34 so a lined room in the dark is still timber or rock, not a hole). Damp stains, cracks, roots and missing panels let a little of the far rock through. Crystal lining does not glow; crystal *blocks* still do.
+* **Look:** darker and flatter than a real block under the same light (`WALL_K` = 0.78, floor `WALL_AMIN` = 0.34 so a lined room in the dark is still timber or rock, not a hole). Found places also use five linings of their own that no pack item makes: soot, wet stone, basalt, ashlar and ironclad. Damp stains, cracks, roots and missing panels let a little of the far rock through. Crystal lining does not glow; crystal *blocks* still do.
 * **Lining a bite:** digging a solid cell that has no lining leaves one that matches what you cut (rock, timber, masonry, pipes).
 * **Placing and scraping:** with a wall item in hand, left mouse panels the back (hold; `X` snaps a line). Right mouse scrapes lining back into the pack. Neither edits the rock in front. Shift is sprint, never a wall modifier. Bedrock cannot be panelled.
 * **Creative** has 999 of every wall; **Survival** crafts them at the workbench (rock, timber, carved, beams) or the forge (masonry, pipes).
@@ -130,7 +130,7 @@ Stamped sites and their interactions: `all_seven_site_families_stamp_with_purpos
 
 ### What they look like
 
-One still of each family, stamped with `--scene=<family>` on seed 4242 and lit by the scene's torches. These are the CPU-side composite from `--dump-art` (`view.bmp`), cropped to the site and scaled up 3× with nearest sampling. Sprites are drawn on the GPU and aren't in that composite, so the mole shows as a short magenta mark and torches only as their light.
+One still of each family, stamped with `--scene=<family>` on seed 4242 and lit by the scene's torches. These are the CPU-side composite from `--dump-art` (`view.bmp`), cropped to the site and scaled up with nearest sampling. Sprites are drawn on the GPU and aren't in that composite, so the mole shows as a short magenta mark and torches only as their light.
 
 ![Abandoned mine: a two-level sooty drift with track, ore and a shaft](images/site-mine.png)
 *Abandoned mine* (`--scene=mine`)

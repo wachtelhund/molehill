@@ -1337,6 +1337,13 @@ impl World {
         hit.iter().copied().find(|&k| self.furniture[k].item != Item::Rug).or(hit.first().copied())
     }
     /// Furniture whose floor (or ceiling) was dug away falls loose as its item.
+    /// Furniture standing within `HOME_M` of a built workbench: the holt's own (0 without a workbench).
+    pub fn home_furniture(&self) -> u32 {
+        let r = crate::craft::HOME_M * CPM as f32;
+        let Some(b) = self.buildings.iter().find(|b| b.built && b.kind == Station::Workbench) else { return 0 };
+        let (bx, by) = ((b.x + Station::W / 2) as f32, b.y as f32);
+        self.furniture.iter().filter(|f| { let (x0, _, x1, y1) = f.rect(); let (fx, fy) = ((x0 + x1) as f32 / 2., y1 as f32); (fx - bx).hypot(fy - by) <= r }).count() as u32
+    }
     fn check_furniture(&mut self) {
         let mut k = 0;
         while k < self.furniture.len() {
@@ -1474,14 +1481,14 @@ impl World {
         match QUESTS[q].goal {
             Goal::Depth(m) => self.max_depth >= m, Goal::Have(it, n) => self.inv[it as usize] >= n,
             Goal::Built(s) => self.buildings.iter().any(|b| b.built && b.kind == s), Goal::Chests(n) => self.chests_opened >= n, Goal::Pillars(n) => self.pillars >= n * (S * S) as u32,
-            Goal::Found(m) => self.discovered[m as usize],
+            Goal::Found(m) => self.discovered[m as usize], Goal::Furnished(n) => self.home_furniture() >= n,
         }
     }
     fn check_quests(&mut self) {
         while self.quest < QUESTS.len() && self.quest_done(self.quest) {
             let q = &QUESTS[self.quest]; let mut s = String::new();
             for &(it, n) in q.reward { self.inv[it as usize] += n; s += &format!(" {}x{}", it.name(), n); }
-            self.say(format!("Quest complete: {} - reward{}", q.text, s)); self.events.push(Event::Quest); self.quest += 1;
+            self.say(format!("Quest complete: {} - reward{}", q.text, s)); if !q.then.is_empty() { self.say(q.then.into()); } self.events.push(Event::Quest); self.quest += 1;
             if self.quest < QUESTS.len() && !self.quest_done(self.quest) { self.say(format!("Next: {}.", QUESTS[self.quest].text)); }
         }
     }

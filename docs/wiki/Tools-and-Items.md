@@ -214,7 +214,9 @@ With only one of the two it grows at ¼ speed, and with neither it doesn't grow.
 
 ## Quests
 
-A chain of 20 quests leads through the game. Each one has an item reward. The HUD shows the current one, and the log says "Next: ..." when one is done (and at the start of a Survival holt, after a line listing the pack). The first seven are the first hour: each says what it takes, and none is already done by the Survival kit (test `survival_start_says_what_next`).
+A chain of 21 quests leads through the game. Each one has an item reward. The HUD shows the current one, and the log says "Next: ..." when one is done (and at the start of a Survival holt, after a line listing the pack). The first seven are the first hour: each says what it takes, and none is already done by the Survival kit (test `survival_start_says_what_next`).
+
+Then the burrow becomes a home: **Make it a holt** asks for 2 pieces of furniture standing within 12 m of the workbench (a stool, table or nest: the wooden recipes are listed from the start, since the kit carries wood). It pays 16 timber wall and says how to use it: "Panel the room: timber wall in hand, hold left mouse to line the back." (test `holt_quest_asks_for_furniture_by_the_bench`, scenario `holt_home`). The HUD counts the pieces (1/2).
 
 After that the chain gives a reason to come back with better gear: **find iron ore** (seeing it is enough; it sits in granite 30 to 40 m down, and the pickaxe can't cut it), then build the workshop and make the drill, then **go back for the iron**. No earlier reward hands the iron over (test `quests_send_you_back_with_a_drill`, scenario `explore_clues`).
 
@@ -225,16 +227,17 @@ After that the chain gives a reason to come back with better gear: **find iron o
 5. Build a forge (10 stone, 4 clay)
 6. Smelt 4 copper ingots
 7. Draw 8 copperline at the forge
-8. Farm mushrooms: gather 4
-9. Prop a tunnel: place 8 pillar cells
-10. Reach 15 m
-11. Open a buried chest
-12. Fire 10 bricks
-13. Alloy bronze
-14. Find iron ore (your pickaxe can't cut it yet)
-15. Build a workshop and power it
-16. Make a drill
-17. Go back for the iron: dig 4 iron ore
-18. Assemble a thrummer
-19. Reach 80 m: the deep
-20. Open 4 chests
+8. Make it a holt: set 2 furniture by the workbench (stool, table, nest)
+9. Farm mushrooms: gather 4
+10. Prop a tunnel: place 8 pillar cells
+11. Reach 15 m
+12. Open a buried chest
+13. Fire 10 bricks
+14. Alloy bronze
+15. Find iron ore (your pickaxe can't cut it yet)
+16. Build a workshop and power it
+17. Make a drill
+18. Go back for the iron: dig 4 iron ore
+19. Assemble a thrummer
+20. Reach 80 m: the deep
+21. Open 4 chests

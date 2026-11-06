@@ -15,21 +15,21 @@ end
 mode survival
 undiscovered IronOre
 tool 1 1
-set 1 quest 13                      // "Find iron ore (your pickaxe can't cut it yet)"
+set 1 quest 14                      // "Find iron ore (your pickaxe can't cut it yet)"
 expect 2 known:IronOre == 0
 expect 2 log:discovery:_iron_ore == 0
 // walk up to the seam: it is seen, and the find says what will open it
 hold 3-260 right
 expect 261 log:discovery:_iron_ore == 1
 expect 261 log:your_pickaxe_can't_cut_it:_come_back_with_a_drill == 1
-expect 261 quest == 14              // seen is enough: the quest moves on
+expect 261 quest == 15              // seen is enough: the quest moves on
 expect 261 log:next:_build_a_workshop == 1
 // dig at it: refused with the same advice
 mine 270-290 64 -1
 expect 291 log:iron_ore_is_too_hard_for_your_pickaxe:_come_back_with_a_drill == 1
 expect 291 inv:IronOre == 0
 // back with a drill: it digs
-set 295 quest 16                    // "Go back for the iron: dig 4 iron ore"
+set 295 quest 17                    // "Go back for the iron: dig 4 iron ore"
 set 295 inv:Drill 1
 tool 296 2
 mine 300-400 64 -1
@@ -37,5 +37,5 @@ mine 401-500 66 -2
 mine 501-600 68 -1
 mine 601-700 70 -2
 expect 701 inv:IronOre >= 4
-expect 701 quest == 17
+expect 701 quest == 18
 expect 701 log:quest_complete:_go_back_for_the_iron == 1

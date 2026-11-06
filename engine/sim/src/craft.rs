@@ -291,32 +291,38 @@ pub fn tool_tier(inv: &[u32; NITEM]) -> u8 {
 
 #[derive(Clone, Copy)]
 /// `Found(m)`: material `m` seen for the first time (`World::discovered`), whether or not it can be dug yet.
-pub enum Goal { Depth(f32), Have(Item, u32), Built(Station), Chests(u32), Pillars(u32), Found(Mat) }
-pub struct Quest { pub text: &'static str, pub goal: Goal, pub reward: &'static [(Item, u32)] }
+/// `Furnished(n)`: n pieces of furniture standing within `HOME_M` of the workbench (`World::home_furniture`).
+pub enum Goal { Depth(f32), Have(Item, u32), Built(Station), Chests(u32), Pillars(u32), Found(Mat), Furnished(u32) }
+/// How far from the workbench furniture counts as the holt's (metres).
+pub const HOME_M: f32 = 12.;
+/// `then`: an optional line said when it's done, after the reward (how to use what it gave).
+pub struct Quest { pub text: &'static str, pub goal: Goal, pub reward: &'static [(Item, u32)], pub then: &'static str }
 pub static QUESTS: &[Quest] = &[
     // The first hour, in order: none is done on arrival in Survival (the kit has a pickaxe and 6 wood, so the
     // first wood quest comes after the workbench spends 4 of it). Each says what it takes, so the HUD line and
     // "Next:" in the log are enough to go on: wood and stone make a bench, copper ore and a forge make copperline.
-    Quest { text: "Dig down to 5 m", goal: Goal::Depth(5.), reward: &[(Item::Torch, 6)] },
-    Quest { text: "Build a workbench (4 wood, 4 stone)", goal: Goal::Built(Station::Workbench), reward: &[(Item::Coal, 4)] },
-    Quest { text: "Find wood: dig a root tangle (have 6)", goal: Goal::Have(Item::Wood, 6), reward: &[(Item::Wood, 4)] },
-    Quest { text: "Dig 4 copper ore (green-flecked rock)", goal: Goal::Have(Item::CopperOre, 4), reward: &[(Item::Coal, 2)] },
-    Quest { text: "Build a forge (10 stone, 4 clay)", goal: Goal::Built(Station::Forge), reward: &[(Item::Coal, 6)] },
-    Quest { text: "Smelt 4 copper ingots", goal: Goal::Have(Item::CopperIngot, 4), reward: &[(Item::TinOre, 4)] },
-    Quest { text: "Draw 8 copperline at the forge", goal: Goal::Have(Item::CopperWire, 8), reward: &[(Item::Torch, 4)] },
-    Quest { text: "Farm mushrooms: gather 4", goal: Goal::Have(Item::Mushroom, 4), reward: &[(Item::Spore, 4), (Item::Vent, 1)] },
-    Quest { text: "Prop a tunnel: place 8 pillar cells", goal: Goal::Pillars(8), reward: &[(Item::WoodPillar, 8)] },
-    Quest { text: "Reach 15 m", goal: Goal::Depth(15.), reward: &[(Item::Clay, 6)] },
-    Quest { text: "Open a buried chest", goal: Goal::Chests(1), reward: &[(Item::Crystal, 1)] },
-    Quest { text: "Fire 10 bricks", goal: Goal::Have(Item::Brick, 10), reward: &[(Item::Coal, 8)] },
-    Quest { text: "Alloy bronze", goal: Goal::Have(Item::BronzeIngot, 4), reward: &[(Item::Torch, 10)] },
+    Quest { text: "Dig down to 5 m", goal: Goal::Depth(5.), reward: &[(Item::Torch, 6)], then: "" },
+    Quest { text: "Build a workbench (4 wood, 4 stone)", goal: Goal::Built(Station::Workbench), reward: &[(Item::Coal, 4)], then: "" },
+    Quest { text: "Find wood: dig a root tangle (have 6)", goal: Goal::Have(Item::Wood, 6), reward: &[(Item::Wood, 4)], then: "" },
+    Quest { text: "Dig 4 copper ore (green-flecked rock)", goal: Goal::Have(Item::CopperOre, 4), reward: &[(Item::Coal, 2)], then: "" },
+    Quest { text: "Build a forge (10 stone, 4 clay)", goal: Goal::Built(Station::Forge), reward: &[(Item::Coal, 6)], then: "" },
+    Quest { text: "Smelt 4 copper ingots", goal: Goal::Have(Item::CopperIngot, 4), reward: &[(Item::TinOre, 4)], then: "" },
+    Quest { text: "Draw 8 copperline at the forge", goal: Goal::Have(Item::CopperWire, 8), reward: &[(Item::Torch, 4)], then: "" },
+    // the burrow as a home: furniture by the bench, then the reward's timber wall to panel the room
+    Quest { text: "Make it a holt: set 2 furniture by the workbench (stool, table, nest)", goal: Goal::Furnished(2), reward: &[(Item::TimberWall, 16)], then: "Panel the room: timber wall in hand, hold left mouse to line the back. It holds nothing up; it makes the place yours." },
+    Quest { text: "Farm mushrooms: gather 4", goal: Goal::Have(Item::Mushroom, 4), reward: &[(Item::Spore, 4), (Item::Vent, 1)], then: "" },
+    Quest { text: "Prop a tunnel: place 8 pillar cells", goal: Goal::Pillars(8), reward: &[(Item::WoodPillar, 8)], then: "" },
+    Quest { text: "Reach 15 m", goal: Goal::Depth(15.), reward: &[(Item::Clay, 6)], then: "" },
+    Quest { text: "Open a buried chest", goal: Goal::Chests(1), reward: &[(Item::Crystal, 1)], then: "" },
+    Quest { text: "Fire 10 bricks", goal: Goal::Have(Item::Brick, 10), reward: &[(Item::Coal, 8)], then: "" },
+    Quest { text: "Alloy bronze", goal: Goal::Have(Item::BronzeIngot, 4), reward: &[(Item::Torch, 10)], then: "" },
     // a reason to come back: find iron the pickaxe can't cut (granite country, 30-40 m), make the drill, then
     // go back for it. The discovery line and the refusal both say "come back with a drill".
-    Quest { text: "Find iron ore (your pickaxe can't cut it yet)", goal: Goal::Found(Mat::IronOre), reward: &[(Item::Coal, 4)] },
-    Quest { text: "Build a workshop and power it", goal: Goal::Built(Station::Workshop), reward: &[(Item::Quartz, 2)] },
-    Quest { text: "Make a drill", goal: Goal::Have(Item::Drill, 1), reward: &[(Item::Crystal, 2)] },
-    Quest { text: "Go back for the iron: dig 4 iron ore", goal: Goal::Have(Item::IronOre, 4), reward: &[(Item::Coal, 6)] },
-    Quest { text: "Assemble a thrummer", goal: Goal::Have(Item::Thrummer, 1), reward: &[(Item::CopperWire, 16)] },
-    Quest { text: "Reach 80 m - the deep", goal: Goal::Depth(80.), reward: &[(Item::Crystal, 4)] },
-    Quest { text: "Open 4 chests", goal: Goal::Chests(4), reward: &[(Item::IronIngot, 4)] },
+    Quest { text: "Find iron ore (your pickaxe can't cut it yet)", goal: Goal::Found(Mat::IronOre), reward: &[(Item::Coal, 4)], then: "" },
+    Quest { text: "Build a workshop and power it", goal: Goal::Built(Station::Workshop), reward: &[(Item::Quartz, 2)], then: "" },
+    Quest { text: "Make a drill", goal: Goal::Have(Item::Drill, 1), reward: &[(Item::Crystal, 2)], then: "" },
+    Quest { text: "Go back for the iron: dig 4 iron ore", goal: Goal::Have(Item::IronOre, 4), reward: &[(Item::Coal, 6)], then: "" },
+    Quest { text: "Assemble a thrummer", goal: Goal::Have(Item::Thrummer, 1), reward: &[(Item::CopperWire, 16)], then: "" },
+    Quest { text: "Reach 80 m - the deep", goal: Goal::Depth(80.), reward: &[(Item::Crystal, 4)], then: "" },
+    Quest { text: "Open 4 chests", goal: Goal::Chests(4), reward: &[(Item::IronIngot, 4)], then: "" },
 ];
