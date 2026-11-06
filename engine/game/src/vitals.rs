@@ -44,7 +44,7 @@ pub fn tip(w: &World, row: usize) -> (String, String) {
         _ => {
             let s = w.lamp_oil.ceil() as u32;
             (format!("Lamp oil: {}:{:02} in this measure, {} spare", s / 60, s % 60, w.oil_measures()),
-             format!("G puts the headlamp out to save oil; torches burn without it. Fungus presses into oil ({FUNGUS_PER_OIL} make a measure). When the last measure runs low, think about the way back."))
+             format!("G puts the headlamp out to save oil; torches burn without it. Fungus presses into oil ({FUNGUS_PER_OIL} make a measure; a workbench presses 3 into 2). When the last measure runs low, think about the way back."))
         }
     }
 }

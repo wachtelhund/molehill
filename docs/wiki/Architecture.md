@@ -58,7 +58,7 @@ The rule is simple: **gameplay goes in the sim.** If it changes what happens in 
 | `tips.rs` | the world hover text: what's under a cell, in plain Delver words |
 | `light.rs` | per-cell RGB light and fog of war |
 | `air.rs` | stale air on a 2 m block grid |
-| `craft.rs` | items, stations, recipes, tool tiers, quests |
+| `craft.rs` | items, stations, recipes, tool tiers, quests. Items are one registry, `ITEM_DEFS` (one `ItemDef` row per item: name, tooltip, colour, lump material, density, burning, block/pigment/furniture/wall role, what it can do, its controls line); a new item is an `Item` variant plus one row |
 | `disasters.rs` | floods, lava surges, quakes |
 | `band.rs` | the endless world off-window: 64-row bands holding cells, devices, air and things; the unit of saving |
 | `save.rs` | save/load: a manifest plus band blobs, split into parts (only changed bands are rewritten) or one blob |
