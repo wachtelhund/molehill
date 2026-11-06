@@ -135,7 +135,7 @@ const BG_BASE: [f32; 3] = [44., 34., 30.];
 #[inline] fn srgb(l: f32) -> f32 { l.max(0.).powf(1. / 2.2) * 255. }
 #[derive(Component)] pub struct WorldSprite;
 #[derive(Component)] struct Pooled(u8, usize);
-#[derive(Resource)] pub struct Sprites { pub props: Vec<Handle<Image>>, pub cart: Handle<Image>, pub bin: Vec<Handle<Image>>, pub clue: Vec<Handle<Image>>, pub furn: Vec<Option<(Handle<Image>, Option<Handle<Image>>)>>, pub tools: [Handle<Image>; 3], pub dev: Vec<Handle<Image>>, pub ring: Handle<Image>, pub mole: Vec<Handle<Image>>, pub mole_out: Vec<Handle<Image>>, pub held: Vec<Handle<Image>>, pub icons: Vec<Handle<Image>>, pub chest: [Handle<Image>; 2], pub station: Vec<[Handle<Image>; 2]>, pub torch: Handle<Image>, pub torch_f: Vec<Handle<Image>>, pub glow: Handle<Image>, pub shroom: [Handle<Image>; 3], pub px: Handle<Image> }
+#[derive(Resource)] pub struct Sprites { pub rope: [Handle<Image>; 2], pub props: Vec<Handle<Image>>, pub cart: Handle<Image>, pub bin: Vec<Handle<Image>>, pub clue: Vec<Handle<Image>>, pub furn: Vec<Option<(Handle<Image>, Option<Handle<Image>>)>>, pub tools: [Handle<Image>; 3], pub dev: Vec<Handle<Image>>, pub ring: Handle<Image>, pub mole: Vec<Handle<Image>>, pub mole_out: Vec<Handle<Image>>, pub held: Vec<Handle<Image>>, pub icons: Vec<Handle<Image>>, pub chest: [Handle<Image>; 2], pub station: Vec<[Handle<Image>; 2]>, pub torch: Handle<Image>, pub torch_f: Vec<Handle<Image>>, pub glow: Handle<Image>, pub shroom: [Handle<Image>; 3], pub px: Handle<Image> }
 
 /// `?seed=N` (web) / `--seed=N` (native) was given: the game opens straight into that holt.
 fn seed_pinned() -> bool {
@@ -282,16 +282,19 @@ fn dev_dump(n: Local<u32>, g: Res<Game>, sp: Res<Sprites>, images: Res<Assets<Im
         for dy in 0..3 * S { let (x, y) = (mx - x0, my - dy - y0); let o = (y * cw + x) * 4; v[o..o + 4].copy_from_slice(&[255, 0, 255, 255]); }
         bmp(&format!("{dir}/view_cells.bmp"), cw, chh, &v, false, 4 / S.min(4));
         // view.bmp: the same at one pixel per world unit with every visible world sprite blitted on in depth
-        // order (furniture, found-place props, chests, torches, carts, the mole, copperline); rotated ones are left out
+        // order (furniture, found-place props, chests, torches, carts, the mole, copperline, ropes); rotated ones are sampled back through their rotation
         { let k = (1. / CPX).recip() as usize; let (ww, wh) = (cw * k, chh * k); let mut u = vec![0u8; ww * wh * 4];
             for y in 0..wh { for x in 0..ww { let s = ((y / k) * cw + x / k) * 4; u[(y * ww + x) * 4..(y * ww + x) * 4 + 4].copy_from_slice(&v[s..s + 4]); } }
             let mut list: Vec<(&Transform, &Sprite)> = wires.iter().filter(|(_, _, v)| **v != Visibility::Hidden).map(|(t, s, _)| (t, s)).collect(); list.sort_by(|a, b| a.0.translation.z.partial_cmp(&b.0.translation.z).unwrap());
-            for (t, spr) in list { if t.rotation != Quat::IDENTITY { continue; } let Some(im) = images.get(&spr.image) else { continue }; let Some(d) = im.data.as_ref() else { continue };
+            for (t, spr) in list { let Some(im) = images.get(&spr.image) else { continue }; let Some(d) = im.data.as_ref() else { continue };
                 let (iw, ih) = (im.width() as usize, im.height() as usize); let size = spr.custom_size.unwrap_or(Vec2::new(iw as f32, ih as f32));
                 let c = spr.color.to_srgba(); let cell = |wx: f32, wy: f32| (((wx + W as f32 * CPX / 2.) / CPX - x0 as f32) * k as f32, ((H as f32 * CPX / 2. - wy) / CPX - y0 as f32) * k as f32);
-                let (left, top) = cell(t.translation.x - size.x / 2., t.translation.y + size.y / 2.);
-                for py in 0..size.y as usize { for px in 0..size.x as usize { let (ox, oy) = (left as i64 + px as i64, top as i64 + py as i64); if ox < 0 || oy < 0 || ox >= ww as i64 || oy >= wh as i64 { continue; }
-                    let (sx, sy) = (px * iw / size.x as usize, py * ih / size.y as usize); let sx = if spr.flip_x { iw - 1 - sx.min(iw - 1) } else { sx }; let q = (sy * iw + sx) * 4; let a = d[q + 3] as f32 / 255. * c.alpha; if a <= 0. { continue; }
+                // walk the output pixels over the sprite's (rotated) bounds and sample it back through the inverse rotation
+                let inv = t.rotation.inverse(); let r = size.length() / 2. + 1.; let (cx, cy) = cell(t.translation.x, t.translation.y);
+                for oy in (cy - r).floor() as i64..=(cy + r).ceil() as i64 { for ox in (cx - r).floor() as i64..=(cx + r).ceil() as i64 { if ox < 0 || oy < 0 || ox >= ww as i64 || oy >= wh as i64 { continue; }
+                    let l = inv * Vec3::new(ox as f32 + 0.5 - cx, cy - (oy as f32 + 0.5), 0.); let (lx, ly) = (l.x + size.x / 2., size.y / 2. - l.y);
+                    if lx < 0. || ly < 0. || lx >= size.x || ly >= size.y { continue; }
+                    let (sx, sy) = (((lx / size.x) * iw as f32) as usize, ((ly / size.y) * ih as f32) as usize); let (sx, sy) = (sx.min(iw - 1), sy.min(ih - 1)); let sx = if spr.flip_x { iw - 1 - sx } else { sx }; let q = (sy * iw + sx) * 4; let a = d[q + 3] as f32 / 255. * c.alpha; if a <= 0. { continue; }
                     let o = (oy as usize * ww + ox as usize) * 4; let tint = [c.red, c.green, c.blue];
                     for j in 0..3 { u[o + j] = (u[o + j] as f32 * (1. - a) + d[q + j] as f32 * tint[j] * a).min(255.) as u8; } } } }
             bmp(&format!("{dir}/view.bmp"), ww, wh, &u, false, 1); }
@@ -302,7 +305,7 @@ fn dev_dump(n: Local<u32>, g: Res<Game>, sp: Res<Sprites>, images: Res<Assets<Im
         for (k, h) in sp.held.iter().enumerate() { list.push((format!("held{k}"), h.clone())); }
         for (k, f) in sp.furn.iter().enumerate() { if let Some((b, c)) = f { list.push((format!("furn-{:?}", ITEMS[k]), b.clone())); if let Some(c) = c { list.push((format!("cloth-{:?}", ITEMS[k]), c.clone())); } } }
         for (k, h) in sp.tools.iter().enumerate() { list.push((format!("tool{k}"), h.clone())); }
-        list.push(("cart".into(), sp.cart.clone()));
+        list.push(("cart".into(), sp.cart.clone())); list.push(("rope".into(), sp.rope[0].clone())); list.push(("hook".into(), sp.rope[1].clone()));
         for (k, h) in sp.bin.iter().enumerate() { list.push((format!("orebin{k}"), h.clone())); }
         for (k, h) in sp.props.iter().enumerate() { list.push((format!("prop-{:?}", props::PROPS[k]), h.clone())); }
         for (k, h) in sp.icons.iter().enumerate() { list.push((format!("icon-{:?}", ITEMS[k]), h.clone())); }
@@ -376,6 +379,23 @@ fn stage_scene(w: &mut World) {
                 for k in 0..6u8 { put(w, ClueKind::Relic, x0 + 14 * S + k as usize * 4 * S, my, k); }
                 put(w, ClueKind::Draft, x0 + 45 * S, my, 0);
                 for k in 0..3 { w.torches.push((x0 + (6 + k * 20) * S, my - 4 * S)); }
+            }
+            "rope" => { // a sealed hall east of the burrow: a hook rope bitten into the ceiling, hanging in a slack curve,
+                // and a hook in flight up toward the far ceiling with its rope paying out behind it
+                use molehill_sim::{mat::CPM, ropes::{Rope, Hook, NSEG, SEG}};
+                let (x0, x1, y0) = (mx + 4 * S, mx + 64 * S, my - 30 * S);
+                for x in x0 - 2 * S..x1 + 2 * S { for y in y0 - 4 * S..my + 1 + 2 * S { set(w, x, y, Mat::Limestone); } }
+                for x in x0..x1 { for y in y0..=my { set(w, x, y, Mat::Empty); } }
+                let (ax, ay) = (x0 + 12 * CPM / 4 * 4, y0 - 1); // the anchor cell in the ceiling
+                let pts: Vec<(f32, f32)> = (0..=NSEG).map(|i| { let t = i as f32 * SEG; let y = (ay as f32 + 0.5 + t).min(my as f32 - 0.5); let lie = (ay as f32 + 0.5 + t - y).max(0.);
+                    (ax as f32 + 0.5 + (t / (NSEG as f32 * SEG) * 1.5).sin() * 2. * CPM as f32 + lie, y) }).collect();
+                w.tr.ropes.push(Rope { prev: pts.clone(), pts, ax, ay });
+                let (ox, oy) = ((x0 + 4 * S) as f32, (my - CPM) as f32); let (hx, hy) = (ox + 7. * CPM as f32, oy - 3.5 * CPM as f32); let (vx, vy) = (10. * CPM as f32, -9. * CPM as f32); // fired from inside the hall (its shell walls off the burrow)
+                let paid = ((hx - ox).powi(2) + (hy - oy).powi(2)).sqrt(); let out = ((paid / SEG).ceil() as usize + 1).min(NSEG);
+                let hp: Vec<(f32, f32)> = (0..=NSEG).map(|i| { if i >= out { return (ox, oy); } let f = i as f32 / out as f32; (hx + (ox - hx) * f, hy + (oy - hy) * f + (f * std::f32::consts::PI).sin() * 0.6 * CPM as f32) }).collect();
+                w.tr.hook = Some(Hook { x: hx, y: hy, vx, vy, ox, oy, t: 10, prev: hp.clone(), pts: hp });
+                molehill_sim::light::reveal_box(&mut w.g, mx, y0 - 10 * S, x1 + 10 * S, my + 10 * S);
+                for k in 0..4 { w.torches.push((x0 + (6 + k * 16) * S, y0 + 4 * S)); }
             }
             "production" => { // a works east of the burrow: a chute sloping down onto a shaker screen, an ore hopper
                 // heaped with copper ore over a rail, and a bumper at the end of the track
@@ -592,9 +612,9 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, mut fonts: R
     let sp = Sprites { tools: [images.add(art::tool_icon(1)), images.add(art::tool_icon(2)), images.add(art::tool_icon(3))], dev: DEVS.iter().map(|&d| images.add(devart::hotbar_icon(d))).collect(), ring: images.add(art::ring()),
         mole: art::mole_sheet(true).into_iter().map(|i| images.add(i)).collect(),
         mole_out: art::mole_sheet(false).into_iter().map(|i| images.add(i)).collect(),
-        held: [art::Held::Pick, art::Held::Drill, art::Held::Bore, art::Held::Charge, art::Held::Block(Item::WoodPillar.color()), art::Held::Block(Item::Brick.color()), art::Held::Block(Item::IronBeam.color())]
+        held: [art::Held::Pick, art::Held::Drill, art::Held::Bore, art::Held::Charge, art::Held::Block(Item::WoodPillar.color()), art::Held::Block(Item::Brick.color()), art::Held::Block(Item::IronBeam.color()), art::Held::RopeGun(true), art::Held::RopeGun(false)]
             .into_iter().map(|h| images.add(art::held_sprite(h))).collect(),
-        clue: (0..9).map(|k| images.add(decorart::clue(k))).collect(), props: props::PROPS.iter().map(|&p| images.add(props::image(p))).collect(), cart: images.add(art::cart()), bin: (0..5).map(|k| images.add(art::ore_bin(k))).collect(),
+        clue: (0..9).map(|k| images.add(decorart::clue(k))).collect(), props: props::PROPS.iter().map(|&p| images.add(props::image(p))).collect(), cart: images.add(art::cart()), rope: [images.add(art::rope_seg()), images.add(art::rope_hook())], bin: (0..5).map(|k| images.add(art::ore_bin(k))).collect(),
         furn: ITEMS.iter().map(|&it| it.furn().map(|_| { let (b, c) = decorart::furniture(it); (images.add(decorart::finish(b)), c.map(|c| images.add(decorart::cloth(c)))) })).collect(),
         icons: ITEMS.iter().map(|&it| images.add(itemart::icon(it))).collect(),
         chest: [images.add(art::chest(false)), images.add(art::chest(true))],
@@ -1083,7 +1103,8 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
         let item = |h: usize, wpx: f32, hpx: f32| (sp.held[h].clone(), Vec2::new(wpx, hpx));
         let held = match g.slots[g.hot] { Some(Thing::Pick(n)) => Some((item((n as usize).clamp(1, 3) - 1, [12., 14., 16.][(n as usize).clamp(1, 3) - 1], [11., 7., 9.][(n as usize).clamp(1, 3) - 1]), n == 1)),
             Some(Thing::Item(Item::Tnt)) => Some((item(3, 7., 8.), false)), Some(Thing::Item(Item::WoodPillar)) => Some((item(4, 6., 6.), false)),
-            Some(Thing::Item(Item::Brick)) => Some((item(5, 6., 6.), false)), Some(Thing::Item(Item::IronBeam)) => Some((item(6, 6., 6.), false)), _ => None };
+            Some(Thing::Item(Item::Brick)) => Some((item(5, 6., 6.), false)), Some(Thing::Item(Item::IronBeam)) => Some((item(6, 6., 6.), false)),
+            Some(Thing::Item(Item::RopeGun)) => Some((item(if w.tr.hook.is_none() && w.inv[Item::HookRope as usize] > 0 { 7 } else { 8 }, 16., 11.), false)), _ => None };
         if let Some(((img, size), pick)) = held {
             let swing = if pick && mining { let p = (now * 5.).fract(); if p < 0.55 { 1.2 * p / 0.55 } else { 1.2 - 1.7 * (p - 0.55) / 0.45 } } else { 0. };
             let mut a = ang + f * swing; let shake = if mining && !pick { 1. } else { 0. }; a += shake * jig(1) * 0.12;
@@ -1197,17 +1218,18 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
         for (j, s) in [-1f32, 1.].into_iter().enumerate() { want.push((34, k * 2 + j, mid + Vec2::new(s * 0.9 * SF * CPX, 0.), 3.9, sp.px.clone(), Vec2::new(1., len * CPX), false, rope)); }
         for j in 0..(l.len / S) { want.push((35, k * 64 + j, cell_to_world(xc, y0 + (j * S) as f32 + 0.5 * SF), 3.95, sp.px.clone(), Vec2::new(1.8 * SF * CPX, 1.), false, rung)); }
     }
-    // rope gun art: each rope a chain of fibre dots along its verlet points, the hook a dark knob where it bit,
-    // and the hook in flight trailing the rope paid out so far (placeholder art: see ropes.rs)
-    let rope_col = |x: f32, y: f32| { let lt = lightf((x.max(0.) as usize).min(W - 1), (y.max(0.) as usize).min(H - 1)).to_srgba(); Color::srgb(0.72 * lt.red, 0.6 * lt.green, 0.4 * lt.blue) };
-    let chains = w.tr.ropes.iter().map(|r| (&r.pts, true)).chain(w.tr.hook.iter().map(|h| (&h.pts, false)));
-    for (k, (pts, fixed)) in chains.enumerate() {
-        let (hx, hy) = pts[0]; if w.g.flags[(hy.max(0.) as usize).min(H - 1) * W + (hx.max(0.) as usize).min(W - 1)] & F_SEEN == 0 && fixed { continue; }
-        let mut n = 0;
-        for s in pts.windows(2) { let ((x0, y0), (x1, y1)) = (s[0], s[1]); let d = ((x1 - x0).powi(2) + (y1 - y0).powi(2)).sqrt(); let m = (d / 0.75).ceil().max(1.) as usize;
-            for j in 0..m { let f = j as f32 / m as f32; let (x, y) = (x0 + (x1 - x0) * f, y0 + (y1 - y0) * f);
-                want.push((43, k * 512 + n, cell_to_world(x, y), 3.92, sp.px.clone(), Vec2::splat(1.6), false, rope_col(x, y))); n += 1; } }
-        want.push((44, k, cell_to_world(hx, hy), 3.96, sp.px.clone(), Vec2::splat(0.5 * SF * CPX), false, Color::srgb(0.35, 0.33, 0.32)));
+    // rope gun art: each rope a chain of twisted-fibre lengths, one per verlet segment, turned along it; the stone
+    // hook at its head points the way the rope runs into the rock it bit (or, in flight, the way it flies)
+    let rope_col = |x: f32, y: f32| { let lt = lightf((x.max(0.) as usize).min(W - 1), (y.max(0.) as usize).min(H - 1)).to_srgba(); Color::srgb(lt.red, lt.green, lt.blue) };
+    let chains = w.tr.ropes.iter().map(|r| (&r.pts, None)).chain(w.tr.hook.iter().map(|h| (&h.pts, Some((h.vx, h.vy)))));
+    for (k, (pts, flying)) in chains.enumerate() {
+        let (hx, hy) = pts[0]; if w.g.flags[(hy.max(0.) as usize).min(H - 1) * W + (hx.max(0.) as usize).min(W - 1)] & F_SEEN == 0 && flying.is_none() { continue; }
+        for (n, s) in pts.windows(2).enumerate() { let (a0, a1) = (cell_to_world(s[0].0, s[0].1), cell_to_world(s[1].0, s[1].1)); let d = a1 - a0; let len = d.length(); if len < 0.1 { continue; }
+            let id = k * 64 + n; rot.insert((51, id), d.to_angle());
+            want.push((51, id, (a0 + a1) / 2., 3.92, sp.rope[0].clone(), Vec2::new(len + 0.6, 1.6), false, rope_col((s[0].0 + s[1].0) / 2., (s[0].1 + s[1].1) / 2.))); }
+        let dir = match flying { Some((vx, vy)) if vx * vx + vy * vy > 1. => Vec2::new(vx, -vy), _ => pts.get(1).map(|&(x, y)| cell_to_world(hx, hy) - cell_to_world(x, y)).unwrap_or(Vec2::X) };
+        rot.insert((52, k), dir.to_angle());
+        want.push((52, k, cell_to_world(hx, hy), 3.96, sp.rope[1].clone(), Vec2::new(8., 7.), false, rope_col(hx, hy)));
     }
     // lifts: the head frame under the ceiling, the rope down to the cage floor, the cage's rails, and the
     // counterweight on its own rope beside the shaft wall (it rises as the cage sinks)
