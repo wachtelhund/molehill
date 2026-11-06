@@ -75,6 +75,11 @@ impl Kind {
     }
 }
 
+/// Abandoned mine track: the strap is this many cells thick (a quarter metre), on sleepers in ballast.
+pub const MINE_RAIL: i64 = (CPM / 4) as i64;
+/// The mine's worked face (ore) at its far end, in half metres from the end wall.
+pub const MINE_FACE: i64 = 5;
+
 /// One site: its box, a variant nibble for layout, and the chest / Ancient-tube link if any.
 #[derive(Clone, Copy, Debug)]
 pub struct Site {
@@ -206,6 +211,8 @@ impl Site {
         };
         s
     }
+    /// The ore an abandoned mine followed: copper three times in four (it's the shallow ore), else coal.
+    pub fn mine_ore(&self) -> Mat { if self.var & 3 != 3 { Mat::CopperOre } else { Mat::Coal } }
     pub fn centre(&self) -> (usize, i64) { (self.x0 + self.w / 2, self.y0 + self.h as i64 / 2) }
     /// Material this site stamps at (x, wy), or None to leave the host rock.
     pub fn cell(&self, x: usize, wy: i64) -> Option<Mat> {
@@ -215,18 +222,37 @@ impl Site {
         use Mat::*;
         Some(match self.kind {
             Kind::Mine => {
-                // a timbered drift with rail fragments, ore pockets and one collapsed side bay
-                let ore = if self.var & 1 == 0 { CopperOre } else { Coal };
+                // a timbered drift that followed a seam: the worked face at the far (left) end is still ore,
+                // a spill of it lies at the foot, and a track runs back along the floor to the chest.
+                // The track is laid like real track, so it reads as one: a thin strap (MINE_RAIL cells) on
+                // timber sleepers bedded in grey ballast, over the rock floor; a few lengths have rusted out,
+                // leaving the sleepers. Props are 0.5 m posts with a short cap, so the drift reads as open.
+                let ore = self.mine_ore();
                 let bay = 14 * c + (self.var as i64 % 4) * c;
-                if dy < c / 2 { Limestone }
-                else if dy >= h - c {
-                    let along = dx / c;
-                    if along % 5 != 4 && dy < h - c / 2 { Rail } else { Rock }
-                } else if dx < c / 2 || dx >= w - c / 2 { Rock }
-                else if (dx + c / 4) % (4 * c) < c { WoodBeam }
-                else if dx >= 6 * c && dx < 8 * c && dy >= h - 3 * c { ore }
-                else if dx >= 16 * c && dx < 18 * c && dy >= h - 3 * c { ore }
-                else if dx >= bay && dx < bay + 2 * c && dy >= h - 3 * c { Gravel }
+                let floor = h - c; let face = MINE_FACE * c / 2; let post = c / 2;
+                if dy < c / 2 { return Some(Limestone); }
+                if dy >= floor {
+                    let fy = dy - floor; let gone = (dx / (3 * c) + (self.var as i64 >> 2)) % 4 == 3;
+                    return Some(if fy < MINE_RAIL && !gone && dx >= face { Rail }
+                        else if fy < MINE_RAIL + 3 && dx >= face && dx % c < 2 { WoodBeam } // a sleeper every metre
+                        else if fy < MINE_RAIL + 3 && dx >= face { Gravel }
+                        else { Rock });
+                }
+                if dx >= w - c / 2 { return Some(Rock); }
+                // the worked face: ore broken by thin bands of rock, standing out to `face` at the floor and
+                // cut back 1 m by the roof (wider at the foot, so it stands like a slope)
+                let xf = face - (floor - dy) * c / (floor - c / 2);
+                if dx < xf {
+                    let band = (dy + dx / 3 + (self.var as i64 & 7)) % (2 * c) < 2;
+                    return Some(if band { Rock } else { ore });
+                }
+                // the spill at the foot of the face: a low heap of broken ore, 1.5 m high against the face
+                let spill = (3 * c / 2) - (dx - face) * (3 * c / 2) / (5 * c / 2);
+                if dx >= face - c && spill > 0 && dy >= floor - spill { return Some(ore); }
+                let q = (dx - face - c).rem_euclid(4 * c);
+                if dx >= face && q < post && dy >= c / 2 + 2 { WoodBeam }
+                else if dx >= face - c / 2 && dy < c / 2 + 2 && (q < post + c / 2 || q >= 4 * c - c / 2) { WoodBeam } // the cap
+                else if dx >= bay && dx < bay + 2 * c && dy >= floor - 2 * c { Gravel }
                 else { Empty }
             }
             Kind::Holt => {

@@ -174,7 +174,7 @@ impl Item {
             Gate => [120, 220, 160], Tnt => [220, 60, 50], Lamp => [255, 240, 170], Pickaxe => [160, 156, 150], Drill => [205, 150, 70], Bore => [200, 205, 220], Grub => [235, 215, 170], Spore => [200, 170, 230], Mushroom => [214, 120, 90], Vent => [150, 200, 210], Glowmite => [190, 255, 160], FungusOil => [200, 220, 120], Root => [190, 140, 90],
             Planks => [182, 134, 84], PolishedStone => [176, 170, 160], Tiles => [190, 108, 74], CarvedPillar => [164, 158, 148],
             Ochre | Rust | Chalk | Verdigris | Woad | Soot => PIGMENTS[self.pigment().unwrap_or(0) as usize],
-            Table | Stool | Shelf => [160, 112, 66], Nest => [150, 170, 110], Rug => [176, 92, 70], Banner => [200, 70, 60], Planter => [110, 200, 130], AncientBit => [150, 200, 210], GroundLens => [210, 235, 250], Rail => [150, 120, 84], Cart => [130, 96, 60], RopeLadder => [170, 140, 90], Lift => [150, 150, 160], Tube => [150, 190, 186], TubeHopper => [190, 150, 80],
+            Table | Stool | Shelf => [160, 112, 66], Nest => [150, 170, 110], Rug => [176, 92, 70], Banner => [200, 70, 60], Planter => [110, 200, 130], AncientBit => [150, 200, 210], GroundLens => [210, 235, 250], Rail => [104, 84, 78], Cart => [130, 96, 60], RopeLadder => [170, 140, 90], Lift => [150, 150, 160], Tube => [150, 190, 186], TubeHopper => [190, 150, 80],
             RockWall => [118, 108, 96], TimberWall => [140, 102, 66], MasonryWall => [132, 78, 62], BeamWall => [118, 84, 54], PipeWall => [148, 96, 64], CarvedWall => [124, 116, 106],
         }
     }

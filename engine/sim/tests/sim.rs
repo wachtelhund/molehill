@@ -1336,3 +1336,55 @@ mod enrichment {
         let _ = (x0, y0, sw, sh);
     }
 }
+
+/// First hour: every wide holt has root-trees (wood) within a fair dig of the burrow, without dumping wood
+/// at it. A grotto with two or more trees lies within `NEAR_GROTTO.1` m of the start (the seed's own, or the
+/// one `Gen` places in an empty grotto cell beside it); it's never inside the burrow (see
+/// `grottos_near_spawn_never_touch_the_burrow`) and is the same grotto every time for a seed.
+#[test]
+fn a_grotto_with_trees_is_within_reach_of_every_new_holt() {
+    use molehill_sim::gen::{Gen, NEAR_GROTTO};
+    use molehill_sim::mat::CPM;
+    let (w, c) = (1024 * S, CPM as f32);
+    for seed in 0..400u32 {
+        let gen = Gen::new(seed, w);
+        let best = gen.grottos_in_rows(-40 * CPM as i64, 40 * CPM as i64).iter().filter(|g| g.ntrees >= 2)
+            .map(|g| { let (dx, dy) = ((g.cx as f32 - (w / 2) as f32) / c, g.cy as f32 / c); (dx * dx + dy * dy).sqrt() })
+            .fold(f32::MAX, f32::min);
+        assert!(best <= NEAR_GROTTO.1, "seed {seed}: nearest grotto with trees is {best:.0} m away");
+        assert_eq!(gen.near_grotto, Gen::new(seed, w).near_grotto, "seed {seed}: deterministic");
+    }
+    // a small test window keeps its old shape: no extra grotto
+    assert!(Gen::new(7, 96 * S).near_grotto.is_none());
+}
+
+/// An abandoned mine reads as a mine at play zoom: its track is a thin strap on sleepers in grey ballast (not
+/// a floor-wide band of brown), its props are slim posts, and the seam it followed is a worked face of ore at
+/// the far end with a spill at its foot (copper, the shallow ore, three times in four).
+#[test]
+fn abandoned_mine_track_and_ore_face_read() {
+    use molehill_sim::mat::{Mat, CPM};
+    use molehill_sim::sites::{Kind, Site, MINE_RAIL};
+    let s = Site::new(1, Kind::Mine, 0, 0, 0, false, None);
+    let (w, h, c) = (s.w as i64, s.h as i64, CPM as i64);
+    let at = |dx: i64, dy: i64| s.cell(dx as usize, dy).unwrap();
+    let col = |dx: i64| (0..h).map(|dy| at(dx, dy)).collect::<Vec<_>>();
+    // the track: rail on top of the floor, sleepers and ballast under it, rock beneath
+    let (mut rail, mut sleeper, mut ballast) = (0, 0, 0);
+    for dx in 0..w { for dy in h - c..h { match at(dx, dy) { Mat::Rail => rail += 1, Mat::WoodBeam => sleeper += 1, Mat::Gravel => ballast += 1, _ => {} } } }
+    assert!(rail > 0 && rail <= MINE_RAIL * w, "the strap is at most {MINE_RAIL} cells thick ({rail} cells)");
+    assert!(sleeper > 0 && ballast > sleeper, "sleepers in ballast ({sleeper} / {ballast})");
+    assert!((0..w).all(|dx| (h - c + MINE_RAIL + 3..h).all(|dy| at(dx, dy) == Mat::Rock)), "rock under the ballast");
+    // slim props: no column of timber wider than half a metre
+    let mut run = 0; let mut widest = 0;
+    for dx in 0..w { if col(dx)[(h / 2) as usize] == Mat::WoodBeam { run += 1; widest = widest.max(run); } else { run = 0; } }
+    assert!(widest > 0 && widest <= c / 2, "posts {widest} cells wide");
+    // the worked face: a big block of ore at the far end, and plenty of open drift in front of it
+    let ore = s.mine_ore(); assert_eq!(ore, Mat::CopperOre);
+    let face = (0..3 * c).flat_map(|dx| (0..h).map(move |dy| (dx, dy))).filter(|&(dx, dy)| at(dx, dy) == ore).count();
+    assert!(face as i64 >= 8 * c * c, "the face shows at least 8 m² of ore ({face} cells)");
+    let open = (0..w).flat_map(|dx| (0..h).map(move |dy| (dx, dy))).filter(|&(dx, dy)| at(dx, dy) == Mat::Empty).count();
+    assert!(open as i64 * 2 > w * h, "the drift is mostly open ({open} of {})", w * h);
+    let kinds = (0..64u32).filter(|&v| Site::new(1, Kind::Mine, 0, 0, v, false, None).mine_ore() == Mat::CopperOre).count();
+    assert_eq!(kinds, 48, "copper three times in four");
+}

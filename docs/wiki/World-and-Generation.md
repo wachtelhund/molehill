@@ -63,6 +63,8 @@ Above 35 m, lenses of **sand** and **gravel** form in the rock. The wettest are 
 | iron ore | 3 | 40 to 85 m, in the granite (none above about 30 m) | 8 m |
 | quartz | – | below 50 m | 10 m |
 
+Copper ore is a bright copper-orange (`mat.rs`), well apart from the browns of dirt and clay and the greys of rock, so the first seams read at play zoom; laid rail is a dark strap, not a wood brown.
+
 Deep down (below 70 m) the rock is mostly **basalt**, with crystal and quartz on the cave walls and lava in the pockets: the heat layer of tier 5. All of it comes from seeded noise, so it's the same for a seed every time (`ore_sits_in_its_depth_bands`).
 
 **Cave walls** are decorated: **crystal** (which glows) below 45 m, **quartz** below 35 m, **glowing fungus** on cave floors above 9 m, and **roots** above −10 m.
@@ -71,7 +73,7 @@ Deep down (below 70 m) the rock is mostly **basalt**, with crystal and quartz on
 
 **Grottos** are rare underground oases where water seeps through the rock (see [Lore](Lore.md#grottos)). They're the Deepholt's wood source.
 
-* **Where:** the world is cut into 40 m × 24 m grotto cells, and a seeded hash decides whether each one holds a grotto. The chance follows the water: 20 % in the wet upper layers (above −20 m), falling to 10 % at 10 m and 2 % by 50 m, and none below 60 m, where lava takes over. A grotto may open up within sight of the start burrow, but its box (shell included) always stays 2 m clear of the burrow's footprint (about 6 m to each side, 5 m up and 3 m down), so it never breaks in (`grottos_near_spawn_never_touch_the_burrow`). Seed 14085 shows one: a root-tree about 12.5 m right of the spawn and 5 m up, on screen at default zoom (the `grottoseed` example finds such seeds). A window usually holds a few (`grottos_follow_the_layers`).
+* **Where:** the world is cut into 40 m × 24 m grotto cells, and a seeded hash decides whether each one holds a grotto. The chance follows the water: 20 % in the wet upper layers (above −20 m), falling to 10 % at 10 m and 2 % by 50 m, and none below 60 m, where lava takes over. A grotto may open up within sight of the start burrow, but its box (shell included) always stays 2 m clear of the burrow's footprint (about 6 m to each side, 5 m up and 3 m down), so it never breaks in (`grottos_near_spawn_never_touch_the_burrow`). **A grotto near the start:** in a window wide enough for found places (the 256 m playable one), every holt has a grotto with two or more root-trees within 30 m of the burrow, so the first wood is a fair dig away, not a wiki hunt. If the seed already grew one that close it is that one; otherwise `Gen` places one (same shape rules, two trees) in an empty grotto cell beside the start, 14–30 m from the burrow and no more than 14 m above or below it (`gen::NEAR_GROTTO`, `a_grotto_with_trees_is_within_reach_of_every_new_holt`). It never replaces a grotto the seed grew and gives no more wood than any other grotto. Over seeds 1–20 the nearest grotto with trees is 18–30 m from the mole, and 11–43 wood lies within 40 m (`survey`). Seed 14085 shows one: a root-tree about 12.5 m right of the spawn and 5 m up, on screen at default zoom (the `grottoseed` example finds such seeds). A window usually holds a few (`grottos_follow_the_layers`).
 * **Shape:** a domed hollow 10–16 m wide and 4.5–7 m high with a flat floor. Around it lies a 1.5 m **shell** that is limestone wherever the host rock is too weak to hold a dome, so grottos stand (`generated_grottos_hold`).
 * **Inside:**
   * **Moss** and glowing **mycelium** carpet the floor (both soil a mushroom grows on), and mycelium threads the lower walls.
@@ -114,7 +116,7 @@ Seven families of **found places**, not random loot rooms (`sim/src/sites.rs`). 
 
 | family | size | depth | what it is | what you do |
 |---|---|---|---|---|
-| Abandoned mine | 24 × 7 m | 0–56 m | timbered drift along a seam, rail fragments, ore pockets, a collapsed side bay | salvage rails and timber; the props are real |
+| Abandoned mine | 24 × 7 m | 0–56 m | a drift that followed a seam: slim 0.5 m timber posts with short caps; along the floor, track laid like real track (a thin strap of rail on a sleeper every metre, bedded in grey gravel ballast, a few lengths rusted away to bare sleepers); at the far end the worked face of the seam, still ore with thin bands of rock, and a spill of broken ore at its foot (copper three times in four, else coal); a collapsed side bay | mine the face; salvage rails and timber; the props are real (`abandoned_mine_track_and_ore_face_read`) |
 | Abandoned holt | 16 × 7 m | −32–20 m | a dome, sleeping niche, table, fungus plot, a banner still hanging | read the room; the farm still grows |
 | Flooded pumpworks | 22 × 10 m | −12–40 m | brick chambers, a closed sluice on a lever, a clay plug, a pump on the dry side | flip the lever or dig the plug; water is real |
 | Fissure | 10 × 26 m | 8–90 m | a split in the host rock, broken bridge ledges, a rope ladder in the drop | climb; bring more rope or a lift |

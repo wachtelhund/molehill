@@ -1,4 +1,5 @@
-// Abandoned mine: a timbered drift, rail fragments, ore pockets. Lining on the back.
+// Abandoned mine: a timbered drift with slim posts, track (a thin strap on sleepers in ballast) and the worked
+// face of the copper seam it followed, with a spill at its foot. Lining on the back.
 map
 ################################################################################################
 #..............................................................................................#
@@ -28,3 +29,5 @@ expect 4 count:WoodBeam > 0
 expect 4 count:Rail > 0
 expect 4 walls:timber > 0
 expect 4 sites >= 1
+expect 4 count:CopperOre > 120
+expect 4 count:Gravel > 50

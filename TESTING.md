@@ -277,7 +277,7 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `wall_saveload.scn` | Lining and a scrape survive save/load and a window slide |
 | `wall_no_support.scn` | A 20-wide clay roof still falls when the back is timbered |
 | `wall_walk.scn` | The mole walks through a timber-lined corridor, unhurt |
-| `site_mine.scn` / `site_holt.scn` / `site_pumpworks.scn` / `site_fissure.scn` / `site_fossil.scn` / `site_crystal.scn` / `site_halt.scn` | Each found-place family stamps with its materials, lining and interaction (rails, furniture, a held sump, a rope, carved bone, quartz pools, a wrecked cart and no waygate) |
+| `site_mine.scn` (with the copper face and the ballast) / `site_holt.scn` / `site_pumpworks.scn` / `site_fissure.scn` / `site_fossil.scn` / `site_crystal.scn` / `site_halt.scn` | Each found-place family stamps with its materials, lining and interaction (rails, furniture, a held sump, a rope, carved bone, quartz pools, a wrecked cart and no waygate) |
 
 ### Writing a new scenario (for agents)
 
@@ -296,7 +296,7 @@ Zoom limits and brush ranges also have unit tests in `sim/tests/sim.rs` (`zoom_i
 
 `cargo run --release -p molehill-sim --example stepbench [seed] [ticks]` times `World::step` on the game-sized window from a fresh holt: mean/p50/p95/p99/max per tick, the average per tick class (stress passes every 6 ticks, air every 15), a full stress solve and a light pass. Add `--no-default-features` for single-threaded numbers, which are closer to the web build.
 
-`cargo run --release -p molehill-sim --example grottos [seed]` lists the grottos in a fresh holt's window and draws one; `--example slidecheck [seed]` counts cells that would fail a full stress solve after generation and after a slide each way (should be 0). `--example grottoseed -- [SEEDS] [--show SEED]` scores seeds by how close the new holt spawns to a grotto with trees (generator only, fast); `--show SEED` generates that world and prints an ASCII map around the spawn. `--example survey -- SEEDS` reports what the ground offers around the burrow per seed (item counts within reach and the nearest of each, in metres); Survival's kit and costs are balanced from it.
+`cargo run --release -p molehill-sim --example grottos [seed]` lists the grottos in a fresh holt's window and draws one; `--example slidecheck [seed]` counts cells that would fail a full stress solve after generation and after a slide each way (should be 0). `--example grottoseed -- [SEEDS] [--show SEED]` scores seeds by how close the new holt spawns to a grotto with trees (generator only, fast); `--show SEED` generates that world and prints an ASCII map around the spawn. `--example survey -- SEEDS` reports what the ground offers around the burrow per seed (item counts within reach and the nearest of each, in metres, plus the nearest grotto with trees and the nearest abandoned mine); Survival's kit and costs are balanced from it.
 
 `cargo run --release -p molehill-sim --example genbench [seed]` times world generation: fill, one full stress solve, stabilisation, and `World::new` in total.
 

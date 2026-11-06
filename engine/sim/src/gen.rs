@@ -19,6 +19,10 @@ pub const QUARTZ: Band = Band { lo: 50., hi: 1e9, fade: 10. };
 impl Band { pub fn weight(&self, d: f32) -> f32 { if d < self.lo { (1. - (self.lo - d) / self.fade).max(0.) } else if d > self.hi { (1. - (d - self.hi) / self.fade).max(0.) } else { 1. } } }
 
 /// Grottos: at most one per GROTTO_W × GROTTO_H cell of the world (40 m × 24 m), decided by a hash.
+/// The near grotto (see `Gen::find_near_grotto`): its middle lies between NEAR_GROTTO.0 and .1 metres from
+/// the burrow and no more than .2 metres above or below it, so digging out sideways finds it in the first
+/// stretch of play. Only in windows wide enough for found places (`sites::SITE_MIN_W`).
+pub const NEAR_GROTTO: (f32, f32, f32) = (14., 30., 14.);
 pub const GROTTO_W: usize = 40 * CPM; pub const GROTTO_H: usize = 24 * CPM;
 /// Chance that a grotto cell holds a grotto, by the depth (m) of its middle. Grottos follow the water:
 /// commonest in the wet upper layers, thinning out with depth, none where the lava takes over.
@@ -90,9 +94,40 @@ impl Gen {
     /// The grotto in grotto cell (gx, gy), if it has one.
     pub fn grotto_at(&self, gx: i64, gy: i64) -> Option<Grotto> {
         let w = self.biome.len(); if gx < 0 || (gx as usize + 1) * GROTTO_W > w { return None; }
+        if let Some((ngx, ngy, g)) = self.near_grotto { if (ngx, ngy) == (gx, gy) { return Some(g); } }
         let h = hash3(gx as u32, gy as u32, self.seed ^ 0x6A07);
-        let (gw, gh) = (GROTTO_W as i64, GROTTO_H as i64); let mid = gy * gh + gh / 2;
+        let mid = gy * GROTTO_H as i64 + GROTTO_H as i64 / 2;
         if (h & 0xFFFF) as f32 / 65536. >= grotto_chance(mid as f32 * CELL_M) { return None; }
+        self.grotto_shape(gx, gy, h, 1)
+    }
+    /// The one grotto every wide holt gets within a fair walk of the burrow (see NEAR_GROTTO), unless the seed
+    /// already grew one with two or more trees that near: the first of a seeded list of tries, in empty grotto
+    /// cells beside and around the start, whose shape lands at the right distance with at least two root-trees. Wood stays scarce (a grotto's trees give a handful), but a new
+    /// Delver never has to hunt far for the first of it.
+    fn find_near_grotto(&self) -> Option<(i64, i64, Grotto)> {
+        let w = self.biome.len(); if w < crate::sites::SITE_MIN_W { return None; }
+        let sgx = ((w / 2) / GROTTO_W) as i64; let c = CPM as f32;
+        let at = |g: &Grotto| { let (dx, dy) = ((g.cx as f32 - (w / 2) as f32) / c, g.cy as f32 / c); ((dx * dx + dy * dy).sqrt(), dy.abs()) };
+        // nature first: a grotto the seed already put in reach (two trees or more) is the near grotto
+        for gy in -2..=1 { for gx in sgx - 1..=sgx + 1 {
+            if let Some(g) = self.grotto_at(gx, gy) { let (d, _) = at(&g); if g.ntrees >= 2 && d <= NEAR_GROTTO.1 { return None; } }
+        } }
+        for k in 0..48u32 {
+            let h = hash3(k, 0x5EED, self.seed ^ 0x6A07);
+            let (gx, gy) = (sgx + (h % 3) as i64 - 1, -((h >> 2) as i64 & 1));
+            if gx < 0 || (gx as usize + 1) * GROTTO_W > w { continue; }
+            if self.grotto_at(gx, gy).is_some() { continue; } // never replace a grotto the seed grew
+            let Some(g) = self.grotto_shape(gx, gy, h, 2) else { continue };
+            let (d, ady) = at(&g);
+            if g.ntrees >= 2 && d >= NEAR_GROTTO.0 && d <= NEAR_GROTTO.1 && ady <= NEAR_GROTTO.2 { return Some((gx, gy, g)); }
+        }
+        None
+    }
+    /// A grotto's shape in cell (gx, gy) from hash `h`, wanting at least `min_trees` trees; None if it would
+    /// break into the starting burrow.
+    fn grotto_shape(&self, gx: i64, gy: i64, h: u32, min_trees: usize) -> Option<Grotto> {
+        let w = self.biome.len();
+        let (gw, gh) = (GROTTO_W as i64, GROTTO_H as i64);
         let c = CPM as i64;
         let r = |k: u32, n: i64| (hash3(h, k, self.seed) as i64).rem_euclid(n.max(1));
         let (rx, ry) = (5 * c + r(1, 3 * c + 1), 3 * c + r(2, 3 * c / 2 + 1));
@@ -107,7 +142,7 @@ impl Gen {
         let floor = ry / 2;
         let pw = 3 * c / 2; let px = r(5, rx) - rx / 2;
         let mut trees = [(0usize, 0usize); 3]; let mut n = 0;
-        let want = 1 + r(6, 3) as usize;
+        let want = (1 + r(6, 3) as usize).max(min_trees);
         for k in 0..3i64 { if n >= want { break; }
             let dx = (k - 1) * rx * 11 / 20 + r(7 + k as u32, c) - c / 2;
             if (dx - px).abs() < pw + c { continue; }
@@ -158,12 +193,15 @@ pub fn biome_at(n: &Noise, x: usize) -> Biome {
 
 /// Rows are generated on demand from an absolute row index `wy` (0 = the starting layer, + is
 /// deeper). Pure per-cell function of (x, wy, seed): the same seed always yields the same Deepholt.
-pub struct Gen { pub seed: u32, n0: Noise, n1: Noise, n2: Noise, n3: Noise, pub biome: Vec<Biome> }
+pub struct Gen { pub seed: u32, n0: Noise, n1: Noise, n2: Noise, n3: Noise, pub biome: Vec<Biome>,
+    /// the grotto placed near the start (its grotto cell and shape), fixed by the seed
+    pub near_grotto: Option<(i64, i64, Grotto)> }
 impl Gen {
     pub fn new(seed: u32, w: usize) -> Gen {
         let n3 = Noise::new(seed ^ 0x3C3C);
         let biome = (0..w).map(|x| biome_at(&n3, x)).collect();
-        Gen { seed, n0: Noise::new(seed), n1: Noise::new(seed ^ 0x51ED), n2: Noise::new(seed ^ 0xA77A), n3, biome }
+        let mut g = Gen { seed, n0: Noise::new(seed), n1: Noise::new(seed ^ 0x51ED), n2: Noise::new(seed ^ 0xA77A), n3, biome, near_grotto: None };
+        g.near_grotto = g.find_near_grotto(); g
     }
     /// Open cave cell? Blobby caverns + thin winding tunnels.
     pub fn open(&self, x: usize, wy: i64) -> bool {
