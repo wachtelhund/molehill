@@ -490,6 +490,31 @@ pub fn smelter(heat: u8) -> Image {
     p.finish(ICON_LINE).image()
 }
 
+/// The steam borer (1 px = 1 world unit, facing right; the game flips it): 0/1 its body cold/lit (24×16: a firebox at
+/// the rear with its door, dark or glowing, a riveted barrel, the stack, a timber seat with the drive lever, the spoil
+/// belt running back over the top with a lump on it, the iron chassis), 2..=4 the bore head's three turning frames (a
+/// toothed iron cone, 6×12), 5 a spoked wheel (6×6, the game turns it).
+pub fn borer(part: u8) -> Image {
+    let iron = [104, 104, 116]; let dark = [70, 70, 80];
+    let p = match part {
+        0 | 1 => { let mut p = Px::new(24, 16);
+            p.rect(1, 12, 20, 13, dark); p.rect(1, 12, 20, 12, shade(dark, 1.3)); // chassis
+            p.oval(12., 8.5, 7., 3.6, iron); p.rect(6, 5, 18, 5, shade(iron, 1.3)); for x in (7..18).step_by(3) { p.set(x, 10, [76, 76, 88]); } // barrel and rivets
+            p.rect(1, 4, 5, 11, [128, 70, 54]); p.rect(1, 4, 5, 4, [160, 92, 70]); // firebox
+            if part == 1 { p.rect(2, 7, 4, 9, [255, 150, 50]); p.set(3, 8, [255, 220, 130]); } else { p.rect(2, 7, 4, 9, [36, 30, 30]); }
+            p.rect(9, 0, 10, 4, [70, 68, 74]); p.rect(8, 0, 11, 0, [96, 94, 100]); // stack
+            p.rect(1, 2, 4, 3, [150, 108, 64]); crate::devart::line(&mut p, 5., 3., 6., 0., 1, [176, 178, 190]); // seat and drive lever
+            crate::devart::line(&mut p, 19., 6., 6., 2.5, 1, [120, 84, 54]); p.set(14, 3, [150, 146, 140]); p.set(15, 4, [130, 126, 120]); // spoil belt with a lump
+            p.rect(18, 6, 20, 11, dark); // the head's bearing
+            p }
+        2..=4 => { let mut p = Px::new(6, 12); let f = (part - 2) as i32;
+            for x in 0..6 { let hw = ((6 - x) as f32 * 1.0) as i32; for y in 6 - hw..6 + hw { p.set(x, y, if (y + x + f) % 3 == 0 { [196, 198, 210] } else if (y + x + f) % 3 == 1 { [124, 126, 138] } else { [92, 94, 106] }); } }
+            p.set(5, 5, [220, 222, 232]); p.set(5, 6, [220, 222, 232]); p }
+        _ => { let mut p = Px::new(6, 6); p.oval(3., 3., 3., 3., [56, 56, 64]); p.oval(3., 3., 2., 2., [90, 90, 100]); p.rect(2, 0, 3, 5, [56, 56, 64]); p.rect(0, 2, 5, 3, [56, 56, 64]); p.oval(3., 3., 0.9, 0.9, [196, 156, 72]); p }
+    };
+    p.finish(ICON_LINE).image()
+}
+
 /// The boiler over its shell cells (1 px = 1 world unit, `BOILER_W`×`BOILER_H` cells): a riveted iron drum with a
 /// steam dome and a stub chimney over a brick firebox, the fire door in its middle; lit, the fire shows through the door.
 pub fn boiler(lit: bool) -> Image {
@@ -745,6 +770,15 @@ mod tests {
         let gap = |on: bool| lum(mat_color(Mat::TreadPlate, 3, 3, 0, 0., true, on).unwrap()); assert!(gap(true) < 0.4 * gap(false), "a pressed plate shows a dark gap");
         assert_ne!(gate_lever(false).data, gate_lever(true).data, "the lever shows the gate turned round");
         let sizes: Vec<(u32, u32)> = (0..4).map(|k| { let im = scale_part(k); (im.width(), im.height()) }).collect(); assert_eq!(sizes, vec![(6, 20), (20, 3), (8, 5), (3, 2)]);
+    }
+
+    /// The borer is drawn, not boxes: its door glows only lit, its head's frames differ (it turns), and the parts are sized.
+    #[test] fn borer_is_drawn() {
+        use super::borer; let px = |k: u8| borer(k).data.unwrap();
+        let hot = |d: &[u8]| d.chunks(4).filter(|c| c[3] > 0 && c[0] > 230 && c[1] > 120).count();
+        assert!(hot(&px(1)) >= 6 && hot(&px(0)) == 0, "the firebox door glows only while lit");
+        assert!(px(2) != px(3) && px(3) != px(4), "the bore head's frames turn");
+        let sizes: Vec<(u32, u32)> = [0u8, 2, 5].into_iter().map(|k| { let im = borer(k); (im.width(), im.height()) }).collect(); assert_eq!(sizes, vec![(24, 16), (6, 12), (6, 6)]);
     }
 
     #[test] fn ore_pockets_stand_out_without_glowing() {

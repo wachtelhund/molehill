@@ -322,6 +322,24 @@ Polish only: no new systems, lore names kept. Each entry lists what changed and 
 * Stills only (dump frames), no live window. Stills plus tests cover each state: the plate and gate change in the
   running sim, while the float bob, clutch mesh and scale tip are covered by swatch and test.
 
+## Steam borer art (branch `refine/borer-art`, on #62/#64)
+* The placeholders (kinds 120–123: a grey box, a brass box and two dark squares) are replaced with `art::borer`,
+  flipped to the borer's facing:
+  * Body: brick firebox with its door dark or glowing, a riveted barrel, the stack, a seat and drive lever, and the
+    spoil belt over the top.
+  * The toothed bore head turns through three frames while it drives or grinds with steam up.
+  * Two spoked wheels turn with the ground covered.
+  * While it burns, a door glow and three smoke puffs.
+* Icon: the placeholder (a grey box with a brass blob) was redrawn to match: firebox, barrel, stack and puff,
+  toothed cone, spoked wheels. Icon sheet: 101 items, 21 devices.
+* `--scene=borer` seats the mole on a lit borer in a tunnel facing a dirt face. With `--shot-walk` the running game
+  drives it (`tr.borer_ride` plus the walk input). At frames 60 and 120 it has moved up, cut into the face and piled
+  spoil behind, with its door glowing, head in the dirt and wheels on the floor. That's driving reached by the sim,
+  not staged.
+* Not tested: a live window; smoke from the stack in a still (the riding mole sits over the stack); the borer
+  facing left (drawn by flipping, not seen).
+* Test `borer_is_drawn`.
+
 ## Open issues
 * `--shot` writes an empty frame on macOS when the game is launched from a background shell (the surface is
   never presented). It needs a visible window, or Linux with Xvfb.

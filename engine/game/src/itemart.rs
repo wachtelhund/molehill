@@ -301,9 +301,14 @@ pub fn icon_px(it: Item) -> Px {
         Clutch => { // two toothed iron halves on a shaft, a fork lever on one
             p.rect(0, 7, 15, 8, IRON); p.rect(3, 3, 6, 12, col); p.rect(9, 3, 12, 12, sh(col, 0.85)); for y in [4, 7, 10] { p.set(7, y, col); p.set(8, y + 1, sh(col, 0.85)); }
             line(&mut p, 11., 3., 14., 0., 1, WOOD_D); }
-        SteamBorer => { // an iron body on two wheels, a toothed cone of a bore head at its front, a stack with smoke
-            p.rect(1, 5, 11, 11, col); p.rect(1, 5, 11, 6, sh(col, 1.25)); poly(&mut p, &[(11., 4.), (16., 8.), (11., 12.)], BRASS_D); for y in [5, 8, 11] { p.set(14, y.min(10), BRASS); }
-            for cx in [3.5, 9.] { p.oval(cx, 12.5, 2.4, 2.4, IRON_D); p.set(cx as i32, 12, STONE); } p.rect(3, 1, 4, 4, IRON_D); p.set(4, 0, [190, 190, 196]); p.rect(6, 7, 8, 9, FLAME); }
+        SteamBorer => { // the borer side on, as it stands in the world: a brick firebox at the rear with its door glowing, a riveted
+            // iron barrel, the stack letting off a puff, a toothed steel cone of a bore head at the front, two spoked wheels
+            p.rect(0, 4, 3, 11, [128, 70, 54]); p.rect(0, 4, 3, 4, [160, 92, 70]); p.rect(1, 7, 2, 9, FLAME); // firebox and door
+            p.oval(7.5, 8., 5., 3.4, IRON); p.rect(3, 5, 11, 5, sh(IRON, 1.3)); for x in [5, 8, 11] { p.set(x, 10, IRON_D); } // barrel and rivets
+            p.rect(6, 1, 7, 4, IRON_D); p.set(7, 0, [214, 214, 220]); p.set(8, 0, [196, 196, 204]); // stack and a puff
+            for x in 12..16 { let hw = 16 - x; for y in 8 - hw..8 + hw { p.set(x, y, if (x + y) % 2 == 0 { [196, 198, 210] } else { [110, 112, 124] }); } } // the bore head
+            p.rect(0, 12, 12, 12, IRON_D);
+            for cx in [3.5f32, 9.5] { p.oval(cx, 13., 2.6, 2.6, [56, 56, 64]); p.rect(cx as i32, 11, cx as i32, 15, [96, 96, 106]); p.rect(cx as i32 - 2, 13, cx as i32 + 2, 13, [96, 96, 106]); p.set(cx as i32, 13, BRASS); } }
         // ---- background linings: a piece of each, darker, as it sits behind
         RockWall => { // a rough slab of scraped host rock with tool marks
             poly(&mut p, &[(1., 3.), (6., 1.), (14., 2.), (15., 9.), (13., 15.), (3., 14.), (1., 9.)], sh(col, 0.85)); for y in [5, 9, 12] { line(&mut p, 3., y as f32, 11., y as f32 - 2., 1, sh(col, 0.6)); } }
