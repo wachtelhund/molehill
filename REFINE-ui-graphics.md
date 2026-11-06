@@ -207,6 +207,15 @@ Polish only: no new systems, lore names kept. Each entry lists what changed and 
   only), and anything in a live window.
 * Test `machinery_moves_when_its_train_turns`.
 
+## Mechanical power art: polish (branch `refine/power-art-polish`)
+* The wiki icon sheet was regenerated (81 items, 21 devices); the shaft, gear, water wheel, belt and counterweight
+  were missing from it.
+* Read back on the sheet: the water wheel item's icon (a spoked wheel over blue water) and the water wheel device's
+  hotbar icon (a spoked wheel in a frame) are alike at a glance. They can be told apart by the water, so this is
+  noted, not redrawn.
+* `site/` rebuilt on main 91d4943 (the power art merged without a web rebuild).
+* Not tested: a water wheel turning in a real stream, and a live window (everything via dump stills and swatches).
+
 ## Open issues
 * `--shot` writes an empty frame on macOS when the game is launched from a background shell (the surface is
   never presented). It needs a visible window, or Linux with Xvfb.
