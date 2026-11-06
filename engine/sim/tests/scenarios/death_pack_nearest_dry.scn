@@ -1,0 +1,25 @@
+// A mole that drowns without having stood on dry ground nearby (here it starts sealed in a flooded chamber
+// under a bedrock lid) still doesn't leave its pack under the water: it goes to the nearest dry floor within
+// 16 m of where it died, the room above the lid. The log gives the cause first, then where the pack is.
+// (Found by the polish playtest: seed 47514 drowned at 13 m with 14 of 16 piles in the water.)
+map
+BBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+#............................#
+#............................#
+#............................#
+#............................#
+######BBBBBBBBBBBBBBBBBBBBBBB#
+######wwwwwwwwwwwwwwwwwwwwwww#
+######wwwwwwwwwwwwwwwwwwwwwww#
+######wwwwwwwwwwwwwwwwwwwwwww#
+######wwwwwwwwwwwww@wwwwwwwww#
+##############################
+end
+mode survival
+expect 2 deaths == 0
+expect 1500 deaths >= 1
+expect 1500 log:drowned == 1
+expect 1500 log:on_dry_ground_near_where_you_fell == 1
+// the pickaxe lies in the room above the lid (rows -5..-8 from the anchor), not in the chamber (rows -3..0)
+expect 1500 items:Pickaxe == 1
+expect 1500 iy:Pickaxe < -4
