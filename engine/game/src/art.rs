@@ -373,8 +373,40 @@ pub fn mat_color(m: molehill_sim::mat::Mat, cx: u32, cy: u32, above: u32, turn: 
         // weight drum: an iron drum wound with rope, the windings creeping round as it turns (a drum is often a single
         // cell, so the windings show as the cell ticking between rope and iron)
         M::Drum => Some(if ((cx + cy) as f32 + turn).rem_euclid(3.) < 1. { [196., 170., 120.] } else if above == 0 { [150., 146., 142.] } else { [106., 102., 100.] }),
+        // ---- steam (steam.rs)
+        // steam engine: a metre unit per metre of block: an iron cylinder with a brass band on the left, a crank wheel on
+        // the right whose pin goes round as the train turns, and the connecting rod from the cylinder to that pin
+        M::Engine => { let (lx, ly) = ((cx % c) as f32 + 0.5, (cy % c) as f32 + 0.5); let th = turn / 1.5;
+            let (px, py) = (5.5 + 1.5 * th.cos(), 4. + 1.5 * th.sin()); // the crank pin
+            let rod = { let (ax, ay, bx, by) = (3.5f32, 4f32, px, py); let (dx, dy) = (bx - ax, by - ay); let t = (((lx - ax) * dx + (ly - ay) * dy) / (dx * dx + dy * dy)).clamp(0., 1.);
+                ((lx - ax - t * dx).powi(2) + (ly - ay - t * dy).powi(2)).sqrt() < 0.6 };
+            let r = ((lx - 5.5).powi(2) + (ly - 4.).powi(2)).sqrt();
+            Some(if ((lx - px).powi(2) + (ly - py).powi(2)).sqrt() < 0.75 { [222., 186., 96.] } else if rod { [176., 150., 90.] }
+                else if lx < 4. { if ly < 1. || ly > 7. { [60., 58., 64.] } else if (lx - 1.5).abs() < 0.5 { [184., 146., 70.] } else if ly < 2. { [140., 136., 146.] } else { [96., 92., 98.] } }
+                else if r < 2.6 { if r > 1.9 { [126., 124., 134.] } else { [70., 68., 76.] } } else { [52., 50., 56.] }) }
+        // steam pipe: copper with a highlight along its run and a brass flange every half metre (it lies the way its run is longer)
+        M::SteamPipe => { let (a, b) = if horiz { (cx, cy) } else { (cy, cx) };
+            Some(if a % (c / 2) == 0 { [204., 164., 84.] } else { match b % 4 { 1 => [226., 156., 106.], 3 => [124., 72., 46.], _ => [176., 108., 66.] } }) }
         _ => None,
     }
+}
+
+/// The boiler over its shell cells (1 px = 1 world unit, `BOILER_W`×`BOILER_H` cells): a riveted iron drum with a
+/// steam dome and a stub chimney over a brick firebox, the fire door in its middle; lit, the fire shows through the door.
+pub fn boiler(lit: bool) -> Image {
+    use molehill_sim::steam::{BOILER_W, BOILER_H};
+    let (w, h) = (BOILER_W as i32 * 2, BOILER_H as i32 * 2); let iron = [104, 104, 114]; let brick = [150, 74, 56];
+    let mut p = Px::new(w, h); let split = h / 2;
+    for y in split..h { for x in 0..w { let course = (y - split) / 2; let joint = (y - split) % 2 == 1 || (x + course * 2) % 5 == 0; p.set(x, y, if joint { [96, 50, 40] } else { brick }); } } // brickwork
+    p.oval(w as f32 / 2., split as f32 - 0.5, w as f32 / 2. - 0.5, split as f32 / 2. + 1.5, iron); // the drum
+    p.rect(1, split - 4, w - 2, split - 4, shade(iron, 1.3)); for x in (2..w - 1).step_by(3) { p.set(x, split - 2, [70, 70, 80]); }
+    p.rect(5, 1, 7, 3, iron); p.rect(4, 1, 8, 1, shade(iron, 1.25)); // steam dome
+    p.rect(w - 6, 0, w - 4, 3, [70, 68, 74]); // chimney stub
+    let (dx, dy) = (w / 2 - 3, split + 3); p.rect(dx - 1, dy - 1, dx + 6, dy + 5, [60, 58, 64]); // fire door frame
+    if lit { p.rect(dx, dy, dx + 5, dy + 4, [255, 150, 50]); p.rect(dx + 1, dy + 1, dx + 4, dy + 3, [255, 214, 120]); } else { p.rect(dx, dy, dx + 5, dy + 4, [36, 30, 30]); }
+    for x in [dx + 1, dx + 3] { p.rect(x, dy, x, dy + 4, [80, 76, 82]); } // the door's bars
+    p.rect(dx, h - 2, dx + 5, h - 2, [40, 36, 36]); // ash door slot
+    p.finish(ICON_LINE).image()
 }
 
 /// A 2 m × 1.5 m swatch of a material's own cell art, unlit, `turn` cells of travel in (for `--dump-art`): rows
@@ -559,7 +591,7 @@ mod tests {
     #[test] fn machinery_moves_when_its_train_turns() {
         let at = |m: Mat, t: f32| -> Vec<[f32; 3]> { (0..16u32).flat_map(|y| (0..16u32).map(move |x| (x, y))).map(|(x, y)| mat_color(m, x, y, if m == Mat::Belt || m == Mat::BeltL { y % 3 } else { 3 }, t, true).unwrap()).collect() };
         let mean = |v: &[[f32; 3]]| { let n = v.len() as f32; [0, 1, 2].map(|j| v.iter().map(|c| c[j]).sum::<f32>() / n) };
-        let kinds = [Mat::Shaft, Mat::Gear, Mat::Wheel, Mat::Belt, Mat::Drum];
+        let kinds = [Mat::Shaft, Mat::Gear, Mat::Wheel, Mat::Belt, Mat::Drum, Mat::Engine];
         for (i, &a) in kinds.iter().enumerate() { for &b in &kinds[i + 1..] { let (pa, pb) = (at(a, 0.), at(b, 0.)); let diff = pa.iter().zip(&pb).filter(|(x, y)| dist(**x, **y) > 30.).count();
             assert!(diff > 64, "{a:?} and {b:?} look alike ({diff} of 256 cells differ)"); } }
         for &m in &kinds { let moved = at(m, 0.).iter().zip(&at(m, 1.5)).filter(|(x, y)| dist(**x, **y) > 20.).count(); assert!(moved >= 12, "{m:?} barely moves ({moved})"); }
@@ -572,7 +604,19 @@ mod tests {
         let _ = mean;
     }
 
-    #[test] fn ore_pockets_stand_out_without_glowing() {
+    /// The boiler is drawn: its lit fire shows bright through the door (the cold one's door is dark), and a steam
+    /// pipe has flanges and lies across the other axis when it runs up and down.
+    #[test] fn boiler_and_pipe_are_drawn() {
+        use super::boiler; let (cold, hot) = (boiler(false).data.unwrap(), boiler(true).data.unwrap());
+        let bright = |d: &[u8]| d.chunks(4).filter(|c| c[3] > 0 && c[0] > 230 && c[1] > 120).count();
+        assert!(bright(&hot) >= 12 && bright(&cold) == 0, "the fire shows through the door only while lit ({} / {})", bright(&hot), bright(&cold));
+        let run: Vec<[f32; 3]> = (0..8u32).map(|a| mat_color(Mat::SteamPipe, a, 2, 3, 0., true).unwrap()).collect();
+        assert!(run.iter().any(|&c| c[2] > 80. && c[0] > 190.) && run.iter().any(|&c| c[0] > 160. && c[2] < 80.), "a brass flange on copper");
+        let (h, v): (Vec<_>, Vec<_>) = (0..8u32).map(|k| (mat_color(Mat::SteamPipe, 3, k, 3, 0., true).unwrap(), mat_color(Mat::SteamPipe, k, 3, 3, 0., false).unwrap())).unzip();
+        assert_eq!(h, v, "a vertical pipe is the horizontal one turned");
+    }
+
+        #[test] fn ore_pockets_stand_out_without_glowing() {
         let rock = col(Mat::Rock);
         for m in [Mat::CopperOre, Mat::IronOre, Mat::TinOre, Mat::Coal] {
             let cells: Vec<[f32; 3]> = (0..32u32).flat_map(|y| (0..32u32).map(move |x| (x, y))).map(|(x, y)| mat_color(m, x, y, 1, 0., true).unwrap()).collect();
