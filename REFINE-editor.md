@@ -53,3 +53,9 @@ External cave/site editor (dev-only, never shipped) plus data-driven found-place
 * Tests: `found_places_entrances_reach_every_room_and_the_chest` now walks seeded variants per family and seed (chosen to cover flipped and not, each zone on and off), 54 s; `tests/variation.rs` (5); `stamp_template_matches_the_game_stamp` with varied vars.
 * Editor: previews and checks through the placed lookups at a chosen depth (`E`), shows what varied, paints a flipped preview on the template's own side; Shift+V/B steps 256. Palette now 9 rows (`panel_fits`).
 * Not in this PR: stitching extra pieces at connectors. It changes a site's box (Kind::size and the site grid assume it's fixed) and there are no extra pieces yet; follow-up once pieces are painted.
+
+## Stage 3 polish (`refine/cave-assembler-polish`)
+* #41 merged at 69f367d (GitHub merged it over main's blast/ore change, 867dd17). Re-gated on that merged main.
+* Looked at a varied mine (var 512 at 80 m, `--canvas`): flipped (face, ballast and chute east; headframe, shaft ropes, carts and chest west by the adits) and the worked face caved in (the gravel block by the face that settles as rubble in play). As intended.
+* Wiki Testing lists the variation tests.
+* This round's queue is done: stages 1-3 and their polish. Not done, as agreed: connector stitching. Still open from before: the window's look is unverified (needs a person), and the mine upper deck is over capacity under the stress check (flagged in #36).
