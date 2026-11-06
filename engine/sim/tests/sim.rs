@@ -1610,3 +1610,20 @@ fn found_places_have_open_silhouettes_not_filled_boxes() {
     let mine = Site::new(1, Kind::Mine, 0, 0, 0, false, None);
     assert!(mine.cell(8 * CPM, 0).is_none(), "host above the mine drift roof");
 }
+
+/// Breath cues don't nag a mole bobbing at the surface: quick gulps lift its breath back over the line and it
+/// sinks again, but "running short" is said once per dive and only comes back after a real breather
+/// (`BREATH_REARM`, 70).
+#[test]
+fn breath_cue_is_once_per_dive_not_per_gulp() {
+    let (mut w, x0, y0) = arena();
+    for y in y0 - 6 * S..y0 { for x in x0 - 6 * S..x0 + 6 * S { let i = w.g.idx(x, y); w.g.set(i, Mat::Water); } }
+    let warned = |w: &World| w.log.iter().filter(|(_, l)| l.contains("above the water")).count();
+    let hold = |w: &mut World, n: usize| for _ in 0..n { w.moles[0].x = x0; w.moles[0].y = y0 - 1; w.step(); };
+    w.moles[0].breath = 36.; hold(&mut w, 40);
+    assert_eq!(warned(&w), 1, "warned when it ran short");
+    for _ in 0..8 { w.moles[0].breath += 6.; hold(&mut w, 30); }
+    assert_eq!(warned(&w), 1, "a gulp and back under is the same dive: no new warning");
+    w.moles[0].breath = 90.; hold(&mut w, 2); w.moles[0].breath = 36.; hold(&mut w, 40);
+    assert_eq!(warned(&w), 2, "after a real breather, the next dive warns again");
+}

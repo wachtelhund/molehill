@@ -233,3 +233,14 @@ cells from its own torches and glowing rock, one charge in the mine / pumpworks 
   4 m bay is its own dark box (a torch's light dies 3–5 m out; 98 % of a torch's 5.5–8.5 m ring is dark); the
   halt sheds 113 cells and 14 rumbles in 10 s with no charge; the pumpworks' west wall has an open gap at the
   sump's level, which would drain into open host rock.
+
+## Found-place mood: polish pass
+* Stills (native `--dump-art`, seed 4242): `--scene=mine` with and without `--shot-blast=6` shows the flash as
+  a warm lift round the blast under the dust, about half strength 0.1 s in, not a white-out; `--scene=crystal`
+  shows the salt hall's spires glowing cold cyan onto the back wall, no white blow-out.
+* Breath cues nagged a mole bobbing at the surface: a gulp refills 60 breath/s, so a second "running short"
+  came after a couple of gulps. Now each cue is said once per dive and re-arms only at BREATH_REARM (70).
+  Test breath_cue_is_once_per_dive_not_per_gulp (fails on the old rule).
+* Checked, no change: grottos under the soft glow (seeds 3, 11, 4242, 14085) mean luma 0.32 → 0.29, dark
+  share 14 → 13 %: dimmer and more even, not darker. A window slide clears blast records, so a flash never
+  shows in the wrong place after one.

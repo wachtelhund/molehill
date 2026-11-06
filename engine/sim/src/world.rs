@@ -63,6 +63,8 @@ pub struct Input { pub left: bool, pub right: bool, pub jump: bool, pub up: bool
 pub struct Player { pub px: f32, pub py: f32, pub ppx: f32, pub ppy: f32, pub sync: Option<(usize, usize)>, pub coyote: f32, pub buffer: f32, pub lock: f32, pub cling: i8, pub jump_was: bool, pub vx: f32, pub vy: f32, pub ax: f32, pub ay: f32, pub grounded: bool, pub fall_from: usize, pub mine: Option<(usize, u32, u32)>, pub spawn: (usize, i64), pub dead_t: u32, pub deaths: u32,
     /// hit flash (s left) after taking a knock; `hp_was` = hp after the last tick, to spot the knock
     pub flash: f32, pub hp_was: f32,
+    /// breath cues already given this dive (1 short, 2 out); cleared once breath is back to BREATH_REARM
+    pub breath_cued: u8,
     /// the material a dig was refused on during this press (too hard for the tools owned): clinks once per
     /// press and material, not per cell swept over; cleared on release or when a bite lands
     pub deny: Option<Mat>,
@@ -218,6 +220,8 @@ pub struct World {
 pub enum Picked { Dev(Dev), Torch, Wire, Furniture(Item), Transport(Item) }
 /// Breath (of 100) below which the mole gasps and the log warns (see `World::breath_cues`).
 pub const BREATH_LOW: f32 = 35.;
+/// Breath the cues re-arm at: a real breather, not a gulp at the surface.
+pub const BREATH_REARM: f32 = 70.;
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Event { Dig, Crumble, Crack, Place, Chest, Quest, Explode, Discover, Hurt, Craft, Eat, Death, Warning, Quake, Click, Harvest, Gasp, Lore }
 
@@ -719,14 +723,17 @@ impl World {
     }
     /// Breath you can hear: the mole gasps, and the log says why and what to do, when its breath first runs
     /// short (BREATH_LOW, about 4.5 s left under water) and again when it's gone and the hurt begins. Once per
-    /// crossing, so a long swim doesn't nag.
+    /// dive: neither repeats until the breath has recovered to BREATH_REARM.
     fn breath_cues(&mut self, b0: f32, b1: f32, wet: bool) {
-        if b0 >= BREATH_LOW && b1 < BREATH_LOW {
-            self.events.push(Event::Gasp);
+        // a gulp at the surface refills breath fast, so a mole bobbing about the line would cross it again
+        // and again: each cue is said once and only re-armed when the breath is well back (BREATH_REARM)
+        if b1 >= BREATH_REARM { self.pl.breath_cued = 0; }
+        if b0 >= BREATH_LOW && b1 < BREATH_LOW && self.pl.breath_cued < 1 {
+            self.pl.breath_cued = 1; self.events.push(Event::Gasp);
             self.say(if wet { "Breath running short: get your head above the water." } else { "The air is stale here and your breath is running short: get back to fresh air." }.into());
         }
-        if b0 > 0. && b1 <= 0. {
-            self.events.push(Event::Gasp);
+        if b0 > 0. && b1 <= 0. && self.pl.breath_cued < 2 {
+            self.pl.breath_cued = 2; self.events.push(Event::Gasp);
             self.say(if wet { "Out of breath: you're drowning. Swim up." } else { "Out of breath: the stale air is choking you." }.into());
         }
     }
