@@ -400,6 +400,12 @@ fn stage_scene(w: &mut World) {
                 let mut wx = bx - BORER_W / 2. - GAP - WAGON_W / 2.;
                 for (kind, cargo, water) in [(WagonKind::Water, vec![], 30.), (WagonKind::Coal, vec![(Item::Coal, 26)], 0.), (WagonKind::Store, vec![(Item::Stone, 60), (Item::CopperOre, 40)], 0.), (WagonKind::Workshop, vec![], 0.), (WagonKind::Bunk, vec![], 0.)] {
                     w.tr.wagons.push(Wagon { kind, x: wx, y: fy, px: wx, py: fy, vy: 0., coupled: true, parted: false, cargo, water }); wx -= WAGON_W + GAP; }
+                // a second borer near the west end facing west, a coal wagon coupled behind it (east of it): its bar must
+                // sit on its own puller's side, not the first borer's
+                let bx2 = (x0 + 8 * S) as f32;
+                w.tr.borers.push(Borer { x: bx2, y: fy, px: bx2, py: fy, vx: 0., vy: 0., dir: -1, fuel: vec![(Item::Coal, 6)], burning: Some(Item::Coal), burn: 2000, water: TANK, steam: STEAM_MAX, grind: 0., jammed: false });
+                let wx2 = bx2 + BORER_W / 2. + GAP + WAGON_W / 2.;
+                w.tr.wagons.push(Wagon { kind: WagonKind::Coal, x: wx2, y: fy, px: wx2, py: fy, vy: 0., coupled: true, parted: false, cargo: vec![(Item::Coal, 12)], water: 0. });
                 molehill_sim::light::reveal_box(&mut w.g, mx, y0 - 10 * S, x1 + 10 * S, my + 10 * S);
                 for k in 0..7 { w.torches.push((x0 + (4 + k * 10) * S, y0 + 2 * S)); }
             }
@@ -1503,7 +1509,10 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
             WagonKind::Store | WagonKind::Coal => { let h = (0.5 + 2.5 * full).min(3.); // heaped above the rim, taller as it fills
                 want.push((132, k, cell_to_world(x, top + 2. - h / 2.), 4.21, sp.wload[(wg.kind == WagonKind::Coal) as usize].clone(), Vec2::new(14., h * CPX), false, lit)); }
             _ => {} } }
-        if wg.coupled { want.push((133, k, cell_to_world(x + if w.tr.borers.first().map_or(1, |b| b.dir) > 0 { WAGON_W / 2. + GAP / 2. } else { -WAGON_W / 2. - GAP / 2. }, y - 2.5), 4.19, sp.coupling.clone(), Vec2::new(GAP * CPX + 2., 3.), false, lit)); }
+        // the bar is on the side toward the borer the wagon follows (the nearest one; not the first borer's facing, which
+        // put a second train's bars on the wrong side)
+        let side = w.tr.borers.iter().min_by(|p, q| (p.x - x).abs().total_cmp(&(q.x - x).abs())).map_or(1., |b| if b.x >= x { 1. } else { -1. });
+        if wg.coupled { want.push((133, k, cell_to_world(x + side * (WAGON_W / 2. + GAP / 2.), y - 2.5), 4.19, sp.coupling.clone(), Vec2::new(GAP * CPX + 2., 3.), false, lit)); }
     }
     // sluice gates: lifted, the leaf is drawn raised out of the opening (its cells are open then); its lever on the head
     // shows which way round it is (up: lifts when pulled; down: shuts when pulled)

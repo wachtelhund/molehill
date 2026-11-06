@@ -369,6 +369,17 @@ Polish only: no new systems, lore names kept. Each entry lists what changed and 
   moving); wagons coupled behind a borer facing west (the bar is placed by the borer's facing).
 * Test `wagons_have_their_own_silhouettes`.
 
+## Wagon art: polish (branch `refine/wagon-art-polish`)
+* Evidence: #68 hadn't shown wagons behind a borer facing west, and the coupling bar's side came from the *first*
+  borer's facing. `--scene=wagons` now also has a second borer facing west with a coal wagon coupled behind it. Its
+  bar was drawn on the far (east) side, pointing away from its puller.
+* Fix: the bar sits on the side toward the nearest borer (the one the wagon's train follows). In the still it now
+  joins the coal wagon to its west-facing borer.
+* Hauling in the running game (`--shot-walk`, frames 60 and 150): the borer cuts deeper into the face, spoil grows
+  behind it, and all five wagons follow with their bars coupled.
+* Stills only, no live window. Stills plus `wagons_have_their_own_silhouettes` cover both facings, the loads and
+  gauge, and the train moving.
+
 ## Open issues
 * `--shot` writes an empty frame on macOS when the game is launched from a background shell (the surface is
   never presented). It needs a visible window, or Linux with Xvfb.
