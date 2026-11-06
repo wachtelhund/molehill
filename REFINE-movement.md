@@ -105,6 +105,16 @@ Polish only: no new features or concepts. Each entry is one commit.
     `dig_down_shallow`, `dig_down_water`; test `tests/first_hour.rs` (fails without the rule: seed 9 burns).
     Message wording sits beside `dig_refusal` in `world.rs` (`HOLLOW`, `HOT`) for bugs-logic's message table.
 
+16. **Falling sand isn't a wall (Hampus's playtest, 2026-11-06).** The mole's collision box, wall-cling and
+    ledge checks treated every powder cell as solid, grains in mid-air included: a stream of sand pouring from
+    a slot could be clung to and climbed like a wall (the mole climbed it 3 m and hung there for good), stood on
+    in mid-air, and walked into as a wall (the mole stopped dead at the stream). Now `World::in_flight` (sand,
+    gravel or soil that moved in the last two CA steps, from the grid's `moved` stamps, with air or another
+    grain in flight under it) is ignored by `box_hits`, `side_wall_at` and `ledge` (`body_blocked`), and by the
+    burial check, so the mole passes and drops through a pour unhurt. Grains rolling down a pile have the pile
+    under them and still carry the mole, as do settled heaps. No shared flag: the grid already stamps each move.
+    Scenarios `falling_loose_no_climb` and `falling_loose_walk_under` (both fail with the rule off).
+
 ## Open issues
 * Walking off a ledge you dug open is still a free choice: a dug-open cave shows itself, and run/stop is
   instant, so I left ledge drops alone. Fissure sites (26 m, ledges every 6-7 m) still hurt at each ledge.
