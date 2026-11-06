@@ -8,6 +8,7 @@ Molehill is a falling-sand mole platformer and colony sim in Rust and Bevy 0.20.
   * `world.rs`: World, the player mole (`step_player`), mining and placing. `TUNE` holds every movement constant.
   * `mat.rs` is the material table: every material property and category lives in its row (`Props`). Rules read the table; don't add `matches!(m, Mat::A | Mat::B)` lists.
   * `survival.rs`: game modes (Survival, Creative, and Plain for tests) and their rules: start kit, tools you own, headlamp and torch fuel, the pack dropped at death. Scenarios set a mode with `mode survival`.
+  * `templates.rs`: found places as data (`assets/sites/*.json`, compiled in). `sites.rs` keeps the procedural reference; after changing a layout there, re-run `--example export_sites` (the golden test `templates_match_the_procedural_sites` fails until you do). See `docs/wiki/Site-Templates.md`.
   * `grid.rs` cells; `stress.rs` structure; `gen.rs` procgen; `light.rs`; `logic.rs` devices; `disasters.rs`; `craft.rs`; `band.rs` (the world off-window, in 64-row bands); `save.rs` (manifest + band blobs).
 * `engine/game` (`molehill`) is the Bevy front-end.
   * `main.rs`: input, the fixed 60 Hz sim step with render interpolation, the camera, rendering, sprites.
