@@ -606,6 +606,7 @@ impl World {
         self.step_player();
         self.step_transport();
         self.step_items();
+        self.step_wash();
         self.step_debris(); let now = self.tick; self.waves.retain(|v| v.live(now));
         if self.tick % 2 == 0 { self.step_moles(); }
         // a knock (fall, lava, being buried, drowning) flashes the mole and jolts the view in proportion
