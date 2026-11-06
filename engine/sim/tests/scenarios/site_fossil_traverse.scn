@@ -1,7 +1,7 @@
-// Into a fossil cave by its east mouth and west along the bone hall floor, hopping the ribs, unhurt. Layout
-// evidence (PR #8, sites.rs; see REFINE-movement.md): carrying on west, about 11 m from the west wall the
-// timber scaffold and the gravel over it come down on the mole about 6 s in and bury it (dead by ~10 s, breath
-// full: crushed, not smothered), so this walk stops short of it.
+// Into a fossil cave by its east mouth and west along the floor under the skull to the beast lying there,
+// unhurt. Climbing over its ribs to the chest (W, then S at the rope off its west end) is
+// `site_fossil_over_the_beast.scn`. (Before Hampus's "beast on the floor", 13:50, the hung skeleton and
+// scaffold came down on a mole walking on west about 11 m from the west wall.)
 map
 ################################################################################################################################################################
 ################################################################################################################################################################
@@ -93,5 +93,5 @@ hold 150-158 jump
 hold 190-198 jump
 hold 230-238 jump
 hold 270-278 jump
-expect 300 px < 85                // well into the hall
+expect 300 px < 100               // in under the skull, at the beast's east end
 expect 300 hp == 100

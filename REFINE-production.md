@@ -37,3 +37,19 @@ plus four recipes (Chute x8, Bumper x2, Shaker screen x4, Ore hopper). Costs are
 ### Left alone
 * Item-on-item stacking (piles, back-ups) isn't modelled yet. Stage 3 belts need it.
 * `sites.rs`: only `tip: 0` on its cart literal. No layout edits.
+
+## Stage 1 polish (branch `refine/production-polish`, after PR #9)
+
+I playtested the machines together in headless scenarios and probed the edges:
+* **Saved mid-tip (fixed):** a cart saved while tipping came back with 17 of its 20 stones and never tipped again. The tip
+  state isn't saved, and only a cart arriving with speed started a tip. Now a loaded cart standing against a bumper tips.
+  Scenario `cart_tip_resumes`.
+* **Mole beside the hopper (no change needed):** with the mole standing by an ore hopper, all 6 lumps went into the cart and
+  none into the pack, because released lumps carry a 20-tick pick-up hold that outlasts the 0.75 m fall. It is asserted in
+  `production_line`.
+* **The whole line (new scenario):** hopper → cart → powered stretch → slope → bumper tip → chute → steep shaker → two pits.
+  All 8 lumps sort correctly. Scenario `production_line`.
+* **Survival (new tests):** all four machines can be made in Survival, and their hover tips say what to do. Tests
+  `production_is_reachable_in_survival` and `production_hover_tips_say_what_to_do`.
+* **Noted for stage 2:** a shaker screen is a solid cell, so water doesn't run through it. Sluicing will need liquids to pass
+  screens and riffles.
