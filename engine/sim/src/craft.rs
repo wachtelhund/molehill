@@ -283,7 +283,7 @@ const ITEM_DEFS_CONST: [ItemDef; NITEM] = {
        "A crank-wound spring throws a stone hook on 16 m of rope. It bites solid rock, not loose ground.").dens(700.0)
        .controls("Left mouse: throw the hook at the cursor (uses a hook rope) · W on the rope: grab · W/S climb · A/D swing · Space: let go · E on a rope: take it back"),
     it(HookRope, "Hook rope", [196, 170, 112],
-       "A stone hook on 16 m of fungus-fibre rope, coiled for the rope gun. One per throw.").dens(500.0).throw(),
+       "A stone hook on 16 m of fungus-fibre rope, coiled for the rope gun. E takes a thrown one back.").dens(500.0).throw(),
     ]
 };
 /// Every item, in order.
@@ -398,9 +398,9 @@ pub static RECIPES: &[Recipe] = &[
     Recipe { name: "Beam wall x4", station: Station::Workbench, inputs: &[(Item::WoodPillar, 1)], out: (Item::BeamWall, 4), ticks: 60 },
     Recipe { name: "Masonry wall x8", station: Station::Forge, inputs: &[(Item::Brick, 2)], out: (Item::MasonryWall, 8), ticks: 90 },
     Recipe { name: "Pipe wall x4", station: Station::Forge, inputs: &[(Item::CopperIngot, 1)], out: (Item::PipeWall, 4), ticks: 90 },
-    // the rope gun (ropes.rs): the spring and stock, and the hook ropes it throws (one per shot)
+    // the rope gun (ropes.rs): the spring and stock, and the hook ropes it throws (reusable: `E` takes a rope back)
     Recipe { name: "Rope gun", station: Station::Workbench, inputs: &[(Item::Wood, 2), (Item::Stone, 3), (Item::Fungus, 2)], out: (Item::RopeGun, 1), ticks: 120 },
-    Recipe { name: "Hook rope x2", station: Station::Workbench, inputs: &[(Item::Fungus, 2), (Item::Stone, 1)], out: (Item::HookRope, 2), ticks: 60 },
+    Recipe { name: "Hook rope", station: Station::Workbench, inputs: &[(Item::Fungus, 3), (Item::Stone, 1)], out: (Item::HookRope, 1), ticks: 60 },
     Recipe { name: "Rope ladder", station: Station::Workbench, inputs: &[(Item::Wood, 2), (Item::Fungus, 2)], out: (Item::RopeLadder, 1), ticks: 90 },
     // the oil press: a bench presses fungus better than the pack does on the go (3 make 2 measures, where the
     // pack takes 2 a measure), and a mushroom farm's crop can feed the lamp instead of the belly

@@ -74,7 +74,7 @@ Cheap vertical access that needs no power.
 ## Rope gun
 
 The way up a face: the mole **can't climb bare walls** (Hampus, 2026-11-06; scenario `no_wall_climb`). A jump rolls over a ledge up to about 2 m (`TUNE.ledge`, scenario `mantle`); higher, hang a rope ladder from above, or throw a rope up with the rope gun. Code: `ropes.rs`.
-* **Making it.** Workbench: the gun from 2 wood, 3 stone and 2 fungus (a crank-wound spring in a root-wood stock); hook ropes 2 at a time from 2 fungus and 1 stone (a stone hook on 16 m of fungus-fibre rope). It's a first-hour make: wood, stone and fungus are all to hand by the workbench quest (`first_hour_without_wallclimb`).
+* **Making it.** Workbench: the gun from 2 wood, 3 stone and 2 fungus (a crank-wound spring in a root-wood stock); a hook rope from 3 fungus and 1 stone (a stone hook on 16 m of fungus-fibre rope; reusable gear, priced like a rope ladder). It's a first-hour make: wood, stone and fungus are all to hand by the workbench quest (`first_hour_without_wallclimb`).
 * **Throwing.** Left mouse with the gun in hand throws the hook at the cursor, however far, and uses one hook rope. It flies at 20 m/s and falls at 9.81 m/s², paying the rope out behind it.
 * **Biting.** The hook bites **solid, settled rock or any built block** and holds there for good. It glances off sand, gravel and loose rubble (spent: it bites nothing after), and sinks in water or lava; then the hook rope falls where the hook stopped, to be picked up again. Past 16 m from the gun the rope runs out and the hook drops short (`rope_gun_anchor_stone`).
 * **The rope** is a chain of 32 half-metre segments moved by verlet: it hangs, goes slack, lies over the rock it touches and swings with the mole on it. Grains falling past don't hold it up. It is saved with the world (transport save v5).
@@ -86,7 +86,7 @@ The way up a face: the mole **can't climb bare walls** (Hampus, 2026-11-06; scen
 | rope | 16 m (a big hall's ceiling from its floor), 32 segments of 0.5 m |
 | hook | 20 m/s, falls at 9.81 m/s²; bites solid rock and blocks only |
 | climb | 2 m/s up, 3 m/s down; swing push 16 m/s² |
-| cost | gun: 2 wood + 3 stone + 2 fungus; 2 hook ropes: 2 fungus + 1 stone (workbench) |
+| cost | gun: 2 wood + 3 stone + 2 fungus; hook rope: 3 fungus + 1 stone (workbench) |
 
 ## Lifts
 
@@ -122,7 +122,7 @@ A sealed pipe network that blows capsules along it with air.
 |---|---|---|---|
 | Workbench | rope ladder | 2 wood + 2 fungus | 1 |
 | Workbench | rope gun | 2 wood + 3 stone + 2 fungus | 1 |
-| Workbench | 2 hook ropes | 2 fungus + 1 stone | 1 |
+| Workbench | hook rope | 3 fungus + 1 stone | 1 |
 | Forge | 8 rail | 1 copper ingot + 1 wood | 2 |
 | Forge | mine cart | 2 copper ingots + 4 wood | 2 |
 | Workshop | lift | 2 iron ingots + 4 wood + 1 copper ingot | 3 |

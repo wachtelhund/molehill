@@ -167,7 +167,7 @@ Polish only: no new features or concepts. Each entry is one commit.
     ledges up to about 2 m (a full jump rises about 1.25 m); the ground step stays 0.5 m. A ledge with rock rising
     again just past it (a staircase) now counts, where before it was a recess you climbed on past. Above that:
     rope ladders, and the new **rope gun** (`ropes.rs`), made at the workbench in the first hour (2 wood, 3 stone,
-    2 fungus; 2 hook ropes from 2 fungus and 1 stone; numbers checked with p7). Left mouse throws a hook at
+    2 fungus; a hook rope from 3 fungus and 1 stone, reusable: numbers set with p7). Left mouse throws a hook at
     20 m/s under gravity, the rope paying out behind it; it bites solid settled rock or a block and stays (saved,
     transport v5), glances off loose ground (spent) and sinks in water, leaving the hook rope where it stopped;
     the rope is 32 verlet segments of 0.5 m (16 m: the pumpworks hall's ceiling is 15.5 m over its floor, which a

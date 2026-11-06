@@ -175,7 +175,7 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `no_wall_climb.scn` | No wall climbing: in a 6 m chimney 2 m wide, W and Space held into a wall, and jumps from wall to wall, never rise above a jump (6.5 tiles), never cling; back on the floor unhurt |
 | `rope_gun_anchor_stone.scn` | The rope gun's hook glances off a heap of sand and sinks in a pool (no rope; the hook rope lies where it stopped), bites a granite ceiling 7.5 m up (the rope stays through a save and load), and when that rock is blown away the rope comes down as a hook rope |
 | `rope_gun_climb.scn` | At a bare 4.5 m cliff's foot: the hook up into the ceiling, W grabs, W climbs at 2 m/s, D at the top steps off onto the ledge; full health |
-| `first_hour_without_wallclimb.scn` | Survival, under a 4 m granite shaft: no way up by hand; from first-hour stuff a workbench, the rope gun and two hook ropes; the hook up the shaft, climb, step off onto the upper floor unhurt |
+| `first_hour_without_wallclimb.scn` | Survival, under a 4 m granite shaft: no way up by hand; from first-hour stuff a workbench, the rope gun and a hook rope; the hook up the shaft, climb, step off onto the upper floor unhurt |
 | `no_ceiling_climb.scn` | Jumping into a low ceiling while holding sideways and `W` never clings; the mole falls back down |
 | `survival_kit.scn` | Survival's start kit; only owned tools dig (granite holds against a pickaxe); a save keeps the mode |
 | `survival_food.scn` | Hunger drains; the Delver eats grubs then roots below 40; starving hurts; root tangles give roots; the log says each meal with what's left, and an empty pack once |

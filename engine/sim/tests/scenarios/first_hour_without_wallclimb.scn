@@ -1,8 +1,8 @@
 // The first hour without wall climbing (Hampus 2026-11-06). A Survival mole is in a chamber under a 4 m shaft
 // with bare granite sides (the pickaxe can't cut granite). It can't jump or climb out. From what the first hour
 // gives (wood from the kit, stone, fungus) it builds a workbench, makes the rope gun (2 wood, 3 stone, 2 fungus)
-// and two hook ropes (2 fungus, 1 stone), throws a hook up the shaft into the upper chamber's ceiling, climbs
-// the rope and steps off onto the upper floor, unhurt. The second hook rope is left over.
+// and a hook rope (3 fungus, 1 stone), throws the hook up the shaft into the upper chamber's ceiling, climbs
+// the rope and steps off onto the upper floor, unhurt.
 mode survival
 map
 ########################################
@@ -44,12 +44,13 @@ map
 end
 set 1 inv:Wood 6
 set 1 inv:Stone 8
-set 1 inv:Fungus 4
+set 1 inv:Fungus 5
 station 2 -11 0 Workbench
 craft 5 Rope_gun
-craft 6 Hook_rope_x2
+craft 6 Hook_rope
 expect 10 inv:RopeGun == 1
-expect 10 inv:HookRope == 2
+expect 10 inv:HookRope == 1
+expect 10 inv:Fungus == 0
 expect 10 inv:Wood == 0          // 4 for the workbench, 2 for the gun
 // no way up by hand: under the shaft, W and Space held only ever reach a jump's height
 hold 20-140 up jump
@@ -59,7 +60,7 @@ expect 140 grounded == 1
 // the rope gun: the hook goes 6 m up the shaft into the upper chamber's ceiling and bites the granite
 fire 150 0 -33
 expect 200 ropes == 1
-expect 200 inv:HookRope == 1
+expect 200 inv:HookRope == 0
 hold 200-430 up right             // W grabs and climbs; D at the shaft's lip steps off onto the upper floor
 expect 430 onrope == 0
 expect 430 grounded == 1

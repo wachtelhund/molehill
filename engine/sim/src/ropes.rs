@@ -47,7 +47,7 @@ impl World {
     pub fn fire_rope_gun(&mut self, aim: (f32, f32)) -> Result<(), &'static str> {
         if self.moles.first().map_or(true, |m| !m.alive) { return Err("not now"); }
         if self.inv[Item::RopeGun as usize] == 0 { return Err("no rope gun"); }
-        if self.inv[Item::HookRope as usize] == 0 { return Err("no hook rope left (workbench: 2 fungus, 1 stone)"); }
+        if self.inv[Item::HookRope as usize] == 0 { return Err("no hook rope left (workbench: 3 fungus, 1 stone)"); }
         if self.tr.hook.is_some() { return Err("the hook is still flying"); }
         let (ox, oy) = hand(self.pl.px, self.pl.py);
         let (dx, dy) = (aim.0 - ox, aim.1 - oy); let d = (dx * dx + dy * dy).sqrt(); if d < 0.5 { return Err("aim away from the mole"); }
