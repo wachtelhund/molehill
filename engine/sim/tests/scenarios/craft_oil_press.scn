@@ -1,0 +1,31 @@
+// The oil press: at a workbench 3 fungus press into 2 measures of fungus oil (the pack, on the go, takes 2
+// a measure), and 2 mushrooms from a farm press into 1. Away from a bench nothing is pressed.
+map
+BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+#......................................#
+#......................................#
+#......................................#
+#......................................#
+#......................................#
+#......................................#
+#......................................#
+#......................................#
+#......................................#
+#..................@...................#
+########################################
+end
+mode survival
+give Fungus 7
+give Mushroom 2
+give Stone 4
+craft 3 Fungus_oil_x2
+expect 4 inv:FungusOil == 2            // the kit's 2: no bench yet
+station 5 2 0 Workbench
+craft 7 Fungus_oil_x2
+expect 8 inv:FungusOil == 4
+expect 8 inv:Fungus == 4
+craft 9 Fungus_oil_(mushroom)
+expect 10 inv:FungusOil == 5
+expect 10 inv:Mushroom == 0
+craft 11 Fungus_oil_(mushroom)
+expect 12 inv:FungusOil == 5           // no mushrooms left

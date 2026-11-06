@@ -253,6 +253,10 @@ pub static RECIPES: &[Recipe] = &[
     Recipe { name: "Masonry wall x8", station: Station::Forge, inputs: &[(Item::Brick, 2)], out: (Item::MasonryWall, 8), ticks: 90 },
     Recipe { name: "Pipe wall x4", station: Station::Forge, inputs: &[(Item::CopperIngot, 1)], out: (Item::PipeWall, 4), ticks: 90 },
     Recipe { name: "Rope ladder", station: Station::Workbench, inputs: &[(Item::Wood, 2), (Item::Fungus, 2)], out: (Item::RopeLadder, 1), ticks: 90 },
+    // the oil press: a bench presses fungus better than the pack does on the go (3 make 2 measures, where the
+    // pack takes 2 a measure), and a mushroom farm's crop can feed the lamp instead of the belly
+    Recipe { name: "Fungus oil x2", station: Station::Workbench, inputs: &[(Item::Fungus, 3)], out: (Item::FungusOil, 2), ticks: 60 },
+    Recipe { name: "Fungus oil (mushroom)", station: Station::Workbench, inputs: &[(Item::Mushroom, 2)], out: (Item::FungusOil, 1), ticks: 60 },
     Recipe { name: "TNT", station: Station::Workbench, inputs: &[(Item::Coal, 2), (Item::Sand, 2)], out: (Item::Tnt, 1), ticks: 90 },
     // forge: heat. Smelting, firing, metalwork (tier 2 copper and bronze, tier 3 iron, and the Bore)
     Recipe { name: "Brick x4", station: Station::Forge, inputs: &[(Item::Clay, 2)], out: (Item::Brick, 4), ticks: 120 },
@@ -281,6 +285,26 @@ pub static RECIPES: &[Recipe] = &[
     Recipe { name: "Knot", station: Station::Workshop, inputs: &[(Item::CopperIngot, 1), (Item::Quartz, 1)], out: (Item::Gate, 1), ticks: 100 },
     Recipe { name: "Thrummer", station: Station::Workshop, inputs: &[(Item::Crystal, 2), (Item::CopperIngot, 2), (Item::Glass, 1)], out: (Item::Thrummer, 1), ticks: 200 },
 ];
+/// What the ground has to give for `n` of `it`, made from nothing the cheapest way (fewest raw items in
+/// all): raw items (those no recipe makes) by index, counting a coal per forge job, as a cold forge burns
+/// one (with lava in reach it burns nothing). Stations aren't counted: add `bill_of_station`.
+pub fn raw_bill(it: Item, n: u32) -> [u32; NITEM] {
+    let mut b = [0u32; NITEM]; add_bill(it, n, &mut b, 0); b
+}
+/// The raw bill of building a station (its cost, made from nothing).
+pub fn bill_of_station(s: Station) -> [u32; NITEM] {
+    let mut b = [0u32; NITEM]; for &(it, n) in s.cost() { add_bill(it, n, &mut b, 0); } b
+}
+fn add_bill(it: Item, n: u32, b: &mut [u32; NITEM], depth: u32) {
+    if n == 0 { return; }
+    let best = RECIPES.iter().filter(|r| r.out.0 == it && depth < 4).min_by_key(|r| {
+        let mut t = [0u32; NITEM]; add_job(r, 1, &mut t, depth); t.iter().sum::<u32>() * 1000 / r.out.1.max(1) });
+    match best { Some(r) => add_job(r, n.div_ceil(r.out.1), b, depth), None => b[it as usize] += n }
+}
+fn add_job(r: &Recipe, jobs: u32, b: &mut [u32; NITEM], depth: u32) {
+    for &(i, k) in r.inputs { add_bill(i, k * jobs, b, depth + 1); }
+    if r.station == Station::Forge { b[Item::Coal as usize] += jobs; }
+}
 /// The recipe with this name (scenarios, UI).
 pub fn recipe_by_name(n: &str) -> Option<usize> { RECIPES.iter().position(|r| r.name.eq_ignore_ascii_case(n)) }
 
