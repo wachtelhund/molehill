@@ -393,6 +393,30 @@ Polish only: no new systems, lore names kept. Each entry lists what changed and 
   coupling were fixed in #66/#69.
 * Not tested: a live window or a playtest. Everything here was checked through `--dump-art` stills and tests.
 
+## Climbing art (branch `refine/climb-art`, Hampus's playtest note 23:55)
+* The climb pose was two side-on frames turned nose-up, left from wall climbing (gone since #32), and the held tool
+  was still drawn while climbing (the check was `cling == 0`, always true now). Rope ladders were 1-px lines.
+* Coordinated with movement (p1, reworking lift and ladder placement): they don't touch the pose selection, the rope
+  or rope-ladder drawing, or art.rs, and the `Ladder` and rope data keep their shape. State read: `tr.climbing`,
+  `tr.on_rope`, `pl.vy`, `pl.mantle` (top-out), `ropes::hand` and the hook for the swing angle.
+* The mole on a rope or ladder is drawn from behind (frames 13–20, 20×26):
+  * a four-frame hand-over-hand cycle, one frame per cell climbed, so it keeps pace at 2 m/s on a rope and
+    3 m/s on a ladder;
+  * two hang frames, a slide frame (paws clamped, let down fast) and a grab (the first 0.15 s of holding on, and
+    stepping off at the foot);
+  * rolling over the top ledge, the side-on reaching frame tilted 0.6 rad nose-up;
+  * on a rope the sprite turns to the line from the hook to the hands, so it tilts with the swing.
+  * Nothing is held while climbing, and the headlamp halo is hidden (the lens faces away).
+* The first back-view frames hid the arms behind the hat (sprite dump), so the arms now run up beside the head and
+  are drawn last. In the dump the paws alternate across the cycle.
+* Models: rope ladders have twisted fibre side ropes in half-metre lengths and lashed timber rungs (`art::rung`); a
+  fixed rope's hook and a ladder's head show a chipped, cracked scar in the stone (`art::hook_bite`).
+* `--scene=climb` / `climb-rope` in the running game: the mole hangs on the ladder with its paws on the rungs above its
+  head, and on the rope it swings tilted along the line, with the rope sagging below.
+* Not seen in the running game: the climb cycle, slide and top-out need held W/S, and movement's `--shot-up/down`
+  flags haven't landed. Those poses are checked by the sprite dump and `climbing_frames_go_hand_over_hand` only. No
+  live window.
+
 ## Open issues
 * `--shot` writes an empty frame on macOS when the game is launched from a background shell (the surface is
   never presented). It needs a visible window, or Linux with Xvfb.
