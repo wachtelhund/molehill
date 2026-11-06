@@ -123,3 +123,33 @@ fn a_flipped_preview_paints_the_template() {
     assert_eq!(t.cell(t.w - 1 - 20, 60, 0, false), Some(Mat::Basalt), "painted on the template's own side");
     assert_eq!(t.placed_cell(20, 60, e.placement()), Some(Mat::Basalt), "and shown where it was painted");
 }
+
+#[test]
+fn every_row_fits_the_panel() {
+    // a row longer than the panel used to wrap onto the row below it in the window (seen on a `--shot` frame)
+    let long = |e: &Editor, slots: &[(String, String)], when: &str| {
+        for r in e.rows(slots) { assert!(r.text.chars().count() <= PANEL_CHARS, "{when}: {:?} is {} characters, the panel holds {PANEL_CHARS}", r.text, r.text.chars().count()); }
+    };
+    for fam in 0..7 {
+        let mut e = Editor::new(fam).unwrap();
+        for keys in ["", "l", "t", "c", "r", "p", "g", "B", "BB", "n", "e", "]]]]]]]]"] {
+            for k in keys.chars() { e.key(&k.to_string()); }
+            let t = e.doc.template().unwrap();
+            let slots = e.slot_choices(&t);
+            long(&e, &slots, &format!("family {fam} after {keys:?}"));
+        }
+        for k in 0..e.pal_len() { e.run(Act::Pal(k)); long(&e, &[], &format!("family {fam} palette {k}")); }
+    }
+}
+
+#[test]
+fn a_cleared_check_takes_its_message_with_it() {
+    // seen on a `--shot` frame: R, then B, left "Walkable ... (green)" in the panel over a canvas with no green
+    let mut e = Editor::new(5).unwrap();
+    for (then, what) in [("b", "the variant"), ("n", "the side"), ("e", "the depth"), ("esc", "Esc")] {
+        e.key("r");
+        assert!(e.msg.starts_with("Walkable"), "{}", e.msg);
+        e.key(then);
+        assert!(!e.msg.contains("green"), "after {what} the panel still describes the check: {}", e.msg);
+    }
+}

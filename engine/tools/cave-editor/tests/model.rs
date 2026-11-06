@@ -99,8 +99,20 @@ fn checks_run_the_real_sim() {
     for y in 0..d.h as i64 { d.paint(d.w as i64 / 2, y, 3., Brush::Mat(Some(Mat::Granite))); }
     assert!(!reach(&d.template().unwrap(), Placement { var: 0, left: false, depth: 50. }).unwrap().problems.is_empty(), "a wall across the hall is caught");
     let s = simulate(templates::get(Kind::Pumpworks), Placement { var: 0, left: false, depth: 50. }, 120).unwrap();
-    assert_eq!(s.cells.len(), s.cells.len());
     assert!(s.hp > 90., "the mole stands by the pumpworks chest unhurt: {}", s.hp);
+}
+
+#[test]
+fn a_run_shows_the_piece_it_ran() {
+    // `G` runs 600 ticks. The sim slides its window after the mole, and the piece sits near the window's
+    // bottom: a run once read back the rows the slide brought in (generated holt) as "the piece afterwards"
+    for &k in &families() {
+        let t = templates::get(k);
+        let s = simulate(t, Placement { var: 0, left: false, depth: 50. }, 600).unwrap();
+        let n = t.w * t.h;
+        eprintln!("{k:?}: {} of {n} cells changed, {} crumbled, hp {}", s.changed, s.crumbled, s.hp);
+        assert!(s.changed * 10 < n, "{k:?}: {} of {n} cells changed in 10 s; the run isn't showing the piece", s.changed);
+    }
 }
 
 #[test]
