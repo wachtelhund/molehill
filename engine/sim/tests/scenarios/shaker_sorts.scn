@@ -1,0 +1,47 @@
+// A shaker screen sorts by size. Gravel and copper ore tipped onto the top of a gentle (1-in-4) iron screen:
+// the gravel is finer than the mesh and drops straight through into the pit under it; the ore lumps lie on
+// the grating, which grips too well for that slope. Throw the lever: copperline current along the screen
+// works its knocker, the grip goes, and the ore walks down the screen and off its end into the far pit. No
+// ore ends up with the gravel, and no gravel with the ore. The screen itself holds (it is built, resting on
+// the rock at its top and a post at its foot). The lever stands in a niche by the top; the mole watches from a
+// pocket under the pit.
+map
+##################################################
+#................................................#
+#................................................#
+#................................................#
+#..........HHHHH.................................#
+######....##...HHHHH.............................#
+######....#........HHHHH.........................#
+######....#............HHHH......................#
+###########..............##......................#
+###########..............##......................#
+###########..............##......................#
+##################################################
+##################################################
+#############.....################################
+#############.....################################
+#############.....################################
+#############.@...################################
+##################################################
+end
+give CopperWire 20
+device 2 -8 -12 Lever
+wire 2 -8 -12 12 -12
+drop 5 Gravel -1 -15
+drop 5 CopperOre 0 -15
+drop 15 Gravel 0 -15
+drop 15 CopperOre -1 -15
+drop 25 Gravel -1 -15
+drop 25 CopperOre 0 -15
+expect 120 zone:Gravel,-3,10,-11,-6 == 3       // the gravel dropped through, into the pit under the screen
+expect 120 zone:CopperOre,-3,1,-14,-12 == 3    // the ore lies on the top of the screen
+expect 120 shaking:2,-11 == 0
+expect 120 static:Screen == 19
+use 130 -8 -12                                 // lever on: the screen shakes
+expect 131 shaking:2,-11 == 1
+expect 400 zone:CopperOre,13,34,-8,-6 == 3     // the ore walked off the end into the far pit
+expect 400 zone:CopperOre,-14,12,-16,-1 == 0
+expect 400 zone:Gravel,13,34,-16,-1 == 0
+expect 400 zone:Gravel,-3,10,-11,-6 == 3
+expect 400 static:Screen == 19

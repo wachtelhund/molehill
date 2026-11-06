@@ -1,0 +1,27 @@
+// A loose stone dropped at the top of a timber chute that falls 1 in 2 slides down it and runs out onto the
+// floor past its foot. The same stone on a bare granite staircase of the same slope stays on its step, and on
+// a level chute it lies where it lands: a chute moves things only where it slopes.
+map
+############################################################
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#.....hh....................##...................hhhhhh....#
+#.....##hh..................####.................######....#
+#.....####hh................######.................##......#
+#.....######hh..............########...............##......#
+#.....########hh............##########............##......#
+#.....##########hh..........############...........##......#
+#.@...############hh........##############.........##......#
+############################################################
+end
+drop 2 Stone 5 -8                 // over the top of the chute
+drop 2 Stone 27 -8                // over the top of the granite steps
+drop 2 Stone 50 -9                // over the level chute
+ascii 200
+expect 8 zone:Stone,4,7,-12,-5 == 1      // landed at the top of the chute...
+expect 200 zone:Stone,18,26,-2,0 == 1    // ...and slid down it onto the floor past its foot
+expect 200 zone:Stone,26,29,-12,-5 == 1  // the bare steps hold it near their top
+expect 200 zone:Stone,48,53,-12,-5 == 1  // the level chute holds it
+expect 240 irest:Stone == 1
