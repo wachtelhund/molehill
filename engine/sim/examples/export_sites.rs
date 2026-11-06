@@ -151,7 +151,7 @@ fn export(kind: Kind) -> SiteFile {
     if side_slot.is_some() { conns.extend(connectors(w, h, &encoded(kind, &base_k, true), Some(When { slot: "side".into(), option: 1 }))); }
     let rows = |g: &[char]| g.chunks(w).map(|r| rle_encode(r.iter().copied())).collect::<Vec<_>>();
     SiteFile {
-        format: FORMAT, family: templates::file_name(kind).into(), cpm: CPM, size: [w, h], palette,
+        format: FORMAT, source: "export".into(), family: templates::file_name(kind).into(), cpm: CPM, size: [w, h], palette,
         cells: rows(&base), linings, lining: rows(&lining), roles, slots,
         chest: Site::chest_reference(kind, false).map(|c| [c.0, c.1]), things, connectors: conns,
     }
@@ -192,6 +192,7 @@ fn verify(kind: Kind, f: &SiteFile) -> Result<(), String> {
 
 fn main() {
     let check = std::env::args().any(|a| a == "--check");
+    let force = std::env::args().any(|a| a == "--force");
     let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets/sites");
     std::fs::create_dir_all(&dir).unwrap();
     let mut stale = 0;
@@ -200,6 +201,11 @@ fn main() {
         if let Err(e) = verify(kind, &f) { eprintln!("FAIL {name}: the export doesn't reproduce the reference: {e}"); std::process::exit(1); }
         let json = templates::to_json(&f);
         let path = dir.join(format!("{name}.json"));
+        let owned = std::fs::read_to_string(&path).ok().and_then(|t| serde_json::from_str::<SiteFile>(&t).ok()).is_some_and(|f| f.from_editor());
+        if owned && !force {
+            println!("KEPT {name} (painted in the cave editor; `-- --force` overwrites it with the sites.rs layout)");
+            continue;
+        }
         if check {
             let same = std::fs::read_to_string(&path).map_or(false, |old| old == json);
             println!("{} {name}", if same { "SAME" } else { "STALE" });
