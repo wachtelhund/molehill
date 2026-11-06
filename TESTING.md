@@ -143,6 +143,8 @@ Map legend: `t` roots (a root tangle), `f` fungus, `.` empty, `#` granite, `B` b
 | `ladders` / `climbing` | Rope ladders hung; whether the mole is on one |
 | `ropes` / `hook` / `onrope` / `ropex` / `ropey` | Rope-gun ropes fixed in the rock; a hook in flight (1); the mole on a rope (1); the first rope's hook (tiles from the map corner) |
 | `lifts` / `lifty` / `liftv` / `ballast` | Lifts; the first one's cage floor (tiles from the map top), speed (tiles/s, + = down) and stones of ballast |
+| `stops` / `liftstop` / `liftw` / `liftx` / `liftpow` / `liftover` | The first lift's stops and the one it stands at (0 = top, -1 between), cage width and middle (tiles), current at its head, kg the cage is over its counterweight |
+| `ladderx` / `laddertop` / `ladderlen` | The first rope ladder's column, top row (tiles from the map corner) and length (tiles) |
 | `hoppers` / `capsules` / `capat` / `intube` / `pressure` | Tube hoppers; capsules in the pipe and how far along its pipe the first is (0..1); whether the mole rides one; whether the first hopper's line holds pressure |
 | `cargo` / `cartrail` / `cartgap` / `riding` | The first cart's cargo (items), whether it is on the rails, how far it is ahead of the mole (tiles), whether the mole rides a cart |
 | `debris` / `debris:Mat` | Cells a blast threw that are still in flight (tiles), all or of one material |
@@ -265,7 +267,11 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `rope_ladder_down.scn` | On a 7.5 m cliff beside the ladder's head, `S` steps onto the rope (`ladder_down`: the game's S doesn't dig) and climbs down at 3.5 m/s; no fall damage at the foot (30 hp before the fix) |
 | `rope_ladder_shaft.scn` | A rope hung from a shaft's ceiling: grabbed at the foot, climbed to the top where the mole hangs still under the ceiling, then `W`+`D` carries it off sideways at 2 m/s into the side passage |
 | `rope_ladder_let_go.scn` | Hanging on a ladder, `D` alone lets go at once and runs off at full speed; `W` catches the rope again mid-fall; a jump lets go as a real jump |
-| `lift_counterweight.scn` / `lift_powered.scn` | A cage with the mole sits at the foot until six stones of ballast outweigh it, then rises (brake-limited) carrying the mole; ballast off and it sinks; saved. Current at the head winds it up with no ballast |
+| `lift_ride_stops.scn` | Cursor anywhere in a 2 m shaft with three passages: the cage snaps to the shaft (1.875 m, centred) with 4 stops. From the foot a tap on `W` stops level at the next passage, held runs through the next stop without slowing to the top, a tap on `S` goes one down, the mole walks off unhurt; width and stops saved |
+| `lift_call.scn` | In a side passage a fresh `W` calls the cage up to that stop (no jump); on it `S` rides it down |
+| `lift_balance.scn` | Four stones on the cage with the mole (70 kg over) are too heavy to haul (said; the brake holds); right mouse balances it with 7 stones from the pack and it rides |
+| `lift_powered.scn` | The same overload rides on current at the head (1.5 m/s, the copperline in a block of the head frame beside its middle); lever off, too heavy again |
+| `ladder_place_snap.scn` | A rope ladder aimed into rock is refused; aimed 1 m out from a cliff's face it ties on at the lip, hangs against the face and unrolls 4.5 m to the floor |
 | `tube_sends_items.scn` | A stone dropped in a hopper sits there until its blower gets current; then it is blown along the floor and up a 3 m riser in a capsule and comes out of the far hopper; hoppers are saved |
 | `tube_breach.scn` | Cut the riser while a capsule is in it: it stops at the cut and spills there |
 | `tube_rides_mole.scn` | Right mouse with an empty paw on a blowing hopper: the mole rides the capsule and climbs out up on the ledge, unhurt |

@@ -90,7 +90,7 @@ One row per item in the item registry (`ITEM_DEFS` in `craft.rs`, read through `
 | Store, workshop, bunk, water or coal wagon | left mouse: set it down (behind a borer it couples on); right mouse climbs in or out; walk into a loose one to shove it; see [Production](Production.md#wagons) for what each does | no | `E` unloads it, then uncouples it, then picks it up |
 | Ore hopper | left mouse over the track: both legs need a floor | no | `E` empties its load into the pack, then picks up the empty hopper |
 | Tube hopper | left mouse on a tube (drop items in to send; right mouse: ride, or pick where it sends) | no | yes |
-| Lift | left mouse in a shaft: the head hangs under its ceiling (right mouse on head or cage: stone ballast on or off) | no | yes, with its ballast |
+| Lift | left mouse in a shaft: snaps to the shaft (a ghost shows the cage, its stops and the counterweight); `W` / `S` ride or call it; right mouse on head or cage balances it with stone | no | yes, with its ballast |
 | Lamp, vent; levers, knots, thrummers and other devices | left mouse, or right mouse on an empty spot | no | yes |
 | Spore | left mouse (plant on soil) | yes | no |
 | Loose materials, ingots, charcoal, grubs, mushrooms, roots, fungus oil | no | yes | (lying loose: walk over it) |

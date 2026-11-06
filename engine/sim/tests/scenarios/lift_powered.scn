@@ -1,38 +1,67 @@
-// A lift wound by power: copperline at its head carrying current turns the winch, which winds the cage up at
-// 1.5 m/s with no ballast at all (the cage and mole outweigh the bare counterweight). Lever off and the
-// balance takes over: the heavier cage sinks back to the foot.
+// A lift on current: copperline at its head carrying current turns the winch, which hauls any load at 1.5 m/s
+// on the same keys. Four stones on the cage (with the mole, 70 kg over the bare counterweight) are past what
+// the mole's arms haul, but with the lever on, W still takes it up; lever off, it's too heavy again. A 4 m
+// shaft with a passage at its foot: two stops (the top and the floor).
 map
 ##############################
 ##############################
-#########............#########
-#########............#########
-#########............#########
-#########............#########
-#########............#########
-#########............#########
-#########............#########
-#########............#########
-#########............#########
-#########............#########
-#########............#########
-#########............#########
-#########............#########
-#########............#########
-#########..@.........#########
+##############################
+##############################
+##########........############
+##########........############
+##########........############
+##########........############
+##########........############
+##########........############
+##########........############
+##########........############
+##########........############
+##########........############
+##########........############
+##########........############
+##########.................###
+##########.................###
+##########.................###
+##########............@....###
 ##############################
 ##############################
 end
 give Lift 1
-give CopperWire 4
-place 2 4 -2 Lift
-wire 2 4 -14 8 -14                // copperline at the head, along under the ceiling and down the wall
-wire 2 8 -14 8 -10
-device 2 8 -10 Lever
-hold 5-20 right                   // onto the cage
-expect 60 liftv == 0
-use 61 8 -10                      // lever on
-expect 100 liftv < -5             // winding up at 1.5 m/s (6 tiles/s)
-expect 300 lifty < 5              // up at the head
-expect 300 py < 5                 // with the mole
-use 301 8 -10                     // lever off
-expect 600 lifty > 14             // down at the foot again
+give CopperWire 20
+place 2 -8 -4 Lift
+// copperline from the head along under the ceiling, down the shaft's side and out to a lever (a tile at a time)
+wire 2 -8 -15
+wire 2 -7 -15
+wire 2 -6 -15
+wire 2 -5 -15
+wire 2 -5 -13
+wire 2 -5 -11
+wire 2 -5 -9
+wire 2 -5 -7
+wire 2 -5 -5
+wire 2 -5 -3
+wire 2 -5 -1
+wire 2 -5 -1
+wire 2 -4 -1
+wire 2 -3 -1
+wire 2 -2 -1
+device 2 -2 -1 Lever
+expect 3 stops == 2
+hold 5-60 left                    // onto the cage
+drop 62 Stone -5 -2
+drop 62 Stone -8 -2
+drop 62 Stone -7 -2
+drop 62 Stone -6 -2
+hold 90-93 up
+expect 120 liftstop == 1          // too heavy by hand
+expect 120 log:Too_heavy > 0
+use 130 -2 -1                     // lever on
+hold 140-143 up
+expect 170 liftv < -5             // the winch: 1.5 m/s (6 tiles/s)
+expect 170 liftv > -6.5
+expect 330 liftstop == 0          // at the top, stones and all
+hold 340-343 down                 // and down again on the winch
+expect 500 liftstop == 1
+use 510 -2 -1                     // lever off
+hold 520-523 up
+expect 560 liftstop == 1          // by hand it's too heavy again: the brake holds it
