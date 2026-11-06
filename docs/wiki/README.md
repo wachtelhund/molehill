@@ -2,7 +2,7 @@
 
 This folder is the Molehill wiki: plain markdown pages that link to each other and are read straight on GitHub. Start here.
 
-Molehill is a falling-sand platformer and colony sim about moles digging through the **Deepholt**, an endless body of earth with no sky and no surface. You play one Delver. You run, cling and wall-jump through tunnels you carve yourself. Every cell of sand, water and lava moves, and every roof you leave behind has to carry its own weight.
+Molehill is a falling-sand platformer and colony sim about moles digging through the **Deepholt**, an endless body of earth with no sky and no surface. You play one Delver. You run and jump through tunnels you carve yourself, and climb by ladder or a rope you throw up with the rope gun. Every cell of sand, water and lava moves, and every roof you leave behind has to carry its own weight.
 
 ![The main menu over a living holt](images/menu-main.png)
 
