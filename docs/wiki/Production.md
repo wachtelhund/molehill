@@ -62,4 +62,4 @@ The chute, screen (shaking or not) and bumper say what moves things along them. 
 | Forge | 4 shaker screen | 1 iron ingot + 1 wood |
 | Forge | ore hopper | 6 wood + 1 copper ingot |
 
-Chutes and bumpers come from the workbench, the hopper needs copper but no iron, and the screen needs iron (test `production_is_reachable_in_survival`). Digging a chute or bumper gives wood back.
+Chutes and bumpers come from the workbench (8 chute from 2 wood; 2 bumper from 2 wood and 1 stone), the hopper needs copper but no iron (forge: 6 wood and 1 copper ingot), and the screen needs iron (forge: 4 from 1 iron ingot and 1 wood) (test `production_is_reachable_in_survival`; all recipes are on [Tools and Items](Tools-and-Items.md#recipes)). Digging a chute or bumper gives wood back.

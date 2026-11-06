@@ -38,10 +38,16 @@ pub struct Stress {
     /// per cell: for static cells the top row of their unbroken static column; for open cells the row of
     /// the roof above them. Kept between solves; a region solve updates the columns it touches.
     ctop: Vec<u32>, vtop: Vec<u32>,
-    /// failure threshold on utilisation (1.0 at runtime; gen uses a safety factor)
+    /// failure threshold on utilisation (FAIL_U at runtime; gen uses a safety factor)
     pub thr: f32,
 }
+/// Overloaded rock creaks this long (ticks, 0.67 s) before it gives way (the long warning is the strain
+/// before it: see FAIL_U).
 pub const CRACK_TICKS: u8 = 40;
+/// Utilisation at which natural ground actually fails. Between 1 and FAIL_U it is *strained*: it creaks and
+/// sheds dust (see `World::strain`) but holds, so a roof warns while a tunnel under it grows before it goes.
+/// Built blocks still fail at 1 (the building rules are unchanged).
+pub const FAIL_U: f32 = 1.5;
 /// Merge cell boxes (x0, y0, x1, y1) that lie within `gap` cells of each other into clusters.
 pub fn merge_boxes(mut boxes: Vec<(usize, usize, usize, usize)>, gap: usize) -> Vec<(usize, usize, usize, usize)> {
     let near = |a: &(usize, usize, usize, usize), b: &(usize, usize, usize, usize)| a.0 <= b.2 + gap && b.0 <= a.2 + gap && a.1 <= b.3 + gap && b.1 <= a.3 + gap;
@@ -51,10 +57,13 @@ pub fn merge_boxes(mut boxes: Vec<(usize, usize, usize, usize)>, gap: usize) -> 
             *a = (a.0.min(b.0), a.1.min(b.1), a.2.max(b.2), a.3.max(b.3)); merged = true; break 'o; } } } }
     boxes
 }
+/// A piece with no load path left hangs this long (ticks) before it drops.
 pub const LOOSE_TICKS: u8 = 8;
+/// ...unless at least a square metre is cut free at once: then it's wedged this long (0.75 s) and creaks.
+pub const WEDGED_TICKS: u8 = 45;
 
 impl Stress {
-    pub fn new(n: usize) -> Self { Stress { util: vec![0; n], pending: vec![0; n], cracking: vec![], overburden: vec![0.; n], last_fail: 0, reach: vec![], ctop: vec![0; n], vtop: vec![0; n], thr: 1.0 } }
+    pub fn new(n: usize) -> Self { Stress { util: vec![0; n], pending: vec![0; n], cracking: vec![], overburden: vec![0.; n], last_fail: 0, reach: vec![], ctop: vec![0; n], vtop: vec![0; n], thr: FAIL_U } }
 
     /// Full solve. Returns indices with u > 1.
     /// Height of the load-bearing column above any cell (16 m), the pressure-arch height.
@@ -234,17 +243,28 @@ impl Stress {
             let (i, l) = (y * w + x, li(x, y)); let u = util[l];
             self.reach[i] = reach[l];
             self.util[i] = (u * 128.).min(255.) as u8;
-            if u > self.thr && g.mat[i] != Mat::Bedrock as u8 { fail.push(i as u32); }
+            // built blocks fail at full load (the building rules); natural ground only past the strain band
+            let thr = if PROPS[g.mat[i] as usize].flags & crate::mat::BUILT != 0 { self.thr.min(1.0) } else { self.thr };
+            if u > thr && g.mat[i] != Mat::Bedrock as u8 { fail.push(i as u32); }
         } }
         fail
     }
 
     /// Start crack timers on failing cells.
-    pub fn crack(&mut self, fail: &[u32]) {
+    pub fn crack(&mut self, g: &Grid, fail: &[u32]) {
         self.last_fail = fail.len();
         // cells with no load path at all (a clump left hanging on water or air) give way almost at
         // once; overloaded ones creak for CRACK_TICKS first so there's time to react
-        for &i in fail { let i = i as usize; if self.pending[i] == 0 { self.pending[i] = if self.reach.get(i) == Some(&false) { LOOSE_TICKS } else { CRACK_TICKS }; self.cracking.push(i as u32); } }
+        // a mass of at least a square metre cut free at once is wedged for a moment (WEDGED_TICKS) and creaks
+        // before it drops, so the big falls are telegraphed too; slivers drop at once
+        // (wedged means it still bears on something: supported rock at a corner, or rubble or sand under it; a
+        // chunk adrift in water or air just drops)
+        let hang = fail.iter().filter(|&&i| self.reach.get(i as usize) == Some(&false)).count();
+        let jammed = hang >= CPM * CPM && fail.iter().any(|&i| { let i = i as i64; let w = g.w as i64;
+            self.reach.get(i as usize) == Some(&false) && [-w - 1, -w, -w + 1, -1, 1, w - 1, w, w + 1].iter().any(|&d| { let j = i + d; if j < 0 || j as usize >= g.mat.len() { return false; } let j = j as usize;
+                (g.is_static(j) && self.reach.get(j) == Some(&true)) || g.m(j).kind() == Kind::Powder || (g.m(j).kind() == Kind::Solid && g.loose(j)) }) });
+        let loose = if jammed { WEDGED_TICKS } else { LOOSE_TICKS };
+        for &i in fail { let i = i as usize; if self.pending[i] == 0 { self.pending[i] = if self.reach.get(i) == Some(&false) { loose } else { CRACK_TICKS }; self.cracking.push(i as u32); } }
     }
     /// Advance cracks; returns cells that crumble now.
     pub fn tick(&mut self, g: &Grid) -> Vec<u32> {
