@@ -281,8 +281,12 @@ pub fn icon_px(it: Item) -> Px {
                 _ => { line(&mut p, 0., 6., 5., 9., 2, WOOD_D); poly(&mut p, &[(5., 8.), (15., 8.), (15., 13.), (6., 13.)], WOOD); p.rect(6, 12, 15, 12, WOOD_D); p.oval(10.5, 8., 4.5, 2.6, grain); p.rect(5, 8, 15, 8, sh(WOOD, 1.25)); 6 }
             };
             fleck(&mut p, 4, top, 13, 9, 4, 47, speck); fleck(&mut p, 4, top, 13, 9, 3, 53, glint); }
-        Rod => { // two iron rods on a guide bracket, a clevis at one end
-            p.rect(0, 5, 15, 6, col); p.rect(0, 10, 15, 11, sh(col, 0.85)); p.rect(6, 3, 8, 13, WOOD_D); p.rect(13, 4, 15, 7, IRON_D); p.set(14, 5, BRASS); p.set(1, 10, sh(col, 1.3)); }
+        Rod => { // a bell crank: a triangular iron plate on a brass pivot, one rod coming in from the side to its upper arm
+            // and one running down from its lower arm, each on a clevis pin: how a pull goes round a corner
+            poly(&mut p, &[(7., 3.), (13., 9.), (7., 10.)], IRON_D); p.oval(8.5, 8.5, 1.5, 1.5, BRASS); p.set(8, 8, BRASS_D);
+            p.rect(0, 3, 7, 4, col); p.rect(0, 3, 7, 3, sh(col, 1.3)); p.oval(7., 3.5, 1.2, 1.2, BRASS_D);
+            p.rect(12, 9, 13, 15, col); p.rect(12, 9, 12, 15, sh(col, 1.3)); p.oval(12.5, 9., 1.2, 1.2, BRASS_D);
+            p.rect(0, 2, 0, 5, WOOD_D); } // a guide the side rod runs through
         TreadPlate => { // a chequered iron plate on two springs
             p.rect(1, 6, 14, 9, col); for x in (2..14).step_by(3) { p.set(x, 7, sh(col, 1.3)); p.set(x + 1, 8, sh(col, 0.7)); }
             for x in [3, 11] { line(&mut p, x as f32, 10., x as f32 + 1., 14., 1, IRON_D); } p.rect(1, 14, 14, 15, STONE); }
