@@ -164,6 +164,21 @@ Polish only: no new systems, lore names kept. Each entry lists what changed and 
   front, the chute reads as a sloped trough onto the screen, and the bumper is a red block at the track's end.
 * Tests `production_blocks_have_their_own_look`, `ore_hopper_is_a_drawn_bin`.
 
+## Rope gun art, riffle bars (branch `refine/rope-gun-art`, on #32 and #33)
+* Icons: the rope gun is a root-wood bow-spring launcher (stock, bent spring, cord to the catch, crank, stone hook
+  in the muzzle); the hook rope a twisted coil running out to a barbed stone hook. The uniqueness test passes.
+* Held: `Held::RopeGun(loaded)`, with a hook in the muzzle only while a hook rope is ready and none is in flight.
+* World: each rope segment is a twisted-fibre sprite turned along it (`art::rope_seg`), and the hook a stone
+  head with two barbs (`art::rope_hook`). It points into the rock it bit, or along its flight while thrown.
+* Found on the way: the placeholder rope used sprite kinds 43/44, which the tube hoppers also use. With a hopper
+  and a rope on screen, the pool could hand one's sprite to the other. Ropes now use kinds 51/52.
+* `--dump-art` `view.bmp` now composites rotated sprites (sampled back through their rotation), so ropes and the
+  held item show in stills. `--scene=rope`: a hook rope in the ceiling (hanging into a slack pile on the floor) and
+  a hook in flight paying out its rope. Checked at frame 5: the hook points along its flight, and the rope sags
+  back toward the mole.
+* Riffle bar (from #33): cell pattern of upright slats with a dark gap every half metre and pale water-worn tops;
+  added to `--scene=production` and to `production_blocks_have_their_own_look`. Tests `rope_gun_art_is_drawn`.
+
 ## Open issues
 * `--shot` writes an empty frame on macOS when the game is launched from a background shell (the surface is
   never presented). It needs a visible window, or Linux with Xvfb.
