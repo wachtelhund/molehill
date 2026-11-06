@@ -13,6 +13,7 @@ mod vitals;
 mod wiring;
 mod ui;
 mod menu;
+mod loading;
 use molehill_sim::logic::{Dev, DEVS, B as LB};
 use molehill_sim::disasters::{Phase, Kind2};
 use bevy::prelude::*;
@@ -39,7 +40,8 @@ const CH: usize = 64 * S; // texture chunk size in cells (16 m)
 const BG_RES: usize = S;
 const FAR: usize = 4; // chunk rows drawn beyond each end of the simulated window (the camera roams there; nothing simulates)
 
-#[derive(Resource)] pub struct Game { pub w: World, chunks: Vec<Handle<Image>>, buf: Vec<u8>, pub uploads: usize, acc: f32, pub paused: bool, speed: u32, pub frame: u64, last_light: u64, msg: String, pub help: bool, ev: Vec<sw::Event>, shake_off: Vec2, autosave: f32, last_oy: i64, far: Vec<Handle<Image>>, far_done: Vec<bool>, far_cells: std::collections::HashMap<i64, Option<(Vec<u8>, Vec<u8>)>>, pub inv_open: bool, pub aim: Option<(usize, usize, bool)>,
+#[derive(Resource)] pub struct Game { pub w: World, /// a holt is in play (false over the empty window before the first one)
+    pub live: bool, chunks: Vec<Handle<Image>>, buf: Vec<u8>, pub uploads: usize, acc: f32, pub paused: bool, speed: u32, pub frame: u64, last_light: u64, msg: String, pub help: bool, ev: Vec<sw::Event>, shake_off: Vec2, autosave: f32, last_oy: i64, far: Vec<Handle<Image>>, far_done: Vec<bool>, far_cells: std::collections::HashMap<i64, Option<(Vec<u8>, Vec<u8>)>>, pub inv_open: bool, pub aim: Option<(usize, usize, bool)>,
     pub slots: Vec<Option<Thing>>, pub held: Option<Thing>, /** lay the hotbar out afresh for this holt (`hotbar.rs`) */ pub relayout: bool, pub hot: usize, pub sel_t: f32, pub toasts: Vec<(String, f32)>, log_seen: u64, pub show_dev: bool, disp: Vec2, pub seed: u32,
     /// brush size per brush item and grid snap (`view::BrushSizes`)
     pub sizes: sv::BrushSizes,
@@ -135,6 +137,11 @@ const BG_BASE: [f32; 3] = [44., 34., 30.];
 #[derive(Component)] struct Pooled(u8, usize);
 #[derive(Resource)] pub struct Sprites { pub props: Vec<Handle<Image>>, pub cart: Handle<Image>, pub clue: Vec<Handle<Image>>, pub furn: Vec<Option<(Handle<Image>, Option<Handle<Image>>)>>, pub tools: [Handle<Image>; 3], pub dev: Vec<Handle<Image>>, pub ring: Handle<Image>, pub mole: Vec<Handle<Image>>, pub mole_out: Vec<Handle<Image>>, pub held: Vec<Handle<Image>>, pub icons: Vec<Handle<Image>>, pub chest: [Handle<Image>; 2], pub station: Vec<[Handle<Image>; 2]>, pub torch: Handle<Image>, pub torch_f: Vec<Handle<Image>>, pub glow: Handle<Image>, pub shroom: [Handle<Image>; 3], pub px: Handle<Image> }
 
+/// `?seed=N` (web) / `--seed=N` (native) was given: the game opens straight into that holt.
+fn seed_pinned() -> bool {
+    #[cfg(target_arch = "wasm32")] { web_sys::window().and_then(|w| w.location().search().ok()).is_some_and(|q| q.split(['?', '&']).any(|kv| kv.starts_with("seed="))) }
+    #[cfg(not(target_arch = "wasm32"))] { std::env::args().any(|a| a.starts_with("--seed=")) }
+}
 pub fn seed_now() -> u32 {
     // ?seed=N (web) / --seed=N (native) pins the first world
     #[cfg(target_arch = "wasm32")] { if let Some(v) = web_sys::window().and_then(|w| w.location().search().ok()).and_then(|q| q.split(['?', '&']).find_map(|kv| kv.strip_prefix("seed=").and_then(|v| v.parse::<u32>().ok()))) { return v; } }
@@ -193,12 +200,13 @@ fn main() {
         .insert_resource(ClearColor(Color::srgb(0.04, 0.035, 0.05)))
         .add_systems(Startup, setup)
         .insert_non_send(audio::Audio::new())
-        .add_systems(Update, (dev_shot, menu::update, input, gear, simulate, render_world, dev_dump, sync_sprites, wiring::update, journal::update, hotbar::update, ui::update, sound).chain())
+        .insert_resource(loading::Loading::default())
+        .add_systems(Update, (dev_shot, loading::update, menu::update, input, gear, simulate, render_world, dev_dump, sync_sprites, wiring::update, journal::update, hotbar::update, ui::update, sound).chain())
         .run();
 }
 
 /// Dev visual check (native): `--shot=FILE` starts a holt straight away, saves one frame after
-/// `--shot-at=N` frames (default 150) and quits. `--shot-ui=pause|inv|help|dev` opens that panel first,
+/// `--shot-at=N` frames (default 150) and quits. `--shot-ui=pause|inv|help|dev` opens that panel first (`loading`: the still is of a new holt's loading line),
 /// `--shot-walk` holds right, `--shot-blast=K` sets off a charge beside the mole K frames before the shot.
 /// One still frame only: no videos.
 fn dev_shot(mut n: Local<u32>, mut g: ResMut<Game>, mut m: ResMut<menu::Menu>, mut commands: Commands, mut exit: MessageWriter<AppExit>) {
@@ -522,7 +530,10 @@ fn stage_wall_edit(w: &mut World, mx: usize, my: usize, set: impl Fn(&mut World,
 
 fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, mut fonts: ResMut<Assets<Font>>) {
     let seed = seed_now() % 100000;
-    let w = make_world(seed, Mode::Survival);
+    // dev stills and scenes start in a holt at once; play opens the main menu straight away over an
+    // empty window (a new holt is built behind the loading line, a save read the same way)
+    let live = dev_start();
+    let w = if live { make_world(seed, Mode::Survival) } else { World::blank(W, H, seed) };
     // The world is split into CH×CH-cell chunk textures; only chunks whose composited pixels changed
     // are touched (Assets::get_mut marks an image for re-upload), so a quiet frame uploads nothing.
     let oy0 = w.oy;
@@ -556,9 +567,11 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, mut fonts: R
     commands.spawn((Camera2d, Transform::from_xyz(p.x, p.y, 100.).with_scale(Vec3::splat(zoom))));
     let font: Handle<Font> = fonts.add(Font::from_bytes(include_bytes!("../assets/PixelifySans.ttf").to_vec()));
     menu::setup(&mut commands, &font); let mut mset = menu::Menu::load(); mset.zoom = zoom; commands.insert_resource(mset);
-    ui::setup(&mut commands, &font); journal::setup(&mut commands, &font);
+    ui::setup(&mut commands, &font); journal::setup(&mut commands, &font); loading::setup(&mut commands, &font);
     { let ring = images.add(art::ring()); let px = images.add(art::image(1, 1, vec![255; 4], true)); wiring::setup(&mut commands, &mut images, &font, ring, px); }
     commands.insert_resource(ui::UiFont(font));
+    // a pinned seed opens that holt (built behind the loading line) instead of the main menu
+    if !live && (seed_pinned() || shot_loading()) { let mut ld = loading::Loading::default(); ld.new_holt(seed, Mode::Survival, false); commands.insert_resource(ld); }
     let sp = Sprites { tools: [images.add(art::tool_icon(1)), images.add(art::tool_icon(2)), images.add(art::tool_icon(3))], dev: DEVS.iter().map(|&d| images.add(devart::hotbar_icon(d))).collect(), ring: images.add(art::ring()),
         mole: art::mole_sheet(true).into_iter().map(|i| images.add(i)).collect(),
         mole_out: art::mole_sheet(false).into_iter().map(|i| images.add(i)).collect(),
@@ -580,23 +593,37 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, mut fonts: R
         if let Some(k) = slots.iter().position(|s| *s == Some(Thing::Item(Item::TimberWall))) { slots.swap(0, k); hot = 0; }
         relayout = false;
     }
-    commands.insert_resource(Game { w, chunks, buf: vec![1; W * H * 4], uploads: 0, acc: 0., paused: true, speed: 1, frame: 0, last_light: 0, msg: String::new(), help: false, ev: vec![], shake_off: Vec2::ZERO, autosave: 0., last_oy: oy0, far, far_done, far_cells: Default::default(), inv_open: false, aim: None, slots, held: None, relayout, hot, sel_t: 0., toasts: vec![], log_seen: 0, show_dev: false, disp, seed, sizes: Default::default(), drag: None, brush_tag: None, demo_right: false, wheel: Default::default(), mouse_latch: false, jump_tap: false, jump_key: false, w_jump: false, charge: None, throw_aim: (1., -1.), e_latch: false, pops: vec![], look: Vec2::ZERO });
+    commands.insert_resource(Game { w, chunks, buf: vec![1; W * H * 4], uploads: 0, acc: 0., paused: true, speed: 1, frame: 0, last_light: 0, msg: String::new(), help: false, ev: vec![], shake_off: Vec2::ZERO, autosave: 0., last_oy: oy0, far, far_done, far_cells: Default::default(), inv_open: false, aim: None, slots, held: None, relayout, hot, sel_t: 0., toasts: vec![], log_seen: 0, show_dev: false, disp, seed, sizes: Default::default(), drag: None, brush_tag: None, demo_right: false, wheel: Default::default(), mouse_latch: false, jump_tap: false, jump_key: false, w_jump: false, charge: None, throw_aim: (1., -1.), e_latch: false, pops: vec![], look: Vec2::ZERO, live });
 }
 
-pub fn save_now(g: &mut Game) { g.msg = match save_slot("molehill-manual", &g.w) { Ok(()) => "Game saved".into(), Err(e) => format!("Save failed: {e}") }; }
-pub fn save_auto(g: &mut Game) { if let Err(e) = save_slot("molehill-auto", &g.w) { g.msg = format!("Autosave failed: {e}"); } }
+/// Saves only write a holt in play: Quit on the main menu before Continue never puts the empty window over the autosave.
+pub fn save_now(g: &mut Game) { if !g.live { return; } g.msg = match save_slot("molehill-manual", &g.w) { Ok(()) => "Game saved".into(), Err(e) => format!("Save failed: {e}") }; }
+pub fn save_auto(g: &mut Game) { if !g.live { return; } if let Err(e) = save_slot("molehill-auto", &g.w) { g.msg = format!("Autosave failed: {e}"); } }
 fn reset_view(g: &mut Game, commands: &mut Commands) {
     g.last_oy = g.w.oy; g.far_done.iter_mut().for_each(|v| *v = false); g.far_cells.clear(); commands.insert_resource(make_bg(&g.w)); g.buf.iter_mut().for_each(|v| *v = 1);
     g.w.pl.sync = None; g.inv_open = false; g.help = false; g.acc = 0.;
 }
-/// Start a fresh holt (world) from a seed.
-pub fn begin(g: &mut Game, commands: &mut Commands, seed: u32, mode: Mode) { g.w = make_world(seed, mode); g.seed = seed; reset_view(g, commands); g.msg = format!("Holt {seed} ({})", mode.name()); g.relayout = true; }
+/// Dev runs that need a holt from the first frame (`--shot`, `--scene`): generated at once in `setup`.
+fn dev_start() -> bool {
+    #[cfg(not(target_arch = "wasm32"))] { !shot_loading() && std::env::args().any(|a| a.starts_with("--shot") || a.starts_with("--scene=")) }
+    #[cfg(target_arch = "wasm32")] { false }
+}
+/// Dev (native): `--shot-ui=loading` stills the loading line of a new holt instead.
+fn shot_loading() -> bool {
+    #[cfg(not(target_arch = "wasm32"))] { std::env::args().any(|a| a == "--shot-ui=loading") }
+    #[cfg(target_arch = "wasm32")] { false }
+}
+/// Finish a new holt's world (built by `loading`) and start playing it.
+pub fn install(g: &mut Game, commands: &mut Commands, mut w: World, seed: u32, mode: Mode) {
+    w.disasters.enabled = false; w.set_mode(scene_mode(mode)); stage_scene(&mut w);
+    g.w = w; g.seed = seed; g.live = true; reset_view(g, commands); g.msg = format!("Holt {seed} ({})", mode.name()); g.relayout = true;
+}
 /// Load the manual save (or the autosave). Returns false if there is none or it failed.
 pub fn load_saved(g: &mut Game, commands: &mut Commands) -> bool {
     match load_slot("molehill-manual").or_else(|| load_slot("molehill-auto")) {
         Some(Ok(w)) if w.g.w != W || w.g.h != H => { g.msg = format!("Load failed: save is {}x{}, this build is {W}x{H}", w.g.w, w.g.h); false }
         // a save from before modes was a Creative holt (everything in the pack)
-        Some(Ok(w)) => { g.w = w; if g.w.mode == Mode::Plain { g.w.mode = Mode::Creative; g.w.rules = Mode::Creative.rules(); } if g.w.mode == Mode::Creative { for v in g.w.inv.iter_mut() { *v = (*v).max(999); } } reset_view(g, commands); g.msg = "Game loaded".into(); g.relayout = true; true }
+        Some(Ok(w)) => { g.w = w; g.live = true; if g.w.mode == Mode::Plain { g.w.mode = Mode::Creative; g.w.rules = Mode::Creative.rules(); } if g.w.mode == Mode::Creative { for v in g.w.inv.iter_mut() { *v = (*v).max(999); } } reset_view(g, commands); g.msg = "Game loaded".into(); g.relayout = true; true }
         Some(Err(e)) => { g.msg = format!("Load failed: {e}"); false } None => { g.msg = "No save yet".into(); false } }
 }
 fn make_bg(w: &World) -> Bg {
@@ -606,7 +633,7 @@ fn make_bg(w: &World) -> Bg {
 fn dev_cost(d: Dev) -> Option<Item> { d.cost() }
 fn input(mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<ButtonInput<MouseButton>>, scroll: Res<AccumulatedMouseScroll>,
          win: Query<&Window, With<PrimaryWindow>>, mut cam: Query<&mut Transform, With<Camera2d>>, time: Res<Time>,
-         mut commands: Commands, mut menu: ResMut<menu::Menu>, lkeys: Res<ButtonInput<Key>>) {
+         mut menu: ResMut<menu::Menu>, lkeys: Res<ButtonInput<Key>>, mut ld: ResMut<loading::Loading>) {
     let Ok(win) = win.single() else { return }; let Ok(mut ct) = cam.single_mut() else { return };
     if g.paused { g.w.input = Default::default(); g.aim = None; g.jump_tap = false; g.charge = None; return; } // a menu is open: no input, no aim ring
     let sc = ct.scale.x; let now = time.elapsed_secs();
@@ -668,7 +695,7 @@ fn input(mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<Button
     if keys.just_pressed(KeyCode::KeyH) { g.help = !g.help; }
     if keys.just_pressed(KeyCode::F3) { g.show_dev = !g.show_dev; }
     if keys.just_pressed(KeyCode::KeyK) { save_now(&mut g); }
-    if keys.just_pressed(KeyCode::KeyL) { load_saved(&mut g, &mut commands); }
+    if keys.just_pressed(KeyCode::KeyL) { ld.load(); }
     if keys.just_pressed(KeyCode::KeyB) && g.show_dev { let kind = [Kind2::Flood, Kind2::Lava, Kind2::Quake][(g.frame % 3) as usize]; let mut d = std::mem::replace(&mut g.w.disasters, molehill_sim::disasters::Disasters::new(0)); let _ = d.schedule(&mut g.w, kind); g.w.disasters = d; }
     // UI clicks: slots swallow the mouse. Hotbar click selects; in the pack, click picks up / drops / swaps.
     if g.mouse_latch && !mouse.pressed(MouseButton::Left) && !mouse.pressed(MouseButton::Right) { g.mouse_latch = false; }

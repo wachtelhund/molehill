@@ -1855,3 +1855,17 @@ fn spawn_reveals_only_burrow_neighbourhood() {
         for m in [Mat::IronOre, Mat::Granite, Mat::Basalt, Mat::Lava] { assert!(!w.discovered[m as usize] || w.g.mat.iter().zip(&w.g.flags).any(|(&c, &f)| c == m as u8 && f & F_SEEN != 0), "seed {seed}: {m:?} discovered unseen"); }
     }
 }
+
+/// A new holt built in steps (the game's loading line) is the same world as `World::new`, its progress
+/// only climbs, it passes through every stage, and no single step is a large share of the build.
+#[test]
+fn staged_new_holt_matches_and_climbs() {
+    let (w, h, seed) = (512 * S, 256 * S, 4242);
+    let whole = World::new(w, h, seed);
+    let mut b = NewHolt::new(w, h, seed); let (mut last, mut steps) = (b.progress(), 0); let mut labels = vec![b.label()];
+    while b.step().is_none() { steps += 1; let p = b.progress(); assert!(p >= last && p <= 1., "progress went {last} -> {p}"); last = p;
+        if labels.last() != Some(&b.label()) { labels.push(b.label()); } assert!(steps < 5000, "build never finished"); }
+    assert_eq!(b.progress(), 1.); assert!(steps >= 20, "only {steps} steps: the line would barely move");
+    for l in ["Laying down the rock", "Hollowing the burrow", "Shoring up the caves", "Letting the water find its level"] { assert!(labels.contains(&l), "no '{l}' stage in {labels:?}"); }
+    assert_eq!(molehill_sim::save::save(&b.take()), molehill_sim::save::save(&whole), "a staged build must give the same holt");
+}
