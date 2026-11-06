@@ -78,7 +78,7 @@ The pack, the hotbar, the item in the mole's paws and anything lying loose all u
 | Hook rope | a coil of twisted fungus-fibre rope, its loose end running out to a barbed stone hook lashed on | the rope: a twisted-fibre length per half-metre segment, turned along it; the stone hook at its head points into the rock it bit, or along its flight while thrown (`art::rope_seg`, `art::rope_hook`) |
 | Lift | a cage hung from a sheave | lift head frame, rope and cage |
 | Pressure tube | a pressure-tube length with flanged ends | placed cells of its material |
-| Tube hopper | a brass funnel mouth on a stub of tube | brass hopper mouth |
+| Tube hopper | a brass funnel mouth on a stub of tube | drawn (`art::tube_hopper`): a brass funnel with a riveted rim and a dark mouth, narrowing into a flanged stub of pressure tube, brighter while its copperline is live; it reads apart from the ore hopper's timber bin on legs |
 | Chute | a timber trough running downhill, a lump sliding down it | placed cells: a pale worn lip on top, boards with a dark seam every half metre |
 | Shaker screen | an iron grating in a timber frame, the mesh open between the bars | placed cells: a timber top rail, iron bars every half metre, the dark mesh between |
 | Bumper | a squat timber buffer with a red pad, standing on a rail end | placed cells: red-painted timber, a brighter worn head, an iron band and bolt every metre |
@@ -167,6 +167,7 @@ Game-crate tests (`cargo test --release -p molehill`):
 * `linkage_parts_show_their_state`: the six linkage cell kinds each differ from the others in over 64 of 256 cells; a rod, tread plate, clutch and float each show being pulled (at least 8 cells change); a pressed plate's top is a dark gap; the gate lever differs turned round; the scale has its four parts.
 * `borer_is_drawn`: the borer's firebox door glows only while lit, its head's three frames differ (it turns), and its body, head and wheel are the right sizes.
 * `wagons_have_their_own_silhouettes`: any two wagon kinds differ in at least 12 pixels of coverage, the water wagon has its gauge glass, and the store and coal loads differ. All wagons share two spoked wheels that turn with the ground covered, and a coupling bar (an iron bar with a link at each end) to what pulls them.
+* `tube_hopper_is_a_drawn_funnel`: the tube hopper narrows from its mouth to its tube stub, and the pressure-tube colour shows.
 * `ore_hopper_is_a_drawn_bin`: the bin's back boards fill it, the front leaves the upper part open (so the heap shows), the taper is boarded down to a spout, the open gate differs from the shut one, and the heap sprite is pale so its tint gives the ore colour.
 * `found_places_are_furnished`: each family is stamped into rock and must get its listed furnishings, all inside the site and none in rock. Every prop kind is placed somewhere.
 

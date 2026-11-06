@@ -135,7 +135,7 @@ const BG_BASE: [f32; 3] = [44., 34., 30.];
 #[inline] fn srgb(l: f32) -> f32 { l.max(0.).powf(1. / 2.2) * 255. }
 #[derive(Component)] pub struct WorldSprite;
 #[derive(Component)] struct Pooled(u8, usize);
-#[derive(Resource)] pub struct Sprites { pub wagon: Vec<Handle<Image>>, pub wload: [Handle<Image>; 2], pub coupling: Handle<Image>, pub borer: Vec<Handle<Image>>, pub leaf: Handle<Image>, pub lever: [Handle<Image>; 2], pub scale: [Handle<Image>; 4], pub rope: [Handle<Image>; 2], pub weight: Handle<Image>, pub boiler: [Handle<Image>; 2], pub stamp: [Handle<Image>; 2], pub tub: [Handle<Image>; 2], pub smelter: [Handle<Image>; 4], pub props: Vec<Handle<Image>>, pub cart: Handle<Image>, pub bin: Vec<Handle<Image>>, pub clue: Vec<Handle<Image>>, pub furn: Vec<Option<(Handle<Image>, Option<Handle<Image>>)>>, pub tools: [Handle<Image>; 3], pub dev: Vec<Handle<Image>>, pub ring: Handle<Image>, pub mole: Vec<Handle<Image>>, pub mole_out: Vec<Handle<Image>>, pub held: Vec<Handle<Image>>, pub icons: Vec<Handle<Image>>, pub chest: [Handle<Image>; 2], pub station: Vec<[Handle<Image>; 2]>, pub torch: Handle<Image>, pub torch_f: Vec<Handle<Image>>, pub glow: Handle<Image>, pub shroom: [Handle<Image>; 3], pub px: Handle<Image> }
+#[derive(Resource)] pub struct Sprites { pub thopper: Handle<Image>, pub wagon: Vec<Handle<Image>>, pub wload: [Handle<Image>; 2], pub coupling: Handle<Image>, pub borer: Vec<Handle<Image>>, pub leaf: Handle<Image>, pub lever: [Handle<Image>; 2], pub scale: [Handle<Image>; 4], pub rope: [Handle<Image>; 2], pub weight: Handle<Image>, pub boiler: [Handle<Image>; 2], pub stamp: [Handle<Image>; 2], pub tub: [Handle<Image>; 2], pub smelter: [Handle<Image>; 4], pub props: Vec<Handle<Image>>, pub cart: Handle<Image>, pub bin: Vec<Handle<Image>>, pub clue: Vec<Handle<Image>>, pub furn: Vec<Option<(Handle<Image>, Option<Handle<Image>>)>>, pub tools: [Handle<Image>; 3], pub dev: Vec<Handle<Image>>, pub ring: Handle<Image>, pub mole: Vec<Handle<Image>>, pub mole_out: Vec<Handle<Image>>, pub held: Vec<Handle<Image>>, pub icons: Vec<Handle<Image>>, pub chest: [Handle<Image>; 2], pub station: Vec<[Handle<Image>; 2]>, pub torch: Handle<Image>, pub torch_f: Vec<Handle<Image>>, pub glow: Handle<Image>, pub shroom: [Handle<Image>; 3], pub px: Handle<Image> }
 
 /// `?seed=N` (web) / `--seed=N` (native) was given: the game opens straight into that holt.
 fn seed_pinned() -> bool {
@@ -308,7 +308,7 @@ fn dev_dump(n: Local<u32>, g: Res<Game>, sp: Res<Sprites>, images: Res<Assets<Im
         list.push(("cart".into(), sp.cart.clone())); list.push(("rope".into(), sp.rope[0].clone())); list.push(("hook".into(), sp.rope[1].clone())); list.push(("weight".into(), sp.weight.clone())); list.push(("boiler0".into(), sp.boiler[0].clone())); list.push(("boiler1".into(), sp.boiler[1].clone()));
         for (k, h) in sp.stamp.iter().chain(sp.tub.iter()).chain(sp.smelter.iter()).enumerate() { list.push((format!("works{k}"), h.clone())); }
         list.push(("gate-leaf".into(), sp.leaf.clone())); for (k, h) in sp.borer.iter().enumerate() { list.push((format!("borer{k}"), h.clone())); }
-        for (k, h) in sp.wagon.iter().chain(sp.wload.iter()).enumerate() { list.push((format!("wagon{k}"), h.clone())); } list.push(("coupling".into(), sp.coupling.clone())); for (k, h) in sp.lever.iter().chain(sp.scale.iter()).enumerate() { list.push((format!("logic{k}"), h.clone())); }
+        for (k, h) in sp.wagon.iter().chain(sp.wload.iter()).enumerate() { list.push((format!("wagon{k}"), h.clone())); } list.push(("coupling".into(), sp.coupling.clone())); list.push(("tube-hopper".into(), sp.thopper.clone())); for (k, h) in sp.lever.iter().chain(sp.scale.iter()).enumerate() { list.push((format!("logic{k}"), h.clone())); }
         for (k, h) in sp.bin.iter().enumerate() { list.push((format!("orebin{k}"), h.clone())); }
         for (k, h) in sp.props.iter().enumerate() { list.push((format!("prop-{:?}", props::PROPS[k]), h.clone())); }
         for (k, h) in sp.icons.iter().enumerate() { list.push((format!("icon-{:?}", ITEMS[k]), h.clone())); }
@@ -540,7 +540,7 @@ fn stage_scene(w: &mut World) {
                 molehill_sim::light::reveal_box(&mut w.g, mx, y0 - 10 * S, x1 + 10 * S, my + 10 * S);
                 for k in 0..4 { w.torches.push((x0 + (6 + k * 16) * S, y0 + 4 * S)); }
             }
-            "production" => { // a works east of the burrow: a chute sloping down onto a shaker screen, riffle bars, an ore hopper
+            "production" => { // a works east of the burrow: a chute sloping down onto a shaker screen, riffle bars, an ore hopper and a tube hopper beside it
                 // heaped with copper ore over a rail, and a bumper at the end of the track
                 use molehill_sim::mat::CPM;
                 let (x0, x1, y0) = (mx + 4 * S, mx + 64 * S, my - 22 * S);
@@ -552,6 +552,9 @@ fn stage_scene(w: &mut World) {
                 for x in sx + 2 * CPM - 2..sx + 2 * CPM { for y in sy + 2..my - 1 { set(w, x, y, Mat::WoodBeam); } }
                 for x in x1 - CPM / 2..x1 { for y in my - CPM..my - 1 { set(w, x, y, Mat::Bumper); } }
                 for x in x0 + 26 * S..x0 + 26 * S + 2 * CPM { for y in my - 3..my - 1 { set(w, x, y, Mat::Riffle); } } // a run of riffle bars on the track bed
+                // a tube hopper on a stub of pressure tube by the ore hopper, so the two read apart in a still
+                { let (hx, hy) = (x0 + 50 * S, my - 1 - CPM - 2); for x in hx + CPM / 2 - 1..hx + CPM / 2 + 1 { for y in hy + CPM..my - 1 { set(w, x, y, Mat::Tube); } }
+                  let tube = w.g.idx(hx + CPM / 2, hy + CPM); w.tr.hoppers.push(molehill_sim::tubes::Hopper { x: hx, y: hy, tube, dest: None }); }
                 let bx = x0 + 40 * S; let floor = my - 1; let by = floor - molehill_sim::production::BIN_LEGS;
                 w.tr.bins.push(molehill_sim::production::OreHopper { x: bx, y: by, floor, contents: vec![(Item::CopperOre, 40)], held: false, rod_held: false, open: false, feed: 0, grit: vec![] });
                 molehill_sim::light::reveal_box(&mut w.g, mx, y0 - 10 * S, x1 + 10 * S, my + 10 * S);
@@ -758,7 +761,7 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, mut fonts: R
         mole_out: art::mole_sheet(false).into_iter().map(|i| images.add(i)).collect(),
         held: [art::Held::Pick, art::Held::Drill, art::Held::Bore, art::Held::Charge, art::Held::Block(Item::WoodPillar.color()), art::Held::Block(Item::Brick.color()), art::Held::Block(Item::IronBeam.color()), art::Held::RopeGun(true), art::Held::RopeGun(false)]
             .into_iter().map(|h| images.add(art::held_sprite(h))).collect(),
-        clue: (0..9).map(|k| images.add(decorart::clue(k))).collect(), props: props::PROPS.iter().map(|&p| images.add(props::image(p))).collect(), cart: images.add(art::cart()), borer: (0..6).map(|k| images.add(art::borer(k))).collect(), wagon: (0..5).map(|k| images.add(art::wagon(k))).collect(), wload: [images.add(art::wagon_load(false)), images.add(art::wagon_load(true))], coupling: images.add(art::coupling()), leaf: images.add(art::gate_leaf()), lever: [images.add(art::gate_lever(false)), images.add(art::gate_lever(true))], scale: [0, 1, 2, 3].map(|k| images.add(art::scale_part(k))), rope: [images.add(art::rope_seg()), images.add(art::rope_hook())], weight: images.add(art::weight()), boiler: [images.add(art::boiler(false)), images.add(art::boiler(true))], stamp: [images.add(art::stamp_mill(0)), images.add(art::stamp_mill(1))], tub: [images.add(art::washer_tub(false)), images.add(art::washer_tub(true))], smelter: [0, 1, 2, 3].map(|k| images.add(art::smelter(k))), bin: (0..5).map(|k| images.add(art::ore_bin(k))).collect(),
+        clue: (0..9).map(|k| images.add(decorart::clue(k))).collect(), props: props::PROPS.iter().map(|&p| images.add(props::image(p))).collect(), cart: images.add(art::cart()), borer: (0..6).map(|k| images.add(art::borer(k))).collect(), thopper: images.add(art::tube_hopper()), wagon: (0..5).map(|k| images.add(art::wagon(k))).collect(), wload: [images.add(art::wagon_load(false)), images.add(art::wagon_load(true))], coupling: images.add(art::coupling()), leaf: images.add(art::gate_leaf()), lever: [images.add(art::gate_lever(false)), images.add(art::gate_lever(true))], scale: [0, 1, 2, 3].map(|k| images.add(art::scale_part(k))), rope: [images.add(art::rope_seg()), images.add(art::rope_hook())], weight: images.add(art::weight()), boiler: [images.add(art::boiler(false)), images.add(art::boiler(true))], stamp: [images.add(art::stamp_mill(0)), images.add(art::stamp_mill(1))], tub: [images.add(art::washer_tub(false)), images.add(art::washer_tub(true))], smelter: [0, 1, 2, 3].map(|k| images.add(art::smelter(k))), bin: (0..5).map(|k| images.add(art::ore_bin(k))).collect(),
         furn: ITEMS.iter().map(|&it| it.furn().map(|_| { let (b, c) = decorart::furniture(it); (images.add(decorart::finish(b)), c.map(|c| images.add(decorart::cloth(c)))) })).collect(),
         icons: ITEMS.iter().map(|&it| images.add(itemart::icon(it))).collect(),
         chest: [images.add(art::chest(false)), images.add(art::chest(true))],
@@ -1408,11 +1411,9 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
     for (k, h) in w.tr.hoppers.iter().enumerate() {
         if w.g.flags[h.y.min(H - 1) * W + h.x.min(W - 1)] & F_SEEN == 0 { continue; }
         let (cx, cy) = h.centre(); let lt = lightf(cx as usize, cy as usize).to_srgba(); let hot = if w.logic.net_lit(w.logic.block_of(cx as usize, cy as usize)) { 1.25 } else { 1. };
-        let lit = |r: f32, gg: f32, b: f32| Color::srgb(r * lt.red * hot, gg * lt.green * hot, b * lt.blue * hot);
+        // a brass funnel narrowing into its tube stub (`art::tube_hopper`, as its icon), brighter while its copperline is live
         let n = molehill_sim::tubes::HOPPER as f32;
-        want.push((43, k, cell_to_world(cx, cy + n * 0.25), 3.9, sp.px.clone(), Vec2::new(n * CPX, n * 0.5 * CPX), false, lit(0.62, 0.45, 0.22)));
-        want.push((44, k, cell_to_world(cx, cy - n * 0.15), 3.9, sp.px.clone(), Vec2::new(n * 0.8 * CPX, n * 0.3 * CPX), false, lit(0.7, 0.52, 0.26)));
-        want.push((45, k, cell_to_world(cx, cy - n * 0.32), 3.95, sp.px.clone(), Vec2::new(n * 0.6 * CPX, 1.5), false, lit(0.15, 0.13, 0.12)));
+        want.push((43, k, cell_to_world(cx, cy), 3.9, sp.thopper.clone(), Vec2::splat(n * CPX), false, Color::srgb(lt.red * hot, lt.green * hot, lt.blue * hot)));
     }
     // counterweights: the rope paid off the drum as twisted fibre down to a cast-iron weight hanging on its eye
     for (k, wt) in w.tr.power.weights.iter().enumerate() {

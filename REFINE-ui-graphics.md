@@ -380,6 +380,19 @@ Polish only: no new systems, lore names kept. Each entry lists what changed and 
 * Stills only, no live window. Stills plus `wagons_have_their_own_silhouettes` cover both facings, the loads and
   gauge, and the train moving.
 
+## Final polish round (branch `refine/final-art-polish`)
+* Wiki stills for the fossil cave and the fissure were outdated (from before #22's site traps). Regenerated with
+  `--scene=fossil` / `--scene=fissure --dump-art` at frame 150, same crops. Now the fossil beast lies on the dig floor
+  with its ribs bedded in rock, and the fissure has its standing decks and ladders. Captions updated (the fossil
+  one still mentioned a scaffold, which moved to the mine in the furnishing pass).
+* Tube hopper vs ore hopper: in the world the tube hopper was still three tinted rectangles (kinds 43–45) next to the
+  drawn timber ore-hopper bin. It's now drawn (`art::tube_hopper`) as its pack icon shows it: a brass funnel with a
+  dark mouth narrowing into a flanged tube stub. `--scene=production` puts one beside the ore hopper, and in the still
+  at frame 60 the two read apart at a glance. Test `tube_hopper_is_a_drawn_funnel`.
+* Checked and left: the icon sheet holds all 106 items and 21 devices (no gaps); the borer and wagon facing and
+  coupling were fixed in #66/#69.
+* Not tested: a live window or a playtest. Everything here was checked through `--dump-art` stills and tests.
+
 ## Open issues
 * `--shot` writes an empty frame on macOS when the game is launched from a background shell (the surface is
   never presented). It needs a visible window, or Linux with Xvfb.
