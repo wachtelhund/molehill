@@ -22,8 +22,10 @@ pub enum Mat {
     Riffle,
     // mechanical power (power.rs): shafts, gears, water wheels, belts (one for each way they run), a weight's drum
     Shaft, Gear, Wheel, Belt, BeltL, Drum,
+    // coal power (steam.rs): a steam engine (machinery) and the pipe that brings it steam
+    Engine, SteamPipe, Boiler,
 }
-pub const NMAT: usize = 48;
+pub const NMAT: usize = 51;
 
 /// Everything the simulation knows about a material, in one row. Rules read these fields instead of
 /// naming materials, so a new material (or a retuned one) is a single table edit.
@@ -89,6 +91,8 @@ pub const MECH: u16 = 2048;
 pub const HUB: u16 = 4096;
 /// A belt: what lies on it is carried while its train turns (`Belt` to the right, `BeltL` to the left).
 pub const BELT: u16 = 8192;
+/// Carries a boiler's steam (a steam pipe, and the steam engine it feeds; steam.rs).
+pub const STEAMLINE: u16 = 16384;
 const BASE: Props = Props { name: "", desc: "", kind: Kind::Solid, density: 0., tensile: 0., compressive: 0., dig: 0, tier: 0, blast: 0,
     emit: [0, 0, 0], opacity: 0, color: [0, 0, 0], crumbles_to: Mat::Empty, repose: 0., heat: 0, ignite: 0, cools_to: Mat::Empty, life: 0,
     spread: 0, flow_in_10: 10, bounce: 0.35, friction: 0.5, flags: 0 };
@@ -145,6 +149,9 @@ pub static PROPS: [Props; NMAT] = [
     Props { name: "Belt", desc: "Woven fibre belt over wooden rollers. While it turns, what lies on it is carried right.", kind: Solid, density: 900., tensile: 2000., compressive: 5000., dig: 3, blast: 3, opacity: 160, color: [92, 64, 44], crumbles_to: X::Belt, repose: 0.3, ignite: 1, flags: BUILT | MECH | HUB | BELT, bounce: 0.1, friction: 0.9, ..BASE },
     Props { name: "Belt (left)", desc: "Woven fibre belt over wooden rollers. While it turns, what lies on it is carried left.", kind: Solid, density: 900., tensile: 2000., compressive: 5000., dig: 3, blast: 3, opacity: 160, color: [92, 64, 44], crumbles_to: X::BeltL, repose: 0.3, ignite: 1, flags: BUILT | MECH | HUB | BELT, bounce: 0.1, friction: 0.9, ..BASE },
     Props { name: "Weight drum", desc: "A rope drum with a hanging weight. The weight falls to drive the line; spare power winds it up.", kind: Solid, density: 1500., tensile: 4000., compressive: 9000., dig: 6, blast: 4, opacity: 190, color: [118, 112, 108], crumbles_to: X::Drum, flags: BUILT | MECH | HUB, bounce: 0.3, friction: 0.5, ..BASE },
+    Props { name: "Steam engine", desc: "Iron cylinder and crank. A boiler's steam drives it, and it turns the drive train it's part of.", kind: Solid, density: 7000., tensile: 20000., compressive: 60000., dig: 16, tier: 2, blast: 9, opacity: 200, color: [96, 92, 98], crumbles_to: X::Engine, flags: BUILT | MECH | HUB | STEAMLINE, bounce: 0.4, friction: 0.4, ..BASE },
+    Props { name: "Steam pipe", desc: "Copper pipe that carries a boiler's steam to an engine.", kind: Solid, density: 4000., tensile: 6000., compressive: 12000., dig: 6, tier: 1, blast: 5, opacity: 180, color: [176, 108, 66], crumbles_to: X::SteamPipe, flags: BUILT | STEAMLINE, bounce: 0.4, friction: 0.35, ..BASE },
+    Props { name: "Boiler", desc: "Brick firebox under an iron drum. Feed coal in at the top; it boils water from beside it.", kind: Solid, density: 3000., tensile: 8000., compressive: 30000., dig: 14, tier: 1, blast: 9, opacity: 220, color: [120, 84, 70], crumbles_to: X::Gravel, flags: BUILT, bounce: 0.3, friction: 0.6, ..BASE },
 ];
 impl Mat {
     #[inline] pub fn from_u8(v: u8) -> Mat { if (v as usize) < NMAT { unsafe { std::mem::transmute(v) } } else { Mat::Empty } }

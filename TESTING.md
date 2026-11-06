@@ -103,7 +103,7 @@ The map is stamped with its top-left so that `@` lands on the world spawn (the m
 
 Every material counts as already discovered in a scenario (a discovery's torch reward would otherwise depend on what the generated world happened to show).
 
-Map legend: `t` roots (a root tangle), `f` fungus, `.` empty, `#` granite, `B` bedrock, `r` rock, `d` dirt, `c` clay, `s` sand, `g` gravel, `w` water, `l` lava, `o` coal, `i` iron ore, `a` basalt, `b` wood beam, `I` iron beam, `k` stone brick, `T` root-tree, `R` root-tree roots, `m` moss, `y` mycelium, `p` planks, `q` polished stone, `x` tiles, `C` carved pillar, `=` rail, `%` pressure tube, `h` chute, `H` shaker screen, `|` bumper, `z` riffle bar, `j` iron shaft, `*` gear, `O` water wheel, `>` belt (runs right), `<` belt (runs left), `U` weight drum (`~` steam, `?` other, only in output). The generated world's own grottos are left out of a scenario (`grottos` cleared).
+Map legend: `t` roots (a root tangle), `f` fungus, `.` empty, `#` granite, `B` bedrock, `r` rock, `d` dirt, `c` clay, `s` sand, `g` gravel, `w` water, `l` lava, `o` coal, `i` iron ore, `a` basalt, `b` wood beam, `I` iron beam, `k` stone brick, `T` root-tree, `R` root-tree roots, `m` moss, `y` mycelium, `p` planks, `q` polished stone, `x` tiles, `C` carved pillar, `=` rail, `%` pressure tube, `h` chute, `H` shaker screen, `|` bumper, `z` riffle bar, `j` iron shaft, `*` gear, `O` water wheel, `>` belt (runs right), `<` belt (runs left), `U` weight drum, `E` steam engine, `P` steam pipe (`K` a boiler's shell, output only) (`~` steam, `?` other, only in output). The generated world's own grottos are left out of a scenario (`grottos` cleared).
 
 **Assertion variables:**
 
@@ -133,6 +133,7 @@ Map legend: `t` roots (a root tangle), `f` fungus, `.` empty, `#` granite, `B` b
 | `shaking:DX,DY` | 1 if the tile is a shaker screen with current in its block |
 | `flow:DX,DY` / `bedstress:DX,DY` | The water's current at the tile's centre (m/s, + = right) and its stress on the bed (depth·slope, m); 0 in still water or out of it |
 | `turning:DX,DY` / `supply:DX,DY` / `demand:DX,DY` | How fast the tile's drive train turns (0..1); its power to give and to do (W) |
+| `boilers` / `bsteam` / `bwater` / `bfuel` / `bburning` / `bchoked` | Boilers; the first one's steam (kJ), water (cells), fuel (lumps, the burning one too), whether it burns, whether its ash door is choked |
 | `weights` / `weighty` | Counterweights; the first one's top (tiles from the map top) |
 | `cells:Mat,DX0,DX1,DY0,DY1` | Tiles' worth of that material in those tile columns and rows from `@` |
 | `ladders` / `climbing` | Rope ladders hung; whether the mole is on one |
@@ -278,6 +279,10 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `water_wheel.scn` | A stream under a water wheel gives several hundred watts, shakes a screen and winds a counterweight up; when it runs dry the weight carries on |
 | `belt_carries_mole.scn` | A mole standing on a turning belt rides it at the belt's 1 m/s and stays on its feet |
 | `counterweight_stops_on_build.scn` | A pillar built under a counterweight stops it on the pillar's top, not at the floor it had when hung |
+| `boiler_drives_belt.scn` | Coal on a boiler by a sump: water drawn, steam up, an engine on the boiler drives a belt; ash and slag come out the ash door; saved |
+| `boiler_ash_chokes.scn` | Ash piled at the ash door chokes the grate (logged); the mole picks it up and the fire catches |
+| `boiler_dry.scn` | No water: the coal burns, no steam, the belt stays still |
+| `steam_pipe_feeds_engine.scn` | Steam goes along a pipe to an engine 3.5 m off; cut the pipe and the belt stops |
 | `shaker_sorts.scn` | Gravel drops through a 1-in-4 shaker screen; ore lies on it until current shakes it, then walks off the end into its own pit |
 | `rail_needs_support.scn` | A rail span over a drop breaks and falls; its ends on rock hold |
 | `blast_moves_sand.scn` | A charge by a sand bed throws a third of it into the air at once; the near end is scoured, and it all lands (none lost) |

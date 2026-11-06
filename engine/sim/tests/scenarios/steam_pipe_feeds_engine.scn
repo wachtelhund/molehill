@@ -1,0 +1,32 @@
+// Steam goes along a pipe. The engine stands 3.5 m from the boiler at the head of the shaft down to the belt,
+// joined to the boiler's top by copper steam pipe along the roof. Coal burns, the steam goes along the pipe, and
+// the engine drives the belt. Cut the pipe and the engine has no steam: the belt stops, while the boiler goes on
+// raising steam with nowhere to send it.
+map
+########################################
+########################################
+########################################
+########################################
+########################################
+########################################
+########################################
+########################################
+#........PPPPPPPPPPPPPPPE..............#
+######..................j..............#
+#wwwww..................j..............#
+#wwwww..................j..............#
+#wwwww..................j..............#
+#wwwww..............@...*>>>>>>>>>>>...#
+########################################
+########################################
+end
+give Boiler 1
+give Pickaxe 1
+place 2 -11 -2 Boiler
+drop 10 Coal -13 -6
+drop 40 Stone 7 -1
+expect 300 turning:5,0 == 1           // driven along the pipe
+expect 300 zone:Stone,15,18,-1,0 == 1
+pour 400 -4 -5 Granite                // the pipe cut (a fall of rock through it)
+expect 500 turning:5,0 == 0
+expect 500 bsteam > 15                // the boiler still raises steam, now with nowhere to send it

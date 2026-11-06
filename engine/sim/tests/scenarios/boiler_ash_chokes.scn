@@ -1,0 +1,46 @@
+// Ash has to be hauled away. Ten lumps of ash already lie against a boiler's ash door: its grate is choked and the
+// log says so; coal fed in waits on the grate, unlit, and the belt it would drive stays still. The mole walks over
+// and picks the ash up: the door is clear, the fire catches, steam rises and the belt turns.
+map
+########################################
+########################################
+########################################
+########################################
+########################################
+########################################
+########################################
+########################################
+#........EE*jjjjjjjjjjjj*..............#
+######..................j..............#
+#wwwww..................j..............#
+#wwwww..................j..............#
+#wwwww..................j..............#
+#wwwww..............@...*>>>>>>>>>>>...#
+########################################
+########################################
+end
+give Boiler 1
+place 2 -11 -2 Boiler
+drop 3 Ash -8 -1
+drop 3 Ash -8 -1
+drop 3 Ash -8 -1
+drop 3 Ash -8 -1
+drop 3 Ash -8 -1
+drop 3 Ash -8 -1
+drop 3 Ash -8 -1
+drop 3 Ash -8 -1
+drop 3 Ash -8 -1
+drop 3 Ash -8 -1
+drop 10 Coal -13 -6
+expect 60 bchoked == 1
+expect 60 log:ash_door_is_choked == 1
+expect 300 bburning == 0              // the coal waits on the grate, unlit
+expect 300 bfuel == 1
+expect 300 bsteam < 1
+expect 300 turning:5,0 == 0
+hold 320-400 left                     // walk over the ash heap
+expect 420 inv:Ash == 10              // picked up
+expect 600 bchoked == 0
+expect 600 bburning == 1              // the fire caught
+expect 900 bsteam > 5
+expect 900 turning:5,0 == 1

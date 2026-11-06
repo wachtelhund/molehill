@@ -129,6 +129,12 @@ pub fn transport_tip(w: &World, x: usize, y: usize) -> Option<Tip> {
         if !c.on_rail { l.push("Off the rails: it won't roll until it's back on track.".into()); }
         return tip("Mine cart", l);
     }
+    if let Some(k) = w.boiler_at(x, y) {
+        let b = &w.tr.boilers[k];
+        let fire = if b.choked { "Ash door choked: haul the ash and slag away.".to_string() } else if let Some(it) = b.burning { format!("Burning {} ({} more lumps waiting).", it.name().to_lowercase(), b.lumps() - 1) } else { "Cold: drop coal, charcoal or wood on its top.".into() };
+        return tip("Boiler", vec![fire, format!("Water {:.0} of {:.0} (it draws from water touching it) · steam {:.0} kJ.", b.water, crate::steam::TANK, b.steam),
+            if b.engines.is_empty() { "No engine on it: build a steam engine against it, or pipe its steam to one.".into() } else { format!("Feeds {} engine cells.", b.engines.len()) }]);
+    }
     if let Some(k) = w.weight_at(x, y) {
         let wt = &w.tr.power.weights[k]; let down = (wt.y - (wt.drum + 2) as f32) / CPM as f32; let left = (wt.bottom - wt.y) / CPM as f32;
         return tip("Counterweight", vec![format!("{:.0} kg, {:.1} m down its rope ({:.1} m more to fall): it falls to drive its train and is wound up by spare power.", crate::power::WEIGHT_KG, down, left), "E: take it down.".into()]);
