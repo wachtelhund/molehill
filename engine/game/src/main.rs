@@ -1386,6 +1386,17 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
             }
         }
     }
+    // steam borers (placeholder until p3's art): an iron body, its bore head at the front, a glow while its fire burns
+    for (k, b) in w.tr.borers.iter().enumerate() {
+        let (x, y) = (b.px + (b.x - b.px) * a, b.py + (b.y - b.py) * a); let (cx, cy) = (x as usize, (y as usize).saturating_sub(2));
+        if cx >= W || cy >= H || w.g.flags[cy * W + cx] & F_SEEN == 0 { continue; }
+        let lt = lightf(cx, cy).to_srgba(); let lit = |r: f32, gg: f32, bb: f32| Color::srgb(r * lt.red, gg * lt.green, bb * lt.blue);
+        let (bw, bh) = (molehill_sim::borer::BORER_W, molehill_sim::borer::BORER_H);
+        want.push((120, k, cell_to_world(x, y - bh / 2.), 4.2, sp.px.clone(), Vec2::new(bw * CPX * 0.8, bh * CPX * 0.7), false, lit(0.42, 0.40, 0.40)));
+        want.push((121, k, cell_to_world(x + b.dir as f32 * bw * 0.42, y - bh / 2.), 4.21, sp.px.clone(), Vec2::new(bw * CPX * 0.2, bh * CPX * 0.8), false, lit(0.7, 0.55, 0.28)));
+        for (j, s) in [-1f32, 1.].into_iter().enumerate() { want.push((122, k * 2 + j, cell_to_world(x + s * bw * 0.28, y - 1.), 4.22, sp.px.clone(), Vec2::splat(bh * CPX * 0.35), false, lit(0.2, 0.18, 0.17))); }
+        if b.burning.is_some() { want.push((123, k, cell_to_world(x - b.dir as f32 * bw * 0.15, y - bh * 0.45), 4.23, sp.px.clone(), Vec2::splat(bh * CPX * 0.2), false, Color::srgb(1.6, 0.8, 0.3))); }
+    }
     // ore hoppers: the bin's back boards, the heap of what it holds tinted with that item's colour, the front
     // frame (its gate shut or swung open under the spout) and two legs stretched down to the floor
     for (k, b) in w.tr.bins.iter().enumerate() {

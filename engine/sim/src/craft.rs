@@ -33,8 +33,10 @@ pub enum Item {
     StampMill, Washer, Smelter, Bellows, Mould, CopperFines, TinFines, IronFines,
     // non-electric logic (linkage.rs): pull-rods, a tread plate, a float, a sluice gate, a tipping scale, a clutch
     Rod, TreadPlate, Float, SluiceGate, Scale, Clutch,
+    // the rideable steam borer (borer.rs)
+    SteamBorer,
 }
-pub const NITEM: usize = 100;
+pub const NITEM: usize = 101;
 /// What an item can do in the world (see `Item::uses`).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Uses { pub place: bool, pub throw: bool, pub pick_up: bool }
@@ -364,6 +366,9 @@ const ITEM_DEFS_CONST: [ItemDef; NITEM] = {
     it(Clutch, "Clutch", [110, 116, 126],
        "An iron dog clutch for a drive. It joins its drive train only while its pull-rod is pulled.").lump(Mat::Clutch).block(Mat::Clutch).place()
        .controls("Left mouse: build it into a drive line · join a pull-rod to it"),
+    it(SteamBorer, "Steam borer", [104, 96, 92],
+       "A rideable boring machine with its own firebox. It grinds a tunnel through rock and carries the spoil back.").dens(5000.0).place().pick_up()
+       .controls("Left mouse: set it down facing your way · coal in paw + right mouse: feed it · empty paw: get on · A/D: drive and bore · Space: off"),
     ]
 };
 /// Every item, in order.
@@ -539,6 +544,8 @@ pub static RECIPES: &[Recipe] = &[
     // pressure tubes (the top of the ladder for now): glass pipe banded with iron, and hoppers with blowers
     Recipe { name: "Tube hopper", station: Station::Workshop, inputs: &[(Item::IronIngot, 2), (Item::CopperIngot, 2), (Item::Glass, 1)], out: (Item::TubeHopper, 1), ticks: 240 },
     Recipe { name: "Lift", station: Station::Workshop, inputs: &[(Item::IronIngot, 2), (Item::Wood, 4), (Item::CopperIngot, 1)], out: (Item::Lift, 1), ticks: 240 },
+    // the steam borer: an iron frame and firebox with a bronze-toothed head (the workshop's fine work)
+    Recipe { name: "Steam borer", station: Station::Workshop, inputs: &[(Item::IronIngot, 8), (Item::BronzeIngot, 4), (Item::Brick, 4)], out: (Item::SteamBorer, 1), ticks: 400 },
     Recipe { name: "Drill", station: Station::Workshop, inputs: &[(Item::BronzeIngot, 4)], out: (Item::Drill, 1), ticks: 240 },
     Recipe { name: "Knot", station: Station::Workshop, inputs: &[(Item::CopperIngot, 1), (Item::Quartz, 1)], out: (Item::Gate, 1), ticks: 100 },
     Recipe { name: "Thrummer", station: Station::Workshop, inputs: &[(Item::Crystal, 2), (Item::CopperIngot, 2), (Item::Glass, 1)], out: (Item::Thrummer, 1), ticks: 200 },

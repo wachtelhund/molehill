@@ -1,6 +1,6 @@
 # Production
 
-A mine's output moves as **real loose items**: every lump is a loose item in the world, in a cart, or in an ore hopper's bin (drawn as its heap). Nothing teleports and nothing is stored out of sight. Lumps get from the face to where they are wanted by falling, sliding and rolling, so a line can jam, spill and pile up. The code is `engine/sim/src/production.rs`, `sluice.rs`, `power.rs`, `steam.rs`, `refine.rs` and `linkage.rs`; carts are in [Transport](Transport.md).
+A mine's output moves as **real loose items**: every lump is a loose item in the world, in a cart, or in an ore hopper's bin (drawn as its heap). Nothing teleports and nothing is stored out of sight. Lumps get from the face to where they are wanted by falling, sliding and rolling, so a line can jam, spill and pile up. The code is `engine/sim/src/production.rs`, `sluice.rs`, `power.rs`, `steam.rs`, `refine.rs`, `linkage.rs` and `borer.rs`; carts are in [Transport](Transport.md).
 
 | stage | what | state |
 |---|---|---|
@@ -155,6 +155,19 @@ A **linkage** is pull-rod cells and the sensors and actuators touching them. Whe
   * `float_valve`: a turned-round gate fills a tank until the water reaches a float, and then shuts.
   * `scale_clutch`: a scale weighing out 10 kg tips on the third stone and engages a clutch, and a belt starts.
 
+## Steam borer
+
+A rideable boring machine with its own firebox (`borer.rs`): it carries steam to the rock face instead of the mole carrying a drill.
+
+* **Fuel and water:** right mouse with coal, charcoal or wood in the paw puts a lump from the pack into its firebox. A lump burns at a time, as in a boiler (6 kW, 70 % to steam, 40 kJ boils a cell). It draws water cells touching its body or under its wheels into a 16-cell tank, and holds up to 300 kJ of steam. Ash drops out behind it.
+* **Riding:** right mouse with an empty paw gets on, and Space gets off. A/D drive it, at up to 0.5 m/s for 300 W of steam. It climbs a step of up to a tile and falls if the ground goes.
+* **Boring:** it bores the way it faces, which is the way the mole faced when it was set down. Driving into rock, its head grinds the column in front for 1.5 kW. A column takes 0.15 s per unit of the rock's dig time: dirt goes fast, and granite takes about 2 s a column, about 3 cm a second. Nothing cuts bedrock.
+* **Spoil:** every cell it cuts becomes loose rubble of what that rock crumbles to (ore stays ore). Its spoil belt drops it in the nearest open cell from half a metre to 4 m behind it. With no room there it jams and says so, so a borer can't dig into a dead end. Loose grains it rolls over are shoved back the same way.
+* Scenarios:
+  * `borer_bores`: fed, filled from a puddle and ridden into granite, it bores in. Its spoil lies behind it as much gravel as it cut, and it is saved.
+  * `borer_needs_steam`: with no fuel it doesn't move.
+  * `borer_jams`: in a dead end its spoil has nowhere to go and it jams.
+
 ## How they look
 
 Chutes, screens and bumpers are cells with their own patterns (`art::mat_color`). A chute has a pale worn lip and boards along it. A screen is iron bars over a dark mesh under a timber rail. A bumper is red-painted timber with a bright head and iron bands. The ore hopper is drawn: its heap is tinted with what it holds, it shows through the open front of the bin and rises with the load, and the gate under the spout swings open when it lets a lump down. `--scene=production` stamps a small works (chute onto screen, a hopper of copper ore over track, a bumper) for stills. See [Item and Place Art](Item-and-Place-Art.md).
@@ -192,6 +205,7 @@ The chute, screen (shaking or not) and bumper say what moves things along them. 
 | Forge | 2 tread plate | 1 iron ingot |
 | Forge | 2 clutch | 2 iron ingots |
 | Forge | tipping scale | 2 iron ingots + 1 bronze ingot + 2 wood |
+| Workshop | steam borer | 8 iron ingots + 4 bronze ingots + 4 brick |
 | Forge | 4 steam engine | 3 iron ingots + 1 copper ingot |
 | Forge | 8 steam pipe | 1 copper ingot |
 | Forge | counterweight | 4 iron ingots + 2 wood |

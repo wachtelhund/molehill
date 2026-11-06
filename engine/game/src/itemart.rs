@@ -297,6 +297,9 @@ pub fn icon_px(it: Item) -> Px {
         Clutch => { // two toothed iron halves on a shaft, a fork lever on one
             p.rect(0, 7, 15, 8, IRON); p.rect(3, 3, 6, 12, col); p.rect(9, 3, 12, 12, sh(col, 0.85)); for y in [4, 7, 10] { p.set(7, y, col); p.set(8, y + 1, sh(col, 0.85)); }
             line(&mut p, 11., 3., 14., 0., 1, WOOD_D); }
+        SteamBorer => { // an iron body on two wheels, a toothed cone of a bore head at its front, a stack with smoke
+            p.rect(1, 5, 11, 11, col); p.rect(1, 5, 11, 6, sh(col, 1.25)); poly(&mut p, &[(11., 4.), (16., 8.), (11., 12.)], BRASS_D); for y in [5, 8, 11] { p.set(14, y.min(10), BRASS); }
+            for cx in [3.5, 9.] { p.oval(cx, 12.5, 2.4, 2.4, IRON_D); p.set(cx as i32, 12, STONE); } p.rect(3, 1, 4, 4, IRON_D); p.set(4, 0, [190, 190, 196]); p.rect(6, 7, 8, 9, FLAME); }
         // ---- background linings: a piece of each, darker, as it sits behind
         RockWall => { // a rough slab of scraped host rock with tool marks
             poly(&mut p, &[(1., 3.), (6., 1.), (14., 2.), (15., 9.), (13., 15.), (3., 14.), (1., 9.)], sh(col, 0.85)); for y in [5, 9, 12] { line(&mut p, 3., y as f32, 11., y as f32 - 2., 1, sh(col, 0.6)); } }
@@ -325,7 +328,7 @@ pub fn world_form(it: Item) -> &'static str {
     match it {
         Planks | PolishedStone | Tiles | CarvedPillar | Rail | Tube | Chute | Screen | Bumper | Riffle | Shaft | Gear | WaterWheel | Belt | Engine | SteamPipe | Bellows | Mould | Rod | TreadPlate | Float | Clutch | WoodPillar | IronBeam | Brick | Glass => "placed cells",
         Torch => "torch flame", Lamp | Thrummer | Gate | Tnt | Vent => "device sprite", CopperWire => "copperline tile",
-        Cart => "cart sprite", RopeLadder => "rope ladder", HookRope => "rope chain and stone hook", RopeGun => "held rope gun (loaded or empty)", Lift => "lift cage", TubeHopper => "hopper mouth", OreHopper => "ore hopper bin", Counterweight => "counterweight on its drum", Boiler => "boiler shell cells", StampMill => "stamp mill shell cells", Washer => "washer shell cells", Smelter => "smelter shell cells", SluiceGate => "sluice gate cells", Scale => "scale pan cells",
+        Cart => "cart sprite", RopeLadder => "rope ladder", HookRope => "rope chain and stone hook", RopeGun => "held rope gun (loaded or empty)", Lift => "lift cage", TubeHopper => "hopper mouth", OreHopper => "ore hopper bin", Counterweight => "counterweight on its drum", Boiler => "boiler shell cells", StampMill => "stamp mill shell cells", Washer => "washer shell cells", Smelter => "smelter shell cells", SluiceGate => "sluice gate cells", Scale => "scale pan cells", SteamBorer => "borer body, head and rider",
         Mushroom | Spore => "mushroom plot (planted)",
         _ => "loose (icon)",
     }

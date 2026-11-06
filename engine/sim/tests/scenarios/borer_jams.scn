@@ -1,0 +1,38 @@
+// A borer can't bore into a dead end with nowhere for its spoil. In a chamber barely longer than the borer, the first
+// cut fills the little room behind it, and then there's no open cell within reach of its spoil belt: it jams, says so,
+// and grinds no further.
+map
+########################################
+########################################
+########################################
+########################################
+########################################
+########################################
+####.........###########################
+####.........###########################
+####.........###########################
+####.........###########################
+####.@.......###########################
+########################################
+########################################
+########################################
+end
+give SteamBorer 1
+give Coal 2
+hold 1-1 right
+place 2 3 0 SteamBorer
+pour 4 -1 -1 Water
+pour 4 0 -1 Water
+pour 4 1 -1 Water
+pour 4 2 -1 Water
+pour 4 3 -1 Water
+pour 4 4 -1 Water
+pour 4 5 -1 Water
+pour 4 6 -1 Water
+wield 10 Coal
+use 11 3 -1
+wield 13 none
+use 14 3 -1
+hold 300-3000 right
+expect 3000 log:jammed >= 1
+expect 3000 static:Granite > 480      // it got no further than a cut or two
