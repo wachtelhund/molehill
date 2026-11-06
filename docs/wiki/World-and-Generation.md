@@ -63,7 +63,7 @@ Above 35 m, lenses of **sand** and **gravel** form in the rock. The wettest are 
 | iron ore | 3 | 40 to 85 m, in the granite (none above about 30 m) | 8 m |
 | quartz | – | below 50 m | 10 m |
 
-Copper ore is a bright copper-orange (`mat.rs`), well apart from the browns of dirt and clay and the greys of rock, so the first seams read at play zoom; laid rail is a dark strap, not a wood brown.
+Copper ore's base colour is a bright copper-orange (`mat.rs`, used wherever a cell's plain colour shows: dust, debris, the minimap), well apart from the browns of dirt and clay; on screen it is drawn as green-flecked nuggets (`art::mat_color`). Rail's base colour is a dark strap rather than a wood brown, and it is drawn as a copper strap.
 
 Deep down (below 70 m) the rock is mostly **basalt**, with crystal and quartz on the cave walls and lava in the pockets: the heat layer of tier 5. All of it comes from seeded noise, so it's the same for a seed every time (`ore_sits_in_its_depth_bands`).
 
