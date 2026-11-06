@@ -8,7 +8,7 @@ Every item has its own drawing. No two share a silhouette, and none is another i
 
 ![Every item's pack icon, then every device as the hotbar shows it](images/item-icons.png)
 
-The sheet shows all 94 items, then the 21 devices.
+The sheet shows the first 94 items, then the 21 devices. The rod-logic items (pull-rod, tread plate, float, sluice gate, tipping scale, clutch) are not on it yet.
 
 The pack, the hotbar, the item in the mole's paws and anything lying loose all use the icon (a loose item is drawn at half size). Devices in the hotbar use their own in-world sprite (`devart::hotbar_icon`, switched off), so a lever, a plate and a floodgate no longer share one placeholder. The fuse and the pressure plate are the exceptions: in the world each is a thin strip along the floor of its block, so the hotbar shows a coil of fuse cord and the plate seen from above at an angle.
 
@@ -101,6 +101,12 @@ The pack, the hotbar, the item in the mole's paws and anything lying loose all u
 | Copper concentrate | washed brown grains with green flecks and copper glints, heaped in a shallow wooden pan | lies loose as its icon |
 | Tin concentrate | near-black grains with silver glints in a deep clay bowl | lies loose as its icon |
 | Iron concentrate | red-black grains with a grey shine in a wooden scoop with a handle | lies loose as its icon |
+| Pull-rod | two iron rods on a guide bracket, a clevis at one end | placed cells |
+| Tread plate | a chequered iron plate on two springs | placed cells |
+| Float | a fat sealed barrel float on its rod, in a line of water | placed cells |
+| Sluice gate | a planked gate leaf in a frame with a lifting rod and wheel | sluice gate cells |
+| Tipping scale | a beam on a post with a pan of ore one side and stones the other | scale pan cells |
+| Clutch | two toothed iron halves on a shaft, a fork lever on one | placed cells |
 | Ore hopper | a timber bin heaped with ore, tapering to a spout, on splayed legs | ore hopper sprite: back boards, the heap tinted with what it holds, the front frame open over the heap, a boarded taper to an iron spout whose gate shows shut or swung open, two legs down to the floor (`art::ore_bin`) |
 | Rock wall | a rough slab of scraped host rock with tool marks | background lining |
 | Timber wall | boards standing on end, uneven tops, gaps between | background lining |
