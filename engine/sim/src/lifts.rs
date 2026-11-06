@@ -2,8 +2,10 @@
 //!
 //! **Rope ladders** are cheap and need no power. One hangs from solid rock (a ledge or a shaft's lip) and
 //! unrolls straight down until it meets the floor, at most `LADDER_M`. The mole climbs it with `W`/`S`
-//! slower than it climbs a wall, but it can stop and hang without sliding. Jumping lets go. If the rock it
-//! hangs from goes, the ladder falls as a loose item.
+//! a little faster than it climbs a bare wall, and it can stop and hang without sliding. It grabs on at
+//! once (`W` over the rope, `S` standing at its head), is pulled onto the rope, and climbs off the top of
+//! a ledge's ladder onto the ledge by itself. Jumping, or pressing `A`/`D` alone, lets go. Climbing down
+//! never counts as a fall. If the rock it hangs from goes, the ladder falls as a loose item.
 //!
 //! **Lifts** are a cage on a rope over a head frame, balanced by a counterweight. The head hangs under a
 //! solid ceiling; the cage runs down the shaft below it, from just under the head to the shaft's floor.
@@ -21,8 +23,8 @@ use crate::world::{Event, World, BODY_H, BODY_HW};
 
 /// The longest rope ladder (cells): 8 m.
 pub const LADDER_M: usize = 8 * CPM;
-/// Ladder climbing speed (cells/s): 2 m/s up, 2.5 m/s down (a wall climb is 2.6 m/s up, but slides).
-pub const LADDER_UP: f32 = 2. * CPM as f32; pub const LADDER_DOWN: f32 = 2.5 * CPM as f32;
+/// Ladder climbing speed (cells/s): 3 m/s up, 3.5 m/s down (a wall climb is 2.6 m/s up, and slides).
+pub const LADDER_UP: f32 = 3. * CPM as f32; pub const LADDER_DOWN: f32 = 3.5 * CPM as f32;
 /// Lift cage: 1.5 m wide, a 1-cell floor (cells). Its shaft runs at most 32 m below the head.
 pub const CAGE_W: f32 = 1.5 * CPM as f32; pub const LIFT_M: usize = 32 * CPM;
 /// Masses (kg): the empty cage, the counterweight's frame, one stone of ballast, and a riding mole (and
@@ -114,12 +116,54 @@ impl World {
 
     /// The mole on a rope ladder: decides whether it is climbing this tick (it grabs on with `W`/`S` while
     /// over one, holds on until it jumps or stands on the ground, and lets go off the rope's ends).
-    pub(crate) fn ladder_climb(&mut self, ground: bool, jump_edge: bool) -> bool {
-        let (x, y) = (self.pl.px as usize, (self.pl.py - 1.) as usize);
-        let on = self.ladder_at(x, y).is_some() || self.ladder_at(x, (self.pl.py - BODY_H) as usize).is_some();
-        let grab = self.input.up || self.input.down;
-        self.tr.climbing = on && !jump_edge && (grab || self.tr.climbing && !ground);
+    /// `dir` is the A/D input: pressed alone (no `W`/`S`) it lets go at once, so the mole walks or drops off
+    /// sideways at its own speed. At the head of a ladder tied on a ledge, `W` doesn't grab (the rope above
+    /// the lip is the knot, and the mole has already stepped off onto the ledge), and `S` there takes the mole
+    /// onto the rope.
+    pub(crate) fn ladder_climb(&mut self, ground: bool, jump_edge: bool, dir: i32) -> bool {
+        let (up, down) = (self.input.up, self.input.down);
+        let let_go = jump_edge || (dir != 0 && !up && !down);
+        let k = self.ladder_on(self.pl.px, self.pl.py).or_else(|| if down && ground && !jump_edge { self.ladder_head_by(self.pl.px, self.pl.py) } else { None });
+        let Some(k) = k else { self.tr.climbing = false; return false };
+        let at_head = self.at_ladder_head(k, self.pl.py);
+        let grab = (up && !at_head) || down;
+        let was = self.tr.climbing;
+        self.tr.climbing = !let_go && (grab || was && !ground);
+        // stepping onto a ledge's ladder from its head: over the rope, clear of the rock it's tied to
+        if self.tr.climbing && !was && at_head && down { let hx = self.ladder_hang_x(k); if !self.box_hits(hx, self.pl.py) { self.pl.px = hx; } }
         self.tr.climbing
+    }
+    /// The ladder the mole's body (feet at `py`) is on: the rope runs past its feet or its head.
+    pub(crate) fn ladder_on(&self, px: f32, py: f32) -> Option<usize> {
+        self.ladder_at(px as usize, (py - 1.) as usize).or_else(|| self.ladder_at(px as usize, (py - BODY_H) as usize))
+    }
+    /// A ladder tied on a ledge whose head is right beside a mole standing on that ledge.
+    pub(crate) fn ladder_head_by(&self, px: f32, py: f32) -> Option<usize> {
+        self.tr.ladders.iter().enumerate().position(|(k, l)| l.ax != l.x && (py - l.ay as f32).abs() <= 1. && (px - self.ladder_hang_x(k)).abs() <= 2. * BODY_HW + S as f32)
+    }
+    /// The mole (feet at `py`) is at the head of ladder `k`: on top of the ledge it's tied to, or level with it.
+    fn at_ladder_head(&self, k: usize, py: f32) -> bool { let l = &self.tr.ladders[k]; l.ax != l.x && py <= l.ay as f32 + 0.5 }
+    /// Where the mole's middle hangs on ladder `k`: on the rope, its body clear of the rock face the rope is
+    /// tied over (a ceiling's ladder: on the rope itself).
+    pub(crate) fn ladder_hang_x(&self, k: usize) -> f32 {
+        let l = &self.tr.ladders[k];
+        let c = l.x as f32 + 0.5;
+        if l.ax < l.x { c.max((l.ax + 1) as f32 + BODY_HW + 0.01) } else if l.ax > l.x { c.min(l.ax as f32 - BODY_HW - 0.01) } else { c }
+    }
+    /// The rope's top beside the ledge it's tied to, when the mole climbing ladder `k` has reached it with `W`:
+    /// the row to stand on and the side the ledge is on.
+    pub(crate) fn ladder_top_out(&self, k: usize) -> Option<(f32, i8)> {
+        let l = &self.tr.ladders[k]; if l.ax == l.x { return None; }
+        Some((l.ay as f32, if l.ax < l.x { -1 } else { 1 }))
+    }
+    /// `W` here grabs a rope ladder (so it climbs instead of jumping): the mole is on a ladder, below its head.
+    pub fn ladder_takes_up(&self) -> bool { self.ladder_on(self.pl.px, self.pl.py).map_or(false, |k| !self.at_ladder_head(k, self.pl.py)) }
+    /// `S` here climbs down a rope ladder (so it doesn't dig the floor): the rope runs on below the mole's
+    /// feet, or the mole stands at the head of a ledge's ladder.
+    pub fn ladder_takes_down(&self) -> bool {
+        let py = self.pl.py;
+        self.ladder_on(self.pl.px, py).map_or(false, |k| { let l = &self.tr.ladders[k]; (l.top + l.len) as f32 > py + 1. && !self.box_hits(self.ladder_hang_x(k), py + 1.) })
+            || self.ladder_head_by(self.pl.px, py).is_some()
     }
 
     /// One tick of every ladder and lift.
