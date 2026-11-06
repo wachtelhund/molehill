@@ -72,6 +72,8 @@ The pack, the hotbar, the item in the mole's paws and anything lying loose all u
 | Rail | a length of copper strap on two sleepers, side on | placed cells of its material |
 | Mine cart | a plank tub with a bronze rim on two wheels | cart sprite on the rails |
 | Rope ladder | ropes and rungs, rolled at the bottom | rope ladder (ropes and rungs) |
+| Rope gun | a root-wood stock with a brass crank and a stone hook in the muzzle (placeholder) | held (icon) |
+| Hook rope | a coil of rope with a stone hook on top (placeholder) | rope chain and hook |
 | Lift | a cage hung from a sheave | lift head frame, rope and cage |
 | Pressure tube | a pressure-tube length with flanged ends | placed cells of its material |
 | Tube hopper | a brass funnel mouth on a stub of tube | brass hopper mouth |

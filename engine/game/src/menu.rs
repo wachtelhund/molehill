@@ -10,11 +10,13 @@ use molehill_sim::survival::Mode;
 #[derive(Clone, Copy, PartialEq, Debug)] enum Item { Continue, NewHolt, NewMode, Start, NewHunger, Hunger, Seed, Settings, Controls, Quit, Resume, Restart, Save, Load, MainMenu, Volume, Music, Zoom, Headlamp, Fullscreen, Back }
 
 #[derive(Resource)] pub struct Menu { pub screen: Screen, back: Screen, sel: usize, pub seed_text: String, pub volume: f32, pub music: f32, music_on: f32, pub zoom: f32, pub headlamp: bool, pub fullscreen: bool, has_save: bool,
+    /// a load that failed says why under the menu (the game's message line is hidden while a menu is open)
+    pub note: String,
     /// New Holt option: hunger on (Survival); `world_hunger` mirrors the current world's setting for Settings
     pub hunger: bool, world_hunger: bool, world_survival: bool,
     /// New Holt: the mode picked (kept while the seed is typed, so Enter on the seed row starts in it)
     pub new_mode: Mode }
-impl Default for Menu { fn default() -> Self { Menu { screen: Screen::Main, back: Screen::Main, sel: 0, seed_text: String::new(), volume: 0.8, music: MUSIC_DEFAULT, music_on: MUSIC_DEFAULT, zoom: molehill_sim::view::ZOOM_DEFAULT, headlamp: true, fullscreen: false, has_save: false, hunger: true, world_hunger: true, world_survival: false, new_mode: Mode::Survival } } }
+impl Default for Menu { fn default() -> Self { Menu { screen: Screen::Main, back: Screen::Main, sel: 0, seed_text: String::new(), volume: 0.8, music: MUSIC_DEFAULT, music_on: MUSIC_DEFAULT, zoom: molehill_sim::view::ZOOM_DEFAULT, headlamp: true, fullscreen: false, has_save: false, note: String::new(), hunger: true, world_hunger: true, world_survival: false, new_mode: Mode::Survival } } }
 impl Menu {
     pub fn open(&self) -> bool { self.screen != Screen::Off }
     fn items(&self) -> Vec<Item> {
@@ -51,7 +53,7 @@ impl Menu {
             if let Some(h) = v.get(4) { m.headlamp = *h != "0"; } }
         m.has_save = crate::storage_get("molehill-manual").is_some() || crate::storage_get("molehill-auto").is_some(); m
     }
-    pub fn go(&mut self, s: Screen) { if matches!(s, Screen::Settings | Screen::Controls | Screen::NewHolt) { self.back = self.screen; } self.screen = s; self.sel = 0; if s == Screen::Main { self.has_save = crate::storage_get("molehill-manual").is_some() || crate::storage_get("molehill-auto").is_some(); } }
+    pub fn go(&mut self, s: Screen) { self.note.clear(); if matches!(s, Screen::Settings | Screen::Controls | Screen::NewHolt) { self.back = self.screen; } self.screen = s; self.sel = 0; if s == Screen::Main { self.has_save = crate::storage_get("molehill-manual").is_some() || crate::storage_get("molehill-auto").is_some(); } }
 }
 
 #[derive(Component)] pub struct MenuRoot;
@@ -169,5 +171,6 @@ pub fn update(mut m: ResMut<Menu>, mut g: ResMut<Game>, keys: Res<ButtonInput<Ke
     let title = match m.screen { Screen::Pause => "Paused".to_string(), Screen::Settings => "Settings".into(), Screen::Controls => "Controls".into(), Screen::NewHolt => "New Holt".into(), _ => "Molehill".into() };
     for mut t in q.p3().iter_mut() { t.0 = title.clone(); }
     let hint = match m.screen { Screen::Controls => "Esc back".to_string(), Screen::NewHolt => "Survival: find food, oil and tools.   Creative: everything, nothing hurts.\nA / D mode     type digits for a seed     Enter start     Esc back".to_string(), Screen::Settings => "A / D adjust     Esc back".into(), Screen::Main => if g.live { format!("W / S choose     Enter select\nholt {}", g.seed) } else { "W / S choose     Enter select".into() }, _ => "W / S choose     Enter select     Esc resume".into() };
+    let hint = if m.note.is_empty() { hint } else { format!("{}\n{hint}", m.note) };
     for mut t in q.p2().iter_mut() { t.0 = hint.clone(); }
 }
