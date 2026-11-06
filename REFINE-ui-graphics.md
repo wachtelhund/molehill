@@ -350,6 +350,25 @@ Polish only: no new systems, lore names kept. Each entry lists what changed and 
 * Stills only, no live window. Stills plus `borer_is_drawn` cover both facings, the lit door, the turning head and
   driving (with `--shot-walk`).
 
+## Wagon art (branch `refine/wagon-art`, on #67)
+* The placeholders (ids 130–133: a tinted box, two dark squares, a fill rectangle, a grey bar) are replaced, with the
+  same ids plus 134 for the water gauge:
+  * Each kind has its own body (`art::wagon`): store, a low open plank box; workshop, a steep gable on posts over a
+    saw bench; bunk, a closed car under a low canvas barrel roof with a lit window; water, a riveted tank with a cap
+    and a gauge glass; coal, a flared riveted bunker with a stoking chute.
+  * Two spoked wheels turn with the ground covered.
+  * The load heaps above the rim as a store or coal wagon fills, and the water level rises in the gauge glass.
+  * The coupling is an iron bar with a link at each end.
+* The icons are built from the same bodies (`art::wagon_px`), on wheels, the store, coal and water ones showing a
+  load. The first workshop and bunk roofs shared a silhouette (8 px apart), so the workshop got a steep gable and the
+  bunk a low barrel roof. Icon sheet: 106 items, 21 devices.
+* `--scene=wagons` at frame 60: the five read apart in a row behind the ridden borer: the bunk's lit window, the
+  workshop's gable and saw, the store's crates above its rim, the coal heap, and the water gauge at about 60%. The
+  coupling bars join them.
+* Not tested: a live window; the train hauled through a run (`--shot-walk` drives it but no still was taken
+  moving); wagons coupled behind a borer facing west (the bar is placed by the borer's facing).
+* Test `wagons_have_their_own_silhouettes`.
+
 ## Open issues
 * `--shot` writes an empty frame on macOS when the game is launched from a background shell (the surface is
   never presented). It needs a visible window, or Linux with Xvfb.
