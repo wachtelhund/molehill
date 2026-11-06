@@ -1,8 +1,6 @@
 // An abandoned mine's lower drift, walked east from the middle to the chest and out of the east mouths. The
 // mine is 72 m long and its mouths are at the east end, so the scenario starts inside (the harness world is
-// 128 m wide). Known layout issue (sites.rs, env-rework v2; see REFINE-movement.md): the upper heading's
-// plank floor west of about 55 m falls in within 5 s of stamping, burying the lower drift and the shaft
-// rope there (a mole standing in it dies in about 3 s), so the walk starts east of it.
+// 128 m wide). Layouts from PR #8 (sites.rs); v2's upper floor that fell in over the shaft now stands.
 map
 ########################################################################################################################################################################################################################################################################################################
 ########################################################################################################################################################################################################################################################################################################

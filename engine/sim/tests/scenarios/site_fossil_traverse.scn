@@ -1,6 +1,7 @@
-// Into a fossil cave by its east mouth, under the iron lintel. Known layout blocker (sites.rs; see
-// REFINE-movement.md): the cave's oval wall closes off the end of each mouth, so the bone hall and the chest
-// (behind the west scaffold post) can't be reached without digging; tests/found_places.rs lists it.
+// Into a fossil cave by its east mouth and west along the bone hall floor, hopping the ribs, unhurt. Layout
+// evidence (PR #8, sites.rs; see REFINE-movement.md): carrying on west, about 11 m from the west wall the
+// timber scaffold and the gravel over it come down on the mole about 6 s in and bury it (dead by ~10 s, breath
+// full: crushed, not smothered), so this walk stops short of it.
 map
 ################################################################################################################################################################
 ################################################################################################################################################################
@@ -84,7 +85,13 @@ map
 ################################################################################################################################################################
 end
 site 1 fossil -147 -59
-hold 2-200 left
-expect 120 px < 140              // in under the lintel
-expect 200 grounded == 1
-expect 200 hp == 100
+hold 2-300 left
+hold 30-38 jump
+hold 70-78 jump
+hold 110-118 jump
+hold 150-158 jump
+hold 190-198 jump
+hold 230-238 jump
+hold 270-278 jump
+expect 300 px < 85                // well into the hall
+expect 300 hp == 100

@@ -1,7 +1,5 @@
-// Walk an abandoned holt from its west door, in through the nest (a hop over the first bedding pile; the rest
-// are climbed or pushed through) and across the hall to its east wall. Known layout blockers (sites.rs, env-rework
-// v2; see REFINE-movement.md): the chest sits in a sealed pocket under the hall, and the hall's east wall cuts
-// it off from the garden and the east door; tests/found_places.rs lists both.
+// Walk an abandoned holt from its west door to the chest: in through the nest and across the hall, hopping
+// over bedding and furniture; the chest opens when the mole walks up to it. Layouts from PR #8 (sites.rs).
 map
 ################################################################################################################################
 ################################################################################################################################
@@ -77,8 +75,21 @@ map
 ################################################################################################################################
 end
 site 1 holt 4 -51
-hold 2-250 right
-hold 25-32 jump                   // over the first bedding pile
+hold 2-600 right
+hold 30-38 jump
+hold 70-78 jump
+hold 110-118 jump
+hold 150-158 jump
+hold 190-198 jump
+hold 230-238 jump
+hold 270-278 jump
+hold 310-318 jump
+hold 350-358 jump
+hold 390-398 jump
+hold 430-438 jump
+hold 470-478 jump
+hold 510-518 jump
+hold 550-558 jump
 expect 60 px > 12                 // in through the west door
-expect 180 px > 45               // across the hall
-expect 250 hp == 100
+expect 600 chests == 1            // the site chest, opened
+expect 600 hp == 100

@@ -1,8 +1,6 @@
-// A buried cargo halt, from its warehouse into the platform hall on the rails. The halt is 80 m long, so the
-// scenario starts inside (the harness world is 128 m wide). Known layout blockers (sites.rs; see
-// REFINE-movement.md): iron columns stand floor to roof every 6 m in the hall (from 30 m), so the hall's bays
-// and the cart are sealed off; the warehouse column at 12 m leaves only a 1 m gap under the roof; and the
-// chest is stamped inside a crate stack, so it never opens.
+// A buried cargo halt, from the platform hall west into the warehouse to the chest: up over the crate stacks
+// (W held climbs them like any wall) and down again; the chest opens when the mole walks up to it. The halt
+// is 80 m long, so the scenario starts inside (the harness world is 128 m wide). Layouts from PR #8.
 map
 ########################################################################################################################################################################################################################################################################################################################################
 ########################################################################################################################################################################################################################################################################################################################################
@@ -86,8 +84,20 @@ map
 ########################################################################################################################################################################################################################################################################################################################################
 end
 site 1 halt -92 -67
-hold 2-200 right
-expect 100 px > 115              // through the warehouse and into the hall
-expect 200 px > 120              // up to the first column
-expect 200 grounded == 1
-expect 200 hp == 100
+hold 2-600 left up
+hold 30-38 jump
+hold 70-78 jump
+hold 110-118 jump
+hold 150-158 jump
+hold 190-198 jump
+hold 230-238 jump
+hold 270-278 jump
+hold 310-318 jump
+hold 350-358 jump
+hold 390-398 jump
+hold 430-438 jump
+hold 470-478 jump
+hold 510-518 jump
+hold 550-558 jump
+expect 600 chests == 1            // the site chest, opened
+expect 600 hp == 100
