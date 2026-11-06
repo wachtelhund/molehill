@@ -1,0 +1,22 @@
+// Lining holds no roof: a 20-wide clay span still falls when the back is timbered.
+// (clay_roof_falls is the same room without lining.)
+map
+######################
+#cccccccccccccccccccc#
+#cccccccccccccccccccc#
+#cccccccccccccccccccc#
+#cccccccccccccccccccc#
+#....................#
+#....................#
+#....................#
+#....................#
+#....................#
+#....................#
+#....................#
+#.@..................#
+######################
+end
+wall 2 4 -6 timber
+wall 2 10 -6 timber
+wall 2 16 -6 timber
+expect 400 crumbled > 0

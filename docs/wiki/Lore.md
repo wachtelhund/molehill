@@ -50,6 +50,7 @@ The lore is a design constraint as much as a story. Here is where it shows up in
 | Everything follows physics | Roofs and pillars are checked with beam bending and compression from a material table in kg/m³ and kPa (see [Physics](Physics.md)). |
 | Delvers see poorly | Fog of war, a dark palette, and tunnels that stay black until you light them. Remembered rock is drawn deliberately dim. A Delver carries its own handmade light: a fungus-oil lamp on its hat, whose beam reaches 12 m and is stopped by rock. |
 | Grottos | Rare grotto hollows around seep pools: 20 % of grotto cells in the wet upper layers, falling to none below 60 m. Root-trees regrow only while their roots stand and seep water is near; glowmites are ray-cast lights you can catch. |
+| Found places | Ordinary Delver remains: abandoned mines and holts, flooded pumpworks, fissures, fossil caves, salt halls, buried cargo halts. Same physics as anything you build; they sit on the background-wall layer and never grow a second Ancient waygate. |
 | Dangers | Cave-ins (structural failure), flooding, lava, stale air (CO2 on a block grid) and hunger are all simulated. |
 | Handmade tech | Every device has a plain name: lever, both-knot, ticker, catch-knot, floodgate, listener, relay thrummer. Tooltips are checked by a test (`every_thing_has_a_lore_safe_tooltip`). |
 | Thrumming | Modelled as an elastic wave through the actual cells between thrummer and listener (see [Devices and Copperline](Devices-and-Copperline.md#thrumming)). |

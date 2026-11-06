@@ -22,7 +22,9 @@ use molehill_sim::view as sv;
 use molehill_sim::survival::Mode;
 use molehill_sim::craft::{self, Item, Station, ITEMS, NITEM, QUESTS, RECIPES, STATIONS};
 use molehill_sim::grid::{hash3, F_SEEN};
-use molehill_sim::mat::{Kind, Mat, PROPS, S, SF};
+use molehill_sim::mat::{Kind, Mat, PROPS, CPM, S, SF};
+use molehill_sim::sites::Kind as SiteKind;
+use molehill_sim::walls::Wall;
 use molehill_sim::world::{self as sw, World};
 
 // The window is 256 × 128 m at any resolution; a cell is CPX world units (4 per legacy 0.25 m tile), so
@@ -65,9 +67,9 @@ const FAR: usize = 4; // chunk rows drawn beyond each end of the simulated windo
     look: Vec2 }
 /// What an inventory slot holds. Counts come from the shared pack (`World::inv`).
 #[derive(Clone, Copy, PartialEq, Debug)] pub enum Thing { Pick(u8), Item(Item), Dev(usize), Station(usize) }
-pub const NSLOT: usize = 90;
+pub const NSLOT: usize = 100; // 10 hotbar + 90 pack: room for the six back-wall items after devices and stations
 /// The round brush an inventory thing uses, if any (dig tools and placeable blocks).
-pub fn brush_of(t: Option<Thing>) -> Option<sw::Brush> { match t { Some(Thing::Pick(n)) => Some(sw::Brush::Dig(n)), Some(Thing::Item(it)) if sw::block_code(it).is_some() || it.pigment().is_some() => Some(sw::Brush::Place(it)), _ => None } }
+pub fn brush_of(t: Option<Thing>) -> Option<sw::Brush> { match t { Some(Thing::Pick(n)) => Some(sw::Brush::Dig(n)), Some(Thing::Item(it)) if sw::block_code(it).is_some() || it.pigment().is_some() || it.is_wall() => Some(sw::Brush::Place(it)), _ => None } }
 /// The radius the brush of this thing will actually use (the player's choice, clamped to the item's range).
 pub fn brush_r(g: &Game, b: sw::Brush) -> f32 { g.sizes.radius(b) }
 pub fn thing_name(g: &Game, t: Thing) -> String { match t { Thing::Pick(_) if !thing_usable(g, t) => "Claws".into(), Thing::Pick(n) => ["Pickaxe", "Drill", "Bore"][(n as usize - 1).min(2)].into(), Thing::Item(it) => it.name().into(), Thing::Dev(d) => DEVS[d].name().into(), Thing::Station(s) => STATIONS[s].name().into() } }
@@ -113,6 +115,7 @@ pub fn thing_usable(g: &Game, t: Thing) -> bool { match t { Thing::Pick(n) => !g
 pub fn thing_count(g: &Game, t: Thing) -> Option<u32> { match t { Thing::Item(it) => Some(g.w.inv[it as usize]), Thing::Dev(d) => dev_cost(DEVS[d]).map(|it| g.w.inv[it as usize]), _ => None } }
 pub(crate) fn default_slots() -> Vec<Option<Thing>> {
     let mut v: Vec<Thing> = vec![Thing::Pick(1), Thing::Pick(2), Thing::Pick(3), Thing::Item(Item::WoodPillar), Thing::Item(Item::Brick), Thing::Item(Item::IronBeam), Thing::Item(Item::Torch), Thing::Item(Item::Tnt), Thing::Item(Item::CopperWire), Thing::Dev(DEVS.iter().position(|&d| d == Dev::Lever).unwrap_or(0))];
+    for it in [Item::RockWall, Item::TimberWall, Item::MasonryWall, Item::BeamWall, Item::PipeWall, Item::CarvedWall] { v.push(Thing::Item(it)); }
     v.push(Thing::Item(Item::Spore));
     for d in 0..DEVS.len() { if !v.contains(&Thing::Dev(d)) { v.push(Thing::Dev(d)); } }
     for k in 0..STATIONS.len() { v.push(Thing::Station(k)); }
@@ -180,7 +183,12 @@ fn world_to_cell(p: Vec2) -> (i32, i32) { (((p.x + W as f32 * CPX / 2.) / CPX).f
 fn main() {
     #[cfg(target_arch = "wasm32")] std::panic::set_hook(Box::new(console_error_panic_hook::hook));
     App::new()
-        .add_plugins(DefaultPlugins.set(WindowPlugin { primary_window: Some(Window { title: "Molehill".into(), canvas: Some("#bevy".into()), fit_canvas_to_parent: true, prevent_default_event_handling: true, ..default() }), ..default() }))
+        .add_plugins(DefaultPlugins.set(WindowPlugin { primary_window: Some(Window {
+            title: "Molehill".into(), canvas: Some("#bevy".into()), fit_canvas_to_parent: true, prevent_default_event_handling: true,
+            // --shot: a fixed frame so each family fills the still; play keeps the host default
+            resolution: if cfg!(not(target_arch = "wasm32")) && std::env::args().any(|a| a.starts_with("--shot=")) { (1440u32, 900u32).into() } else { Default::default() },
+            ..default()
+        }), ..default() }))
         .insert_resource(ClearColor(Color::srgb(0.04, 0.035, 0.05)))
         .add_systems(Startup, setup)
         .insert_non_send(audio::Audio::new())
@@ -235,7 +243,13 @@ fn dev_dump(n: Local<u32>, g: Res<Game>, sp: Res<Sprites>, images: Res<Assets<Im
         let arg = |k: &str| std::env::args().find_map(|a| a.strip_prefix(k).map(|v| v.to_string()));
         let Some(dir) = arg("--dump-art=") else { return }; let at: u64 = arg("--shot-at=").and_then(|v| v.parse().ok()).unwrap_or(150);
         if g.frame < at { return; } *done = true; let _ = std::fs::create_dir_all(&dir);
-        let (mx, my) = (g.w.moles[0].x, g.w.moles[0].y); let (cw, chh) = (160 * S, 90 * S);
+        let (mx, my) = (g.w.moles[0].x, g.w.moles[0].y);
+        // site / wall-edit stamps are larger than the start holt; dump a 60 × 40 m crop so the room fits
+        let site_dump = scene_name().is_some_and(|s| matches!(s.as_str(),
+            "mine" | "holt" | "pump" | "pumpworks" | "fissure" | "fossil" | "crystal" | "salt" | "halt"
+            | "site-mine" | "site-holt" | "site-pump" | "site-fissure" | "site-fossil" | "site-crystal" | "site-halt"
+            | "walls" | "wall"));
+        let (cw, chh) = if site_dump { (240 * S, 160 * S) } else { (160 * S, 90 * S) };
         let (x0, y0) = (mx.saturating_sub(cw / 2).min(W - cw), my.saturating_sub(chh / 2).min(H - chh));
         let mut v = vec![0u8; cw * chh * 4]; for y in 0..chh { let s = ((y0 + y) * W + x0) * 4; v[y * cw * 4..(y + 1) * cw * 4].copy_from_slice(&g.buf[s..s + cw * 4]); }
         // composite the translucent open cells over the parallax layers like the GPU does (linear blend)
@@ -275,11 +289,32 @@ fn dev_dump(n: Local<u32>, g: Res<Game>, sp: Res<Sprites>, images: Res<Assets<Im
         info!("dumped art to {dir}");
     }
 }
-fn make_world(seed: u32, mode: Mode) -> World { let mut w = World::new(W, H, seed); w.disasters.enabled = false; w.set_mode(mode); stage_scene(&mut w); w }
-/// --scene=water|tnt (native, for recording): stage a set piece next to the burrow. Play is unchanged.
+fn make_world(seed: u32, mode: Mode) -> World { let mut w = World::new(W, H, seed); w.disasters.enabled = false; w.set_mode(scene_mode(mode)); stage_scene(&mut w); w }
+fn scene_name() -> Option<String> {
+    #[cfg(not(target_arch = "wasm32"))] { std::env::args().find_map(|a| a.strip_prefix("--scene=").map(|s| s.to_string())) }
+    #[cfg(target_arch = "wasm32")] { None }
+}
+/// Wall-edit inspection needs every lining in the pack; the other scenes keep the mode they were started in.
+fn scene_mode(mode: Mode) -> Mode {
+    match scene_name().as_deref() { Some("walls") | Some("wall") => Mode::Creative, _ => mode }
+}
+/// `--shot-zoom=`; site stamps pull the camera back so a 26 m halt or fissure fits the still.
+fn shot_or_menu_zoom() -> f32 {
+    #[cfg(not(target_arch = "wasm32"))]
+    if let Some(z) = std::env::args().find_map(|a| a.strip_prefix("--shot-zoom=").and_then(|v| v.parse().ok())) {
+        return molehill_sim::view::clamp_zoom(z);
+    }
+    molehill_sim::view::clamp_zoom(match scene_name().as_deref() {
+        Some("fissure") | Some("site-fissure") => 0.46,
+        Some("halt") | Some("site-halt") | Some("mine") | Some("site-mine") | Some("pump") | Some("pumpworks") | Some("site-pump") => 0.36,
+        Some("holt") | Some("site-holt") | Some("fossil") | Some("site-fossil") | Some("crystal") | Some("salt") | Some("site-crystal") | Some("walls") | Some("wall") => 0.32,
+        _ => crate::menu::Menu::load().zoom,
+    })
+}
+/// --scene=water|tnt|lore|decor|wiring, or a found-place / wall-edit stamp in host rock (native). Play is unchanged.
 fn stage_scene(w: &mut World) {
     #[cfg(not(target_arch = "wasm32"))] {
-        let Some(sc) = std::env::args().find_map(|a| a.strip_prefix("--scene=").map(|s| s.to_string())) else { return };
+        let Some(sc) = scene_name() else { return };
         let (mx, my) = (w.moles[0].x, w.moles[0].y); let set = |w: &mut World, x: usize, y: usize, m: Mat| { let i = w.g.idx(x, y); w.g.set(i, m); };
         w.disasters.enabled = false;
         match sc.as_str() {
@@ -348,10 +383,116 @@ fn stage_scene(w: &mut World) {
                 for (k, d) in rest.into_iter().enumerate() { dev(w, bx0 + k, by0 - 5, d); }
                 for k in 0..6 { wire(w, bx0 + k, by0 - 7); } wire(w, bx0 + 5, by0 - 8); wire(w, bx0 + 3, by0 - 6);
             }
+            "mine" | "site-mine" => stage_site(w, SiteKind::Mine),
+            "holt" | "site-holt" => stage_site(w, SiteKind::Holt),
+            "pump" | "pumpworks" | "site-pump" => stage_site(w, SiteKind::Pumpworks),
+            "fissure" | "site-fissure" => stage_site(w, SiteKind::Fissure),
+            "fossil" | "site-fossil" => stage_site(w, SiteKind::Fossil),
+            "crystal" | "salt" | "site-crystal" => stage_site(w, SiteKind::Crystal),
+            "halt" | "site-halt" => stage_site(w, SiteKind::Halt),
+            "walls" | "wall" => stage_wall_edit(w, mx, my, set),
             _ => {}
         }
         let f = w.st.solve(&w.g); w.st.crack(&f);
     }
+}
+
+/// Stamp one found place just east of the burrow: only open cells become host, so the room sits in the
+/// existing rock instead of a cut-out cube. The mole stands inside, on a lower floor or ledge.
+fn stage_site(w: &mut World, kind: SiteKind) {
+    let (sw, sh) = kind.size();
+    let host = match kind {
+        SiteKind::Mine | SiteKind::Holt | SiteKind::Pumpworks => Mat::Limestone,
+        SiteKind::Crystal => Mat::Basalt,
+        _ => Mat::Granite,
+    };
+    let (mx, my) = (w.moles[0].x, w.moles[0].y);
+    let pad = CPM;
+    let x0 = (mx + 6 * CPM).min(w.g.w.saturating_sub(sw + pad + 8)).max(8);
+    let mut y0 = my.saturating_sub(sh.saturating_sub(CPM + 4)).max(8);
+    if y0 + sh + pad + 8 >= w.g.h { y0 = w.g.h.saturating_sub(sh + pad + 8); }
+    let (hx0, hy0) = (x0.saturating_sub(pad), y0.saturating_sub(pad));
+    let (hx1, hy1) = ((x0 + sw + pad).min(w.g.w - 2), (y0 + sh + pad).min(w.g.h - 2));
+    for y in hy0..hy1 { for x in hx0..hx1 {
+        let i = w.g.idx(x, y);
+        if !w.g.m(i).passable() { continue; }
+        w.g.set(i, host); w.walls.set_at(x, y, Wall::None);
+    } }
+    w.furniture.retain(|f| f.x < hx0 || f.x >= hx1 || f.y < hy0 || f.y >= hy1);
+    w.farms.retain(|f| f.x < hx0 || f.x >= hx1 || f.y < hy0 || f.y >= hy1);
+    w.torches.retain(|&(x, y)| x < hx0 || x >= hx1 || y < hy0 || y >= hy1);
+    w.stamp_site(kind, x0, y0);
+    let n = (sw / (5 * CPM)).max(3);
+    for k in 0..n {
+        let x = x0 + 2 * CPM + k * sw.saturating_sub(4 * CPM) / n.max(1);
+        for &y in &[y0 + 2 * CPM, y0 + sh / 2, y0 + sh.saturating_sub(3 * CPM)] {
+            if x >= w.g.w || y >= w.g.h || w.g.is_solidish(y * w.g.w + x) { continue; }
+            if w.torches.iter().any(|&(tx, ty)| tx.abs_diff(x) < 2 * S && ty.abs_diff(y) < 2 * S) { continue; }
+            w.torches.push((x, y));
+        }
+    }
+    let (gw, gh) = (w.g.w, w.g.h);
+    molehill_sim::light::reveal_box(&mut w.g, hx0.saturating_sub(16 * S), hy0.saturating_sub(16 * S), (hx1 + 16 * S).min(gw - 1), (hy1 + 16 * S).min(gh - 1));
+    force_stand(w, x0, y0, sw, sh);
+}
+
+fn site_stand(w: &World, x0: usize, y0: usize, sw: usize, sh: usize) -> Option<(usize, usize)> {
+    let want_x = x0 + sw / 3; let want_y = y0 + sh.saturating_sub(3 * CPM); let mut best = None;
+    for y in y0 + 3..y0 + sh.saturating_sub(1) {
+        for x in x0 + 2..x0 + sw.saturating_sub(2) {
+            if !w.fits(x, y) { continue; }
+            if y + 1 >= w.g.h || !w.g.is_solidish((y + 1) * w.g.w + x) { continue; }
+            if w.g.m(y * w.g.w + x) == Mat::Water { continue; }
+            let floor = w.g.m((y + 1) * w.g.w + x);
+            let ledge = matches!(floor, Mat::WoodBeam | Mat::IronBeam | Mat::Rail | Mat::StoneBrick | Mat::Carved | Mat::Quartz);
+            let score = (x as i32 - want_x as i32).unsigned_abs() + (y as i32 - want_y as i32).unsigned_abs() * 2 + if ledge { 0 } else { 24 };
+            if best.map_or(true, |(_, _, s)| score < s) { best = Some((x, y, score)); }
+        }
+    }
+    best.map(|(x, y, _)| (x, y))
+}
+
+/// Always put the mole in the stamp: carve a short limestone shelf if the room has no floor yet.
+fn force_stand(w: &mut World, x0: usize, y0: usize, sw: usize, sh: usize) {
+    let (px, py) = site_stand(w, x0, y0, sw, sh).unwrap_or_else(|| {
+        ((x0 + sw / 2).min(w.g.w - 4).max(4), (y0 + sh.saturating_sub(3 * CPM)).min(w.g.h - 8).max(8))
+    });
+    for x in px.saturating_sub(CPM)..=(px + CPM).min(w.g.w - 1) {
+        for y in py.saturating_sub(3 * S)..=py { if y < w.g.h { w.g.set(w.g.idx(x, y), Mat::Empty); } }
+        for dy in 1..=CPM { if py + dy < w.g.h { w.g.set(w.g.idx(x, py + dy), Mat::Limestone); } }
+    }
+    w.moles[0].x = px; w.moles[0].y = py; w.pl.sync = None; w.pl.fall_from = py;
+}
+
+/// A lined room with scraped / timber / decorative-beam / masonry / carved bands, and real props in front.
+fn stage_wall_edit(w: &mut World, mx: usize, my: usize, set: impl Fn(&mut World, usize, usize, Mat)) {
+    let (x0, x1, y0) = (mx.saturating_sub(8 * S).max(8), (mx + 72 * S).min(w.g.w - 8), my.saturating_sub(28 * S).max(8));
+    for x in x0.saturating_sub(4 * S)..(x1 + 4 * S).min(w.g.w - 1) {
+        for y in y0.saturating_sub(4 * S)..(my + 6 * S).min(w.g.h - 1) { set(w, x, y, Mat::Limestone); }
+    }
+    for x in x0..x1 {
+        for y in y0..=my { set(w, x, y, Mat::Empty); }
+        for y in my + 1..my + 1 + 2 * S { set(w, x, y, Mat::Planks); }
+        for y in y0.saturating_sub(2 * S)..y0 { set(w, x, y, Mat::Limestone); }
+    }
+    for &px in &[x0 + 16 * S, x0 + 40 * S] {
+        for y in y0..=my { for x in px..px + S { set(w, x, y, Mat::WoodBeam); } }
+    }
+    for y in y0..=my { for x in x0 + 56 * S..x0 + 56 * S + S { set(w, x, y, Mat::IronBeam); } }
+    for x in x0..x1 {
+        for y in y0..=my {
+            let t = (x - x0) as f32 / (x1 - x0).max(1) as f32;
+            let wl = if t < 0.18 { Wall::None } else if t < 0.42 { Wall::Timber } else if t < 0.62 { Wall::Beams } else if t < 0.80 { Wall::Masonry } else { Wall::Carving };
+            w.walls.set_at(x, y, wl);
+        }
+    }
+    for k in 0..4 { w.torches.push((x0 + (8 + k * 16) * S, my.saturating_sub(10 * S))); }
+    let (gw, gh) = (w.g.w, w.g.h);
+    molehill_sim::light::reveal_box(&mut w.g, x0.saturating_sub(10 * S), y0.saturating_sub(10 * S), (x1 + 10 * S).min(gw - 1), (my + 10 * S).min(gh - 1));
+    let px = x0 + (x1 - x0) * 35 / 100;
+    if let Some((sx, sy)) = site_stand(w, x0, y0, x1 - x0, my.saturating_sub(y0) + 2) {
+        w.moles[0].x = sx; w.moles[0].y = sy; w.pl.sync = None;
+    } else if w.fits(px, my) { w.moles[0].x = px; w.moles[0].y = my; w.pl.sync = None; }
 }
 
 fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, mut fonts: ResMut<Assets<Font>>) {
@@ -386,9 +527,10 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, mut fonts: R
         commands.spawn((Sprite { image: img, custom_size: Some(Vec2::new(bw as f32 * CPX, H as f32 * CPX)), ..default() }, Transform::from_xyz(0., 0., -3. + k as f32 * 0.1), BgLayer(k))); }
     let (sx, sy) = (w.moles[0].x as f32, w.moles[0].y as f32 - 1.5 * SF);
     let p = cell_to_world(sx, sy);
-    commands.spawn((Camera2d, Transform::from_xyz(p.x, p.y, 100.).with_scale(Vec3::splat(crate::menu::Menu::load().zoom))));
+    let zoom = shot_or_menu_zoom();
+    commands.spawn((Camera2d, Transform::from_xyz(p.x, p.y, 100.).with_scale(Vec3::splat(zoom))));
     let font: Handle<Font> = fonts.add(Font::from_bytes(include_bytes!("../assets/PixelifySans.ttf").to_vec()));
-    menu::setup(&mut commands, &font); let mset = menu::Menu::load(); commands.insert_resource(mset);
+    menu::setup(&mut commands, &font); let mut mset = menu::Menu::load(); mset.zoom = zoom; commands.insert_resource(mset);
     ui::setup(&mut commands, &font); journal::setup(&mut commands, &font);
     { let ring = images.add(art::ring()); let px = images.add(art::image(1, 1, vec![255; 4], true)); wiring::setup(&mut commands, &mut images, &font, ring, px); }
     commands.insert_resource(ui::UiFont(font));
@@ -407,7 +549,13 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, mut fonts: R
         px: images.add(art::image(1, 1, vec![255; 4], true)),
     };
     commands.insert_resource(sp);
-    let disp = Vec2::new(sx, sy + 1.5 * SF); commands.insert_resource(Game { w, chunks, buf: vec![1; W * H * 4], uploads: 0, acc: 0., paused: true, speed: 1, frame: 0, last_light: 0, msg: String::new(), help: false, ev: vec![], shake_off: Vec2::ZERO, autosave: 0., last_oy: oy0, far, far_done, far_cells: Default::default(), inv_open: false, aim: None, slots: default_slots(), held: None, relayout: true, hot: 0, sel_t: 0., toasts: vec![], log_seen: 0, show_dev: false, disp, seed, sizes: Default::default(), drag: None, brush_tag: None, demo_right: false, wheel: Default::default(), mouse_latch: false, jump_tap: false, jump_key: false, w_jump: false, charge: None, throw_aim: (1., -1.), e_latch: false, pops: vec![], look: Vec2::ZERO });
+    let disp = Vec2::new(sx, sy + 1.5 * SF);
+    let mut slots = default_slots(); let mut hot = 0usize; let mut relayout = true;
+    if matches!(scene_name().as_deref(), Some("walls") | Some("wall")) {
+        if let Some(k) = slots.iter().position(|s| *s == Some(Thing::Item(Item::TimberWall))) { slots.swap(0, k); hot = 0; }
+        relayout = false;
+    }
+    commands.insert_resource(Game { w, chunks, buf: vec![1; W * H * 4], uploads: 0, acc: 0., paused: true, speed: 1, frame: 0, last_light: 0, msg: String::new(), help: false, ev: vec![], shake_off: Vec2::ZERO, autosave: 0., last_oy: oy0, far, far_done, far_cells: Default::default(), inv_open: false, aim: None, slots, held: None, relayout, hot, sel_t: 0., toasts: vec![], log_seen: 0, show_dev: false, disp, seed, sizes: Default::default(), drag: None, brush_tag: None, demo_right: false, wheel: Default::default(), mouse_latch: false, jump_tap: false, jump_key: false, w_jump: false, charge: None, throw_aim: (1., -1.), e_latch: false, pops: vec![], look: Vec2::ZERO });
 }
 
 pub fn save_now(g: &mut Game) { g.msg = match save_slot("molehill-manual", &g.w) { Ok(()) => "Game saved".into(), Err(e) => format!("Save failed: {e}") }; }
@@ -546,7 +694,14 @@ fn input(mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<Button
     // right mouse: interact (lever, thrum channel, ticker, light a fuse or TNT); on an empty spot it sets down
     // the device (or TNT, unlit) in hand
     // (a glowmite under the cursor goes in a jar first)
-    if mouse.just_pressed(MouseButton::Right) && !g.w.catch_glowmite(cx, cy) && !g.w.use_device(cx, cy) {
+    let wall_hand = matches!(sel, Some(Thing::Item(it)) if it.is_wall());
+    if wall_hand && mouse.pressed(MouseButton::Right) && !latched {
+        if mouse.just_pressed(MouseButton::Right) && (g.w.catch_glowmite(cx, cy) || g.w.use_device(cx, cy)) {}
+        else if let Some(Thing::Item(it)) = sel {
+            let r = brush_r(&g, sw::Brush::Place(it));
+            if let Err(e) = g.w.scrape_walls(cx, cy, r) { if mouse.just_pressed(MouseButton::Right) { g.msg = format!("Can't scrape: {e}"); } }
+        }
+    } else if mouse.just_pressed(MouseButton::Right) && !g.w.catch_glowmite(cx, cy) && !g.w.use_device(cx, cy) {
         let d = match sel { Some(Thing::Dev(d)) => Some(DEVS[d]), Some(Thing::Item(Item::Tnt)) => Some(Dev::Tnt), Some(Thing::Item(Item::Lamp)) => Some(Dev::Lamp), Some(Thing::Item(Item::Vent)) => Some(Dev::Vent), _ => None };
         if let Some(d) = d { if let Err(e) = g.w.place_device(d, cx, cy) { g.w.refuse_place(d.name(), e); } }
     }
@@ -554,6 +709,10 @@ fn input(mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<Button
     let (lp, lj) = (mouse.pressed(MouseButton::Left) && !latched, mouse.just_pressed(MouseButton::Left) && !latched);
     match sel {
         Some(Thing::Pick(_)) if lp => g.w.input.mine = Some((cx, cy)),
+        Some(Thing::Item(it)) if lp && it.is_wall() => {
+            let r = if g.sizes.snapping(sw::Brush::Place(it)) { let a = *g.drag.get_or_insert((cx, cy)); let n = g.sizes.snap_cells(); g.w.place_wall_line(a, (cx, cy), n, it) }
+                else { let r = brush_r(&g, sw::Brush::Place(it)); g.w.place_walls(cx, cy, it, r) };
+            if let Err(e) = r { if lj { g.w.refuse_place(it.name(), e); } } }
         Some(Thing::Item(it)) if lp && sw::block_code(it).is_some() => {
             let r = if g.sizes.snapping(sw::Brush::Place(it)) { let a = *g.drag.get_or_insert((cx, cy)); let n = g.sizes.snap_cells(); g.w.place_line(a, (cx, cy), n, it) }
                 else { let r = brush_r(&g, sw::Brush::Place(it)); g.w.place_brush(cx, cy, it, r) };
@@ -667,10 +826,21 @@ fn render_world(mut gm: ResMut<Game>, bg: Res<Bg>, mut images: ResMut<Assets<Ima
             match p.kind {
                 Kind::Empty | Kind::Gas => {
                     // the parallax rock shows through: darkened by the light here (never pure black), with a faint
-                    // wash of coloured light, stale-air haze and steam laid over it
+                    // wash of coloured light, stale-air haze and steam laid over it. A background wall sits
+                    // in front of that far rock and behind the player: darker, flatter, same light.
                     let lum = (l[0] * 0.3 + l[1] * 0.5 + l[2] * 0.2).min(1.3);
                     let k = (0.16 + 0.84 * (lum * 0.8).min(1.)) * 0.72;
                     let mut o = ([0.; 3], 1. - k.powf(2.2));
+                    let wl = wd.walls.get(i);
+                    if wl != molehill_sim::walls::Wall::None {
+                        let wc = wl.color(); let sh = wl.shade(x as u32, (y as i64 + wd.oy) as u32);
+                        // one darker/flatter scale, same light as the open cell: no extra 0.55 multiply
+                        let lit = |c: u8, li: f32| {
+                            let face = molehill_sim::walls::WALL_AMIN + (1. - molehill_sim::walls::WALL_AMIN) * li.min(1.15);
+                            c as f32 * face * molehill_sim::walls::WALL_K * sh
+                        };
+                        o = over(o, [lit(wc[0], l[0]), lit(wc[1], l[1]), lit(wc[2], l[2])], 1. - wl.see_through());
+                    }
                     let tw = (lum * 0.6).min(0.5) * 0.35;
                     if tw > 0.01 { let mx = l[0].max(l[1]).max(l[2]).max(1e-3); o = over(o, [l[0] / mx * 150. * k, l[1] / mx * 150. * k, l[2] / mx * 150. * k], tw); }
                     let co2 = wd.air.at(x, y); if co2 > 0.2 { o = over(o, [96. * k + 20., 104. * k + 20., 52. * k + 10.], ((co2 - 0.2) * 0.9).min(0.55)); }

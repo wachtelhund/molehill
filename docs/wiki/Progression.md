@@ -61,7 +61,7 @@ The tool ladder matches the rock: the **Pickaxe** for soft ground, the **Drill**
 
 ## Furnishing and decor
 
-> **Built:** decorative blocks (planks, polished stone, tiles, carved pillars), six pigments that paint blocks and dye cloth, and furniture (table, stool, nest, shelf, rug, banner, glowing fungus planter). Details: [Tools and Items](Tools-and-Items.md#furnishing). Not yet: back walls, and Delvers moving in.
+> **Built:** decorative blocks (planks, polished stone, tiles, carved pillars), six pigments that paint blocks and dye cloth, furniture (table, stool, nest, shelf, rug, banner, glowing fungus planter), and **back walls** (a Terraria-style lining behind open cells: they hold no roof). Details: [Tools and Items](Tools-and-Items.md#furnishing). Not yet: Delvers moving in.
 
 Making the holt **look like home** is a core goal, not a side feature. A Delver should be able to stand in their main hall and be proud of it.
 
@@ -155,8 +155,9 @@ Everything the Ancients built obeys the same physics as everything else: weight,
 | Light | torches, lamps, a headlamp and a jarred glowmite in the paw; in Survival the headlamp and torches burn fungus oil (pressed from fungus), the glowmite needs no fuel | fungus-oil fuel for torches and headlamp; glowmite lanterns |
 | Death | Survival: wake in the burrow, the pack stays where you died (Creative: nothing hurts) | wake in the holt; carried items stay where you died |
 | Wood | **built:** grottos with regrowing root-trees (see [World and Generation](World-and-Generation.md#grottos)) | grottos with regrowing root-trees |
-| Decor | **built:** furniture, decorative blocks and pigments (see [Tools and Items](Tools-and-Items.md#furnishing)); back walls not yet | furniture, decorative blocks, back walls, dyes |
+| Decor | **built:** furniture, decorative blocks, pigments and back walls (see [Tools and Items](Tools-and-Items.md#furnishing)) | furniture, decorative blocks, back walls, dyes |
 | Colony | one mole | Delvers move in when the holt is comfortable |
+| Found places | **built:** seven site families on the background-wall layer (mines, holts, pumpworks, fissures, fossils, salt halls, cargo halts; see [World and Generation](World-and-Generation.md#found-places)) | more of the same: purpose-built rooms, ordinary physics |
 | Late game | **built:** the Lid myth as clues and a journal, denser higher up; ruins of the Ancients with carvings in the same journal and two relics (see [Lore](Lore.md#the-lid-in-the-game)) | Ancient facilities, ruins, relics, the Lid myth |
 | Travel | walking, climbing, digging; **built:** rails and mine carts, powered rails, rope ladders, lifts, pressure tubes | carts and rails, ladders and lifts, powered rails, pressure tubes; Ancient waygates (open decision) |
 

@@ -1,0 +1,26 @@
+// Background walls travel with the bands: a save, a load, and a slide keep lining, including a scrape.
+map
+########################
+#......................#
+#......................#
+#......................#
+#......................#
+#..@...................#
+########################
+end
+give TimberWall 20
+wall 2 3 -2 timber
+wall 2 5 -2 masonry
+expect 3 wall:3,-2,timber == 1
+saveload 4
+expect 5 wall:3,-2,timber == 1
+expect 5 wall:5,-2,masonry == 1
+scrape 6 5 -2
+expect 7 wall:5,-2,none == 1
+slide 8
+expect 10 wall:3,-2,timber == 1
+expect 10 wall:5,-2,none == 1
+saveload 11
+slide 12
+expect 14 wall:3,-2,timber == 1
+expect 14 wall:5,-2,none == 1

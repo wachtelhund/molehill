@@ -13,7 +13,7 @@ use std::collections::VecDeque;
 /// v4: the world as bands (see `band.rs`): a manifest names every band (window and off-window) by start
 /// row and content hash; blobs travel inline (`save`) or as separate keys (`save_parts`). v3: one blob
 /// with a row cache of cells (still loads). Older (surface-world) saves are refused.
-pub const VERSION: u32 = 9; // 9: transport (carts and their cargo; see transport.rs); // 8: Ancient relics found and ruins visited; // 7: the Lid journal and the clues found; 6: the items ever picked up (recipes unlock by touch); 5: the game mode, the headlamp's oil, and hunger on/off
+pub const VERSION: u32 = 10; // 10: background walls (band trailing RLE) and sites visited; // 9: transport (carts and their cargo; see transport.rs); // 8: Ancient relics found and ruins visited; // 7: the Lid journal and the clues found; 6: the items ever picked up (recipes unlock by touch); 5: the game mode, the headlamp's oil, and hunger on/off
 const MAGIC: &[u8; 8] = b"MOLEHILL";
 /// The engine tag also names the cell resolution: a save at another cells-per-metre won't load.
 const ENGINE: &str = if crate::mat::CPM == 4 { "bevy-v3" } else if crate::mat::CPM == 8 { "bevy-v3-cpm8" } else { "bevy-v3-cpm?" };
@@ -78,7 +78,7 @@ fn load_v3(b: &[u8]) -> R<World> {
         for b in 0..nb { if w.logic.dev[b] == 0 { w.logic.burn[b] = 0; } }
         w.pl.deaths = r.u32()?;
     }
-    let _ = (&w.chests, Chest { x: 0, y: 0, opened: false, ancient: None }); w.refresh_chests();
+    let _ = (&w.chests, Chest { x: 0, y: 0, opened: false, ancient: None }); w.refresh_chests(); w.infer_back();
     let _ = Item::Dirt; let _ = Mat::Empty;
     // derived state
     w.g.life.iter_mut().for_each(|v| *v = 0); w.g.wake_all(); w.st = crate::stress::Stress::new(n);
@@ -123,6 +123,7 @@ pub fn save_parts(w: &World) -> Parts<'_> {
     o.u32(fc.len() as u32); for &(x, wy) in &fc { o.u32(x as u32); o.u64(wy as u64); }
     let mut rs: Vec<u32> = w.ruins_seen.iter().copied().collect(); rs.sort(); o.u8(w.relics); o.u32(rs.len() as u32); for id in rs { o.u32(id); }
     o.bytes(&w.encode_transport());
+    let mut ss: Vec<u32> = w.sites_seen.iter().copied().collect(); ss.sort(); o.u32(ss.len() as u32); for id in ss { o.u32(id); }
     o.u32(bands.len() as u32); for (wy0, h, b) in &bands { o.u64(*wy0 as u64); o.u64(*h); o.u32(b.len() as u32); }
     Parts { manifest: o.0, bands: bands.into_iter().map(|(wy0, h, b)| (band_key(wy0, h), b)).collect() }
 }
@@ -175,6 +176,8 @@ pub fn load_with(b: &[u8], fetch: &mut dyn FnMut(&str) -> Option<Vec<u8>>) -> R<
     let (relics, ruins_seen) = if ver >= 8 { let rl = r.u8()?; let mut s = std::collections::HashSet::new(); for _ in 0..r.len(1 << 20)? { s.insert(r.u32()?); } (rl, s) } else { (0, Default::default()) };
     // v9: transport
     let transport = if ver >= 9 { Some(r.bytes()?.to_vec()) } else { None };
+    // v10: sites visited (walls travel with the bands)
+    let sites_seen = if ver >= 10 { let mut s = std::collections::HashSet::new(); for _ in 0..r.len(1 << 20)? { s.insert(r.u32()?); } s } else { Default::default() };
     let list: Vec<(i64, u64, usize)> = (0..r.len(1 << 20)?).map(|_| Ok((r.u64()? as i64, r.u64()?, r.len(1 << 28)?))).collect::<R<_>>()?;
     let inline = !r.done() && r.u8()? == 1;
     // the world: generated from the seed, then everything mutable comes from the bands
@@ -211,7 +214,9 @@ pub fn load_with(b: &[u8], fetch: &mut dyn FnMut(&str) -> Option<Vec<u8>>) -> R<
     let mut seen: Vec<u32> = w.ruins_seen.iter().copied().collect(); seen.sort();
     for id in seen { if let Some(j) = crate::lore::ruin_entry(crate::ruins::fragment_of(id)) { if !w.journal.contains(&j) { w.journal.push(j); } } }
     if let Some(t) = transport { w.decode_transport(&t)?; }
+    w.sites_seen = sites_seen;
     w.refresh_chests();
+    if ver < 10 { w.infer_back(); }
     w.g.life.iter_mut().for_each(|v| *v = 0); w.g.wake_all(); w.st = crate::stress::Stress::new(gw * gh);
     let f = w.st.solve(&w.g); w.st.crack(&f); w.g.clear_struct();
     w.say(format!("Loaded save (tick {}).", tick));

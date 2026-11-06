@@ -76,7 +76,13 @@ pub fn describe(w: &World, x: usize, y: usize) -> Option<Tip> {
     if w.torch_at(x, y).is_some() { return tip("Torch".into(), vec![Item::Torch.desc().into(), "E: pick up.".into()]); }
     if w.logic.wire[b] != 0 { return tip("Copperline".into(), vec![Item::CopperWire.desc().into(), if w.logic.net_lit(b) { "Carrying current.".into() } else { "Idle.".into() }, "E: take up (hold and sweep for a run).".into()]); }
     let m = w.g.m(i);
-    if m == Mat::Empty { return None; }
+    if matches!(m.kind(), Kind::Empty | Kind::Gas) && m != Mat::Steam && m != Mat::Fire {
+        let wl = w.walls.at(x, y);
+        if wl != crate::walls::Wall::None {
+            return tip(wl.name().into(), vec![wl.desc().into(), "A wall item in hand: left mouse panels, right mouse scrapes.".into()]);
+        }
+        return None;
+    }
     let loose = w.g.loose(i) && m.kind() == Kind::Solid;
     let mut l = vec![tool_free(m.desc())];
     // digging: what the mole's own tools do to it, instead of the table's general note on tools

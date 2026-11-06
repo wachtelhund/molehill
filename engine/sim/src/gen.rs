@@ -124,7 +124,7 @@ impl Gen {
         v
     }
     /// Open air or water of a grotto (kept open by stabilisation).
-    pub fn in_grotto_void(&self, x: usize, wy: i64) -> bool { self.grotto_of(x, wy).map_or(false, |g| g.is_void(x, wy)) || self.in_ruin_void(x, wy) } // (and a ruin's halls)
+    pub fn in_grotto_void(&self, x: usize, wy: i64) -> bool { self.grotto_of(x, wy).map_or(false, |g| g.is_void(x, wy)) || self.in_ruin_void(x, wy) || self.in_site_void(x, wy) } // (and a ruin's halls, and a site's carved rooms)
 }
 
 pub struct Noise { seed: u32 }
@@ -180,6 +180,7 @@ impl Gen {
         // ruins of the Ancients are stamped in whole (see ruins.rs); then grottos are carved: their hollow,
         // pool, trees and floor don't depend on the rock around
         if let Some(c) = self.ruin_cell(x, wy) { return c; }
+        if let Some(c) = self.site_cell(x, wy) { return c; }
         let part = self.grotto_of(x, wy).and_then(|g| g.part(x, wy));
         let glow = || self.n0.at(fx / 6., fy / 6.) > 0.58;
         match part {

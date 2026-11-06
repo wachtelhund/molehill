@@ -148,6 +148,7 @@ Placed blocks are judged by the same rules, which is the point: you learn to bui
 * **Iron beams** have about 13 times the tensile strength of wood: they bridge wide gaps and carry heavy roofs.
 * **Stone brick** is strong in a wall but heavy on a roof.
 * Everything you place must touch something solid, so a stroke grows out of what it rests on. See [Tools and Items](Tools-and-Items.md#the-round-brush).
+* **Background walls** are not in this table. They are a separate byte per cell, never a material, so they never collide, never carry load, and never move with falling sand. A timbered room with no props still comes down (`wall_no_support`). See [World and Generation](World-and-Generation.md#background-walls).
 
 ### Known limits
 

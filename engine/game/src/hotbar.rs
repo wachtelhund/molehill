@@ -82,6 +82,14 @@ mod tests {
         move |t| match t { Thing::Station(_) => Have::Free, _ if owned.contains(&t) => Have::Owned, _ => Have::None }
     }
 
+    /// Back-wall items sit in the pack so Creative (and a Survival craft) can panel without hunting.
+    #[test] fn the_pack_holds_every_back_wall() {
+        let s = crate::default_slots();
+        for it in [Item::RockWall, Item::TimberWall, Item::MasonryWall, Item::BeamWall, Item::PipeWall, Item::CarvedWall] {
+            assert!(s.contains(&Some(Thing::Item(it))), "{it:?} missing from the pack");
+        }
+    }
+
     /// A real Survival start: the hotbar holds the pickaxe, the torches and the rest of the kit, and none
     /// of its ten slots is a faint thing you have none of. Creative has everything.
     #[test] fn the_survival_kit_fills_the_hotbar() {

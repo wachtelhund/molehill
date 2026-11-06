@@ -94,6 +94,7 @@ pub fn brush_range(b: Brush) -> Option<(f32, f32, f32)> {
         Brush::Place(Item::IronBeam) => (0.5 * SF, 2.0 * SF, 0.5 * SF),
         Brush::Place(Item::Planks | Item::Tiles | Item::PolishedStone) => (0.5 * SF, 3.5 * SF, 1.0 * SF),
         Brush::Place(Item::CarvedPillar) => (0.5 * SF, 2.0 * SF, 0.5 * SF),
+        Brush::Place(it) if it.is_wall() => crate::walls::wall_brush_range(),
         // a pigment paints a disc of cells
         Brush::Place(it) if it.pigment().is_some() => (0.5 * SF, 4.0 * SF, 1.5 * SF),
         _ => return None,
@@ -193,6 +194,10 @@ pub struct World {
     /// ruins of the Ancients touching the window (refreshed with the chests); the ones already visited (ids);
     /// relics found (bit k = `ruins::RELICS[k]`): each turns up once
     pub ruins: Vec<crate::ruins::Ruin>, pub ruins_seen: std::collections::HashSet<u32>, pub relics: u8,
+    /// decorative background walls (see `walls.rs`): one byte per window cell, never in the CA
+    pub walls: crate::walls::Walls,
+    /// sites touching the window (refreshed with the chests); the ones already visited (ids)
+    pub sites: Vec<crate::sites::Site>, pub sites_seen: std::collections::HashSet<u32>,
 }
 /// For audio / UI feedback.
 /// What `World::pick_up` took back into the pack.
@@ -218,6 +223,7 @@ impl World {
             moles: vec![], drops: vec![], stockpile: (0, 0, 0, 0), buildings: vec![], torches: vec![], chests: vec![], furniture: vec![], paint_acc: 0,
             quest: 0, log: vec![], discovered: [false; NMAT], chests_opened: 0, pillars: 0, max_depth: 0., craft_queue: vec![], gear: Gear::default(), known: [false; NITEM], mode: Default::default(), rules: Default::default(), lamp_oil: 0., lamp_dry: false, lamp_low: false, ruins: vec![], ruins_seen: Default::default(), relics: 0, crumbled: 0,
             light_rect: (0, 0, w - 1, h - 1), events: vec![], marks: vec![], react_pending: false, logic: Logic::new(w, h), disasters: Disasters::new(seed), shake: 0., air: Air::new(w, h), farms: vec![], harvested: 0, input: Input::default(), pl: Player::default(), gen: gn, oy, bands: Default::default(), opened: Default::default(), clues: vec![], found_clues: Default::default(), journal: vec![], grottos: vec![], caught: Default::default(), keep_blast_field: false, blast_field: vec![], debris: vec![], waves: vec![], tr: Default::default(), blasts_run: 0, info, g,
+            walls: crate::walls::Walls::new(w, h), sites: vec![], sites_seen: Default::default(),
         }
     }
     pub fn new(w: usize, h: usize, seed: u32) -> World {
@@ -225,6 +231,8 @@ impl World {
         let oy = -(h as i64 / 2); let (gn, info) = gen::generate(&mut g, seed, oy);
         let mut wd = World::shell(g, w, h, seed, oy, gn, info);
         wd.refresh_chests();
+        wd.line_back(0, h);
+        wd.line_burrow();
         let (sx, sy) = (wd.info.start.0 * CPM, wd.info.start.1 * CPM);
         // floor of the start chamber: the first support below
         let mut fy = sy.min(h - 6 * S); while fy < h - 5 * S && !wd.g.is_solidish(wd.g.idx(sx, fy + 1)) { fy += 1; }
@@ -256,6 +264,10 @@ impl World {
         }
         for r in &self.ruins { if let Some((x, wy)) = r.chest { let y = wy - self.oy; if y < mg || y >= h - mg { continue; }
             self.chests.push(Chest { x, y: y as usize, opened: self.opened.contains(&(x, wy)), ancient: Some(r.id) }); } }
+        self.refresh_sites();
+        for s in &self.sites { if let Some((x, wy)) = s.chest { let y = wy - self.oy; if y < mg || y >= h - mg { continue; }
+            if self.chests.iter().any(|c| c.x == x && c.y as i64 == y) { continue; }
+            self.chests.push(Chest { x, y: y as usize, opened: self.opened.contains(&(x, wy)), ancient: None }); } }
         self.refresh_clues();
     }
     /// The clues in the window, from the seed (like chests); the ones already found stay found.
@@ -302,12 +314,12 @@ impl World {
         for y0 in (lv..lv + s).step_by(BH) { let blob = band::encode(self, y0); self.bands.insert(self.oy + y0 as i64, band::Stored::new(blob)); }
         let d = s * w;
         if rows > 0 {
-            self.g.mat.copy_within(d.., 0); self.g.flags.copy_within(d.., 0); self.g.shade.copy_within(d.., 0); self.desig.copy_within(d.., 0);
+            self.g.mat.copy_within(d.., 0); self.g.flags.copy_within(d.., 0); self.g.shade.copy_within(d.., 0); self.desig.copy_within(d.., 0); self.walls.cell.copy_within(d.., 0);
         } else {
-            self.g.mat.copy_within(..w * h - d, d); self.g.flags.copy_within(..w * h - d, d); self.g.shade.copy_within(..w * h - d, d); self.desig.copy_within(..w * h - d, d);
+            self.g.mat.copy_within(..w * h - d, d); self.g.flags.copy_within(..w * h - d, d); self.g.shade.copy_within(..w * h - d, d); self.desig.copy_within(..w * h - d, d); self.walls.cell.copy_within(..w * h - d, d);
         }
         self.oy += rows; self.st.shift_rows(rows, w);
-        for y in en..en + s { for x in 0..w { self.desig[y * w + x] = 0; } }
+        for y in en..en + s { for x in 0..w { self.desig[y * w + x] = 0; self.walls.cell[y * w + x] = 0; } }
         // entities and block layers move with the rock; what was in the leaving rows is in its band now
         let dy = |y: usize| -> Option<usize> { let v = y as i64 - rows; if v >= 0 && v < h as i64 { Some(v as usize) } else { None } };
         for m in self.moles.iter_mut() { if let Some(v) = dy(m.y) { m.y = v; } else { m.alive = false; } m.path.clear(); m.job = None; m.work_cell = None; }
@@ -327,7 +339,13 @@ impl World {
             gen::stabilize_soft(&mut self.g, &mut self.st, a.saturating_sub(m), (b + m).min(h), &|x, y| gn.in_grotto_void(x, oy + y as i64), &|x, y| gen::in_start_zone(gn.biome.len(), x, oy + y as i64)); }
         for y0 in (en..en + s).step_by(BH) {
             if let Some(b) = self.bands.remove(&(self.oy + y0 as i64)) {
-                if band::decode(self, y0, &b.blob, None).is_err() { self.gen.fill_rows(&mut self.g, self.oy, y0, y0 + BH); } // damaged: regenerate
+                match band::decode(self, y0, &b.blob, None) {
+                    Ok(true) => {}
+                    Ok(false) => self.line_back(y0, y0 + BH), // older blob: no wall bytes
+                    Err(_) => { self.gen.fill_rows(&mut self.g, self.oy, y0, y0 + BH); self.line_back(y0, y0 + BH); }
+                }
+            } else {
+                self.line_back(y0, y0 + BH);
             }
         }
         self.disasters.y = (self.disasters.y as i64 - rows).clamp(8, h as i64 - 8) as usize;
@@ -525,7 +543,7 @@ impl World {
         let mut dz = std::mem::replace(&mut self.disasters, Disasters::new(0));
         dz.step(self); self.disasters = dz;
         if self.tick % air::UPDATE_TICKS == 0 { self.step_air(); }
-        if self.tick % 30 == 0 { self.step_farms(); self.check_furniture(); self.step_ruins(); }
+        if self.tick % 30 == 0 { self.step_farms(); self.check_furniture(); self.step_ruins(); self.step_sites(); }
         if self.tick % 30 == 0 { self.follow_colony(); }
         self.shake *= 0.93;
         if self.tick % 30 == 0 { self.check_quests(); self.check_chests(); }
@@ -715,6 +733,7 @@ impl World {
     }
     fn dig_cell(&mut self, i: usize, mx: usize, my: usize) {
         let m = self.g.m(i); let wet = self.g.flags[i] & F_WET != 0;
+        self.leave_lining(i, m);
         self.g.set(i, if wet { Mat::Water } else { Mat::Empty }); self.desig[i] = 0; self.events.push(Event::Dig);
         if m.has(GRUBS) && hash3(i as u32, self.tick as u32, 0x6b) % (48 * S * S) as u32 == 0 { self.drop_item(mx, my, Item::Grub, 1); }
         if m == Mat::Roots && hash3(i as u32, self.tick as u32, 0x52) % (8 * S * S) as u32 == 0 { self.drop_item(mx, my, Item::Root, 1); }
@@ -758,11 +777,14 @@ impl World {
             self.chests[c].opened = true; self.chests_opened += 1; self.opened.insert((cx, self.oy + cy as i64));
             let h = hash3(cx as u32, cy as u32, self.info.seed);
             let d = self.depth_m(cx, cy);
-            let loot: Vec<(Item, u32)> = if self.chests[c].ancient.is_some() { self.vault_loot(h) } else if d > 50. { vec![(Item::Crystal, 2 + h % 3), (Item::IronIngot, 2), (Item::Tnt, 1 + h % 2)] }
+            let loot: Vec<(Item, u32)> = if self.chests[c].ancient.is_some() { self.vault_loot(h) }
+                else if let Some(k) = self.site_at_chest(cx, cy) { crate::sites::site_loot(k, h) }
+                else if d > 50. { vec![(Item::Crystal, 2 + h % 3), (Item::IronIngot, 2), (Item::Tnt, 1 + h % 2)] }
                 else if d > 25. { vec![(Item::CopperIngot, 2 + h % 3), (Item::TinIngot, 1), (Item::Torch, 6)] }
                 else { vec![(Item::Coal, 4 + h % 4), (Item::Torch, 4), (Item::WoodPillar, 8)] };
             let mut s = String::new(); for &(it, n) in &loot { self.inv[it as usize] += n; s += &format!(" {}x{}", it.name(), n); }
-            self.events.push(Event::Chest); self.say(format!("{} at {:.0} m:{}", if self.chests[c].ancient.is_some() { "An Ancient vault, opened" } else { "Treasure chest" }, d.max(0.), s));
+            let who = if self.chests[c].ancient.is_some() { "An Ancient vault, opened" } else if self.site_at_chest(cx, cy).is_some() { "An old site chest" } else { "Treasure chest" };
+            self.events.push(Event::Chest); self.say(format!("{} at {:.0} m:{}", who, d.max(0.), s));
         }
     }
     /// The mole's 1×3 body fits at (x, y) (y = feet).

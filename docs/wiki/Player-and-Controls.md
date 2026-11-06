@@ -16,9 +16,9 @@ You play one Delver: a body about **45 × 73 cm** (1.8 × 2.9 tiles of 0.25 m, i
 | Into a wall in the air | Cling (side walls only: a ceiling just stops the jump). `W` / `S` climb up or down (speed eases in over ~3 ticks; a grab while falling catches at once); let go and you slide slowly. You grab as soon as a jump's rise slows to climbing speed, hold on across a notch, and ease out round a one-cell outcrop. `Space` wall-jumps away (also pressing away plus `Space`, or `Space` within 0.1 s of letting go); at the top you rise to the edge and roll over it smoothly (holding `W` or toward the wall); holding `W` through it doesn't hop |
 | `W` / `Space` in water | Swim up |
 | `S` | Dig down (on the ground) |
-| Left mouse | Use the item in hand: dig, place a block brush, torch, copperline, device, spore, TNT or station |
+| Left mouse | Use the item in hand: dig, place a block brush, panel a back wall, torch, copperline, device, spore, TNT or station |
 | `Q` held, then released | Throw the item in hand toward the cursor: hold to charge (0.8 s to full power, dots show the arc), release to throw. Only throwable things fly (see [Tools and Items](Tools-and-Items.md#what-each-item-does)); a TNT charge goes out lit |
-| Right mouse | Interact: flip a lever, step a thrum pattern or ticker beat, light TNT or a fuse cord. On an empty spot it sets down the device or TNT in hand (unlit) |
+| Right mouse | Interact: flip a lever, step a thrum pattern or ticker beat, light TNT or a fuse cord. On an empty spot it sets down the device or TNT in hand (unlit). With a **wall item** in hand it scrapes lining (the rock in front is untouched); a first-frame click on a device still uses the device |
 | `W` / `S` over a rope ladder | Grab on and climb (2 m/s up); let go of the keys to hang still; `Space` lets go. A lift's cage carries you as you stand on it (see [Transport](Transport.md)) |
 | Right mouse on a tube hopper (empty paw) | Get sealed in a capsule and blown along the pipe to the hopper it sends to (its blower needs current). With something in the paw: choose where it sends |
 | Right mouse on a mine cart | Get in; `Space` jumps out, `A` / `D` lean on it. Walking into a cart pushes it (see [Transport](Transport.md)) |
