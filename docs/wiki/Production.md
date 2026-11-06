@@ -72,6 +72,10 @@ A sluice is a sloping channel, rock or timber rather than a slippery chute, with
 * `sluice_sorts`: a reservoir drains down a stepped 1-in-4 channel with a riffle at the foot of each step. Gravel, coal and sand tipped in at the top are carried into the tailings pond. Copper ore, iron ore and stone settle in the riffle traps, both copper ores behind the first bar.
 * `sluice_washes_rubble`: after a blast, the same channel without riffles has heaps of loose rubble on two steps. Every grain of sand and gravel is washed into the pond, and the iron ore stays where it lay.
 
+## How they look
+
+Chutes, screens and bumpers are cells with their own patterns (`art::mat_color`). A chute has a pale worn lip and boards along it. A screen is iron bars over a dark mesh under a timber rail. A bumper is red-painted timber with a bright head and iron bands. The ore hopper is drawn: its heap is tinted with what it holds, it shows through the open front of the bin and rises with the load, and the gate under the spout swings open when it lets a lump down. `--scene=production` stamps a small works (chute onto screen, a hopper of copper ore over track, a bumper) for stills. See [Item and Place Art](Item-and-Place-Art.md).
+
 ## Hover tips
 
 The chute, screen (shaking or not) and bumper say what moves things along them. The ore hopper's tip gives its load and capacity, and says whether the gate is held open or opens for a cart (test `production_hover_tips_say_what_to_do`).
