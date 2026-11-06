@@ -117,26 +117,26 @@ Seven families of **found places**, not random loot rooms (`sim/src/sites.rs`). 
 
 | family | size | depth | what it is | what you do |
 |---|---|---|---|---|
-| Abandoned mine | 72 × 22 m | 0–56 m | a two-level sooty mine: haulage track on sleepers in ballast, an upper heading, a shaft house with a timber headframe and iron winch, ore chutes, short timber sets every four metres (not a colonnade), a worked face and spill, collapsed timbering, two adits | mine the face; climb the shaft; salvage rails and timber (`abandoned_mine_track_and_ore_face_read`) |
-| Abandoned holt | 28 × 14 m | −32–20 m | a domed timber holt (host rock above the dome, not a box): nesting alcove, kitchen hearth and chimney, hall with table and loft storage, fungus garden, two doors | read the rooms; the farms still grow |
+| Abandoned mine | 72 × 22 m | 0–56 m | a two-level sooty mine: haulage track on sleepers in ballast, an upper heading, a shaft house with a tall timber headframe and iron winch, ore chutes, short timber sets every four metres (not a colonnade), a worked face and spill, collapsed timbering, two adits | mine the face; climb the shaft; salvage rails and timber (`abandoned_mine_track_and_ore_face_read`) |
+| Abandoned holt | 28 × 14 m | −32–20 m | a domed timber holt (host rock above the dome, not a box): nesting alcove, kitchen hearth and chimney, hall with table, loft storage and dressed walls, fungus garden, two doors | read the rooms; the farms still grow |
 | Flooded pumpworks | 48 × 20 m | −12–40 m | wet-stone pumpworks: canal and flooded intake, a closed sluice, pipes hung from the roof, a 10 m iron pump wheel sitting on the floor (no colonnade of pillars), crate stacks in the dry hall, a service door | flip the lever or dig the plug; water is real |
 | Fissure | 18 × 40 m | 8–90 m | a tall basalt chasm that widens mid-drop, broken wood and iron bridges, hanging ropes, rubble on the ledges, mouths on both sides | climb; bring more rope or a lift |
-| Fossil cave | 36 × 16 m | 20–88 m | an oval dig (limestone shell, not a filled box) around a mineralised profile skeleton (skull, ribs and limbs) with wooden scaffold and tools, iron-lintelled mouths | excavate the carved bone |
-| Salt / crystal hall | 28 × 16 m | 36–100 m | a salt cathedral (shell, not a box): towering crystal and quartz spires, hanging clusters, three glow-pools, two mouths | harvest; crystal glows, the lining does not |
+| Fossil cave | 36 × 16 m | 20–88 m | an oval dig (limestone shell, not a filled box) around a mineralised profile skeleton (skull, ribs and limbs) with wooden scaffold and tools, walkable iron-lintelled mouths | excavate the carved bone |
+| Salt / crystal hall | 28 × 16 m | 36–100 m | a salt cathedral (shell, not a box): towering crystal and quartz spires, hanging clusters, three glow-pools, walkable iron-lintelled mouths | harvest; crystal glows, the lining does not |
 | Buried cargo halt | 80 × 18 m | 12–84 m | a chunk-scale halt: vaulted iron hall on rails, a derelict railcar with cabin and stack, hanging sign and waiting benches, a pressure tube off one side, a lower-roofed warehouse of crates off the other | ride or strip the cart; the tubes point at an Ancient station when one is near |
 
-Stamped sites and their interactions: `all_seven_site_families_stamp_with_purpose`, `found_places_have_open_silhouettes_not_filled_boxes` (host rock above a holt dome, a pump roof and a halt warehouse, and outside a fossil or crystal shell), `site_pumpworks`, `site_mine`, `site_holt`, `site_fissure`, `site_fossil`, `site_crystal`, `site_halt`. Headless tests do not prove the rooms *look* like carved rock. Native `--scene=mine` (and the other family names, or `walls`) stamps one isolated copy in host rock next to the burrow so a `--shot` can inspect lining, props and layout.
+Stamped sites and their interactions: `all_seven_site_families_stamp_with_purpose`, `found_places_have_open_silhouettes_not_filled_boxes` (host rock above a holt dome, a pump roof and a halt warehouse, and outside a fossil or crystal shell), `found_places_entrances_reach_every_room_and_the_chest` (from every way in, a mole body can reach the chest — or the fissure floor — and no room of 4 m² or more is cut off; salt-hall and fossil mouths keep their lintels), `site_pumpworks`, `site_mine`, `site_holt`, `site_fissure`, `site_fossil`, `site_crystal`, `site_halt`. Headless tests do not prove the rooms *look* like carved rock. Native `--scene=mine` (and the other family names, or `walls`) stamps one isolated copy in host rock next to the burrow so a `--shot` can inspect lining, props and layout.
 
 **How they read.** Rail and ore draw their own pixel art (`art::mat_color`): track is a copper strap along the top (old track flecked with verdigris) over dark timber sleepers every half metre with sooty ballast between, so it never reads as a plank floor; ore pockets and veins show rounded half-metre nuggets in the ore's own colour (copper flecked green with verdigris, rust-red iron, pale tin, glossy coal) in a darker matrix. Nothing glows: they are lit like any rock (tests `rails_do_not_read_as_a_wood_floor`, `ore_pockets_stand_out_without_glowing`).
 
 ### What they look like
 
-One still of each family, stamped with `--scene=<family>` on seed 4242 and lit by the scene's torches. These are the CPU-side composite from `--dump-art` (`view.bmp`), cropped to the site and scaled up with nearest sampling. Sprites are drawn on the GPU and aren't in that composite, so the mole shows as a short magenta mark and torches only as their light.
+One still of each family, stamped with `--scene=<family>` on seed 4242 and lit by the scene's torches. These are the CPU-side composite from `--dump-art` (`view.bmp`), cropped to the site and scaled up with nearest sampling. Furniture, chests, farms, carts and rope ladders are blitted into that composite; torches show as their light.
 
-![Abandoned mine: a two-level sooty drift with a headframe, chutes and collapsed timbering](images/site-mine.png)
+![Abandoned mine: a two-level sooty drift with a tall headframe, chutes and collapsed timbering](images/site-mine.png)
 *Abandoned mine* (`--scene=mine`)
 
-![Abandoned holt: a domed home with a hearth, loft and fungus garden](images/site-holt.png)
+![Abandoned holt: a domed home with dressed walls, a hearth, loft and fungus garden](images/site-holt.png)
 *Abandoned holt* (`--scene=holt`)
 
 ![Flooded pumpworks: wet-stone chambers, hanging pipes, a sluice and a large iron pump wheel](images/site-pump.png)
