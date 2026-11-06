@@ -65,7 +65,12 @@ pub struct Power {
     /// per train: how fast it turns (0..1 of full), what it could give and what it has to do (W)
     pub speed: Vec<f32>, pub supply: Vec<f32>, pub demand: Vec<f32>,
     pub weights: Vec<Weight>,
+    /// the machinery cells, found by a scan of the active region every `SCAN_EVERY` ticks (and added as they're
+    /// built in between); checked each solve
+    pub cells: Vec<usize>, pub scanned: u64,
 }
+/// Ticks between full scans for machinery (a second): built machinery joins at once, other changes within this.
+pub const SCAN_EVERY: u64 = 60;
 
 impl World {
     /// The train under the cell and how fast it turns (0..1), if it is machinery.
@@ -109,7 +114,7 @@ impl World {
         if !self.passable(x, drum) || !self.passable(x, drum + 1) { return Err("needs a drop under the roof"); }
         let floor = (drum + 1..(drum + 1 + ROPE_M * CPM).min(self.g.h - 1)).find(|&r| !self.passable(x, r)).unwrap_or(drum + ROPE_M * CPM);
         if floor < drum + 3 * CPM / 2 { return Err("needs at least a metre and a half of drop"); }
-        let i = self.g.idx(x, drum); self.g.set(i, Mat::Drum);
+        let i = self.g.idx(x, drum); self.g.set(i, Mat::Drum); self.tr.power.cells.push(i);
         let y0 = (drum + 2) as f32;
         self.tr.power.weights.push(Weight { x, drum, y: y0, py: y0, bottom: (floor - CPM / 2) as f32 });
         self.events.push(Event::Place); Ok(())
@@ -136,9 +141,12 @@ impl World {
             k += 1; }
         // the machinery in the active region (the window if the CA has none)
         let (x0, y0, x1, y1) = self.g.active.map_or((0, 0, gw, gh), |(a, b, c, d)| (a * crate::grid::CHUNK, b * crate::grid::CHUNK, ((c + 1) * crate::grid::CHUNK).min(gw), ((d + 1) * crate::grid::CHUNK).min(gh)));
-        let mut cells = vec![];
-        for y in y0.max(1)..y1.min(gh - 1) { let row = &self.g.mat[y * gw..(y + 1) * gw];
-            for x in x0.max(1)..x1.min(gw - 1) { if crate::mat::PROPS[row[x] as usize].flags & MECH != 0 { cells.push(y * gw + x); } } }
+        let rescan = self.tr.power.scanned == 0 || self.tick >= self.tr.power.scanned + SCAN_EVERY;
+        let mut cells = std::mem::take(&mut self.tr.power.cells);
+        if rescan { cells.clear(); self.tr.power.scanned = self.tick.max(1);
+            for y in y0.max(1)..y1.min(gh - 1) { let row = &self.g.mat[y * gw..(y + 1) * gw];
+                for x in x0.max(1)..x1.min(gw - 1) { if crate::mat::PROPS[row[x] as usize].flags & MECH != 0 { cells.push(y * gw + x); } } } }
+        else { cells.retain(|&i| i < self.g.mat.len() && self.g.m(i).has(MECH)); cells.sort_unstable(); cells.dedup(); }
         // trains: flood over (cell, axis) states; a shaft carries along its axis only (0 across, 1 up-down), a hub
         // every way (its state's axis is 2)
         let mut train: HashMap<usize, u32> = HashMap::with_capacity(cells.len());
@@ -173,6 +181,14 @@ impl World {
         // what rides the belts
         for d in &self.drops { let r = (d.py + ITEM_HW + 0.05).floor() as usize; let c = d.px.floor() as usize;
             if r < gh && c < gw { if let Some(&t) = train.get(&(r * gw + c)) { if self.g.m(r * gw + c).has(BELT) { demand[t as usize] += ITEM_W * d.n as f32; } } } }
+        // a counterweight's floor is what lies under it now (something built under it stops it; cleared, it goes on)
+        for k in 0..self.tr.power.weights.len() { let w = &self.tr.power.weights[k];
+            // (down its own line, as it was hung: the rope runs plumb under the drum)
+            let (top, end) = ((w.drum + 2) as i32, (w.drum + 1 + ROPE_M * CPM).min(gh - 1) as i32);
+            let blocked = |r: i32| w.x >= gw || !self.passable(w.x, r as usize);
+            let floor = (top..end).find(|&r| blocked(r)).unwrap_or(end);
+            let b = (floor - (CPM / 2) as i32).max(top) as f32;
+            let w = &mut self.tr.power.weights[k]; w.bottom = b; if w.y > b { w.y = b; } }
         // counterweights make up the difference: falling to give, winding to take
         let dt = MECH_EVERY as f32 / 60.; let g = 9.81; let cpm = CPM as f32;
         let mut wsup = vec![0f32; nt];
@@ -185,6 +201,7 @@ impl World {
         }
         let speed: Vec<f32> = (0..nt).map(|t| { let s = supply[t] + wsup[t]; if demand[t] <= 0. { if s > 0. { 1. } else { 0. } } else { (s / demand[t]).clamp(0., 1.) } }).collect();
         for t in 0..nt { supply[t] += wsup[t].max(0.); }
+        self.tr.power.cells = cells;
         self.tr.power.train = train; self.tr.power.speed = speed; self.tr.power.supply = supply; self.tr.power.demand = demand;
     }
     /// The stream's speed (m/s) at a water wheel's foot: read just upstream or downstream of the wheel, where the
@@ -199,6 +216,18 @@ impl World {
             0.
         };
         probe(-1).max(probe(1))
+    }
+
+    /// A mole standing on a turning belt is carried along with it (a moving floor: walking adds to it).
+    pub(crate) fn carry_on_belt(&mut self) {
+        if !self.pl.grounded || self.tr.riding.is_some() || !self.moles.first().is_some_and(|m| m.alive) { return; }
+        let (px, py) = (self.pl.px, self.pl.py); let r = py.floor() as i32;
+        let (x0, x1) = ((px - crate::world::BODY_HW).floor() as i32, (px + crate::world::BODY_HW - 1e-3).floor() as i32);
+        let Some(vb) = std::iter::once(px.floor() as i32).chain(x0..=x1).filter(|&c| self.g.in_bounds(c, r)).find_map(|c| self.belt_speed(c as usize, r as usize)) else { return };
+        if vb == 0. { return; }
+        let nx = px + vb / 60.;
+        if self.box_hits(nx, py) { return; }
+        self.pl.px = nx; let (x, y) = (nx as usize, (py - 0.001) as usize); self.moles[0].x = x; self.moles[0].y = y; self.pl.sync = Some((x, y));
     }
 
     /// Lumps on a belt queue: none passes the one ahead of it on the same belt row.
@@ -236,7 +265,7 @@ impl World {
         let dy = rows as f32; let hh = h as i64;
         self.tr.power.weights.retain_mut(|w| { let d = w.drum as i64 - rows; if d < 1 || (w.bottom - dy) as i64 >= hh - 1 { return false; }
             w.drum = d as usize; w.y -= dy; w.py -= dy; w.bottom -= dy; true });
-        self.tr.power.train.clear();
+        self.tr.power.train.clear(); self.tr.power.cells.clear(); self.tr.power.scanned = 0;
     }
     pub(crate) fn encode_power(&self, o: &mut crate::band::Wr) {
         o.u32(self.tr.power.weights.len() as u32);

@@ -611,6 +611,7 @@ impl World {
                 }
             } }
         self.step_player();
+        self.carry_on_belt();
         self.step_transport();
         self.step_items();
         self.belt_queue();
@@ -883,7 +884,7 @@ impl World {
         self.place_acc[d as usize] -= 1;
         // a belt runs the way the mole faces as it lays it (right mouse on a belt turns the run round)
         let m = match build_mat(d) { Mat::Belt if self.moles.first().is_some_and(|m| m.facing < 0) => Mat::BeltL, m => m };
-        self.g.set(i, m); self.desig[i] = 0; self.pillars += 1; self.events.push(Event::Place);
+        self.g.set(i, m); self.desig[i] = 0; if m.has(crate::mat::MECH) { self.tr.power.cells.push(i); } self.pillars += 1; self.events.push(Event::Place);
     }
     /// Lava loses heat where there's little of it: a cell with fewer than 10 tiles' worth of lava in
     /// the 5×5-tile (1.25 m) neighbourhood (a splash, a thin sheet, a trickle down a wall) now and then freezes into solid

@@ -113,3 +113,18 @@ I playtested sluicing in context and probed the edges:
   x8 (1 iron ingot) and counterweight (4 iron ingots + 2 wood) at the forge.
 * For p3: Iron shaft, Gear, Water wheel, Belt (two directions; a moving look would help), Counterweight (drum, rope and
   weight; a placeholder is drawn in `main.rs`). All five have placeholder pack icons in `itemart.rs`.
+
+## Stage 3 polish (branch `refine/production-power-polish`, after PR #45)
+
+I playtested the trains in context and probed the edges:
+* **The mole didn't ride belts (fixed).** A belt turning at full speed ran under a standing mole, which stayed put. A
+  grounded mole on a turning belt is now carried at its speed if its body fits (`carry_on_belt`); walking adds to it.
+  Scenario `belt_carries_mole`.
+* **A counterweight passed through what was built under it (fixed).** Its floor was measured once, when it was hung, so a
+  pillar built under it didn't stop it. The floor is now re-measured down its own line each solve. Scenario
+  `counterweight_stops_on_build`. (The first try measured a quarter metre either side and caught the shaft beside the rope
+  in `water_wheel`; the rope runs plumb, so only its own line counts.)
+* **Solve cost (improved).** Every solve rescanned the active region for machinery: 0.26 ms every 6 ticks even with none.
+  Now it rescans once a second, cells join as they're built, and the cached list is re-checked between: about 0 ms a
+  solve between rescans.
+* `site/` is rebuilt on main after #45.
