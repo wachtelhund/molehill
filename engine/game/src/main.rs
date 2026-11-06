@@ -559,7 +559,7 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, mut fonts: R
     ui::setup(&mut commands, &font); journal::setup(&mut commands, &font);
     { let ring = images.add(art::ring()); let px = images.add(art::image(1, 1, vec![255; 4], true)); wiring::setup(&mut commands, &mut images, &font, ring, px); }
     commands.insert_resource(ui::UiFont(font));
-    let sp = Sprites { tools: [images.add(art::tool_icon(1)), images.add(art::tool_icon(2)), images.add(art::tool_icon(3))], dev: DEVS.iter().map(|&d| images.add(devart::device(d, false, 0))).collect(), ring: images.add(art::ring()),
+    let sp = Sprites { tools: [images.add(art::tool_icon(1)), images.add(art::tool_icon(2)), images.add(art::tool_icon(3))], dev: DEVS.iter().map(|&d| images.add(devart::hotbar_icon(d))).collect(), ring: images.add(art::ring()),
         mole: art::mole_sheet(true).into_iter().map(|i| images.add(i)).collect(),
         mole_out: art::mole_sheet(false).into_iter().map(|i| images.add(i)).collect(),
         held: [art::Held::Pick, art::Held::Drill, art::Held::Bore, art::Held::Charge, art::Held::Block(Item::WoodPillar.color()), art::Held::Block(Item::Brick.color()), art::Held::Block(Item::IronBeam.color())]
