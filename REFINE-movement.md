@@ -127,24 +127,21 @@ Polish only: no new features or concepts. Each entry is one commit.
     ropes are climbable); `examples/sitewalk.rs` maps it per site and `tests/found_places.rs` asserts it. Scenarios
     `site_<kind>_traverse` walk each family from a way in as far as its layout allows. The movement code had no
     blocker of its own: every site blocker is in the stamped layout (`sites.rs`, env-rework's lane), so none were
-    changed here. As stamped on 2026-11-06:
-    * **holt**: the chest is stamped inside the hall table's plank top (`is_solidish`), so it never opens; a 3 m
-      bookcase stands against the garden partition's doorway, cutting the garden and east door off the hall.
-    * **mine**: timber posts every 4 m (`MINE_BAY`) run floor to roof on both levels, so every bay is sealed and
-      no mouth reaches the chest; the shaft's rope (8 m from the upper floor) stops 4 m above the lower floor, beside
-      the west post (climbable via the post, as `site_mine_traverse` does), with the only floor at its top east of
-      the hole.
-    * **pumpworks**: iron columns floor to roof every 8 m split the halls into strips; the east door does reach the
-      chest (the one site whose chest a mole can get to and open).
-    * **fissure**: the rubble on the 24 m iron stub leaves the gap past the bridges about a cell narrower than the
-      mole, sealing the lower 16 m; the upper rope hangs under the 8 m bridge it's tied to, out of reach from the
-      west mouth; the bridges overhang the walls, so the west mouth can't be climbed to from below (the flood fill
-      ignores overhangs: it still counts that as one region).
-    * **fossil cave** and **salt hall**: the oval wall closes off the inner end of both mouths, so the halls (and
-      chests) are sealed; the salt hall's four quartz columns run floor to roof; its east mouth's lintel and the
-      limestone over it sag within ~2 s of stamping and bury a mole standing there (100 to 27 hp in 2 s).
-    * **cargo halt**: iron columns floor to roof every 6 m in the hall (from 30 m) seal its bays and the cart; the
-      chest is stamped inside a crate stack, so it never opens.
+    changed here. As stamped after env-rework v2 (7a86dc5, 2026-11-06), from `sitewalk` and the scenarios:
+    * **holt**: the chest sits in a sealed pocket under the hall; the hall's east wall cuts the garden and east
+      door off from it.
+    * **mine**: open end to end now, and the east mouths reach the chest (`site_mine_traverse` opens it). But the
+      upper heading's plank floor west of about 55 m falls in within 5 s of stamping, piling onto the lower drift
+      round the shaft and its rope; a mole standing there is buried and dies in about 3 s. Worth a look first.
+      Before v2, posts every 4 m sealed each bay and the shaft's rope stopped 4 m short of the lower floor
+      (`site_mine_traverse` then climbed a post onto the rope to show the hand-off and the rope-top hang).
+    * **pumpworks**: the chest is boxed in among the pump machinery (before v2 it was the one reachable chest).
+    * **fissure**: a way in now reaches the floor; the bridges still overhang the walls, so the west mouth can't be
+      climbed to from below (the flood fill ignores overhangs).
+    * **fossil cave** and **salt hall**: the halls (and chests) are still sealed from both mouths; before v2 the salt
+      hall's east lintel sagged within ~2 s and buried a mole standing in that mouth (100 to 27 hp).
+    * **cargo halt**: the hall's bays are sealed from the way in, and the chest with them.
+    `GOAL_SEALED` (holt, pump, fossil, crystal, halt) and `CUT` (all seven) in `tests/found_places.rs` record this.
     The mine (72 m) and halt (80 m) don't fit beside the start in the harness's 128 m world, so their scenarios
     start inside.
 

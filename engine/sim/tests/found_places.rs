@@ -8,8 +8,8 @@
 //! The test also fails when a listed site has been opened up, so take it off the list: they only shrink.
 use molehill_sim::{world::World, mat::{Mat, CPM}, sites::Kind};
 
-/// Sites whose goal no way in reaches (stamped layouts as of 2026-11-06).
-const GOAL_SEALED: &[&str] = &["holt", "mine", "fissure", "fossil", "crystal", "halt"];
+/// Sites whose goal no way in reaches (stamped layouts as of 2026-11-06, env-rework v2).
+const GOAL_SEALED: &[&str] = &["holt", "pump", "fossil", "crystal", "halt"];
 /// Sites with a big room (4 m² of body positions or more) cut off from the main way in.
 const CUT: &[&str] = &["holt", "mine", "pump", "fissure", "fossil", "crystal", "halt"];
 const KINDS: [&str; 7] = ["holt", "mine", "pump", "fissure", "fossil", "crystal", "halt"];

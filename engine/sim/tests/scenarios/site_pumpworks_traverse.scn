@@ -1,7 +1,6 @@
-// Walk flooded pumpworks from the service door on its east wall: through the pump room to the chest, which
-// opens when the mole walks up to it. Known layout blocker (sites.rs; see REFINE-movement.md): iron columns
-// stand floor to roof every 8 m (here at 40 m, behind the pump), so the pump room, machine hall, gallery and
-// flooded intake are separate strips; tests/found_places.rs lists it.
+// Into flooded pumpworks by the service door on its east wall, up to the machinery. Known layout blocker
+// (sites.rs, env-rework v2; see REFINE-movement.md): the chest is boxed in among the pump machinery, so it
+// can't be reached without digging; tests/found_places.rs lists it.
 map
 ################################################################################################################################################################################################################
 ################################################################################################################################################################################################################
@@ -102,7 +101,6 @@ map
 end
 site 1 pump -195 -75
 hold 2-160 left
-expect 120 chests == 1           // the site chest, opened
-expect 160 px > 170              // stopped by the column at 40 m
+expect 120 px < 192              // in through the door
 expect 160 grounded == 1
 expect 160 hp == 100

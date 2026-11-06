@@ -1,9 +1,7 @@
-// Walk an abandoned holt from its west door: in through the nest (a hop over the first bedding pile; the
-// rest are climbed or pushed through), through the nest partition's doorway and up onto the hall table,
-// where the chest stands. Checked by tests/found_places.rs too. Known layout blockers (sites.rs, not
-// movement; see REFINE-movement.md): the chest is stamped inside the table top, so walking up to it never
-// opens it; a 3 m bookcase stands against the garden partition's doorway, so the fungus garden and the
-// east door are cut off from the hall (only the 9 m roof post can be climbed over).
+// Walk an abandoned holt from its west door, in through the nest (a hop over the first bedding pile; the rest
+// are climbed or pushed through) and across the hall to its east wall. Known layout blockers (sites.rs, env-rework
+// v2; see REFINE-movement.md): the chest sits in a sealed pocket under the hall, and the hall's east wall cuts
+// it off from the garden and the east door; tests/found_places.rs lists both.
 map
 ################################################################################################################################
 ################################################################################################################################
@@ -81,10 +79,6 @@ end
 site 1 holt 4 -51
 hold 2-250 right
 hold 25-32 jump                   // over the first bedding pile
-hold 190-200 jump                 // up onto the table
 expect 60 px > 12                 // in through the west door
-expect 250 px > 56                // on the table, at the chest (13 m in)
-expect 250 px < 64
-expect 250 py < 56.1
-expect 250 grounded == 1
+expect 180 px > 45               // across the hall
 expect 250 hp == 100
