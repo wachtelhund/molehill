@@ -3438,6 +3438,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "molehill-cave-editor"
+version = "0.1.0"
+dependencies = [
+ "bevy",
+ "molehill-sim",
+ "serde_json",
+]
+
+[[package]]
 name = "molehill-sim"
 version = "0.3.0"
 dependencies = [

@@ -1,6 +1,9 @@
 [workspace]
 resolver = "2"
-members = ["sim", "game"]
+members = ["sim", "game", "tools/cave-editor"]
+# `cargo build` / `cargo run` without -p build the game only. The cave editor (tools/cave-editor) is a
+# dev tool: never a default member, never a dependency of the game, never in build-web.sh or site/.
+default-members = ["sim", "game"]
 
 [profile.dev]
 opt-level = 1

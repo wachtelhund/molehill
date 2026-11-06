@@ -104,6 +104,14 @@ Playtest: `progression` (now reports, per death, the pack piles in liquid, their
 * **Order:** the pack line came before the death line; now the cause first (test `death_line_comes_before_the_pack_line`).
 * Not played in a window.
 
+## Loading indicator (brief p4-loading, from 62523f4)
+Measured on native release, with other agents loading the machine:
+* **Before:** a new holt blocked for 6.4–9.5 s in one frame on the game window (fill 0.5 s, first stability pass 2.4 s, 240 settling steps 2.4 s, second pass 1.2 s, the rest 0.4 s). Startup did the same before the menu showed. Loading a long-running save (24 slides deep and 12 back: 96 stored bands, 3.2 MB) took 0.26–0.32 s.
+* **After:** a new holt is built in about 280 steps (`gen::GenBuild`, `world::NewHolt`) at about 20 ms of work a frame behind one line, "Shoring up the caves…  31 %". Total time is the same; in the window, seed 4242 took 3.7 s. The longest steps are stability rounds and the final wake, at 0.13–0.3 s, so the line moves at a few frames a second at worst. The save load still runs in one go (0.3 s native) but is shown first as "Opening the save…". Startup no longer builds a holt behind the menu (nothing in Main played it), so the menu is up at once. `?seed=` opens straight into the loading line.
+* **Autosave overwritten from the main menu:** Quit on the main menu autosaved whatever was behind it. Before this change that was the startup holt, so opening the game and quitting replaced your autosave with a fresh random holt. Saves now write only a holt in play (`Game.live`). Not covered by a test (game crate, storage).
+* Same holt byte for byte (save hashes on 4 seeds before and after, and test `staged_new_holt_matches_and_climbs`). `loadbench` example.
+* Not tested: the web build in a browser, where wasm is single-threaded and slower, so steps will be longer. The `--shot-ui=loading` still came back blank from a background shell (the existing pause still did too).
+
 ## Open
 * The design's emberiron for the Bore doesn't exist, so the Bore takes iron, copper and crystal.
 * localStorage holds about 5 MB. A band is 10–40 KB, so a holt explored over a few hundred metres of depth could fill it. Bands the player never changed could be dropped and regenerated (not done: the falling-sand settling after generation would differ).

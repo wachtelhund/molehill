@@ -283,9 +283,10 @@ impl World {
             walls: crate::walls::Walls::new(w, h), sites: vec![], sites_seen: Default::default(), grottos_seen: Default::default(),
         }
     }
-    pub fn new(w: usize, h: usize, seed: u32) -> World {
-        let mut g = Grid::new(w, h);
-        let oy = -(h as i64 / 2); let (gn, info) = gen::generate(&mut g, seed, oy);
+    pub fn new(w: usize, h: usize, seed: u32) -> World { let mut b = NewHolt::new(w, h, seed); while b.step().is_none() {} b.take() }
+    /// The rest of a new holt once its window is generated: the burrow, the mole, the start stores.
+    fn from_gen(g: Grid, seed: u32, oy: i64, gn: gen::Gen, info: gen::GenInfo) -> World {
+        let (w, h) = (g.w, g.h);
         let mut wd = World::shell(g, w, h, seed, oy, gn, info);
         wd.refresh_chests();
         wd.line_back(0, h);
@@ -1630,3 +1631,28 @@ pub const FOODS: [Item; 4] = [Item::Grub, Item::Mushroom, Item::Root, Item::Fung
 pub fn food_value(it: Item) -> f32 { match it { Item::Grub => 45., Item::Mushroom => 35., Item::Root => 30., Item::Fungus => 25., _ => 0. } }
 pub fn build_item(d: u8) -> Item { match d { D_BRICK => Item::Brick, D_IRON => Item::IronBeam, D_PLANK => Item::Planks, D_POLISH => Item::PolishedStone, D_TILE => Item::Tiles, D_CARVED => Item::CarvedPillar, D_RAIL => Item::Rail, D_TUBE => Item::Tube, _ => Item::WoodPillar } }
 pub fn build_mat(d: u8) -> Mat { match d { D_BRICK => Mat::StoneBrick, D_IRON => Mat::IronBeam, D_PLANK => Mat::Planks, D_POLISH => Mat::Polished, D_TILE => Mat::Tiles, D_CARVED => Mat::Carved, D_RAIL => Mat::Rail, D_TUBE => Mat::Tube, _ => Mat::WoodBeam } }
+
+/// A new holt built in small steps so a game can draw a loading line between them (`World::new` runs it
+/// to the end at once; both give the same world). `step` does one slice of work, a few tens of ms at
+/// most, and returns the world once it is done; `progress` and `label` say how far along it is.
+pub struct NewHolt { g: Option<Grid>, b: Option<gen::GenBuild>, seed: u32, oy: i64, done: Option<World> }
+impl NewHolt {
+    pub fn new(w: usize, h: usize, seed: u32) -> NewHolt {
+        let g = Grid::new(w, h); let oy = -(h as i64 / 2); let b = gen::GenBuild::new(&g, seed, oy);
+        NewHolt { g: Some(g), b: Some(b), seed, oy, done: None }
+    }
+    /// One slice of work; true once the world is ready (then `take` it).
+    pub fn step(&mut self) -> Option<()> {
+        if self.done.is_some() { return Some(()); }
+        let (Some(g), Some(b)) = (self.g.as_mut(), self.b.as_mut()) else { return Some(()) };
+        if b.stage != gen::GenStage::Done { b.step(g); return None; }
+        let (gn, info) = self.b.take().unwrap().finish();
+        self.done = Some(World::from_gen(self.g.take().unwrap(), self.seed, self.oy, gn, info)); Some(())
+    }
+    /// How far along, 0..1.
+    pub fn progress(&self) -> f32 { match (&self.b, &self.g) { (Some(b), Some(g)) => b.progress(g.h), _ => 1. } }
+    /// What it is doing now, in a few words.
+    pub fn label(&self) -> &'static str { self.b.as_ref().map_or(gen::GenStage::Done, |b| b.stage).label() }
+    /// The finished world (panics if `step` has not returned it yet).
+    pub fn take(self) -> World { self.done.expect("NewHolt::take before the build finished") }
+}

@@ -20,6 +20,7 @@ Molehill is a falling-sand platformer and colony sim about moles digging through
 |---|---|
 | [Lore](Lore.md) | The fixed principles every feature must follow |
 | [World and Generation](World-and-Generation.md) | The endless window, strata, biomes, caves, fluid pockets, ore, the start burrow, background walls, found places |
+| [Cave editor](Cave-Editor.md) | *Dev only, never shipped*: painting found-place templates, previewing variants, and checking walkability and stability with the real sim |
 | [Site templates](Site-Templates.md) | The found places as data files: format, roles and slots, the export from `sites.rs` and its golden check |
 | [Physics](Physics.md) | Materials, falling sand, liquids and lava, structure and stability, light, stale air, thrumming |
 | [Player and Controls](Player-and-Controls.md) | Keys, the movement model, `TUNE`, vitals and death |

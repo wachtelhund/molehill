@@ -66,6 +66,11 @@ pub fn dev_named(s: &str) -> Option<Dev> { DEVS.iter().copied().find(|d| format!
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct SiteFile {
     pub format: u32,
+    /// who owns the layout: `export` (written by `export_sites` from the procedural reference in sites.rs,
+    /// and checked against it) or `editor` (painted in the cave editor; the exporter leaves it alone and
+    /// the golden check skips it). Exported files leave the field out.
+    #[serde(default = "export_source", skip_serializing_if = "is_export")]
+    pub source: String,
     /// the family this piece belongs to (`mine`, `holt`, `pump`, `fissure`, `fossil`, `crystal`, `halt`)
     pub family: String,
     pub cpm: usize,
@@ -90,6 +95,13 @@ pub struct SiteFile {
     pub things: Vec<ThingDef>,
     #[serde(default)]
     pub connectors: Vec<Connector>,
+}
+
+fn export_source() -> String { "export".into() }
+fn is_export(s: &String) -> bool { s == "export" }
+impl SiteFile {
+    /// Painted in the cave editor (not exported from sites.rs).
+    pub fn from_editor(&self) -> bool { self.source == "editor" }
 }
 
 /// Which option a site takes: from its `var` (`(var >> shift) % modulo`, then `table[...]` if given) or
@@ -444,6 +456,29 @@ impl Template {
     pub fn things(&self, var: u32, left: bool) -> Vec<Thing> {
         let ch: Vec<usize> = self.choices(var, left).collect();
         self.things.iter().filter(|(_, w)| w.map_or(true, |(s, o)| ch[s] == o)).map(|(t, _)| *t).collect()
+    }
+}
+
+impl crate::world::World {
+    /// Stamp a template (any, not only the built-in one for its family) with its box's top-left at window
+    /// (x0, y0): cells, linings (hashed with `id`, as a placed site's are), the chest and its things. Returns
+    /// the chest's window cell. The cave editor's checks use this; the game stamps through `sites.rs`.
+    pub fn stamp_template(&mut self, t: &Template, x0: usize, y0: usize, var: u32, left: bool, id: u32) -> Option<(usize, usize)> {
+        if x0 + t.w >= self.g.w || y0 + t.h >= self.g.h { return None; }
+        for dy in 0..t.h { for dx in 0..t.w {
+            let (x, y) = (x0 + dx, y0 + dy);
+            if let Some(m) = t.cell(dx, dy, var, left) {
+                let i = y * self.g.w + x; self.g.set(i, m); self.g.flags[i] = 0;
+                let wy = self.oy + y as i64;
+                if let Some(wl) = t.lining_with(dx, dy, var, left, crate::grid::hash3(x as u32, wy as u32, id)) { self.walls.set_at(x, y, wl); }
+            }
+        } }
+        let chest = t.chest(var, left).map(|(cx, cy)| (x0 + cx, y0 + cy));
+        if let Some((cx, cy)) = chest {
+            if !self.chests.iter().any(|c| c.x == cx && c.y == cy) { self.chests.push(crate::world::Chest { x: cx, y: cy, opened: false, ancient: None }); }
+        }
+        for th in t.things(var, left) { self.set_thing(th.offset(x0, y0)); }
+        chest
     }
 }
 

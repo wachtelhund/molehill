@@ -8,6 +8,7 @@ Molehill is written in **Rust** with **Bevy 0.20**. The code is split so that th
 |---|---|
 | `engine/sim` | `molehill-sim`: the whole simulation in pure Rust. No Bevy, no I/O except save bytes |
 | `engine/game` | `molehill`: the Bevy front-end (input, camera, rendering, sprites, HUD, menus, sound) |
+| `engine/tools/cave-editor` | `molehill-cave-editor`: the dev-only editor for found-place templates. Not a default member, not a dependency of the game, never in the web build ([Cave editor](Cave-Editor.md)) |
 | `engine/web`, `engine/build-web.sh` | the wasm build, written to `dist/` (gitignored) |
 | `site/` | a committed copy of the web build, for local play |
 | `engine/shots` | screenshots |

@@ -295,13 +295,20 @@ impl Gen {
         (m as u8, fl)
     }
     /// Fill window rows [y0, y1) with generated content; `oy` = absolute row of window row 0.
-    pub fn fill_rows(&self, g: &mut Grid, oy: i64, y0: usize, y1: usize) {
+    pub fn fill_rows(&self, g: &mut Grid, oy: i64, y0: usize, y1: usize) { self.fill_cells(g, oy, y0, y1); self.fill_post(g, oy, y0, y1); }
+    /// The raw cells of rows [y0, y1), each from the seed alone: filling a range in pieces gives the same
+    /// cells as filling it at once (`GenBuild` does that across frames). `fill_post` then finishes the range.
+    pub fn fill_cells(&self, g: &mut Grid, oy: i64, y0: usize, y1: usize) {
         let w = g.w;
         let rows = y1 - y0 + 2 * S; let mut op = vec![false; rows * w];
         for r in 0..rows { for x in 2 * S..w - 2 * S { op[r * w + x] = self.open(x, oy + y0 as i64 - S as i64 + r as i64); } }
         let base = oy + y0 as i64 - S as i64;
         let open = |x: usize, wy: i64| { let r = wy - base; if r >= 0 && (r as usize) < rows { op[r as usize * w + x] } else { self.open(x, wy) } };
         for y in y0..y1 { for x in 0..w { let (m, f) = self.cell_with(x, oy + y as i64, w, &open); let i = y * w + x; g.mat[i] = m; g.flags[i] = f; } }
+    }
+    /// The passes over a whole filled range: lava bakes its surroundings, the start zone softens, loose sand sets.
+    pub fn fill_post(&self, g: &mut Grid, oy: i64, y0: usize, y1: usize) {
+        let w = g.w;
         // lava pockets have long since baked their surroundings: nothing burnable within reach of lava
         let r = 4 * S;
         for y in y0..y1 { for x in 2 * S..w - 2 * S { if g.mat[y * w + x] != Mat::Lava as u8 { continue; }
@@ -346,40 +353,90 @@ pub fn info_only(seed: u32, w: usize, h: usize) -> (Gen, GenInfo) {
     (gen, GenInfo { surface: vec![0; w], biome, chests: vec![], start: (w / 2 / CPM, h / 2 / CPM), seed })
 }
 pub fn generate(g: &mut Grid, seed: u32, oy: i64) -> (Gen, GenInfo) {
-    let (w, h) = (g.w, g.h);
-    let gen = Gen::new(seed, w);
-    gen.fill_rows(g, oy, 0, h);
-    let sx = w / 2; let cy1 = (-oy) as usize; // window row of the starting layer
-    let (cx0, cx1, cy0) = (sx - 15 * S, sx + 15 * S, cy1 - 12 * S);
-    for y in cy0 - 6 * S..cy1 + 6 * S { for x in cx0 - 8 * S..=cx1 + 8 * S { let i = y * w + x; if g.mat[i] == Mat::Water as u8 || g.mat[i] == Mat::Lava as u8 { g.mat[i] = Mat::Clay as u8; } } }
-    // ...and the dig-down column under the burrow is dry for DRY_UNDER m: a held S doesn't drain a pocket into
-    // the shaft and drop the Delver down it (the settled ground no longer leaves sand there to plug one)
-    for y in cy1..(cy1 + DRY_UNDER * CPM).min(h) { for x in sx - 3 * CPM..=sx + 3 * CPM { let i = y * w + x; if g.mat[i] == Mat::Water as u8 || g.mat[i] == Mat::Lava as u8 { g.mat[i] = Mat::Clay as u8; } } }
-    // a domed burrow: the roof steps down toward the walls so no roof run spans more than a few cells
-    let top = |x: usize| { let t = (x as f32 - sx as f32) / (15. * SF); cy0 + (12. * SF * t * t).round() as usize };
-    for x in cx0 - 3 * S..=cx1 + 3 * S { let t = top(x.clamp(cx0, cx1)); for y in t.saturating_sub(5 * S)..t { g.mat[y * w + x] = Mat::Limestone as u8; } }
-    for x in cx0..=cx1 { for y in top(x)..=cy1 { g.mat[y * w + x] = 0; } }
-    // side walls tie the dome down to the floor (otherwise an open cavern beside it leaves the roof floating)
-    for x in (cx0 - 3 * S..cx0).chain(cx1 + 1..=cx1 + 3 * S) { for y in top(x.clamp(cx0, cx1))..=cy1 { let i = y * w + x; if Mat::from_u8(g.mat[i]).kind() != crate::mat::Kind::Solid { g.mat[i] = Mat::Limestone as u8; } } }
-    for y in cy1 + 1..cy1 + 4 * S { for x in cx0 - 4 * S..=cx1 + 4 * S { g.mat[y * w + x] = Mat::Clay as u8; } }
-    // ...and the walls stand on rock: if a cavern lies under the burrow, drop granite legs down to the next solid ground
-    let mut st = Stress::new(w * h); st.solve(g);
-    for x in (cx0 - 4 * S..cx0).chain(cx1 + 1..=cx1 + 4 * S) { let mut y = cy1 + 4 * S; while y < h - 1 && !st.reach[y * w + x] { g.mat[y * w + x] = Mat::Limestone as u8; g.flags[y * w + x] = 0; y += 1; } } // diggable with claws
-    let keep = |x: usize, y: usize| (x >= cx0 && x <= cx1 && y >= cy0 && y <= cy1) || gen.in_grotto_void(x, oy + y as i64);
-    for y in cy0 - 6 * S..cy1 + 4 * S { for x in cx0 - 4 * S..=cx1 + 4 * S { g.flags[y * w + x] = 0; } } // built cells are fresh rock, not rubble
-    let soft = |x: usize, y: usize| in_start_zone(w, x, oy + y as i64);
-    stabilize_soft(g, &mut st, 0, usize::MAX, &keep, &soft);
-    g.wake_all(); for _ in 0..240 { g.step_ca(); }
-    // nothing the settling pass let flow in stays inside the burrow
-    for y in cy0 - 8 * S..=cy1 { for x in cx0 - 3 * S..=cx1 + 3 * S { let i = y * w + x; if matches!(Mat::from_u8(g.mat[i]), Mat::Water | Mat::Lava | Mat::Steam) { g.mat[i] = if x >= cx0 && x <= cx1 && y >= cy0 && y <= cy1 { 0 } else { Mat::Clay as u8 }; } } }
-    stabilize_soft(g, &mut st, 0, usize::MAX, &keep, &soft);
-    // the burrow floor stays soil (farms need it), even where the stability pass reinforced it
-    for x in cx0..=cx1 { for y in cy1 + 1..=cy1 + S { let i = y * w + x; if matches!(Mat::from_u8(g.mat[i]), Mat::Granite | Mat::Limestone) { g.mat[i] = Mat::Clay as u8; } } }
-    // claws can always dig down out of the burrow: no granite just below its floor
-    for y in cy1 + 1 + S..cy1 + 9 * S { for x in cx0 - 4 * S..=cx1 + 4 * S { let i = y * w + x; if g.mat[i] == Mat::Granite as u8 { g.mat[i] = Mat::Limestone as u8; } } }
-    g.struct_dirty = Some((0, 0, w - 1, h - 1)); g.wake_all();
-    let biome = gen.biome.clone();
-    (gen, GenInfo { surface: vec![0; w], biome, chests: vec![], start: (sx / CPM, cy1 / CPM), seed })
+    let mut b = GenBuild::new(g, seed, oy); while !b.step(g) {} b.finish()
+}
+
+/// What a staged build is doing (shown on the loading line).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GenStage { Fill, Carve, Shore, Settle, Reshore, Done }
+impl GenStage {
+    pub fn label(self) -> &'static str { match self {
+        GenStage::Fill => "Laying down the rock", GenStage::Carve => "Hollowing the burrow", GenStage::Shore | GenStage::Reshore => "Shoring up the caves",
+        GenStage::Settle => "Letting the water find its level", GenStage::Done => "Waking the mole" } }
+}
+/// Rows filled per `GenBuild::step`, and settling steps run per step: a step stays a few tens of ms.
+const FILL_ROWS: usize = 32 * S; const SETTLE_STEPS: u32 = 240; const SETTLE_PER: u32 = 2;
+/// `generate`, in small steps (`step` until it returns true, then `finish`) so a game can draw between
+/// them. The cells come out exactly as from one blocking `generate`.
+pub struct GenBuild { w: usize, gen: Gen, oy: i64, pub stage: GenStage, row: usize, settle: u32, st: Stress, stab: Stab, geo: (usize, usize, usize, usize, usize) }
+impl GenBuild {
+    pub fn new(g: &Grid, seed: u32, oy: i64) -> GenBuild {
+        let w = g.w; let sx = w / 2; let cy1 = (-oy) as usize; // window row of the starting layer
+        GenBuild { gen: Gen::new(seed, w), oy, stage: GenStage::Fill, row: 0, settle: 0, st: Stress::new(0), stab: Stab::new(0, usize::MAX), geo: (sx, sx - 15 * S, sx + 15 * S, cy1 - 12 * S, cy1), w: g.w }
+    }
+    /// How far along, 0..1 (by the share of time each stage takes).
+    pub fn progress(&self, h: usize) -> f32 {
+        let part = |k: usize, n: usize| (k as f32 / n.max(1) as f32).min(1.);
+        match self.stage {
+            GenStage::Fill => 0.10 * part(self.row, h), GenStage::Carve => 0.10,
+            GenStage::Shore => 0.13 + 0.32 * part(self.stab.it, 24), GenStage::Settle => 0.45 + 0.35 * part(self.settle as usize, SETTLE_STEPS as usize),
+            GenStage::Reshore => 0.80 + 0.15 * part(self.stab.it, 24), GenStage::Done => 0.97,
+        }
+    }
+    /// One slice of work. True when the window is generated.
+    pub fn step(&mut self, g: &mut Grid) -> bool {
+        let (w, h) = (g.w, g.h); let oy = self.oy; let (sx, cx0, cx1, cy0, cy1) = self.geo;
+        let gen = &self.gen;
+        let keep = |x: usize, y: usize| (x >= cx0 && x <= cx1 && y >= cy0 && y <= cy1) || gen.in_grotto_void(x, oy + y as i64);
+        let soft = |x: usize, y: usize| in_start_zone(w, x, oy + y as i64);
+        match self.stage {
+            GenStage::Fill => {
+                let y1 = (self.row + FILL_ROWS).min(h); gen.fill_cells(g, oy, self.row, y1); self.row = y1;
+                if y1 == h { gen.fill_post(g, oy, 0, h); self.stage = GenStage::Carve; }
+            }
+            GenStage::Carve => {
+                for y in cy0 - 6 * S..cy1 + 6 * S { for x in cx0 - 8 * S..=cx1 + 8 * S { let i = y * w + x; if g.mat[i] == Mat::Water as u8 || g.mat[i] == Mat::Lava as u8 { g.mat[i] = Mat::Clay as u8; } } }
+                // ...and the dig-down column under the burrow is dry for DRY_UNDER m: a held S doesn't drain a pocket into
+                // the shaft and drop the Delver down it (the settled ground no longer leaves sand there to plug one)
+                for y in cy1..(cy1 + DRY_UNDER * CPM).min(h) { for x in sx - 3 * CPM..=sx + 3 * CPM { let i = y * w + x; if g.mat[i] == Mat::Water as u8 || g.mat[i] == Mat::Lava as u8 { g.mat[i] = Mat::Clay as u8; } } }
+                // a domed burrow: the roof steps down toward the walls so no roof run spans more than a few cells
+                let top = |x: usize| { let t = (x as f32 - sx as f32) / (15. * SF); cy0 + (12. * SF * t * t).round() as usize };
+                for x in cx0 - 3 * S..=cx1 + 3 * S { let t = top(x.clamp(cx0, cx1)); for y in t.saturating_sub(5 * S)..t { g.mat[y * w + x] = Mat::Limestone as u8; } }
+                for x in cx0..=cx1 { for y in top(x)..=cy1 { g.mat[y * w + x] = 0; } }
+                // side walls tie the dome down to the floor (otherwise an open cavern beside it leaves the roof floating)
+                for x in (cx0 - 3 * S..cx0).chain(cx1 + 1..=cx1 + 3 * S) { for y in top(x.clamp(cx0, cx1))..=cy1 { let i = y * w + x; if Mat::from_u8(g.mat[i]).kind() != crate::mat::Kind::Solid { g.mat[i] = Mat::Limestone as u8; } } }
+                for y in cy1 + 1..cy1 + 4 * S { for x in cx0 - 4 * S..=cx1 + 4 * S { g.mat[y * w + x] = Mat::Clay as u8; } }
+                // ...and the walls stand on rock: if a cavern lies under the burrow, drop granite legs down to the next solid ground
+                self.st = Stress::new(w * h); self.st.solve(g);
+                for x in (cx0 - 4 * S..cx0).chain(cx1 + 1..=cx1 + 4 * S) { let mut y = cy1 + 4 * S; while y < h - 1 && !self.st.reach[y * w + x] { g.mat[y * w + x] = Mat::Limestone as u8; g.flags[y * w + x] = 0; y += 1; } } // diggable with claws
+                for y in cy0 - 6 * S..cy1 + 4 * S { for x in cx0 - 4 * S..=cx1 + 4 * S { g.flags[y * w + x] = 0; } } // built cells are fresh rock, not rubble
+                self.stab = Stab::new(0, usize::MAX); self.stage = GenStage::Shore;
+            }
+            GenStage::Shore => if self.stab.round(g, &mut self.st, &keep, &soft) { g.wake_all(); self.stage = GenStage::Settle; },
+            GenStage::Settle => {
+                let n = SETTLE_PER.min(SETTLE_STEPS - self.settle); for _ in 0..n { g.step_ca(); } self.settle += n;
+                if self.settle == SETTLE_STEPS {
+                    // nothing the settling pass let flow in stays inside the burrow
+                    for y in cy0 - 8 * S..=cy1 { for x in cx0 - 3 * S..=cx1 + 3 * S { let i = y * w + x; if matches!(Mat::from_u8(g.mat[i]), Mat::Water | Mat::Lava | Mat::Steam) { g.mat[i] = if x >= cx0 && x <= cx1 && y >= cy0 && y <= cy1 { 0 } else { Mat::Clay as u8 }; } } }
+                    self.stab = Stab::new(0, usize::MAX); self.stage = GenStage::Reshore;
+                }
+            }
+            GenStage::Reshore => if self.stab.round(g, &mut self.st, &keep, &soft) {
+                // the burrow floor stays soil (farms need it), even where the stability pass reinforced it
+                for x in cx0..=cx1 { for y in cy1 + 1..=cy1 + S { let i = y * w + x; if matches!(Mat::from_u8(g.mat[i]), Mat::Granite | Mat::Limestone) { g.mat[i] = Mat::Clay as u8; } } }
+                // claws can always dig down out of the burrow: no granite just below its floor
+                for y in cy1 + 1 + S..cy1 + 9 * S { for x in cx0 - 4 * S..=cx1 + 4 * S { let i = y * w + x; if g.mat[i] == Mat::Granite as u8 { g.mat[i] = Mat::Limestone as u8; } } }
+                g.struct_dirty = Some((0, 0, w - 1, h - 1)); g.wake_all();
+                self.stage = GenStage::Done;
+            },
+            GenStage::Done => {}
+        }
+        self.stage == GenStage::Done
+    }
+    pub fn finish(self) -> (Gen, GenInfo) {
+        let (sx, _, _, _, cy1) = self.geo; let w = self.w; let biome = self.gen.biome.clone(); let seed = self.gen.seed;
+        (self.gen, GenInfo { surface: vec![0; w], biome, chests: vec![], start: (sx / CPM, cy1 / CPM), seed })
+    }
 }
 
 pub fn stabilize(g: &mut Grid, st: &mut Stress) { stabilize_rows(g, st, 0, usize::MAX) }
@@ -389,19 +446,27 @@ pub fn stabilize_rows(g: &mut Grid, st: &mut Stress, y0: usize, y1: usize) { sta
 pub fn stabilize_keep(g: &mut Grid, st: &mut Stress, y0: usize, y1: usize, kept: &dyn Fn(usize, usize) -> bool) { stabilize_soft(g, st, y0, y1, kept, &|_, _| false) }
 /// `stabilize_keep`, patching with limestone instead of granite where `soft(x, y)` (the start zone).
 pub fn stabilize_soft(g: &mut Grid, st: &mut Stress, y0: usize, y1: usize, kept: &dyn Fn(usize, usize) -> bool, soft: &dyn Fn(usize, usize) -> bool) {
-    let (w, h) = (g.w, g.h);
-    let thr0 = st.thr; st.thr = 0.45; // gen-time safety factor: fresh caves must survive fluids shifting about
-    // after one full solve, each round re-solves only around the cells the last round changed (every
-    // failing cell is changed, so nothing elsewhere can be failing): exact, and far cheaper on a big window
-    let mut changed: Vec<usize> = vec![];
-    for it in 0..100 {
+    let mut s = Stab::new(y0, y1); while !s.round(g, st, kept, soft) {}
+}
+/// `stabilize_soft` one round at a time (a staged build draws between rounds).
+pub struct Stab { pub it: usize, y0: usize, y1: usize, changed: Vec<usize>, thr0: Option<f32> }
+impl Stab {
+    pub fn new(y0: usize, y1: usize) -> Stab { Stab { it: 0, y0, y1, changed: vec![], thr0: None } }
+    /// One round; true when nothing in the rows fails any more (or it ran out of rounds).
+    pub fn round(&mut self, g: &mut Grid, st: &mut Stress, kept: &dyn Fn(usize, usize) -> bool, soft: &dyn Fn(usize, usize) -> bool) -> bool {
+        let (w, h) = (g.w, g.h); let (y0, y1) = (self.y0, self.y1); let it = self.it;
+        if self.thr0.is_none() { self.thr0 = Some(st.thr); st.thr = 0.45; } // gen-time safety factor: fresh caves must survive fluids shifting about
+        let done = |st: &mut Stress, s: &mut Stab| { st.thr = s.thr0.unwrap_or(st.thr); true };
+        if it >= 100 { return done(st, self); }
         if it == 40 { st.thr = 1.0; } // out of patience with the margin: just make sure nothing actually fails
-        // the first round is a full solve, or with a solver that already knows the rest of the window
+        // after one full solve, each round re-solves only around the cells the last round changed (every
+        // failing cell is changed, so nothing elsewhere can be failing): exact, and far cheaper on a big window.
+        // The first round is a full solve, or with a solver that already knows the rest of the window
         // (a slide into fresh rows) just those rows
-        let all = if it == 0 { if st.reach.len() == w * h && y1 <= h { st.solve_rect(g, Some((0, y0, w - 1, y1 - 1))) } else { st.solve(g) } } else { st.solve_cells(g, &changed) };
+        let all = if it == 0 { if st.reach.len() == w * h && y1 <= h { st.solve_rect(g, Some((0, y0, w - 1, y1 - 1))) } else { st.solve(g) } } else { st.solve_cells(g, &self.changed) };
         let fail: Vec<u32> = all.into_iter().filter(|&i| (i as usize / w) >= y0 && (i as usize / w) < y1).collect();
-        if fail.is_empty() { break; }
-        changed.clear();
+        if fail.is_empty() { return done(st, self); }
+        let changed = &mut self.changed; changed.clear();
         for &i in &fail {
             let i = i as usize; let m = Mat::from_u8(g.mat[i]); changed.push(i); // (keep protects the burrow's air, not its roof)
             if !st.reach[i] { g.mat[i] = 0; continue; } // floating island: no load path
@@ -412,6 +477,8 @@ pub fn stabilize_soft(g: &mut Grid, st: &mut Stress, y0: usize, y1: usize, kept:
             }
             g.mat[i] = if (it < 3 && m.p().tensile < Mat::Limestone.p().tensile) || soft(i % w, i / w) { Mat::Limestone as u8 } else { Mat::Granite as u8 };
         }
+        self.it += 1;
+        if self.it >= 100 { return done(st, self); }
+        false
     }
-    st.thr = thr0;
 }

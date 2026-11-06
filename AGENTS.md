@@ -8,11 +8,12 @@ Molehill is a falling-sand mole platformer and colony sim in Rust and Bevy 0.20.
   * `world.rs`: World, the player mole (`step_player`), mining and placing. `TUNE` holds every movement constant.
   * `mat.rs` is the material table: every material property and category lives in its row (`Props`). Rules read the table; don't add `matches!(m, Mat::A | Mat::B)` lists.
   * `survival.rs`: game modes (Survival, Creative, and Plain for tests) and their rules: start kit, tools you own, headlamp and torch fuel, the pack dropped at death. Scenarios set a mode with `mode survival`.
-  * `templates.rs`: found places as data (`assets/sites/*.json`, compiled in). `sites.rs` keeps the procedural reference; after changing a layout there, re-run `--example export_sites` (the golden test `templates_match_the_procedural_sites` fails until you do). See `docs/wiki/Site-Templates.md`.
+  * `templates.rs`: found places as data (`assets/sites/*.json`, compiled in). `sites.rs` keeps the procedural reference; after changing a layout there, re-run `--example export_sites` (the golden test `templates_match_the_procedural_sites` fails until you do). A file saved from the cave editor (`"source": "editor"`) is its own layout: the exporter keeps it and the golden test skips it. See `docs/wiki/Site-Templates.md`.
   * `grid.rs` cells; `stress.rs` structure; `gen.rs` procgen; `light.rs`; `logic.rs` devices; `disasters.rs`; `craft.rs`; `band.rs` (the world off-window, in 64-row bands); `save.rs` (manifest + band blobs).
 * `engine/game` (`molehill`) is the Bevy front-end.
   * `main.rs`: input, the fixed 60 Hz sim step with render interpolation, the camera, rendering, sprites.
   * `ui.rs` HUD; `menu.rs` main and pause menus; `art.rs` sprites and icons; `audio.rs` WebAudio (silent on native).
+* `engine/tools/cave-editor` (`molehill-cave-editor`) is the dev-only cave editor for the templates in `assets/sites/` (`cargo run --release -p molehill-cave-editor`). It must never ship: keep it out of `default-members`, out of the game's dependencies and out of `build-web.sh` (its `packaging` test checks). See `docs/wiki/Cave-Editor.md`.
 * `docs/wiki/` is the wiki (start at `docs/wiki/README.md`). There is no GitHub wiki.
 * `site/` is a committed copy of the web build. Rebuild it with `cd engine && ./build-web.sh && cd .. && rm -rf site && cp -r dist site` (`dist/` is gitignored).
 
