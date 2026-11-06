@@ -43,6 +43,8 @@ pub struct Rules {
 pub const OIL_SECS: f32 = 180.;
 /// Seconds of headlamp light left when it warns that the oil is running low (only when there's none spare).
 pub const OIL_LOW: f32 = 30.;
+/// A dead mole's pack is left on the last dry ground it stood on if that is this close (metres).
+pub const PACK_DRY_M: f32 = 16.;
 /// Fungus pressed into one measure of oil when the pack has no oil left.
 pub const FUNGUS_PER_OIL: u32 = 2;
 /// The Survival start kit: a pickaxe, a few torches, some food and oil.
@@ -103,15 +105,21 @@ impl World {
         }
         if self.rules.harmless { for m in self.moles.iter_mut() { m.hp = 100.; m.breath = 100.; m.hunger = 100.; } }
     }
-    /// The player died: everything in the pack spills where they fell, as loose items, to go back for.
+    /// The player died: everything in the pack spills as loose items, to go back for: on the last dry ground
+    /// the mole stood on if that is within `PACK_DRY_M` (a drowned mole's pack waits at the water's edge, not
+    /// under it), otherwise where it fell.
     pub(crate) fn drop_pack(&mut self) {
-        let (cx, cy) = (self.pl.px, self.pl.py - BODY_H * 0.5); let mut k = 0;
+        let near = |(x, y): (f32, f32)| (x - self.pl.px).hypot(y - self.pl.py) <= PACK_DRY_M * crate::mat::CPM as f32;
+        let dry = self.pl.dry.filter(|&p| near(p));
+        let (px, py) = dry.unwrap_or((self.pl.px, self.pl.py)); let moved = dry.is_some_and(|(x, y)| (x - self.pl.px).hypot(y - self.pl.py) > crate::mat::CPM as f32);
+        let (cx, cy) = (px, py - BODY_H * 0.5); let mut k = 0;
         for (i, &it) in ITEMS.iter().enumerate() {
             let n = self.inv[i]; if n == 0 { continue; }
             // a little spread so the pile reads as a pile; seeded, so runs stay deterministic
             let mut d = Drop::at(cx, cy.max(ITEM_HW + 1.), it, n); d.vx = (((k * 7) % 11) as f32 - 5.) * 2. * SF; d.vy = -6. * SF; k += 1;
             self.drops.push(d); self.inv[i] = 0;
         }
-        if k > 0 { self.say(format!("Your pack lies where you fell, {:.0} m down. Go back for it.", self.depth_m(self.pl.px as usize, self.pl.py as usize).max(0.))); }
+        let d = self.depth_m(px as usize, py as usize).max(0.);
+        if k > 0 { self.say(if moved { format!("Your pack lies on dry ground near where you fell, {d:.0} m down. Go back for it.") } else { format!("Your pack lies where you fell, {d:.0} m down. Go back for it.") }); }
     }
 }

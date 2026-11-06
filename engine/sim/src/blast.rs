@@ -192,6 +192,7 @@ impl World {
         for (k, &(pm, d)) in hits.iter().enumerate() {
             if pm <= 0. { continue; }
             self.moles[k].hp -= ((pm - 40.) / 3.).max(0.); // a knock under 40 kPa; about 340 kPa is deadly
+            if k == 0 && pm > 40. { self.pl.harm = crate::world::Harm::Blast; }
             if k == 0 { let l = ((d.0 as f32).powi(2) + (d.1 as f32).powi(2)).sqrt().max(1.); let kv = (pm / 8.).min(40.) * SF;
                 self.pl.vx += d.0 as f32 / l * kv; self.pl.vy += d.1 as f32 / l * kv - 0.3 * kv; self.pl.lock = self.pl.lock.max(0.15); }
         }

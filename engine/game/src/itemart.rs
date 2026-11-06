@@ -1,0 +1,255 @@
+//! One hand-drawn 16×16 pack icon per item: its own silhouette and its own pixels, never another item's
+//! shape with a tint. Furniture icons are its sprite scaled to fit (`decorart::icon`); devices in the
+//! hotbar use their in-world sprite (`devart::device`). `tests` checks that no two icons match.
+use crate::art::Px;
+use crate::devart::line;
+use bevy::image::Image;
+use molehill_sim::craft::Item;
+
+const LINE: [u8; 3] = [28, 20, 26];
+const WOOD: [u8; 3] = [150, 105, 60];
+const WOOD_D: [u8; 3] = [104, 70, 40];
+const WOOD_L: [u8; 3] = [196, 146, 92];
+const IRON: [u8; 3] = [118, 120, 132];
+const IRON_D: [u8; 3] = [78, 80, 92];
+const BRASS: [u8; 3] = [196, 156, 72];
+const BRASS_D: [u8; 3] = [140, 104, 44];
+const COPPER: [u8; 3] = [196, 118, 66];
+const ROPE: [u8; 3] = [176, 146, 96];
+const STONE: [u8; 3] = [150, 146, 140];
+const FLAME: [u8; 3] = [255, 196, 90];
+const FLAME_L: [u8; 3] = [255, 244, 200];
+fn sh(c: [u8; 3], k: f32) -> [u8; 3] { [(c[0] as f32 * k).min(255.) as u8, (c[1] as f32 * k).min(255.) as u8, (c[2] as f32 * k).min(255.) as u8] }
+/// Fill the polygon `pts` (pixel centres inside it).
+fn poly(p: &mut Px, pts: &[(f32, f32)], c: [u8; 3]) {
+    for y in 0..p.h { for x in 0..p.w { let (px, py) = (x as f32 + 0.5, y as f32 + 0.5); let mut inside = false;
+        for i in 0..pts.len() { let (a, b) = (pts[i], pts[(i + 1) % pts.len()]);
+            if (a.1 > py) != (b.1 > py) && px < (b.0 - a.0) * (py - a.1) / (b.1 - a.1) + a.0 { inside = !inside; } }
+        if inside { p.set(x, y, c); } } }
+}
+/// Speckle the opaque pixels of `p` inside the box with `c` where the hash says so (1 in `n`).
+fn fleck(p: &mut Px, x0: i32, y0: i32, x1: i32, y1: i32, n: u32, seed: u32, c: [u8; 3]) {
+    for y in y0..=y1 { for x in x0..=x1 { if p.get(x, y)[3] == 0 { continue; } let h = molehill_sim::grid::hash3(x as u32, y as u32, seed); if h % n == 0 { p.set(x, y, c); } } }
+}
+
+/// The icon's pixels before outlining (also used by the tests).
+pub fn icon_px(it: Item) -> Px {
+    use Item::*;
+    let mut p = Px::new(16, 16); let col = it.color();
+    match it {
+        // ---- earths and stones: each lump has its own outline
+        Dirt => { // a crumbly heap with clods rolling off
+            poly(&mut p, &[(1.5, 14.), (5., 7.), (8., 5.5), (11., 7.), (14.5, 14.)], col); p.rect(2, 13, 13, 13, sh(col, 0.8));
+            for (x, y) in [(6, 9), (9, 8), (8, 11), (11, 11), (5, 12)] { p.set(x, y, sh(col, 0.7)); } p.set(7, 7, sh(col, 1.3)); p.rect(13, 12, 14, 13, sh(col, 0.9)); }
+        Clay => { // a squared wet block with a thumb dent and a cut face
+            p.rect(3, 5, 12, 13, col); p.rect(3, 5, 12, 6, sh(col, 1.2)); p.oval(8., 9., 2., 1.5, sh(col, 0.8)); p.rect(12, 7, 12, 13, sh(col, 0.75)); p.set(4, 12, sh(col, 0.85)); }
+        Sand => { // a low wide cone of grains
+            poly(&mut p, &[(0.5, 14.), (8., 8.), (15.5, 14.)], col); fleck(&mut p, 0, 8, 15, 14, 4, 11, sh(col, 0.82)); p.set(8, 8, sh(col, 1.15)); p.set(3, 6, col); p.set(12, 5, col); }
+        Gravel => { // three separate pebbles
+            p.oval(4.5, 11.5, 3.2, 2.5, col); p.oval(11., 12., 3.6, 2.6, sh(col, 0.9)); p.oval(8., 6.5, 2.6, 2.2, sh(col, 1.1)); p.set(3, 10, sh(col, 1.3)); p.set(10, 11, sh(col, 1.25)); }
+        Stone => { // an angular faceted block
+            poly(&mut p, &[(2., 10.), (5., 3.), (12., 2.5), (14.5, 8.), (11., 14.), (4., 13.5)], col);
+            poly(&mut p, &[(5., 3.), (12., 2.5), (10., 7.), (6., 7.)], sh(col, 1.18)); poly(&mut p, &[(10., 7.), (14.5, 8.), (11., 14.)], sh(col, 0.8)); }
+        Coal => { // two glossy black lumps, one on the other
+            p.oval(6., 11., 4.6, 3.6, col); p.oval(10.5, 6.5, 3.6, 3.2, sh(col, 1.1)); for (x, y) in [(4, 9), (9, 5), (10, 4)] { p.set(x, y, [130, 130, 146]); } p.set(7, 12, [20, 20, 24]); }
+        CopperOre => { // a tall pentagon of rock with copper and green verdigris
+            poly(&mut p, &[(4., 14.), (2.5, 7.), (7., 2.), (12.5, 5.), (12., 14.)], [112, 100, 90]);
+            for (x, y) in [(5, 6), (6, 6), (9, 9), (10, 9), (10, 10), (5, 11), (6, 11)] { p.set(x, y, col); }
+            for (x, y) in [(8, 4), (7, 9), (4, 9), (11, 7), (9, 12)] { p.set(x, y, [96, 186, 140]); } }
+        TinOre => { // a wide pale chunk with dark square cassiterite grains
+            poly(&mut p, &[(1., 9.), (4., 5.), (12., 4.5), (15., 9.), (12., 13.), (4., 13.)], col);
+            for (x, y) in [(5, 7), (9, 6), (11, 10), (6, 10)] { p.rect(x, y, x + 1, y + 1, [60, 56, 64]); } p.set(4, 6, sh(col, 1.2)); }
+        IronOre => { // a rust-red kidney lump with round bumps
+            p.oval(8., 10., 6., 3.8, col); for cx in [4.5, 8., 11.5] { p.oval(cx, 7., 2.4, 2.2, sh(col, 1.08)); } p.set(4, 6, sh(col, 1.4)); p.set(8, 6, sh(col, 1.4)); p.rect(5, 12, 11, 12, sh(col, 0.7)); }
+        Quartz => { // two hexagonal prisms rising from a base
+            poly(&mut p, &[(4., 14.), (4., 6.), (6., 3.), (8., 6.), (8., 14.)], col); poly(&mut p, &[(8., 14.), (8., 8.), (10.5, 5.), (13., 8.), (13., 14.)], sh(col, 0.92));
+            p.rect(5, 6, 5, 13, [255, 255, 255]); p.rect(11, 9, 12, 13, sh(col, 0.8)); }
+        Crystal => { // one tall blue bipyramid
+            poly(&mut p, &[(8., 0.5), (12., 7.), (8., 15.5), (4., 7.)], col); poly(&mut p, &[(8., 0.5), (8., 15.5), (4., 7.)], sh(col, 1.2)); p.set(6, 5, [240, 250, 255]); }
+        Wood => { // a log on its side, end grain showing
+            p.rect(1, 6, 11, 12, col); p.rect(1, 6, 11, 6, sh(col, 1.25)); for x in [3, 7] { p.rect(x, 8, x + 2, 8, sh(col, 0.75)); }
+            p.oval(12.5, 9., 2.6, 3.6, [206, 160, 104]); p.oval(12.5, 9., 1.4, 2., [170, 122, 74]); p.set(12, 9, [140, 96, 56]); }
+        Fungus => { // a cluster of three luminous shelf caps on a stalk
+            p.rect(7, 6, 8, 14, [200, 210, 180]);
+            for (cx, cy, r) in [(5., 7., 3.5), (11., 5., 3.2), (8., 11., 3.)] { p.oval(cx, cy, r, 1.6, col); p.rect((cx - r) as i32 + 1, cy as i32, (cx + r) as i32 - 1, cy as i32, sh(col, 0.7)); }
+            p.set(4, 6, [200, 255, 220]); p.set(10, 4, [200, 255, 220]); }
+        // ---- worked materials
+        Brick => { // one fired brick in perspective with a frog
+            poly(&mut p, &[(1., 8.), (5., 5.), (15., 5.), (11., 8.)], sh(col, 1.25)); p.rect(1, 8, 11, 12, col); poly(&mut p, &[(11., 8.), (15., 5.), (15., 9.), (11., 13.)], sh(col, 0.75));
+            p.rect(6, 6, 10, 6, sh(col, 0.9)); }
+        Glass => { // a pane leaning, with a sheen across it
+            for y in 2..14 { for x in 4..13 { let xi = x - (13 - y) / 4; p.set(xi, y, if (x + y) % 9 == 0 || (x + y) % 9 == 1 { [250, 255, 255] } else { col }); } } p.rect(2, 14, 13, 14, sh(col, 0.6)); }
+        Charcoal => { // two charred sticks crossed, cracked across their grain
+            line(&mut p, 2., 12., 13., 4., 3, col); line(&mut p, 3., 4., 12., 13., 2, sh(col, 1.25));
+            for (x, y) in [(5, 10), (9, 7), (11, 5), (6, 7), (9, 10)] { p.set(x, y, [220, 90, 40]); } }
+        CopperIngot => { // the classic trapezoid
+            poly(&mut p, &[(1., 12.), (4., 6.), (12., 6.), (15., 12.)], col); p.rect(4, 6, 11, 7, sh(col, 1.3)); p.rect(1, 12, 14, 12, sh(col, 0.7)); }
+        TinIngot => { // a low pig with rounded ends
+            p.oval(8., 10., 7., 2.6, col); p.rect(3, 8, 12, 9, sh(col, 1.15)); p.set(4, 8, [255, 255, 255]); p.rect(2, 12, 13, 12, sh(col, 0.75)); }
+        BronzeIngot => { // a round bun cast in a dish
+            p.oval(8., 9., 6.5, 4.5, col); p.oval(7., 8., 4., 2.4, sh(col, 1.2)); p.oval(8., 9., 1.6, 1.2, sh(col, 0.8)); p.rect(3, 12, 12, 12, sh(col, 0.7)); }
+        IronIngot => { // two bars stacked crosswise
+            p.rect(2, 10, 13, 13, col); p.rect(2, 10, 13, 10, sh(col, 1.2)); p.rect(5, 3, 9, 10, sh(col, 0.92)); p.rect(5, 3, 9, 3, sh(col, 1.25)); p.set(7, 6, sh(col, 0.7)); }
+        // ---- light and structure
+        Torch => { // a wrapped stick with a flame
+            p.rect(7, 7, 8, 15, WOOD); p.rect(6, 7, 9, 9, [120, 92, 60]); p.oval(7.5, 4.5, 2.6, 3.4, FLAME); p.oval(7.5, 5., 1.2, 1.8, FLAME_L); p.set(8, 0, FLAME); }
+        Lamp => { // a hooded lantern with a ring handle and glass
+            for a in 0..12 { let t = a as f32 / 12. * std::f32::consts::PI; p.set((7.5 + t.cos() * 2.5).round() as i32, (2.5 - t.sin() * 2.).round() as i32, IRON_D); }
+            p.rect(4, 3, 11, 4, IRON); p.rect(5, 5, 10, 12, col); p.rect(7, 7, 8, 10, [255, 255, 236]); for x in [4, 11] { p.rect(x, 5, x, 12, IRON); } p.rect(3, 13, 12, 14, IRON_D); }
+        WoodPillar => { // a squared post with a cap and a foot
+            p.rect(5, 3, 10, 13, col); p.rect(3, 1, 12, 2, sh(col, 1.2)); p.rect(4, 14, 11, 14, sh(col, 0.8)); for y in [5, 9] { p.rect(6, y, 9, y, sh(col, 0.8)); } p.rect(5, 3, 5, 13, sh(col, 1.15)); }
+        IronBeam => { // an I-section seen end-on, the web running back
+            p.rect(1, 2, 14, 4, col); p.rect(1, 11, 14, 13, col); p.rect(6, 4, 9, 11, sh(col, 0.85)); p.rect(1, 2, 14, 2, sh(col, 1.3)); for x in [3, 12] { p.set(x, 3, IRON_D); p.set(x, 12, IRON_D); } }
+        CopperWire => { // a coil of copperline with a loose end
+            for k in 0..3 { let r = 5. - k as f32 * 1.6; for a in 0..28 { let t = a as f32 / 28. * std::f32::consts::TAU; p.set((7.5 + t.cos() * r).round() as i32, (8.5 + t.sin() * r * 0.8).round() as i32, if k == 1 { sh(col, 0.8) } else { col }); } }
+            line(&mut p, 12., 8., 15., 2., 1, col); p.set(15, 1, BRASS); }
+        Thrummer => { // a stone anvil with the knocking hammer raised
+            p.rect(2, 11, 13, 14, STONE); p.rect(2, 11, 13, 11, sh(STONE, 1.2)); line(&mut p, 12., 10., 6., 4., 1, WOOD); p.rect(3, 2, 7, 5, IRON); p.rect(3, 2, 7, 2, sh(IRON, 1.3));
+            for (x, y) in [(1, 8), (14, 7), (15, 9)] { p.set(x, y, col); } }
+        Gate => { // a knot: a loop of copper cord tied through a brass ring
+            p.oval(8., 8., 5., 5., BRASS); p.oval(8., 8., 3., 3., [0, 0, 0]); line(&mut p, 1., 12., 7., 6., 2, col); line(&mut p, 9., 6., 15., 12., 2, sh(col, 0.85)); p.set(8, 3, sh(BRASS, 1.3)); }
+        Tnt => { // three bound charges with a lit fuse
+            for (k, x) in [3, 6, 9].into_iter().enumerate() { p.rect(x, 6, x + 2, 14, if k == 1 { sh(col, 1.15) } else { col }); p.rect(x, 6, x + 2, 6, sh(col, 1.4)); }
+            p.rect(3, 10, 11, 10, [90, 70, 50]); for k in 0..4 { p.set(7 + k / 2, 5 - k, [200, 180, 140]); } p.set(9, 1, [255, 200, 80]); }
+        Vent => { // a round louvred grille with a crank
+            p.oval(8., 8., 6.5, 6.5, IRON_D); for y in [4, 7, 10] { p.rect(3, y, 12, y + 1, col); p.rect(3, y, 12, y, sh(col, 1.25)); } p.rect(13, 12, 15, 13, BRASS); }
+        // ---- dig tools (the hotbar draws them from `art::tool_icon`; these are the pack and drop icons)
+        Pickaxe => return crate::art::tool_px(1),
+        Drill => return crate::art::tool_px(2),
+        Bore => return crate::art::tool_px(3),
+        // ---- living things
+        Grub => { // a curled, segmented larva
+            for a in 0..24 { let t = 0.6 + a as f32 / 24. * 4.6; let (x, y) = (8. + t.cos() * 4.2, 8.5 + t.sin() * 4.); p.oval(x, y, 1.9, 1.9, if a % 4 == 0 { sh(col, 0.8) } else { col }); }
+            p.set(12, 7, [40, 30, 30]); p.set(11, 6, [255, 250, 230]); }
+        Spore => { // a puffball shedding a drift of spores
+            p.oval(6., 10., 4.5, 4., col); p.oval(6., 8.5, 2., 1.2, sh(col, 1.25)); p.set(6, 6, [150, 120, 180]);
+            for (x, y) in [(11, 5), (13, 3), (12, 8), (14, 6), (10, 2)] { p.set(x, y, sh(col, 1.15)); } }
+        Mushroom => { // a red cap on a pale stem, with spots
+            p.rect(6, 8, 9, 14, [236, 226, 206]); p.oval(7.5, 6.5, 6.5, 4., col); p.rect(2, 7, 13, 8, sh(col, 0.8)); for (x, y) in [(5, 4), (9, 3), (11, 6)] { p.set(x, y, [255, 240, 220]); } }
+        Glowmite => { // a pale-green glowing beetle with its legs out
+            p.oval(8., 9., 4., 5., col); p.rect(8, 5, 8, 13, sh(col, 0.7)); p.oval(8., 4., 2., 1.6, sh(col, 0.6));
+            for (y, dx) in [(7, 5), (9, 6), (11, 5)] { p.set(8 - dx, y, [60, 70, 50]); p.set(8 + dx, y, [60, 70, 50]); } p.set(6, 7, [240, 255, 230]); }
+        FungusOil => { // a stoppered flask of greenish oil
+            p.oval(8., 10.5, 5., 4.2, [180, 210, 220]); p.oval(8., 11.5, 4., 3., col); p.rect(7, 3, 8, 6, [180, 210, 220]); p.rect(6, 1, 9, 2, WOOD); p.set(6, 9, [255, 255, 255]); }
+        Root => { // a forked, hairy root
+            line(&mut p, 8., 1., 8., 7., 2, col); line(&mut p, 8., 7., 3., 14., 2, sh(col, 0.9)); line(&mut p, 8., 7., 12., 13., 1, sh(col, 0.9)); line(&mut p, 9., 9., 14., 10., 1, sh(col, 0.8));
+            for (x, y) in [(4, 11), (11, 11), (6, 3), (13, 9)] { p.set(x, y, sh(col, 1.25)); } }
+        // ---- decorative blocks: each a stack or piece of what it is, not a tinted square
+        Planks => { // three boards stacked, ends staggered
+            for (k, (x0, x1)) in [(1, 12), (3, 14), (0, 11)].into_iter().enumerate() { let y = 4 + k as i32 * 3; p.rect(x0, y, x1, y + 2, if k == 1 { sh(col, 0.92) } else { col }); p.rect(x0, y, x1, y, sh(col, 1.2)); p.set(x1, y + 1, sh(col, 0.7)); } }
+        PolishedStone => { // a thin dressed slab with a long gleam
+            poly(&mut p, &[(0.5, 11.), (4., 6.), (15.5, 6.), (12., 11.)], col); p.rect(1, 11, 12, 12, sh(col, 0.75)); line(&mut p, 4., 9.5, 12., 7., 1, [236, 232, 224]); }
+        Tiles => { // four fired tiles laid with gaps
+            for (x, y) in [(1, 1), (8, 1), (1, 8), (8, 8)] { p.rect(x, y, x + 5, y + 5, if (x + y) % 2 == 0 { col } else { sh(col, 0.88) }); p.rect(x, y, x + 5, y, sh(col, 1.2)); } }
+        CarvedPillar => { // a fluted column with a capital and a base
+            p.rect(2, 1, 13, 3, sh(col, 1.1)); p.rect(4, 4, 11, 12, col); for x in [5, 7, 9] { p.rect(x, 4, x, 12, sh(col, 0.75)); } p.rect(2, 13, 13, 14, sh(col, 0.9)); p.set(3, 2, [210, 206, 196]); }
+        // ---- pigments: each kept in its own way
+        Ochre => { // a narrow-necked clay jar, yellow earth spilling from its lip
+            p.oval(6., 10., 4., 4.5, [150, 98, 70]); p.rect(5, 3, 7, 6, [150, 98, 70]); p.rect(4, 2, 8, 2, [178, 120, 86]); p.oval(7., 9., 1.4, 2., [178, 120, 86]);
+            p.oval(12., 13.5, 3.5, 1.6, col); p.rect(9, 3, 10, 4, col); p.set(10, 6, col); p.set(11, 9, col); p.set(12, 12, sh(col, 1.2)); }
+        Rust => { // red flakes heaped in a shallow dish
+            p.rect(2, 11, 13, 13, [150, 98, 70]); p.rect(1, 11, 14, 11, [178, 120, 86]); poly(&mut p, &[(3., 11.), (6., 5.), (9., 7.), (11., 4.), (13., 11.)], col); for (x, y) in [(6, 7), (10, 6), (8, 9)] { p.set(x, y, sh(col, 1.3)); } }
+        Chalk => { // two sticks of chalk, one snapped
+            p.rect(2, 4, 5, 13, col); p.rect(2, 4, 5, 4, [255, 255, 250]); p.rect(8, 8, 13, 11, sh(col, 0.95)); p.rect(8, 8, 8, 11, [255, 255, 250]); p.set(14, 13, col); p.set(12, 14, col); }
+        Verdigris => { // a scallop shell with green crust scraped into it
+            for k in 0..5 { let a = 3.3 + k as f32 * 0.7; line(&mut p, 8., 13., 8. + a.cos() * 7., 13. + a.sin() * 9., 2, [210, 196, 170]); } p.oval(8., 8., 4., 3., col); p.set(7, 7, sh(col, 1.35)); p.rect(7, 13, 9, 14, [180, 166, 140]); }
+        Woad => { // a dried woad ball, leaves pressed round
+            p.oval(8., 8.5, 5.5, 5.5, col); for (x0, y0, x1, y1) in [(4., 6., 11., 5.), (3., 10., 12., 11.), (6., 13., 10., 3.)] { line(&mut p, x0, y0, x1, y1, 1, sh(col, 0.75)); } p.set(6, 5, sh(col, 1.4)); p.rect(7, 1, 8, 3, [70, 110, 60]); }
+        Soot => { // a drawstring pouch, black dust at its mouth
+            p.oval(8., 10.5, 5.5, 4.5, [120, 96, 72]); p.rect(6, 4, 9, 6, [120, 96, 72]); p.rect(5, 6, 10, 6, [86, 68, 50]); p.oval(8., 3.5, 2.5, 1.2, col); for (x, y) in [(4, 2), (11, 1), (12, 3)] { p.set(x, y, col); } }
+        // ---- furniture: the sprite, scaled (see decorart::icon)
+        Rug => { // a rug laid flat in perspective: a diamond worked in, fringe at both ends
+            poly(&mut p, &[(0.5, 13.), (4., 6.), (15.5, 6.), (12., 13.)], col); poly(&mut p, &[(8., 7.), (10.5, 9.5), (8., 12.), (5.5, 9.5)], sh(col, 1.3)); p.set(8, 9, sh(col, 0.6));
+            for k in 0..4 { p.set(1 + k * 3, 14, WOOD_L); p.set(5 + k * 3, 5, WOOD_L); } }
+        Table | Stool | Nest | Shelf | Banner | Planter => return crate::decorart::icon_px(it),
+        // ---- relics of the Ancients
+        AncientBit => { // a toothed ring of an unknown metal, too true to be hand-cut
+            for k in 0..10 { let t = k as f32 / 10. * std::f32::consts::TAU; p.rect((7.5 + t.cos() * 6.).round() as i32, (7.5 + t.sin() * 6.).round() as i32, (8. + t.cos() * 6.).round() as i32, (8. + t.sin() * 6.).round() as i32, sh(col, 0.85)); }
+            p.oval(8., 8., 5., 5., col); p.oval(8., 8., 2., 2., [0, 0, 0]); p.set(5, 5, [230, 250, 255]); }
+        GroundLens => { // a thick round lens in a dull ring, two glints
+            p.oval(8., 8., 6.5, 6.5, [110, 116, 120]); p.oval(8., 8., 5., 5., col); p.oval(6., 6., 1.6, 1.0, [255, 255, 255]); p.set(10, 11, [240, 250, 255]); }
+        // ---- transport
+        Rail => { // a length of copper strap on two sleepers, side on
+            p.rect(0, 6, 15, 7, [222, 146, 86]); p.rect(0, 8, 15, 8, [150, 86, 50]); for x in [2, 10] { p.rect(x, 9, x + 3, 12, [96, 64, 40]); } p.set(5, 6, [96, 186, 140]); p.set(12, 7, [96, 186, 140]); }
+        Cart => { // a plank tub with a bronze rim on two wheels
+            poly(&mut p, &[(1., 4.), (15., 4.), (13., 11.), (3., 11.)], col); p.rect(0, 3, 15, 4, [205, 150, 70]); for y in [7, 9] { p.rect(3, y, 12, y, sh(col, 0.75)); }
+            for cx in [4.5, 11.5] { p.oval(cx, 12.5, 2.4, 2.4, [60, 56, 54]); p.set(cx as i32, 12, [150, 146, 140]); } }
+        RopeLadder => { // ropes and rungs, rolled at the bottom
+            for x in [3, 12] { p.rect(x, 0, x, 11, ROPE); } for y in [2, 5, 8] { p.rect(4, y, 11, y, WOOD); }
+            p.oval(8., 13., 6., 2.4, sh(ROPE, 0.85)); p.oval(8., 13., 3.5, 1.2, WOOD_D); }
+        Lift => { // a cage hung from a sheave
+            p.oval(8., 2.5, 2.4, 2.4, IRON); p.set(8, 2, BRASS); p.rect(8, 5, 8, 6, ROPE); p.rect(3, 6, 12, 7, WOOD); p.rect(3, 13, 12, 14, WOOD);
+            for x in [3, 6, 9, 12] { p.rect(x, 7, x, 13, col); } }
+        Tube => { // a pressure-tube length with flanged ends
+            p.rect(2, 5, 13, 11, col); p.rect(2, 5, 13, 6, sh(col, 1.25)); for x in [0, 1, 14, 15] { p.rect(x, 3, x, 13, BRASS); } p.rect(6, 7, 9, 9, sh(col, 0.8)); }
+        TubeHopper => { // a brass funnel mouth on a stub of tube
+            poly(&mut p, &[(1., 2.), (15., 2.), (10., 9.), (6., 9.)], col); p.rect(1, 2, 14, 3, sh(col, 1.3)); p.rect(5, 9, 10, 15, [150, 190, 186]); p.rect(4, 11, 11, 11, BRASS_D); p.oval(8., 4.5, 4., 1., [70, 50, 30]); }
+        // ---- background linings: a piece of each, darker, as it sits behind
+        RockWall => { // a rough slab of scraped host rock with tool marks
+            poly(&mut p, &[(1., 3.), (6., 1.), (14., 2.), (15., 9.), (13., 15.), (3., 14.), (1., 9.)], sh(col, 0.85)); for y in [5, 9, 12] { line(&mut p, 3., y as f32, 11., y as f32 - 2., 1, sh(col, 0.6)); } }
+        TimberWall => { // boards standing on end, uneven tops, gaps between
+            for (k, x) in [1, 5, 9, 13].into_iter().enumerate() { let top = [2, 1, 3, 2][k]; p.rect(x, top, x + 2, 15, if k % 2 == 0 { col } else { sh(col, 0.9) }); p.set(x + 1, top + 4, WOOD_D); } }
+        MasonryWall => { // laid courses with the joints staggered, a stepped edge
+            for r in 0..4 { let y = 2 + r * 3; let off = if r % 2 == 0 { 0 } else { 2 }; for k in 0..3 { let x = off + k * 5; p.rect(x, y, x + 3, y + 1, if (r + k) % 2 == 0 { col } else { sh(col, 0.88) }); } } }
+        BeamWall => { // a timber frame with a cross brace
+            p.rect(1, 1, 2, 14, col); p.rect(13, 1, 14, 14, col); p.rect(1, 1, 14, 2, sh(col, 1.15)); p.rect(1, 13, 14, 14, col); line(&mut p, 3., 3., 12., 12., 2, sh(col, 0.85)); p.set(7, 7, IRON); }
+        PipeWall => { // two pipes on a bracket, a joint on each
+            for y in [4, 10] { p.rect(0, y, 15, y + 2, col); p.rect(0, y, 15, y, sh(col, 1.3)); p.rect(6, y - 1, 7, y + 3, BRASS); } p.rect(12, 6, 13, 10, IRON_D); }
+        CarvedWall => { // an arched panel with a carved mole's mark
+            p.rect(2, 7, 13, 15, col); p.oval(7.5, 7.5, 5.8, 6., col); p.oval(7.5, 9.5, 2., 2., sh(col, 0.65)); p.rect(5, 12, 10, 13, sh(col, 0.7)); p.set(7, 3, sh(col, 1.25)); }
+    }
+    p
+}
+pub fn icon(it: Item) -> Image { icon_px(it).finish(LINE).image() }
+
+/// What each item looks like out in the world, for the catalogue and the coverage test: placed blocks
+/// are cells of their material, devices and furniture their own sprites, everything else lies about as
+/// its icon (`sync_sprites`, kind 1).
+pub fn world_form(it: Item) -> &'static str {
+    use Item::*;
+    if it.furn().is_some() { return "furniture sprite"; }
+    if it.is_wall() { return "background lining"; }
+    match it {
+        Planks | PolishedStone | Tiles | CarvedPillar | Rail | Tube | WoodPillar | IronBeam | Brick | Glass => "placed cells",
+        Torch => "torch flame", Lamp | Thrummer | Gate | Tnt | Vent => "device sprite", CopperWire => "copperline tile",
+        Cart => "cart sprite", RopeLadder => "rope ladder", Lift => "lift cage", TubeHopper => "hopper mouth",
+        Mushroom | Spore => "mushroom plot (planted)",
+        _ => "loose (icon)",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use molehill_sim::craft::ITEMS;
+    /// The pixels of a finished sprite as (alpha mask, luminance band 0..3 relative to its own range).
+    /// A tinted copy of another sprite has the same mask and bands, so it scores 0.
+    pub fn signature(p: &Px) -> Vec<u8> {
+        let lum = |c: [u8; 4]| 0.2126 * c[0] as f32 + 0.7152 * c[1] as f32 + 0.0722 * c[2] as f32;
+        let ls: Vec<f32> = p.c.iter().filter(|c| c[3] != 0).map(|&c| lum(c)).collect();
+        let (lo, hi) = ls.iter().fold((f32::MAX, f32::MIN), |(a, b), &l| (a.min(l), b.max(l)));
+        p.c.iter().map(|&c| if c[3] == 0 { 0 } else { 1 + (((lum(c) - lo) / (hi - lo).max(1.) * 3.99) as u8) }).collect()
+    }
+    pub fn distance(a: &[u8], b: &[u8]) -> usize { a.iter().zip(b).filter(|(x, y)| x != y).count() }
+    pub fn masks_differ(a: &[u8], b: &[u8]) -> usize { a.iter().zip(b).filter(|(x, y)| (**x == 0) != (**y == 0)).count() }
+
+    #[test] fn every_item_has_its_own_icon() {
+        let px: Vec<Px> = ITEMS.iter().map(|&it| icon_px(it).finish(LINE)).collect();
+        for (k, p) in px.iter().enumerate() {
+            let opaque = p.c.iter().filter(|c| c[3] != 0).count(); assert!(opaque > 40, "{:?} is nearly empty ({opaque} px)", ITEMS[k]);
+            let mut cols: Vec<[u8; 4]> = p.c.iter().filter(|c| c[3] != 0).copied().collect(); cols.sort(); cols.dedup();
+            assert!(cols.len() >= 4, "{:?} is a flat box ({} colours)", ITEMS[k], cols.len());
+        }
+        let sig: Vec<Vec<u8>> = px.iter().map(signature).collect();
+        let mut bad = vec![];
+        for a in 0..sig.len() { for b in a + 1..sig.len() {
+            let (d, m) = (distance(&sig[a], &sig[b]), masks_differ(&sig[a], &sig[b]));
+            if d < 20 || m < 8 { bad.push(format!("{:?}/{:?} (pattern {d}, silhouette {m})", ITEMS[a], ITEMS[b])); }
+        } }
+        assert!(bad.is_empty(), "icons that share art: {}", bad.join(", "));
+    }
+    #[test] fn every_item_says_how_it_shows_in_the_world() {
+        for &it in ITEMS.iter() { assert!(!world_form(it).is_empty()); }
+        assert_eq!(world_form(Item::Table), "furniture sprite"); assert_eq!(world_form(Item::Gravel), "loose (icon)");
+    }
+}
