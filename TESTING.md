@@ -257,6 +257,8 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `chute_slides.scn` | A stone slides down a 1-in-2 chute and out past its foot; on bare granite steps or a level chute it stays put |
 | `cart_tips_at_bumper.scn` | A loaded cart rolls into a bumper and tips: its 20 stones come out over the front into the pit beyond; it stays on the rails |
 | `ore_hopper_feeds_cart.scn` | An ore hopper takes in dropped stones and poured sand; its gate stays shut until it's held open or a cart stands under it, then it fills the cart; its load is saved |
+| `cart_tip_resumes.scn` | A cart saved while tipping at a bumper finishes tipping after loading (a loaded cart standing against a bumper tips) |
+| `production_line.scn` | The whole line: an ore hopper fills a cart, a lever drives it off, it tips at a bumper, the load slides down a chute onto a steep shaker screen, gravel and ore end in separate pits; the mole beside the hopper picks up nothing |
 | `shaker_sorts.scn` | Gravel drops through a 1-in-4 shaker screen; ore lies on it until current shakes it, then walks off the end into its own pit |
 | `rail_needs_support.scn` | A rail span over a drop breaks and falls; its ends on rock hold |
 | `blast_moves_sand.scn` | A charge by a sand bed throws a third of it into the air at once; the near end is scoured, and it all lands (none lost) |
@@ -336,7 +338,7 @@ Zoom limits and brush ranges also have unit tests in `sim/tests/sim.rs` (`zoom_i
 
 **Web frame time:** serve `dist/` (`python3 -m http.server`) and measure `requestAnimationFrame` intervals in Chrome after starting a holt. At 8 cells/m on an M4 with the active region: 58 fps (p95 16.8 ms) from a fresh holt's first seconds, 60 fps steady state.
 
-Blast tests in `sim.rs`: `blast_overpressure_curve` (Kinney-Graham values, monotone, deterministic, bounded), `blast_is_heard_by_listeners`, `blast_debris_deterministic_and_conserved`. Blast sound tests in `blast_events.rs`: `one_charge_is_heard_once_*` (one charge in a generated world: one blast, no later Explode or Quake, no collapse rumble for a cell or two trickling off the crater). Transport tests in `transport.rs`: `transport_is_reachable_in_survival`, `creative_has_transport_freely`, `transport_hover_tips_say_what_to_do` (each machine's hover tip names its action). `--example blastbench` times one charge.
+Blast tests in `sim.rs`: `blast_overpressure_curve` (Kinney-Graham values, monotone, deterministic, bounded), `blast_is_heard_by_listeners`, `blast_debris_deterministic_and_conserved`. Blast sound tests in `blast_events.rs`: `one_charge_is_heard_once_*` (one charge in a generated world: one blast, no later Explode or Quake, no collapse rumble for a cell or two trickling off the crater). Transport tests in `transport.rs`: `transport_is_reachable_in_survival`, `creative_has_transport_freely`, `transport_hover_tips_say_what_to_do` (each machine's hover tip names its action), `production_is_reachable_in_survival`, `production_hover_tips_say_what_to_do`. `--example blastbench` times one charge.
 
 Settled ground tests in `sim/tests/settled_ground.rs`: `loose_lenses_are_rare_round_the_burrow_but_not_beyond` (lenses under 1.2 % of the ground within 40 m of the burrow and none soaked; over 3 % beyond 80 m at the same depths and over 2 % at 15-35 m down, 24 seeds), `a_new_holt_starts_on_settled_ground` (under 2 % of the ground within 30 m of a fresh holt's burrow is loose, and hardly any sand faces open cave, 5 seeds).
 
