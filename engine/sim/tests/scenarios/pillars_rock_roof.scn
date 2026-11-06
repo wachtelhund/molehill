@@ -1,34 +1,34 @@
 // Two wood pillars built floor-to-roof (cell by cell, as the player does) at the third points save a 12 m
 // rock roof that caves in without them (roof_needs_pillar.scn). The pillars stay rigid: no cracking, no flowing.
 map
-##########################################################
-#rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr#
-#rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr#
-#rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr#
-#####................................................#####
-#####................................................#####
-#####................................................#####
-#####................................................#####
-#####................................................#####
-#####........................@.......................#####
-##########################################################
+##########################################################################
+#rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr#
+#rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr#
+#rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr#
+#####................................................................#####
+#####................................................................#####
+#####................................................................#####
+#####................................................................#####
+#####................................................................#####
+#####................................@...............................#####
+##########################################################################
 end
 give WoodPillar 20
-place 2 -8 -0 WoodPillar
-place 2 8 -0 WoodPillar
-place 3 -8 -1 WoodPillar
-place 3 8 -1 WoodPillar
-place 4 -8 -2 WoodPillar
-place 4 8 -2 WoodPillar
-place 5 -8 -3 WoodPillar
-place 5 8 -3 WoodPillar
-place 6 -8 -4 WoodPillar
-place 6 8 -4 WoodPillar
-place 7 -8 -5 WoodPillar
-place 7 8 -5 WoodPillar
+place 2 -11 -0 WoodPillar
+place 2 11 -0 WoodPillar
+place 3 -11 -1 WoodPillar
+place 3 11 -1 WoodPillar
+place 4 -11 -2 WoodPillar
+place 4 11 -2 WoodPillar
+place 5 -11 -3 WoodPillar
+place 5 11 -3 WoodPillar
+place 6 -11 -4 WoodPillar
+place 6 11 -4 WoodPillar
+place 7 -11 -5 WoodPillar
+place 7 11 -5 WoodPillar
 expect 13 util:0,-6 < 0.5
-expect 13 util:-8,-3 < 1
+expect 13 util:-11,-3 < 1
 expect 600 count:WoodBeam == 12
-expect 600 is:-8,-5,WoodBeam == 1
-expect 600 is:8,-5,WoodBeam == 1
+expect 600 is:-11,-5,WoodBeam == 1
+expect 600 is:11,-5,WoodBeam == 1
 expect 600 crumbled == 0

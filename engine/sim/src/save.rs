@@ -82,7 +82,7 @@ fn load_v3(b: &[u8]) -> R<World> {
     let _ = Item::Dirt; let _ = Mat::Empty;
     // derived state
     w.g.life.iter_mut().for_each(|v| *v = 0); w.g.wake_all(); w.st = crate::stress::Stress::new(n);
-    let f = w.st.solve(&w.g); w.st.crack(&f); w.g.clear_struct();
+    let f = w.st.solve(&w.g); w.st.crack(&w.g, &f); w.g.clear_struct();
     w.say(format!("Loaded save (tick {}).", tick));
     Ok(w)
 }
@@ -223,7 +223,7 @@ pub fn load_with(b: &[u8], fetch: &mut dyn FnMut(&str) -> Option<Vec<u8>>) -> R<
     // grottos visited: saved since v11; before that, a grotto whose hollow has been seen counts as visited
     match grottos_seen { Some(s) => w.grottos_seen = s, None => w.mark_seen_grottos() }
     w.g.life.iter_mut().for_each(|v| *v = 0); w.g.wake_all(); w.st = crate::stress::Stress::new(gw * gh);
-    let f = w.st.solve(&w.g); w.st.crack(&f); w.g.clear_struct();
+    let f = w.st.solve(&w.g); w.st.crack(&w.g, &f); w.g.clear_struct();
     w.say(format!("Loaded save (tick {}).", tick));
     if lost > 0 { w.say(format!("{lost} far bands of the save were missing; the Deepholt there is as it was before you came.")); }
     Ok(w)
