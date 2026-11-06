@@ -82,7 +82,7 @@ impl World {
             self.say(format!("Pressed {FUNGUS_PER_OIL} fungus into a measure of oil ({} fungus left).", self.inv[Item::Fungus as usize]));
         } else { return false; }
         // that was the last measure the pack could give: say so while there's still light to gather by
-        if self.oil_measures() == 0 { self.say(format!("The last measure of oil: about {:.0} minutes of light. Gather fungus to press more, or turn back.", OIL_SECS / 60.)); self.events.push(Event::Warning); }
+        if self.oil_measures() == 0 { self.say(format!("The last measure of oil: about {:.0} minutes of light. Gather fungus to press more (a workbench presses 3 into 2 measures), or turn back.", OIL_SECS / 60.)); self.events.push(Event::Warning); }
         true
     }
     /// Can a mole stand here: open and not liquid at its feet and head, on something solid?
