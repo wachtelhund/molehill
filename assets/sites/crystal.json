@@ -439,5 +439,11 @@
     {"tag":"shaft","side":"south","at":33,"len":31},
     {"tag":"shaft","side":"south","at":81,"len":63},
     {"tag":"shaft","side":"south","at":161,"len":31}
-  ]
+  ],
+  "variation": {
+    "mirror": true,
+    "zones": [
+      {"tag":"chest","chance":0.75}
+    ]
+  }
 }

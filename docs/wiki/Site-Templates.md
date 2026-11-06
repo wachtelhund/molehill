@@ -19,10 +19,36 @@ A template is one piece at cell resolution (`cpm` must equal `mat::CPM`, 8 cells
 | `chest` | the chest's cell from the box's top-left |
 | `things` | what the place owns besides cells, in the order it is set down: `torch`, `furniture` (`item`), `farm`, `ladder` (`anchor`), `cart`, `device` (a `logic::Dev` name), `wire` (copperline), `on` (switch the device there on). `when` limits one to a slot option |
 | `connectors` | tagged ways in: `entrance` (open floor reaching a side), `shaft` (through the roof or floor), `tube` (a pressure tube leaving the box), with side, start and length. The assembler (coming) stitches pieces at these |
+| `variation` | how each placed site of the piece varies (below); not part of the exported layout, so the exporter carries it over and the golden check ignores it |
 
 Names are the Rust variant names used everywhere else (scenario `give`, the item registry in `craft.rs`), so a template, a `.scn` file and the code all say `WoodBeam`, `Shelf`, `Floodgate`.
 
 The exported slots today: the mine's `slump` (which bay from 20 m caved, 6), `rails` (which run of track rusted, 4) and `band` (where rock bands cross the worked face, 8); the salt hall's `hang` (where the hanging clusters start, 4); the cargo halt's `side` (tube east or west, which also moves the warehouse, its furniture and the chest).
+
+## Seeded variation (`variation`)
+
+A placed site is its template laid out with seeded variation (`Template::placed_cell`, `placed_lining`, `placed_chest`, `placed_things`; `Site::placement` gives the site's `var`, side and the depth of its middle). Every roll is a hash of `var >> 8`, so a site always comes out the same. Below `templates::VARY_FROM` (256) there is no variation at all: `stamp_site`, the scenarios' `site` directive and the golden range stamp the template exactly. The generator gives each site 20 random bits of `var`, so almost every site in a world varies.
+
+| field | what it does |
+|---|---|
+| `mirror` | half the sites are flipped east-west: cells, linings, chest and things (ropes, carts, device blocks) |
+| `remap` | `{from, to, deeper_than, shallower_than}`: a material swapped by the depth (m) of the site's middle |
+| `zones` | tagged random zones: `chest` (the chest is there with `chance`), `furniture` (one of `sets` of thing indices is kept), `may-collapse` (with `chance`, the open cells in `rect` [x, y, w, h] fill with `fill`, loose rubble that settles) |
+
+What the seven use today (the layers: higher is cooler and wetter, deeper hotter and harder):
+
+| family | variation |
+|---|---|
+| mine | flips; rock turns to granite below 40 m; the worked face caves in a third of the time (gravel in the bottom 2 m of its first 5 m) |
+| holt | flips; keeps two of its three banners or the third alone |
+| pumpworks | flips |
+| fissure, fossil cave | flip; rock turns to basalt below 60 m |
+| salt hall | flips; its chest is there three times in four |
+| cargo halt | never flips (its tube faces the Ancient station it links to); its chest is there half the time |
+
+Mines and holts always keep their chest: the first-hour find is one of them. `found_places_entrances_reach_every_room_and_the_chest` walks each family over its own layout and over seeded variants picked so that each is seen flipped and not and with each zone on and off. `tests/variation.rs` checks the rules: no variation below 256, mirroring flips everything and about half the sites, remaps follow the depth, zones fire at their chance, generated sites vary.
+
+Not done yet: stitching extra pieces onto a site's connectors (a side drift onto a mine's adit, say). It changes a site's box, which the placement rules (`Kind::size`, the site grid) assume is fixed, and there are no extra pieces to stitch until they're painted in the [cave editor](Cave-Editor.md).
 
 ## The export, and the golden check
 

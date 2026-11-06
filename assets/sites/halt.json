@@ -611,5 +611,10 @@
     {"tag":"tube","side":"east","at":50,"len":36,"when":{"slot":"side","option":0}},
     {"tag":"tube","side":"west","at":50,"len":36,"when":{"slot":"side","option":1}},
     {"tag":"entrance","side":"east","at":112,"len":24,"when":{"slot":"side","option":1}}
-  ]
+  ],
+  "variation": {
+    "zones": [
+      {"tag":"chest","chance":0.5}
+    ]
+  }
 }

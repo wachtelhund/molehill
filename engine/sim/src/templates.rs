@@ -95,7 +95,59 @@ pub struct SiteFile {
     pub things: Vec<ThingDef>,
     #[serde(default)]
     pub connectors: Vec<Connector>,
+    /// How each placed site of this piece varies (see `Variation`). Not part of the exported layout: the
+    /// exporter carries it over unchanged and the golden check doesn't read it.
+    #[serde(default, skip_serializing_if = "Variation::is_empty")]
+    pub variation: Variation,
 }
+
+/// Seeded variation laid over a template when a site is placed: never at `var` below `VARY_FROM` (the
+/// scripted stamps and the golden range), on almost every site the generator places (its `var` is 20
+/// random bits). Each roll is a hash of `var >> 8` and the roll's index, so a site always comes out the same.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+pub struct Variation {
+    /// half the sites are flipped east-west (cells, linings, chest, things)
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub mirror: bool,
+    /// materials swapped by the depth of the site's middle (metres; + is down)
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub remap: Vec<Remap>,
+    /// tagged random zones, in template (unmirrored) cells
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub zones: Vec<Zone>,
+}
+impl Variation { pub fn is_empty(&self) -> bool { *self == Variation::default() } }
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct Remap {
+    pub from: String,
+    pub to: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deeper_than: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shallower_than: Option<f64>,
+}
+/// A tagged random zone. `tag`: `chest` (the chest is there with `chance`), `furniture` (one of `sets` of
+/// thing indices is kept, the other sets' things are dropped), `may-collapse` (with `chance`, the open
+/// cells in `rect` [x, y, w, h] fill with `fill`, rubble that settles as loose ground).
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct Zone {
+    pub tag: String,
+    #[serde(default = "one", skip_serializing_if = "is_one")]
+    pub chance: f64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rect: Option<[usize; 4]>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fill: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sets: Vec<Vec<usize>>,
+}
+fn one() -> f64 { 1. }
+fn is_one(v: &f64) -> bool { *v == 1. }
+/// Variation starts at this `var` (below it a site is stamped exactly as its template).
+pub const VARY_FROM: u32 = 1 << 8;
+/// Where and how a site is placed: its layout knobs and the depth (m) of its middle.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Placement { pub var: u32, pub left: bool, pub depth: f32 }
 
 fn export_source() -> String { "export".into() }
 fn is_export(s: &String) -> bool { s == "export" }
@@ -342,6 +394,9 @@ pub struct Template {
     slots: Vec<Slot>,
     chest: Option<(usize, usize)>,
     things: Vec<(Thing, Option<(usize, usize)>)>,
+    pub variation: Variation,
+    zone_fill: Vec<Option<Mat>>,
+    remap_to: Vec<(Mat, Mat)>,
 }
 
 impl Template {
@@ -419,7 +474,19 @@ impl Template {
             things.push((Thing::from_def(t)?, when));
         }
         let chest = f.chest.map(|c| (c[0], c[1]));
-        Ok(Template { kind, w, h, file: f, cells, lining, mixes, roles, slots, chest, things })
+        let v = f.variation.clone();
+        let named = |s: &str, what: &str| mat_named(s).ok_or_else(|| format!("variation {what}: unknown material {s}"));
+        let remap_to = v.remap.iter().map(|r| Ok((named(&r.from, "remap")?, named(&r.to, "remap")?))).collect::<Result<Vec<_>, String>>()?;
+        let mut zone_fill = vec![];
+        for z in &v.zones {
+            if !matches!(z.tag.as_str(), "chest" | "furniture" | "may-collapse") { return Err(format!("variation: unknown zone tag {:?}", z.tag)); }
+            if !(0. ..=1.).contains(&z.chance) { return Err(format!("variation {}: chance {} is not 0..1", z.tag, z.chance)); }
+            if z.tag == "may-collapse" { let Some([x, y, rw, rh]) = z.rect else { return Err("variation may-collapse: no rect".into()) };
+                if x + rw > w || y + rh > h { return Err("variation may-collapse: rect outside the piece".into()); } }
+            for set in &z.sets { for &i in set { if i >= things.len() { return Err(format!("variation furniture: no thing {i}")); } } }
+            zone_fill.push(match &z.fill { Some(m) => Some(named(m, "fill")?), None => None });
+        }
+        Ok(Template { kind, w, h, file: f, cells, lining, mixes, roles, slots, chest, things, variation: v, zone_fill, remap_to })
     }
     fn choices(&self, var: u32, left: bool) -> impl Iterator<Item = usize> + '_ { self.slots.iter().map(move |s| s.pick.choose(var, left).min(s.n - 1)) }
     /// Material at box cell (dx, dy) for a site with this `var` and side; None leaves the host rock.
@@ -457,27 +524,95 @@ impl Template {
         let ch: Vec<usize> = self.choices(var, left).collect();
         self.things.iter().filter(|(_, w)| w.map_or(true, |(s, o)| ch[s] == o)).map(|(t, _)| *t).collect()
     }
+
+    // ---- placed: the template with the site's seeded variation (see `Variation`)
+
+    /// A roll in [0, 1) for this site, from `var`'s high bits and the roll's index `k`.
+    fn roll(var: u32, k: u32) -> f32 { (crate::grid::hash3(var >> 8, k, 0xA55E) >> 8) as f32 / (1u32 << 24) as f32 }
+    fn varies(var: u32) -> bool { var >= VARY_FROM }
+    /// Is this site flipped east-west?
+    pub fn mirrored(&self, var: u32) -> bool { self.variation.mirror && Self::varies(var) && Self::roll(var, 0) < 0.5 }
+    /// Does zone `z` fire on this site?
+    pub fn zone_on(&self, z: usize, var: u32) -> bool { Self::varies(var) && (Self::roll(var, 16 + z as u32) as f64) < self.variation.zones[z].chance }
+    fn tx(&self, dx: usize, var: u32) -> usize { if self.mirrored(var) { self.w - 1 - dx } else { dx } }
+    /// Material at box cell (dx, dy) of a placed site.
+    pub fn placed_cell(&self, dx: usize, dy: usize, p: Placement) -> Option<Mat> {
+        let tx = self.tx(dx, p.var);
+        let mut m = self.cell(tx, dy, p.var, p.left)?;
+        if Self::varies(p.var) {
+            for (z, zone) in self.variation.zones.iter().enumerate() {
+                if zone.tag != "may-collapse" || m != Mat::Empty { continue; }
+                let Some([x, y, w, h]) = zone.rect else { continue };
+                if tx >= x && tx < x + w && dy >= y && dy < y + h && self.zone_on(z, p.var) { m = self.zone_fill[z].unwrap_or(Mat::Gravel); }
+            }
+            for (r, to) in self.variation.remap.iter().zip(&self.remap_to) {
+                if to.0 == m && r.deeper_than.map_or(true, |d| p.depth as f64 > d) && r.shallower_than.map_or(true, |d| (p.depth as f64) < d) { m = to.1; }
+            }
+        }
+        Some(m)
+    }
+    /// Lining at box cell (dx, dy) of a placed site, for a cell hash `h`.
+    pub fn placed_lining(&self, dx: usize, dy: usize, p: Placement, h: u32) -> Option<Wall> { self.lining_with(self.tx(dx, p.var), dy, p.var, p.left, h) }
+    /// The chest of a placed site, if it has one.
+    pub fn placed_chest(&self, p: Placement) -> Option<(usize, usize)> {
+        let (x, y) = self.chest(p.var, p.left)?;
+        if Self::varies(p.var) { for (z, zone) in self.variation.zones.iter().enumerate() { if zone.tag == "chest" && !self.zone_on(z, p.var) { return None; } } }
+        Some((if self.mirrored(p.var) { self.w - 1 - x } else { x }, y))
+    }
+    /// The things of a placed site, box-relative, in order.
+    pub fn placed_things(&self, p: Placement) -> Vec<Thing> {
+        let ch: Vec<usize> = self.choices(p.var, p.left).collect();
+        let mut dropped = vec![false; self.things.len()];
+        if Self::varies(p.var) {
+            for (z, zone) in self.variation.zones.iter().enumerate() {
+                if zone.tag != "furniture" || zone.sets.is_empty() { continue; }
+                let keep = (Self::roll(p.var, 16 + z as u32) * zone.sets.len() as f32) as usize % zone.sets.len();
+                for (k, set) in zone.sets.iter().enumerate() { if k != keep { for &i in set { if i < dropped.len() { dropped[i] = true; } } } }
+            }
+        }
+        let mirror = self.mirrored(p.var);
+        self.things.iter().enumerate().filter(|(i, (_, w))| !dropped[*i] && w.map_or(true, |(s, o)| ch[s] == o))
+            .map(|(_, (t, _))| if mirror { t.mirrored(self.w) } else { *t }).collect()
+    }
+}
+
+impl Thing {
+    /// The same thing in a box `w` cells wide flipped east-west.
+    pub fn mirrored(self, w: usize) -> Thing {
+        let m = |a: [usize; 2]| [w - 1 - a[0].min(w - 1), a[1]];
+        match self {
+            Thing::Torch { at } => Thing::Torch { at: m(at) },
+            Thing::Furn { item, at } => Thing::Furn { item, at: m(at) },
+            Thing::Farm { at } => Thing::Farm { at: m(at) },
+            Thing::Ladder { at, anchor } => Thing::Ladder { at: m(at), anchor: m(anchor) },
+            Thing::Cart { at } => Thing::Cart { at: [w as f32 - at[0], at[1]] },
+            Thing::Device { dev, at } => Thing::Device { dev, at: m(at) },
+            Thing::Wire { at } => Thing::Wire { at: m(at) },
+            Thing::SwitchOn { at } => Thing::SwitchOn { at: m(at) },
+        }
+    }
 }
 
 impl crate::world::World {
     /// Stamp a template (any, not only the built-in one for its family) with its box's top-left at window
-    /// (x0, y0): cells, linings (hashed with `id`, as a placed site's are), the chest and its things. Returns
+    /// (x0, y0), placed as `p` (its variation included): cells, linings (hashed with `id`, as a placed site's
+    /// are), the chest and its things. Returns
     /// the chest's window cell. The cave editor's checks use this; the game stamps through `sites.rs`.
-    pub fn stamp_template(&mut self, t: &Template, x0: usize, y0: usize, var: u32, left: bool, id: u32) -> Option<(usize, usize)> {
+    pub fn stamp_template(&mut self, t: &Template, x0: usize, y0: usize, p: Placement, id: u32) -> Option<(usize, usize)> {
         if x0 + t.w >= self.g.w || y0 + t.h >= self.g.h { return None; }
         for dy in 0..t.h { for dx in 0..t.w {
             let (x, y) = (x0 + dx, y0 + dy);
-            if let Some(m) = t.cell(dx, dy, var, left) {
+            if let Some(m) = t.placed_cell(dx, dy, p) {
                 let i = y * self.g.w + x; self.g.set(i, m); self.g.flags[i] = 0;
                 let wy = self.oy + y as i64;
-                if let Some(wl) = t.lining_with(dx, dy, var, left, crate::grid::hash3(x as u32, wy as u32, id)) { self.walls.set_at(x, y, wl); }
+                if let Some(wl) = t.placed_lining(dx, dy, p, crate::grid::hash3(x as u32, wy as u32, id)) { self.walls.set_at(x, y, wl); }
             }
         } }
-        let chest = t.chest(var, left).map(|(cx, cy)| (x0 + cx, y0 + cy));
+        let chest = t.placed_chest(p).map(|(cx, cy)| (x0 + cx, y0 + cy));
         if let Some((cx, cy)) = chest {
             if !self.chests.iter().any(|c| c.x == cx && c.y == cy) { self.chests.push(crate::world::Chest { x: cx, y: cy, opened: false, ancient: None }); }
         }
-        for th in t.things(var, left) { self.set_thing(th.offset(x0, y0)); }
+        for th in t.placed_things(p) { self.set_thing(th.offset(x0, y0)); }
         chest
     }
 }

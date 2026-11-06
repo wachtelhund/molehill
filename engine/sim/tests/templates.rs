@@ -90,18 +90,19 @@ fn template_files_are_canonical_and_parse_fast() {
     assert!(ms < 250., "templates took {ms:.0} ms");
 }
 
-/// `World::stamp_template` (the cave editor's checks) stamps what the game's own site stamping does.
+/// `World::stamp_template` (the cave editor's checks) stamps what the game's own site stamping does, with
+/// and without seeded variation.
 #[test]
 fn stamp_template_matches_the_game_stamp() {
     use molehill_sim::mat::Mat;
     use molehill_sim::world::World;
-    for &(kind, name) in &FAMILIES {
+    for (&(kind, name), var) in FAMILIES.iter().flat_map(|f| [5u32, (77 << 8) | 5, (1234 << 8) | 2].map(move |v| (f, v))) {
         let mk = || { let mut w = World::new(1024, 512, 1); w.disasters.enabled = false; w.chests.clear(); w.torches.clear(); w.furniture.clear(); w.tr.ladders.clear(); w };
         let (mut a, mut b) = (mk(), mk());
         let (x0, y0) = (64, 512 - kind.size().1 - 48);
-        a.stamp_site_var(kind, x0, y0, 5, true);
-        let id = a.sites.last().unwrap().id;
-        b.stamp_template(templates::get(kind), x0, y0, 5, true, id);
+        a.stamp_site_var(kind, x0, y0, var, true);
+        let (id, p) = (a.sites.last().unwrap().id, a.sites.last().unwrap().placement());
+        b.stamp_template(templates::get(kind), x0, y0, p, id);
         assert!(a.g.mat == b.g.mat, "{name}: cells");
         assert!(a.walls.cell == b.walls.cell, "{name}: linings");
         assert_eq!(a.chests.iter().map(|c| (c.x, c.y)).collect::<Vec<_>>(), b.chests.iter().map(|c| (c.x, c.y)).collect::<Vec<_>>(), "{name}: chest");
