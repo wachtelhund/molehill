@@ -694,7 +694,10 @@ fn material_table_is_consistent() {
         w.shift(rows); w.finish_seam();
         let mut full = Stress::new(w.g.w * w.g.h); let mut want = full.solve(&w.g); want.sort();
         let diff = (0..w.g.mat.len()).filter(|&i| (w.st.util[i] as i32 - full.util[i] as i32).abs() > 32).count();
-        let mut have: Vec<u32> = (0..w.g.mat.len() as u32).filter(|&i| w.st.util[i as usize] > 128 && w.g.mat[i as usize] != Mat::Bedrock as u8).collect(); have.sort();
+        // failing by the solver's rule: built blocks past full load, natural ground past the strain band
+        let fails = |i: usize| { let thr = if w.g.m(i).p().flags & molehill_sim::mat::BUILT != 0 { 1.0f32 } else { molehill_sim::stress::FAIL_U };
+            w.st.util[i] as f32 > thr * 128. && w.g.mat[i] != Mat::Bedrock as u8 };
+        let mut have: Vec<u32> = (0..w.g.mat.len() as u32).filter(|&i| fails(i as usize)).collect(); have.sort();
         assert_eq!(diff, 0, "slide {rows}: utilisation off by more than 0.25 in {diff} cells");
         assert_eq!(have.len(), want.len(), "slide {rows}: failing cells");
     }

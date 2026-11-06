@@ -116,9 +116,10 @@ mod worker {
     use super::{band_cells, Band};
     use crate::gen::Gen;
     use std::collections::{BTreeMap, HashSet};
-    use std::sync::{atomic::{AtomicI64, Ordering::SeqCst}, mpsc, Arc};
+    use std::sync::{atomic::{AtomicI64, Ordering::SeqCst}, mpsc, Arc, Mutex};
     const IDLE: i64 = i64::MIN;
-    pub struct Worker { tx: mpsc::Sender<Vec<i64>>, rx: mpsc::Receiver<(i64, Band)>, building: Arc<AtomicI64>, last: Vec<i64> }
+    /// (`rx` sits in a mutex only so the world can be shared between threads, as a Bevy resource is.)
+    pub struct Worker { tx: mpsc::Sender<Vec<i64>>, rx: Mutex<mpsc::Receiver<(i64, Band)>>, building: Arc<AtomicI64>, last: Vec<i64> }
     impl Worker {
         pub fn spawn(seed: u32, w: usize) -> Worker {
             let (tx, wants) = mpsc::channel::<Vec<i64>>(); let (out, rx) = mpsc::channel(); let building = Arc::new(AtomicI64::new(IDLE)); let b = building.clone();
@@ -133,17 +134,17 @@ mod worker {
                     let gone = out.send((k, band)).is_err(); b.store(IDLE, SeqCst); if gone { return; }
                 }
             }).expect("spawn the band builder thread");
-            Worker { tx, rx, building, last: vec![] }
+            Worker { tx, rx: Mutex::new(rx), building, last: vec![] }
         }
         /// Tell the worker what is wanted now (only when it changed).
         pub fn want(&mut self, want: &[i64]) { if self.last != want { self.last = want.to_vec(); let _ = self.tx.send(self.last.clone()); } }
         /// Move what the worker has built into `ready`.
-        pub fn collect(&self, ready: &mut BTreeMap<i64, Band>) { while let Ok((k, b)) = self.rx.try_recv() { ready.insert(k, b); } }
+        pub fn collect(&self, ready: &mut BTreeMap<i64, Band>) { let rx = self.rx.lock().unwrap(); while let Ok((k, b)) = rx.try_recv() { ready.insert(k, b); } }
         /// The band at `wy0` if built, waiting for the worker if it is building that one right now.
         pub fn wait_for(&self, wy0: i64, ready: &mut BTreeMap<i64, Band>) -> Option<Band> {
             self.collect(ready);
             while !ready.contains_key(&wy0) && self.building.load(SeqCst) == wy0 {
-                match self.rx.recv() { Ok((k, b)) => { ready.insert(k, b); } Err(_) => break }
+                match self.rx.lock().unwrap().recv() { Ok((k, b)) => { ready.insert(k, b); } Err(_) => break }
             }
             ready.remove(&wy0)
         }
