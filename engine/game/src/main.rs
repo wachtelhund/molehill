@@ -220,6 +220,28 @@ fn dev_shot(mut n: Local<u32>, mut g: ResMut<Game>, mut m: ResMut<menu::Menu>, m
 /// 24-bit BMP writer for the dev flags (no image codecs are compiled in). `bgra` swaps channels; pixels are
 /// composited over a dark grey by alpha and scaled up `k`× with nearest sampling.
 #[cfg(not(target_arch = "wasm32"))]
+/// Alpha-blit an RGBA sprite into a dump buffer. `left`/`top`/`dw`/`dh` are in buffer pixels.
+fn blit_im(u: &mut [u8], uw: usize, uh: usize, im: &Image, left: f32, top: f32, dw: f32, dh: f32, tint: [f32; 3], a0: f32) {
+    let Some(d) = im.data.as_ref() else { return };
+    let (iw, ih) = (im.width() as usize, im.height() as usize);
+    if iw == 0 || ih == 0 || dw < 1. || dh < 1. { return; }
+    let (dwi, dhi) = (dw as usize, dh as usize);
+    for py in 0..dhi { for px in 0..dwi {
+        let (ox, oy) = (left as i64 + px as i64, top as i64 + py as i64);
+        if ox < 0 || oy < 0 || ox >= uw as i64 || oy >= uh as i64 { continue; }
+        let q = ((py * ih / dhi) * iw + px * iw / dwi) * 4; if q + 3 >= d.len() { continue; }
+        let a = d[q + 3] as f32 / 255. * a0; if a <= 0. { continue; }
+        let o = (oy as usize * uw + ox as usize) * 4;
+        for j in 0..3 { u[o + j] = (u[o + j] as f32 * (1. - a) + d[q + j] as f32 * tint[j] * a).min(255.) as u8; }
+        u[o + 3] = 255;
+    } }
+}
+fn fill_px(u: &mut [u8], uw: usize, uh: usize, x: i64, y: i64, w: i64, h: i64, rgb: [u8; 3]) {
+    for py in 0..h { for px in 0..w {
+        let (ox, oy) = (x + px, y + py); if ox < 0 || oy < 0 || ox >= uw as i64 || oy >= uh as i64 { continue; }
+        let o = (oy as usize * uw + ox as usize) * 4; u[o] = rgb[0]; u[o + 1] = rgb[1]; u[o + 2] = rgb[2]; u[o + 3] = 255;
+    } }
+}
 fn bmp(path: &str, w: usize, h: usize, d: &[u8], bgra: bool, k: usize) {
     let (ow, oh) = (w * k, h * k); let row = (ow * 3 + 3) & !3; let size = 54 + row * oh; let mut b = Vec::with_capacity(size);
     let le32 = |b: &mut Vec<u8>, v: u32| b.extend_from_slice(&v.to_le_bytes());
@@ -236,8 +258,8 @@ fn write_bmp(path: &str, im: &Image) {
     let bgra = matches!(im.texture_descriptor.format, bevy::render::render_resource::TextureFormat::Bgra8UnormSrgb | bevy::render::render_resource::TextureFormat::Bgra8Unorm);
     bmp(path, im.width() as usize, im.height() as usize, d, bgra, 1);
 }
-/// Dev (native): with `--shot`, `--dump-art=DIR` also writes the composited world around the mole
-/// (`view.bmp`, 4× per cell; sprites are GPU-only so they're not in it) and every sprite (`sprite-*.bmp`, 8×).
+/// Dev (native): with `--shot`, `--dump-art=DIR` writes the composited world around the mole
+/// (`view.bmp`, with furniture, torches, chests, farms, carts and ladders blitted on) and every sprite (`sprite-*.bmp`).
 fn dev_dump(n: Local<u32>, g: Res<Game>, sp: Res<Sprites>, images: Res<Assets<Image>>, mut done: Local<bool>, bg: Res<Bg>, cam: Query<&Transform, With<Camera2d>>, wires: Query<(&Transform, &Sprite), Or<(With<wiring::WireSpr>, With<Pooled>)>>) {
     #[cfg(not(target_arch = "wasm32"))] {
         let _ = &n; if *done { return; }
@@ -270,9 +292,54 @@ fn dev_dump(n: Local<u32>, g: Res<Game>, sp: Res<Sprites>, images: Res<Assets<Im
             for (ly, f) in &bg.layers { let u = (((x0 + x) as f32 - camx * f + PAD as f32) / BG_RES as f32).floor().clamp(0., (bw / BG_RES) as f32 - 1.) as usize; let q = (((y0 + y) / BG_RES) * (bw / BG_RES) + u) * 4; let la = ly[q + 3] as f32 / 255.;
                 for j in 0..3 { c[j] = c[j] + (ly[q + j] as f32 - c[j]) * la; } }
             for j in 0..3 { v[o + j] = srgb(lin(c[j]) * (1. - a) + lin(v[o + j] as f32) * a).min(255.) as u8; } v[o + 3] = 255; } }
-        // mark the mole's body cells so the crop can be read without sprites
-        for dy in 0..3 * S { let (x, y) = (mx - x0, my - dy - y0); let o = (y * cw + x) * 4; v[o..o + 4].copy_from_slice(&[255, 0, 255, 255]); }
-        bmp(&format!("{dir}/view.bmp"), cw, chh, &v, false, 4 / S.min(4));
+        // upscale and blit the props that live as sprites so wiki/showcase dumps match play
+        let k = 4 / S.min(4); let (uw, uh) = (cw * k, chh * k); let mut u = vec![0u8; uw * uh * 4];
+        for y in 0..uh { for x in 0..uw { let s0 = ((y / k) * cw + x / k) * 4; u[(y * uw + x) * 4..(y * uw + x) * 4 + 4].copy_from_slice(&v[s0..s0 + 4]); } }
+        let kf = k as f32; let to = |cx: f32, cy: f32| ((cx - x0 as f32) * kf, (cy - y0 as f32) * kf);
+        for fu in &g.w.furniture {
+            let Some((base, cloth)) = &sp.furn[fu.item as usize] else { continue };
+            let (x0f, y0f, x1f, y1f) = fu.rect(); let (l, t) = to(x0f as f32, y0f as f32);
+            let (dw, dh) = ((x1f + 1 - x0f) as f32 * kf, (y1f + 1 - y0f) as f32 * kf);
+            if let Some(im) = images.get(base) { blit_im(&mut u, uw, uh, im, l, t, dw, dh, [1., 1., 1.], 1.); }
+            if let Some(ch) = cloth {
+                if let Some(im) = images.get(ch) {
+                    let pig = if fu.tint > 0 { craft::PIGMENTS[fu.tint as usize] } else { crate::decorart::undyed(fu.item) };
+                    blit_im(&mut u, uw, uh, im, l, t, dw, dh, [pig[0] as f32 / 255., pig[1] as f32 / 255., pig[2] as f32 / 255.], 1.);
+                }
+            }
+        }
+        for c in &g.w.chests {
+            if let Some(im) = images.get(&sp.chest[c.opened as usize]) {
+                let (l, t) = to(c.x as f32 - 1., c.y as f32 - 2.); blit_im(&mut u, uw, uh, im, l, t, 4. * kf, 3.25 * kf, [1., 1., 1.], 1.);
+            }
+        }
+        for f in &g.w.farms {
+            let st = if f.growth < 0.3 { 0 } else if f.growth < 0.85 { 1 } else { 2 };
+            if let Some(im) = images.get(&sp.shroom[st]) {
+                let (l, t) = to(f.x as f32 - 1., f.y as f32 - 3.); blit_im(&mut u, uw, uh, im, l, t, 2.5 * kf, 2.5 * kf, [1., 1., 1.], 1.);
+            }
+        }
+        for &(tx, ty) in &g.w.torches {
+            if let Some(im) = images.get(&sp.torch_f[0]) {
+                let (l, t) = to(tx as f32 - 0.5, ty as f32 - 1.8); blit_im(&mut u, uw, uh, im, l, t, 1.3 * kf, 2.4 * kf, [1., 1., 1.], 1.);
+            }
+        }
+        for cart in &g.w.tr.carts {
+            let (cw2, ch2) = (molehill_sim::transport::CART_W, molehill_sim::transport::CART_H);
+            let (l, t) = to(cart.x - cw2 / 2., cart.y - ch2);
+            fill_px(&mut u, uw, uh, l as i64, t as i64, (cw2 * kf) as i64, (ch2 * kf) as i64, [110, 80, 48]);
+            fill_px(&mut u, uw, uh, l as i64, t as i64, (cw2 * kf) as i64, (0.35 * kf).max(1.) as i64, [190, 140, 70]);
+            fill_px(&mut u, uw, uh, l as i64, (t + ch2 * kf - kf) as i64, (0.7 * kf) as i64, (0.7 * kf) as i64, [50, 46, 44]);
+            fill_px(&mut u, uw, uh, (l + cw2 * kf - kf) as i64, (t + ch2 * kf - kf) as i64, (0.7 * kf) as i64, (0.7 * kf) as i64, [50, 46, 44]);
+        }
+        for lad in &g.w.tr.ladders {
+            let (xc, y0l, len) = (lad.x as f32 + 0.5, lad.top as f32, lad.len as f32);
+            let (l, t) = to(xc - 0.45, y0l);
+            fill_px(&mut u, uw, uh, l as i64, t as i64, (0.2 * kf).max(1.) as i64, (len * kf) as i64, [140, 118, 78]);
+            fill_px(&mut u, uw, uh, (l + 0.7 * kf) as i64, t as i64, (0.2 * kf).max(1.) as i64, (len * kf) as i64, [140, 118, 78]);
+            let mut r = 0f32; while r < len { let (_, rt) = to(xc - 0.45, y0l + r); fill_px(&mut u, uw, uh, l as i64, rt as i64, (0.9 * kf) as i64, (0.2 * kf).max(1.) as i64, [128, 92, 54]); r += S as f32; }
+        }
+        bmp(&format!("{dir}/view.bmp"), uw, uh, &u, false, 1);
         // the same at one pixel per world unit with the wiring layer's sprites blitted on (unrotated ones)
         { let k = (1. / CPX).recip() as usize; let (ww, wh) = (cw * k, chh * k); let mut u = vec![0u8; ww * wh * 4];
             for y in 0..wh { for x in 0..ww { let s = ((y / k) * cw + x / k) * 4; u[(y * ww + x) * 4..(y * ww + x) * 4 + 4].copy_from_slice(&v[s..s + 4]); } }
