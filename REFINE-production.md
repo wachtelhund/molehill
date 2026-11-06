@@ -150,3 +150,14 @@ I playtested the trains in context and probed the edges:
   at the forge. Ash and slag are residue, not made; uses for them are open.
 * **Not tested live:** no screenshot or playtest in the running game; only headless scenarios. Exhaust and valve steam
   aren't covered by a scenario (the test engine hangs under rock).
+
+## Stage 4 polish (branch `refine/production-steam-polish`, after PR #49)
+
+* **Ash went into rock (fixed).** A boiler built with rock against its right side put each lump of ash inside the rock,
+  where it was stuck. The ash door now opens on the right, or on the left if rock stands there. Walled in on both sides,
+  the grate counts as choked and the log says it needs room at one side. Scenarios `boiler_ash_door_side`,
+  `boiler_walled_in`.
+* **Safety valve (no change needed).** With the drum at 600 kJ and open air above, steam cells appear in 12 of 41 samples
+  over 10 s: single wisps, as the excess (about 4 kJ/s against 30 kJ a puff) says.
+* `site/` is rebuilt on main after #49.
+* **Not tested live:** still headless only. No screenshot or in-game check of the boiler, engine or ash.

@@ -1,0 +1,27 @@
+// A boiler's ash door opens on whichever side has room. Built with rock hard against its right side, its ash comes
+// out on the left (here into its sump, where the light ash floats) instead of into the rock (before, it was put
+// inside the rock and lost there).
+map
+########################################
+#......................................#
+#......................................#
+#......................................#
+#...........##.........................#
+#...........##.........................#
+#...........##.........................#
+#...........##.........................#
+#...........##.........................#
+######......##.........................#
+#wwwww......##.........................#
+#wwwww......##.........................#
+#wwwww......##.........................#
+#wwwww......##......@..................#
+########################################
+########################################
+end
+give Boiler 1
+place 2 -11 -2 Boiler
+drop 10 Coal -13 -6
+expect 2600 items:Ash == 1
+expect 2600 zone:Ash,-19,-15,-4,0 == 1     // out on the left, by the sump
+expect 2600 zone:Ash,-9,-6,-6,0 == 0       // not in the rock on the right
