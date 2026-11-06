@@ -274,3 +274,22 @@ I playtested the trains in context and probed the edges:
 * Harness var `borery`.
 * `site/` is rebuilt on main after #62.
 * **Not tested live:** headless only. Driving feel (instant start and stop at 0.5 m/s) hasn't been tried in the game.
+
+## Final polish round (`refine/production-final-polish`)
+* **Borer boring speed.** p7's dig-tempo audit found the borer about 100× slower than a drill in granite (about 4 cm/s). Steam wasn't the limit. `GRIND_S` goes 0.15 → 0.03 and `GRIND_W` 1.5 → 3 kW.
+  * Granite now goes about 0.2 m/s, about 10 m per lump of coal. Soft ground is capped by the 0.5 m/s drive.
+  * Grinding and driving use 3.3 kW, under the firebox's 4.2 kW.
+* **Jam rule, found while retuning.** A borer in a dead end was never really stopped, even before this round. Each column cut frees a column behind it, so it creeps on while backfilling its own tunnel solid. Old tuning crept at about 3 cm/s, nearly its full granite rate. `borer_jams` only passed because it was slow.
+  * I tried spoil bulking (a third more volume). It didn't change the outcome, and I couldn't account for where the extra cells went, so it isn't shipped.
+  * Instead the docs and `borer_jams` now describe what happens: it jams when the room behind it fills, then backfills and seals itself in.
+* **Tube hopper vs ore hopper.** Every ore hopper message said "ore hopper", but the tube hopper's messages, refusal and tip said a bare "hopper".
+  * They now say "tube hopper". New test: `tube_hopper_messages_say_tube_hopper`.
+* **Mine upper deck (flagged in #36), investigated and not changed.**
+  * The editor's static solver still marks 2583 cells over capacity. That's the deck between the chute and the shaft, about 21 m of planks on stub posts with open gaps at both ends.
+  * In a stamped scenario nothing falls in 30 s: planks and wood beams keep their counts. I didn't test whether digging near it sets it off.
+  * A fix is a layout redesign: full-height posts would block the lower drift's track and walk. The one post that measured well lands on the walk-through cart wreck: it clears the deck in the static check, but I didn't play-test it. That's left to the layout owner.
+  * My first in-editor `simulate` measurement claimed the deck falls; the readback was misaligned, and it's discarded.
+* **Not tested live:** headless only. Not tried in a running game:
+  * the new boring speed's feel
+  * the messages on screen
+  * the mine deck in play

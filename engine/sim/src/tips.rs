@@ -191,8 +191,8 @@ pub fn transport_tip(w: &World, x: usize, y: usize) -> Option<Tip> {
     if let Some(k) = w.hopper_at(x, y) {
         let mut l = vec![if w.hopper_blowing(k) { "Blowing: drop items in to send them · right mouse (empty paw): ride.".into() } else { "No current: it only receives. Copperline current runs its blower.".into() }];
         match w.tr.hoppers[k].dest { Some(d) if d < w.tr.hoppers.len() => { let (dx, _) = w.tr.hoppers[d].centre(); let (hx, _) = w.tr.hoppers[k].centre();
-                l.push(format!("Sends to the hopper {:.0} m {} · right mouse (paw full): change.", (dx - hx).abs() / CPM as f32, if dx < hx { "left" } else { "right" })); }
-            _ => l.push("No other hopper on its line yet.".into()) }
+                l.push(format!("Sends to the tube hopper {:.0} m {} · right mouse (paw full): change.", (dx - hx).abs() / CPM as f32, if dx < hx { "left" } else { "right" })); }
+            _ => l.push("No other tube hopper on its line yet.".into()) }
         return tip("Tube hopper", l);
     }
     if let Some(k) = w.lift_at(x, y) { return Some(lift_tip(w, k)); }

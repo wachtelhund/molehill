@@ -115,3 +115,22 @@ fn reachable() -> [bool; NITEM] {
     assert_eq!(w.place_transport(Item::TubeHopper, at, my), Err("there's an ore hopper there"));
     assert_eq!(w.tr.hoppers.len(), 0);
 }
+
+#[test] fn tube_hopper_messages_say_tube_hopper() {
+    // the two hoppers are told apart in what they say: an ore hopper's messages say "ore hopper", a tube hopper's
+    // tip and log lines "tube hopper", never a bare "hopper"
+    use molehill_sim::{grid::F_SEEN, mat::CPM, tips::describe};
+    let mut w = World::new(256 * molehill_sim::mat::S, 128 * molehill_sim::mat::S, 3); w.disasters.enabled = false; w.set_mode(Mode::Creative);
+    let (mx, my) = (w.moles[0].x, w.moles[0].y); let c = CPM;
+    for y in my - 5 * c..=my + 2 * c { for x in mx - 6 * c..=mx + 6 * c { let i = w.g.idx(x, y);
+        let rock = y > my || y <= my - 5 * c || x < mx - 5 * c || x > mx + 5 * c;
+        w.g.set(i, if rock { Mat::Granite } else { Mat::Empty }); w.g.flags[i] = F_SEEN; } }
+    for x in mx + c..mx + 4 * c { let i = w.g.idx(x, my + 1); w.g.set(i, Mat::Tube); }
+    w.drops.clear(); for _ in 0..3 { w.step(); }
+    let hx = mx + 2 * c + c / 2;
+    assert_eq!(w.place_transport(Item::TubeHopper, hx, my), Ok(true));
+    let t = describe(&w, hx, my - c / 2).map(|t| format!("{}: {}", t.name, t.lines.join(" / "))).unwrap_or_default();
+    assert!(t.starts_with("Tube hopper") && t.contains("No other tube hopper"), "tip: {t}");
+    w.gear.held = None; assert!(w.use_transport(hx, my - c / 2));
+    let said = &w.log.last().unwrap().1; assert!(said.contains("tube hopper"), "said: {said}");
+}

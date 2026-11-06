@@ -164,12 +164,12 @@ A rideable boring machine with its own firebox (`borer.rs`): it carries steam to
 
 * **Fuel and water:** right mouse with coal, charcoal or wood in the paw puts a lump from the pack into its firebox. A lump burns at a time, as in a boiler (6 kW, 70 % to steam, 40 kJ boils a cell). It draws water cells touching its body or under its wheels into a 16-cell tank, and holds up to 300 kJ of steam. Ash drops out behind it.
 * **Riding:** right mouse with an empty paw gets on, and Space gets off. A/D drive it, at up to 0.5 m/s for 300 W of steam. It starts and stops at once, as everything driven does. It climbs a step of up to a tile. With nothing under its middle half and a real drop (deeper than a tile) on one side, its weight takes it over the edge and it falls; a step under it is no drop (`borer_left_step_fall`).
-* **Boring:** it bores the way it faces, which is the way the mole faced when it was set down. Driving into rock, its head grinds the column in front for 1.5 kW. A column takes 0.15 s per unit of the rock's dig time: dirt goes fast, and granite takes about 2 s a column, about 3 cm a second. Nothing cuts bedrock.
-* **Spoil:** every cell it cuts becomes loose rubble of what that rock crumbles to (ore stays ore). Its spoil belt drops it in the nearest open cell from half a metre to 4 m behind it. With no room there it jams and says so, so a borer can't dig into a dead end. Loose grains it rolls over are shoved back the same way.
+* **Boring:** it bores the way it faces, which is the way the mole faced when it was set down. Driving into rock, its head grinds the column in front for 3 kW. A column takes 0.03 s per unit of the rock's dig time: granite takes about 0.7 s a column, about 0.2 m a second, and a lump of coal bores about 10 m of it. Soft ground goes as fast as it drives (0.5 m/s). The firebox raises 4.2 kW, more than grinding and driving together use (3.3 kW). Nothing cuts bedrock.
+* **Spoil:** every cell it cuts becomes loose rubble of what that rock crumbles to (ore stays ore). Its spoil belt drops it in the nearest open cell from half a metre to 4 m behind it. With no room there it jams and says so. In a dead end it bores on only as fast as it frees room behind it, since each column cut is a column vacated. It backfills its own tunnel solid and seals itself in, so the way back has to be dug out. Loose grains it rolls over are shoved back the same way.
 * Scenarios:
   * `borer_bores`: fed, filled from a puddle and ridden into granite, it bores in. Its spoil lies behind it as much gravel as it cut, and it is saved.
   * `borer_needs_steam`: with no fuel it doesn't move.
-  * `borer_jams`: in a dead end its spoil has nowhere to go and it jams.
+  * `borer_jams`: in a dead end it jams once the room behind it fills, then backfills its own tunnel solid.
 
 ### Wagons
 
