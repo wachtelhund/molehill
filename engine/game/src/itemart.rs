@@ -161,7 +161,10 @@ pub fn icon_px(it: Item) -> Px {
         Rug => { // a rug laid flat in perspective: a diamond worked in, fringe at both ends
             poly(&mut p, &[(0.5, 13.), (4., 6.), (15.5, 6.), (12., 13.)], col); poly(&mut p, &[(8., 7.), (10.5, 9.5), (8., 12.), (5.5, 9.5)], sh(col, 1.3)); p.set(8, 9, sh(col, 0.6));
             for k in 0..4 { p.set(1 + k * 3, 14, WOOD_L); p.set(5 + k * 3, 5, WOOD_L); } }
-        Table | Stool | Nest | Shelf | Banner | Planter => return crate::decorart::icon_px(it),
+        Nest => { // a woven basket bed heaped with a blanket and a pillow (the 9×3-tile sprite scaled was a sliver)
+            p.oval(8., 11., 7., 3.6, WOOD); for x in (2..14).step_by(3) { p.rect(x, 9, x, 14, WOOD_D); } p.rect(1, 9, 14, 9, WOOD_L);
+            p.oval(9., 7.5, 5.5, 3., col); p.rect(5, 7, 13, 7, sh(col, 0.8)); p.oval(4., 6.5, 2.6, 1.8, [222, 212, 188]); }
+        Table | Stool | Shelf | Banner | Planter => return crate::decorart::icon_px(it),
         // ---- relics of the Ancients
         AncientBit => { // a toothed ring of an unknown metal, too true to be hand-cut
             for k in 0..10 { let t = k as f32 / 10. * std::f32::consts::TAU; p.rect((7.5 + t.cos() * 6.).round() as i32, (7.5 + t.sin() * 6.).round() as i32, (8. + t.cos() * 6.).round() as i32, (8. + t.sin() * 6.).round() as i32, sh(col, 0.85)); }
@@ -262,6 +265,12 @@ mod tests {
             if d < 20 || m < 8 { bad.push(format!("{:?}/{:?} (pattern {d}, silhouette {m})", ITEMS[a], ITEMS[b])); }
         } }
         assert!(bad.is_empty(), "icons that share art: {}", bad.join(", "));
+    }
+    /// Every slot icon fills enough of its 16×16 to read in the hotbar (the fuse, plate and nest were slivers).
+    #[test] fn every_slot_icon_fills_its_slot() {
+        let cover = |im: Image| im.data.unwrap().chunks(4).filter(|c| c[3] != 0).count();
+        for &it in ITEMS.iter() { let n = cover(icon(it)); assert!(n >= 80, "{:?} icon covers only {n} of 256 px", it); }
+        for &d in molehill_sim::logic::DEVS.iter() { let n = cover(crate::devart::hotbar_icon(d)); assert!(n >= 80, "{:?} hotbar icon covers only {n} of 256 px", d); }
     }
     #[test] fn every_item_says_how_it_shows_in_the_world() {
         for &it in ITEMS.iter() { assert!(!world_form(it).is_empty()); }

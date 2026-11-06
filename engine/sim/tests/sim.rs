@@ -1002,6 +1002,22 @@ mod progression {
         let l = save::load(&save::save(&w)).unwrap();
         assert!(l.grottos_seen.contains(&0xABCD) && l.grottos_seen.contains(&7) && l.grottos_seen.len() == 2);
     }
+    /// A grotto above the burrow says "up", not "0 m down" (the polish playtest saw "0 m down" on 4 of 6 seeds).
+    #[test] fn grotto_notice_says_up_or_down() {
+        use molehill_sim::world::grotto_notice;
+        assert!(grotto_notice(22.).starts_with("A grotto, 22 m down:"));
+        assert!(grotto_notice(-6.).starts_with("A grotto, 6 m up:"));
+        assert!(grotto_notice(0.2).starts_with("A grotto, level with the burrow:"));
+    }
+    /// The log reads in order: what killed the mole, then where its pack lies.
+    #[test] fn death_line_comes_before_the_pack_line() {
+        use molehill_sim::survival::Mode;
+        let mut w = World::new(256 * molehill_sim::mat::S, 128 * molehill_sim::mat::S, 3); w.set_mode(Mode::Survival); w.step();
+        w.moles[0].hunger = 0.; for f in molehill_sim::world::FOODS { w.inv[f as usize] = 0; } w.moles[0].hp = 0.5;
+        for _ in 0..120 { w.step(); if !w.moles[0].alive { break; } }
+        let at = |k: &str| w.log.iter().position(|(_, l)| l.contains(k)).unwrap_or_else(|| panic!("no '{k}' in {:?}", w.log));
+        assert!(at("starved") < at("Your pack lies"), "{:?}", w.log);
+    }
     #[test] fn survival_starts_bare_and_learns() {
         use molehill_sim::survival::Mode;
         let mut w = World::new(256 * molehill_sim::mat::S, 128 * molehill_sim::mat::S, 3); w.set_mode(Mode::Survival); w.step();

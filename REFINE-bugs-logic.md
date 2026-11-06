@@ -97,6 +97,13 @@ Hampus took three of the e2e findings (not "empty stretches").
 * **Grotto discovery:** first time within 8 m of a grotto's hollow, one log line like ruins and sites; `grottos_seen` saved (format 11; older saves count grottos whose centre was seen as visited, untested). Scenario `grotto_discovery`, test `grottos_seen_survive_a_save`.
 * Not played in a window or the web build.
 
+## Death recovery polish (after PR #11)
+Playtest: `progression` (now reports, per death, the pack piles in liquid, their distance and the straight-line way back from the burrow), 6 seeds × 10 min. Every death named its cause (no bare "has died"), matching the bot's own diagnostics (head in water → drowned; stale air 0.58–0.71 → choked; buried → buried; a fall). Ways back 4–32 s, well inside the 3 min of light the burrow's stores give.
+* **Pack still in water:** seed 47514 drowned at 13 m with no dry ground stood on within 16 m: 14 of 16 piles in the water; burials on 39595 left 4–7 piles in liquid. Now, without a recent dry spot, the pack goes to the nearest dry floor within 16 m of the death. Scenario `death_pack_nearest_dry` (fails without the fallback).
+* **"A grotto, 0 m down"** for grottos above the burrow (4 of 6 seeds): now "6 m up" / "level with the burrow" (`world::grotto_notice`, test `grotto_notice_says_up_or_down`).
+* **Order:** the pack line came before the death line; now the cause first (test `death_line_comes_before_the_pack_line`).
+* Not played in a window.
+
 ## Open
 * The design's emberiron for the Bore doesn't exist, so the Bore takes iron, copper and crystal.
 * localStorage holds about 5 MB. A band is 10–40 KB, so a holt explored over a few hundred metres of depth could fill it. Bands the player never changed could be dropped and regenerated (not done: the falling-sand settling after generation would differ).
