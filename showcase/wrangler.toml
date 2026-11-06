@@ -1,0 +1,21 @@
+# NEW assets-only Worker named `molehill`.
+# Static files from ./dist. No Worker script, no R2/KV/D1, no analytics.
+# Do not change `name`. Do not deploy this onto any other Worker.
+# Do not point assets.directory at the playable wasm folder.
+#
+# Parent / owner deploys. This file does not deploy itself.
+
+name = "molehill"
+account_id = "9887f0a567827483359f7f79e2bd2734"
+compatibility_date = "2026-11-05"
+workers_dev = true
+
+[assets]
+directory = "./dist"
+html_handling = "auto-trailing-slash"
+not_found_handling = "404-page"
+
+# Custom domain for this Worker only.
+[[routes]]
+pattern = "molehill.hampusnilsson.dev"
+custom_domain = true

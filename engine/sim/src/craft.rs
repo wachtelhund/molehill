@@ -293,17 +293,21 @@ pub fn tool_tier(inv: &[u32; NITEM]) -> u8 {
 pub enum Goal { Depth(f32), Have(Item, u32), Built(Station), Chests(u32), Pillars(u32) }
 pub struct Quest { pub text: &'static str, pub goal: Goal, pub reward: &'static [(Item, u32)] }
 pub static QUESTS: &[Quest] = &[
+    // The first hour, in order: none is done on arrival in Survival (the kit has a pickaxe and 6 wood, so the
+    // first wood quest comes after the workbench spends 4 of it). Each says what it takes, so the HUD line and
+    // "Next:" in the log are enough to go on: wood and stone make a bench, copper ore and a forge make copperline.
     Quest { text: "Dig down to 5 m", goal: Goal::Depth(5.), reward: &[(Item::Torch, 6)] },
-    Quest { text: "Gather 6 wood", goal: Goal::Have(Item::Wood, 6), reward: &[(Item::Wood, 4)] },
-    Quest { text: "Build a workbench", goal: Goal::Built(Station::Workbench), reward: &[(Item::Coal, 4)] },
+    Quest { text: "Build a workbench (4 wood, 4 stone)", goal: Goal::Built(Station::Workbench), reward: &[(Item::Coal, 4)] },
+    Quest { text: "Find wood: dig a root tangle (have 6)", goal: Goal::Have(Item::Wood, 6), reward: &[(Item::Wood, 4)] },
+    Quest { text: "Dig 4 copper ore (green-flecked rock)", goal: Goal::Have(Item::CopperOre, 4), reward: &[(Item::Coal, 2)] },
+    Quest { text: "Build a forge (10 stone, 4 clay)", goal: Goal::Built(Station::Forge), reward: &[(Item::Coal, 6)] },
+    Quest { text: "Smelt 4 copper ingots", goal: Goal::Have(Item::CopperIngot, 4), reward: &[(Item::TinOre, 4)] },
+    Quest { text: "Draw 8 copperline at the forge", goal: Goal::Have(Item::CopperWire, 8), reward: &[(Item::Torch, 4)] },
     Quest { text: "Farm mushrooms: gather 4", goal: Goal::Have(Item::Mushroom, 4), reward: &[(Item::Spore, 4), (Item::Vent, 1)] },
     Quest { text: "Prop a tunnel: place 8 pillar cells", goal: Goal::Pillars(8), reward: &[(Item::WoodPillar, 8)] },
-    Quest { text: "Make a pickaxe", goal: Goal::Have(Item::Pickaxe, 1), reward: &[(Item::Torch, 8)] },
     Quest { text: "Reach 15 m", goal: Goal::Depth(15.), reward: &[(Item::Clay, 6)] },
-    Quest { text: "Build a forge (it needs heat)", goal: Goal::Built(Station::Forge), reward: &[(Item::Coal, 6)] },
     Quest { text: "Open a buried chest", goal: Goal::Chests(1), reward: &[(Item::Crystal, 1)] },
     Quest { text: "Fire 10 bricks", goal: Goal::Have(Item::Brick, 10), reward: &[(Item::Coal, 8)] },
-        Quest { text: "Smelt 4 copper ingots", goal: Goal::Have(Item::CopperIngot, 4), reward: &[(Item::TinOre, 4)] },
     Quest { text: "Alloy bronze", goal: Goal::Have(Item::BronzeIngot, 4), reward: &[(Item::Torch, 10)] },
     Quest { text: "Reach 40 m", goal: Goal::Depth(40.), reward: &[(Item::IronOre, 6)] },
     Quest { text: "Build a workshop and power it", goal: Goal::Built(Station::Workshop), reward: &[(Item::Quartz, 2)] },

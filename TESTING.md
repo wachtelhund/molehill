@@ -258,8 +258,8 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `dig_hollow_floor.scn` | Digging down on 1 m of rock over a 16 m drop is held back at once ("The floor rings hollow"), said once; digging beside the mole still works and it never falls |
 | `dig_down_lava.scn` | Digging down on a thin floor over lava is held back ("The floor is hot") and the mole never sinks in |
 | `dig_down_shallow.scn` / `dig_down_water.scn` | A drop that only hurts (2.5 m), or a deep drop into water, isn't held back: the floor goes and the mole drops, silently |
-| `dig_too_far.scn` | A dig aimed past 4.5 m says "Too far to dig" at once, once a press and at most every 5 s; in reach the same rock digs |
 | `dig_refused_once.scn` | A dig the Pickaxe can't do says so once per press and material (not per cell swept), repeats the words only after 5 s, and soft rock beside it still digs |
+| `dig_refusals.scn` | Every dig refusal says why at once: out of reach ("Too far to dig"), water with nothing solid, granite too hard for the pickaxe; each once per press, the same words not again within 5 s |
 | `tool_tiers_survival.scn` | Survival digs with the best tool owned: claws (dirt, soft stone), pickaxe, drill (granite), bore (basalt) |
 | `forge_coal_fuel.scn` | With no lava in reach the forge burns a coal per job; with no fuel it's cold |
 | `feel_feedback.scn` | Each action answers on its tick: dig strike, refused dig (clink), throw, a 0.5 m landing bump |

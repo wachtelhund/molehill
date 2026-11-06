@@ -66,15 +66,15 @@ pub struct Player { pub px: f32, pub py: f32, pub ppx: f32, pub ppy: f32, pub sy
     /// the material a dig was refused on during this press (too hard for the tools owned): clinks once per
     /// press and material, not per cell swept over; cleared on release or when a bite lands
     pub deny: Option<Mat>,
-    /// the last refusal said aloud and its tick: the same words wait `DENY_REPEAT` ticks before repeating
-    pub deny_said: Option<(Mat, u64)>,
+    /// the last dig refusal said aloud and its tick: the same words wait `DENY_REPEAT` ticks before repeating
+    pub deny_said: Option<(String, u64)>,
+    /// this press was already told the spot is out of reach (once per press)
+    pub far: bool,
     /// the last "can't place" line said and its tick: the same words wait `DENY_REPEAT` ticks (see `refuse_place`)
     pub place_said: Option<(String, u64)>,
     /// a bite under the feet was held back this press because the floor rang hollow over a deadly drop
     /// (`fatal_drop`), and the tick that was last said aloud (the words wait `DENY_REPEAT` ticks)
     pub hollow: bool, pub hollow_said: Option<u64>,
-    /// a dig aimed beyond reach was answered this press, and the tick that was last said aloud
-    pub far: bool, pub far_said: Option<u64>,
     /// wall-jump grace (s left) after leaving a cling, and the side that wall was on
     pub wall_t: f32, pub wall_side: i8,
     /// rolling over a ledge after a climb (s left; direction = `wall_side`): carried onto the top, no gravity
@@ -85,8 +85,6 @@ pub struct Player { pub px: f32, pub py: f32, pub ppx: f32, pub ppy: f32, pub sy
 /// Floor thinner than this (cells) over a deadly drop rings hollow: a bite that would leave less is held back.
 pub const HOLLOW_FLOOR: usize = CPM;
 pub const HOLLOW: &str = "The floor rings hollow: a deadly drop below. Dig beside it to look first.";
-/// Said when a dig is aimed beyond the mole's reach (`REACH_CELLS`).
-pub const FAR: &str = "Too far to dig: you reach 4.5 m.";
 /// Said when a bite under the feet is held back over lava.
 pub const HOT: &str = "The floor is hot under your claws: lava below. Dig beside it to look first.";
 /// Ticks before the same "too hard" words are said again (the clink still sounds on each press).
@@ -474,6 +472,11 @@ impl World {
     /// A place or build was refused: say why in one short line ("Can't place brick: needs something to rest
     /// on."). The same words aren't said again for `DENY_REPEAT` ticks, so clicking at the same spot, or
     /// holding a brush over it, never stacks messages; a different reason speaks at once.
+    /// A dig was refused: say why, unless the same words were said in the last `DENY_REPEAT` ticks.
+    fn say_dig_no(&mut self, s: String) {
+        if self.pl.deny_said.as_ref().is_some_and(|(t, k)| *t == s && self.tick < k + DENY_REPEAT) { return; }
+        self.pl.deny_said = Some((s.clone(), self.tick)); self.say(s);
+    }
     pub fn refuse_place(&mut self, what: &str, why: &str) {
         let what = if what.chars().nth(1).is_some_and(char::is_uppercase) { what.to_string() } else { what.to_lowercase() }; // TNT stays TNT
         let s = format!("Can't place {what}: {why}.");
@@ -726,10 +729,12 @@ impl World {
         // a hungry mole snacks from its pack
         // (the player's mole says what it ate and what's left, or once that there is nothing to eat)
         if self.moles[k].hunger < 40. && !self.rules.no_hunger {
-            let food = [(Item::Grub, 45.), (Item::Mushroom, 35.), (Item::Root, 30.), (Item::Fungus, 25.)].into_iter().find(|&(it, _)| self.inv[it as usize] > 0);
+            let food = FOODS.iter().map(|&f| (f, food_value(f))).filter(|&(_, v)| v > 0.).find(|&(it, _)| self.inv[it as usize] > 0);
             if let Some((it, v)) = food {
                 self.inv[it as usize] -= 1; self.moles[k].hunger = (self.moles[k].hunger + v).min(100.); self.events.push(Event::Eat);
-                if k == 0 { self.pl.hungry_said = false; let left = self.inv[it as usize]; self.say(format!("Ate a {} ({left} left).", it.name().to_lowercase())); }
+                if k == 0 { self.pl.hungry_said = false; let left = self.inv[it as usize]; self.say(format!("Ate a {} ({left} left).", it.name().to_lowercase()));
+                    // the pack's last food: said while there's still a full belly's time to find more or turn back
+                    if FOODS.iter().all(|&f| self.inv[f as usize] == 0) { self.events.push(Event::Warning); self.say("That was the last food in the pack. Dig soil for grubs or root tangles for roots, or turn back.".into()); } }
             } else if k == 0 && !self.pl.hungry_said {
                 self.pl.hungry_said = true; self.events.push(Event::Warning);
                 self.say("Hungry, and nothing to eat. Dig soil for grubs or root tangles for roots.".into());
@@ -1130,18 +1135,17 @@ impl World {
                     let hard = cells.iter().map(|&c| self.g.m(c)).find(|&m| m.kind() == Kind::Solid && !self.can_dig(m));
                     if let Some(m) = hard { if self.pl.deny != Some(m) {
                         self.pl.deny = Some(m); self.events.push(Event::Crack); self.shake = self.shake.max(0.08);
-                        if self.pl.deny_said.map_or(true, |(dm, t)| dm != m || self.tick >= t + DENY_REPEAT) {
-                            self.pl.deny_said = Some((m, self.tick)); if let Some(s) = self.dig_refusal(m) { self.say(s); }
-                        }
+                        if let Some(s) = self.dig_refusal(m) { self.say_dig_no(s); }
+                    } }
+                    // water or lava under the cursor and nothing solid: nothing to dig, said once per press
+                    else if let Some(m) = cells.iter().map(|&c| self.g.m(c)).find(|&m| m.kind() == Kind::Liquid) { if self.pl.deny != Some(m) {
+                        self.pl.deny = Some(m); self.say_dig_no(format!("{} can't be dug: it flows.", m.p().name));
                     } }
                 }
             }
-            Some(_) => { // aimed beyond reach: answer at once, once a press (the words wait DENY_REPEAT ticks)
-                self.pl.mine = None;
-                if !self.pl.far { self.pl.far = true; self.events.push(Event::Crack);
-                    if self.pl.far_said.map_or(true, |t| self.tick >= t + DENY_REPEAT) { self.pl.far_said = Some(self.tick); self.say(FAR.into()); } }
-            }
-            None => { self.pl.mine = None; self.pl.deny = None; self.pl.hollow = false; self.pl.far = false; }
+            // held but out of reach: said once per press (the press goes on, so no repeat while held)
+            Some(_) => { self.pl.mine = None; if !self.pl.far { self.pl.far = true; self.say_dig_no("Too far to dig: step closer.".into()); } }
+            None => { self.pl.mine = None; self.pl.deny = None; self.pl.far = false; self.pl.hollow = false; }
         }
         // pick up anything lying within 3 cells
         let mut k = 0;
@@ -1468,8 +1472,12 @@ impl World {
             let q = &QUESTS[self.quest]; let mut s = String::new();
             for &(it, n) in q.reward { self.inv[it as usize] += n; s += &format!(" {}x{}", it.name(), n); }
             self.say(format!("Quest complete: {} - reward{}", q.text, s)); self.events.push(Event::Quest); self.quest += 1;
+            if self.quest < QUESTS.len() && !self.quest_done(self.quest) { self.say(format!("Next: {}.", QUESTS[self.quest].text)); }
         }
     }
 }
+/// What the Delver eats from the pack, best first, and how much hunger each restores.
+pub const FOODS: [Item; 4] = [Item::Grub, Item::Mushroom, Item::Root, Item::Fungus];
+pub fn food_value(it: Item) -> f32 { match it { Item::Grub => 45., Item::Mushroom => 35., Item::Root => 30., Item::Fungus => 25., _ => 0. } }
 pub fn build_item(d: u8) -> Item { match d { D_BRICK => Item::Brick, D_IRON => Item::IronBeam, D_PLANK => Item::Planks, D_POLISH => Item::PolishedStone, D_TILE => Item::Tiles, D_CARVED => Item::CarvedPillar, D_RAIL => Item::Rail, D_TUBE => Item::Tube, _ => Item::WoodPillar } }
 pub fn build_mat(d: u8) -> Mat { match d { D_BRICK => Mat::StoneBrick, D_IRON => Mat::IronBeam, D_PLANK => Mat::Planks, D_POLISH => Mat::Polished, D_TILE => Mat::Tiles, D_CARVED => Mat::Carved, D_RAIL => Mat::Rail, D_TUBE => Mat::Tube, _ => Mat::WoodBeam } }

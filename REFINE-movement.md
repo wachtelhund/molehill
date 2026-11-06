@@ -99,11 +99,11 @@ Polish only: no new features or concepts. Each entry is one commit.
     5 s (`World::fatal_drop`, `HOLLOW_FLOOR` = 1 m). It counts any thin column under the body, not only a
     full hole: the first version only refused a bite that opened the whole floor, and the scenario showed the
     stress solver snapping the 0.25 m slab a narrower bite left behind. Digging beside the drop still works,
-    so you open it, look, and go down by choice. A dig aimed past the 4.5 m reach now answers at once ("Too far
-    to dig: you reach 4.5 m."; the game passes an out-of-reach press with the pick to the sim). Scenarios
-    `dig_hollow_floor`, `dig_down_lava`, `dig_down_shallow`, `dig_down_water`, `dig_too_far`; test
-    `tests/first_hour.rs` (fails without the rule: seed 9 burns). Message wording sits beside `dig_refusal`
-    in `world.rs` (`HOLLOW`, `HOT`, `FAR`) for bugs-logic's message table.
+    so you open it, look, and go down by choice. The out-of-reach refusal
+    is bugs-logic's ("Too far to dig: step closer.", on main); the game now passes an out-of-reach press with
+    the pick to the sim so it can actually say it. Scenarios `dig_hollow_floor`, `dig_down_lava`,
+    `dig_down_shallow`, `dig_down_water`; test `tests/first_hour.rs` (fails without the rule: seed 9 burns).
+    Message wording sits beside `dig_refusal` in `world.rs` (`HOLLOW`, `HOT`) for bugs-logic's message table.
 
 ## Open issues
 * Walking off a ledge you dug open is still a free choice: a dug-open cave shows itself, and run/stop is
