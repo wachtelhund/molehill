@@ -1,0 +1,27 @@
+// Sweeping one held dig along a face where two materials the pickaxe can't cut alternate (granite with iron
+// ore in it) says each refusal once, not every time the cursor crosses from one to the other: each line
+// waits 5 s before it is said again. (Before, only the last line was remembered, so the two lines took turns
+// about four times a second; found by the `progression` example.)
+map
+BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+#..............................#
+#..............................#
+#..............................#
+#..........##ii##ii##..........#
+#.....@....##ii##ii##..........#
+################################
+end
+mode survival
+tool 1 1
+// one continuous press, the cursor moving back and forth between granite and iron ore every 1/4 s
+mine 10-24 5 0
+mine 25-39 7 0
+mine 40-54 5 0
+mine 55-69 7 0
+mine 70-84 5 0
+mine 85-99 7 0
+mine 100-114 5 0
+mine 115-129 7 0
+expect 130 log:granite_is_too_hard == 1
+expect 130 log:iron_ore_is_too_hard == 1
+expect 130 ev:Crack >= 2              // each change of material still clinks (it's a new face)
