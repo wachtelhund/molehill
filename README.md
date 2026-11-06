@@ -47,7 +47,7 @@ You play one mole. The controls work like Terraria or Core Keeper.
 |---|---|
 | `A` / `D` | Run: instant start and stop. Steps of 1-2 cells are climbed automatically, and you shove through loose sand |
 | `Space` (or `W` off a wall) | Jump. Hold for a full jump, tap for a hop. Coyote time and a jump buffer are about 0.1 s each |
-| Into a wall in the air | Cling to it. `W` / `S` climb up or down; let go and you slide slowly. `Space` wall-jumps away. At the top you mantle the ledge |
+| Into a wall in the air | No wall climbing: you slide down bare rock. A jump pressing toward a ledge rolls onto it if its top is within 0.75 m of your feet (ledges up to about 2 m). Higher, hang a rope ladder or use the **rope gun** (left mouse throws its hook into rock; `W` grabs the rope, `W` / `S` climb, `A` / `D` swing, `Space` lets go) |
 | Water / lava | `W` / `Space` swim up (water); lava burns |
 | `S` | Dig down (on the ground) |
 | Left mouse | Use the item in hand. A dig tool carves a round bite under the cursor and a block (pillar, brick, beam) places a round brush; the ring shows its size. Other items place a torch, copperline, device, spore, TNT or station. TNT goes down inert |

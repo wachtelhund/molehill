@@ -1,12 +1,13 @@
 # Transport
 
-The deeper the holt goes, the further its Delvers haul, so getting about is a ladder of machines you build. They run on weight, slope, friction and current, like everything else (see [Lore](Lore.md): nothing supernatural, nothing modern). The code is `engine/sim/src/transport.rs` (carts), `lifts.rs` (ladders and lifts) and `tubes.rs` (pressure tubes).
+The deeper the holt goes, the further its Delvers haul, so getting about is a ladder of machines you build. They run on weight, slope, friction and current, like everything else (see [Lore](Lore.md): nothing supernatural, nothing modern). The code is `engine/sim/src/transport.rs` (carts), `lifts.rs` (ladders and lifts), `ropes.rs` (the rope gun) and `tubes.rs` (pressure tubes).
 
 | tier | machine | state |
 |---|---|---|
 | 2 | **Rails and mine carts** | **built** |
 | 4 | **Powered rails** (copperline along the track) | **built** |
 | 1 | **Rope ladders** | **built** |
+| 1 | **Rope gun** (the way up: there is no wall climbing) | **built** |
 | 3–4 | **Lifts** (counterweight, or wound by current) | **built** |
 | 3+ | **Pressure tubes** (the top of the ladder for now) | **built** |
 
@@ -66,9 +67,26 @@ There is no separate powered rail: **copperline laid along the track** (in the s
 
 Cheap vertical access that needs no power.
 * **Hanging one.** Left mouse in a drop hangs a ladder from the nearest rock above: a ceiling over it, or the lip of a ledge beside it (the rope tied on the ledge's top, hanging down its face). It unrolls straight down until it meets the floor, at most 8 m.
-* **Climbing.** Over a ladder, `W` grabs on at once (it climbs instead of jumping) and `W` / `S` climb: 3 m/s up and 3.5 m/s down, a little faster than a bare wall (2.6 m/s). Let go of the keys and you hang still: there's no slide as there is on a wall. Grabbing pulls you onto the rope, clear of the rock face it hangs over, and a grab while falling past it catches at once. Climbing down is never a fall: a long ladder costs no fall damage at the foot (`rope_ladder_down`).
-* **Getting on and off.** At the head of a ledge's ladder, standing on the ledge, `S` steps onto the rope and climbs down (it doesn't dig the ledge it's tied to). Hold `W` to the top and you climb off onto the ledge by yourself, like rolling over a wall's top; with nowhere to step off, you hang at the rope's top end rather than bob off it (`rope_ladder_top_out`, `site_mine_traverse`). `A` / `D` with `W` / `S` held move you along the rope at 2 m/s (to step off into a side passage, say), `A` / `D` alone lets go at once and you drop or walk off at your own speed; a jump lets go and counts as a jump from the ground (`rope_ladder_let_go`, `rope_ladder_climb`).
+* **Climbing.** Over a ladder, `W` grabs on at once (it climbs instead of jumping) and `W` / `S` climb: 3 m/s up and 3.5 m/s down, faster than a rope-gun rope (2 m/s): it has rungs. Let go of the keys and you hang still. Grabbing pulls you onto the rope, clear of the rock face it hangs over, and a grab while falling past it catches at once. Climbing down is never a fall: a long ladder costs no fall damage at the foot (`rope_ladder_down`).
+* **Getting on and off.** At the head of a ledge's ladder, standing on the ledge, `S` steps onto the rope and climbs down (it doesn't dig the ledge it's tied to). Hold `W` to the top and you climb off onto the ledge by yourself, like rolling over a ledge from a jump; with nowhere to step off, you hang at the rope's top end rather than bob off it (`rope_ladder_top_out`, `site_mine_traverse`). `A` / `D` with `W` / `S` held move you along the rope at 2 m/s (to step off into a side passage, say), `A` / `D` alone lets go at once and you drop or walk off at your own speed; a jump lets go and counts as a jump from the ground (`rope_ladder_let_go`, `rope_ladder_climb`).
 * **It hangs from its rock.** Dig out the rock it's tied to and the ladder falls as a loose item (`rope_ladder_falls`). A floor that rises under it (sand, a block) shortens it. `E` takes it down.
+
+## Rope gun
+
+The way up a face: the mole **can't climb bare walls** (Hampus, 2026-11-06; scenario `no_wall_climb`). A jump rolls over a ledge up to about 2 m (`TUNE.ledge`, scenario `mantle`); higher, hang a rope ladder from above, or throw a rope up with the rope gun. Code: `ropes.rs`.
+* **Making it.** Workbench: the gun from 2 wood, 3 stone and 2 fungus (a crank-wound spring in a root-wood stock); a hook rope from 3 fungus and 1 stone (a stone hook on 16 m of fungus-fibre rope; reusable gear, priced like a rope ladder). It's a first-hour make: wood, stone and fungus are all to hand by the workbench quest (`first_hour_without_wallclimb`).
+* **Throwing.** Left mouse with the gun in hand throws the hook at the cursor, however far, and uses one hook rope. It flies at 20 m/s and falls at 9.81 m/s², paying the rope out behind it.
+* **Biting.** The hook bites **solid, settled rock or any built block** and holds there for good. It glances off sand, gravel and loose rubble (spent: it bites nothing after), and sinks in water or lava; then the hook rope falls where the hook stopped, to be picked up again. Past 16 m from the gun the rope runs out and the hook drops short (`rope_gun_anchor_stone`).
+* **The rope** is a chain of 32 half-metre segments moved by verlet: it hangs, goes slack, lies over the rock it touches and swings with the mole on it. Grains falling past don't hold it up. It is saved with the world (transport save v5).
+* **Climbing.** `W` with the body within 0.5 m of the rope grabs it (from the floor a fresh press, so `W` held as you step off at a top doesn't grab again). `W` / `S` climb at 2 m/s up and 3 m/s down. `A` / `D` swing: the mole is a pendulum under the hook, and a push (16 m/s²) only goes the way the swing already goes, so holding a key builds the swing up. Pressing toward a ledge whose top is within 0.75 m of the feet steps off onto it. `Space` lets go with a hop and the swing's speed (the pumpworks route swings over its 9 m wheel this way: `site_pumpworks_traverse`); climbing down onto the floor lets go. A rope is never a fall (`rope_gun_climb`).
+* **It hangs from its rock.** Blow or dig away the rock the hook bit and the rope comes down as a hook rope item (`rope_gun_anchor_stone`). `E` on any part of a rope takes it back into the pack as a hook rope.
+
+| | value |
+|---|---|
+| rope | 16 m (a big hall's ceiling from its floor), 32 segments of 0.5 m |
+| hook | 20 m/s, falls at 9.81 m/s²; bites solid rock and blocks only |
+| climb | 2 m/s up, 3 m/s down; swing push 16 m/s² |
+| cost | gun: 2 wood + 3 stone + 2 fungus; hook rope: 3 fungus + 1 stone (workbench) |
 
 ## Lifts
 
@@ -103,6 +121,8 @@ A sealed pipe network that blows capsules along it with air.
 | station | makes | from | tier |
 |---|---|---|---|
 | Workbench | rope ladder | 2 wood + 2 fungus | 1 |
+| Workbench | rope gun | 2 wood + 3 stone + 2 fungus | 1 |
+| Workbench | hook rope | 3 fungus + 1 stone | 1 |
 | Forge | 8 rail | 1 copper ingot + 1 wood | 2 |
 | Forge | mine cart | 2 copper ingots + 4 wood | 2 |
 | Workshop | lift | 2 iron ingots + 4 wood + 1 copper ingot | 3 |

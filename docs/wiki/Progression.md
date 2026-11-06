@@ -162,6 +162,6 @@ Everything the Ancients built obeys the same physics as everything else: weight,
 | Colony | one mole | Delvers move in when the holt is comfortable |
 | Found places | **built:** seven site families on the background-wall layer (mines, holts, pumpworks, fissures, fossils, salt halls, cargo halts; see [World and Generation](World-and-Generation.md#found-places)) | more of the same: purpose-built rooms, ordinary physics |
 | Late game | **built:** the Lid myth as clues and a journal, denser higher up; ruins of the Ancients with carvings in the same journal and two relics (see [Lore](Lore.md#the-lid-in-the-game)) | Ancient facilities, ruins, relics, the Lid myth |
-| Travel | walking, climbing, digging; **built:** rails and mine carts, powered rails, rope ladders, lifts, pressure tubes | carts and rails, ladders and lifts, powered rails, pressure tubes; Ancient waygates (open decision) |
+| Travel | walking, jumping, digging; **built:** the rope gun (no wall climbing), rails and mine carts, powered rails, rope ladders, lifts, pressure tubes | carts and rails, ladders and lifts, powered rails, pressure tubes; Ancient waygates (open decision) |
 
 Any of these that gets built should move from this page into the page that describes the system, as it lands on `main`.

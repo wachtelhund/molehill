@@ -71,6 +71,8 @@ One row per item in the item registry (`ITEM_DEFS` in `craft.rs`, read through `
 | Rail | left mouse (brush; `X` snaps a straight run) | no | no (dig it) |
 | Mine cart | left mouse, on the track (right mouse: get in) | no | its cargo, then the empty cart |
 | Rope ladder | left mouse in a drop: it hangs from the rock above or a ledge's lip | no | yes |
+| Rope gun | left mouse: throws a hook rope's hook at the cursor; it bites solid rock or a block and the rope stays (`W` grab, `W`/`S` climb, `A`/`D` swing, `Space` let go; see [Transport](Transport.md#rope-gun)) | no | it's kept in the pack; `E` on a rope takes the rope back |
+| Hook rope | the rope gun's rope: one per throw (16 m); `E` on a fixed rope takes it back | yes | a missed one lies loose |
 | Pressure tube | left mouse (brush; `X` snaps a straight run) | no | no (dig it) |
 | Chute, shaker screen, bumper | left mouse (brush) | no | no (dig it; a chute or bumper gives wood back) |
 | Ore hopper | left mouse over the track: both legs need a floor | no | `E` empties its load into the pack, then picks up the empty hopper |
@@ -191,6 +193,8 @@ Chains are short: nothing is more than two steps from the ground (ore → ingot 
 | | vent | 2 wood + 2 stone |
 | | TNT | 2 coal + 2 sand |
 | | rope ladder | 2 wood + 2 fungus |
+| | rope gun | 2 wood + 3 stone + 2 fungus |
+| | hook rope (reusable: `E` takes a thrown rope back) | 3 fungus + 1 stone |
 | | 8 chute | 2 wood |
 | | 2 bumper | 2 wood + 1 stone |
 | | 2 fungus oil / 1 fungus oil | 3 fungus / 2 mushrooms (the oil press: better than the pack's 2 fungus a measure) |
