@@ -42,13 +42,13 @@ impl Kind {
     /// Width and height (cells).
     pub fn size(self) -> (usize, usize) {
         match self {
-            Kind::Mine => (24 * CPM, 7 * CPM),
-            Kind::Holt => (16 * CPM, 7 * CPM),
-            Kind::Pumpworks => (22 * CPM, 10 * CPM),
-            Kind::Fissure => (10 * CPM, 26 * CPM),
-            Kind::Fossil => (20 * CPM, 10 * CPM),
-            Kind::Crystal => (16 * CPM, 8 * CPM),
-            Kind::Halt => (26 * CPM, 8 * CPM),
+            Kind::Mine => (72 * CPM, 22 * CPM),
+            Kind::Holt => (28 * CPM, 14 * CPM),
+            Kind::Pumpworks => (48 * CPM, 20 * CPM),
+            Kind::Fissure => (18 * CPM, 40 * CPM),
+            Kind::Fossil => (36 * CPM, 16 * CPM),
+            Kind::Crystal => (28 * CPM, 16 * CPM),
+            Kind::Halt => (80 * CPM, 18 * CPM),
         }
     }
     /// Which depths this family belongs in (metres, the cell's middle).
@@ -75,8 +75,8 @@ impl Kind {
     }
 }
 
-/// Abandoned mine track: the strap is this many cells thick (a quarter metre), on sleepers in ballast.
-pub const MINE_RAIL: i64 = (CPM / 4) as i64;
+/// Abandoned mine track: the strap is this many cells thick (half a metre), on sleepers in ballast.
+pub const MINE_RAIL: i64 = (CPM / 2) as i64;
 /// The mine's worked face (ore) at its far end, in half metres from the end wall.
 pub const MINE_FACE: i64 = 5;
 
@@ -139,7 +139,9 @@ impl Gen {
         let m = 5 * c;
         let x0 = gx * sw + m + r(2, (sw - bw - 2 * m).max(1));
         let y0 = gy * sh + m + r(3, (sh - bh - 2 * m).max(1));
-        if (x0 + bw / 2 - (w / 2) as i64).abs() < (START_SAFE as i64 + 20) * c && (y0 + bh / 2).abs() < 40 * c { return None; }
+        let safe = START_SAFE as i64 * c;
+        let mid = (w / 2) as i64;
+        if x0 < mid + safe && x0 + bw > mid - safe && y0 < safe && y0 + bh > -safe { return None; }
         let (gw, gh) = (GROTTO_W as i64, GROTTO_H as i64);
         for gy2 in (y0 - 6 * c).div_euclid(gh)..=(y0 + bh + 6 * c).div_euclid(gh) {
             for gx2 in ((x0 - 6 * c).max(0)).div_euclid(gw)..=(x0 + bw + 6 * c).div_euclid(gw) {
@@ -201,12 +203,12 @@ impl Site {
         let mut s = Site { id, kind, x0, y0, w, h, var, left, chest: None, link };
         let c = CPM as i64;
         s.chest = match kind {
-            Kind::Mine => Some((x0 + w - 3 * CPM, y0 + h as i64 - 2 * c + c / 2 - 1)),
-            Kind::Holt => Some((x0 + w / 2, y0 + h as i64 - 2 * c + c / 2 - 1)),
-            Kind::Pumpworks => Some((x0 + w - 4 * CPM, y0 + h as i64 - 2 * c + c / 2 - 1)),
-            Kind::Fossil => Some((x0 + 3 * CPM, y0 + h as i64 - 2 * c + c / 2 - 1)),
+            Kind::Mine => Some((x0 + w - 8 * CPM, y0 + h as i64 - 2 * c + c / 2 - 1)),
+            Kind::Holt => Some((x0 + 13 * CPM, y0 + h as i64 - 2 * c + c / 2 - 1)),
+            Kind::Pumpworks => Some((x0 + w - 6 * CPM, y0 + h as i64 - 2 * c + c / 2 - 1)),
+            Kind::Fossil => Some((x0 + 4 * CPM, y0 + h as i64 - 2 * c + c / 2 - 1)),
             Kind::Crystal => Some((x0 + w / 2, y0 + h as i64 - 2 * c + c / 2 - 1)),
-            Kind::Halt => Some((x0 + if left { w - 4 * CPM } else { 4 * CPM }, y0 + h as i64 - 2 * c + c / 2 - 1)),
+            Kind::Halt => Some((x0 + if left { w - 8 * CPM } else { 8 * CPM }, y0 + h as i64 - 2 * c + c / 2 - 1)),
             Kind::Fissure => None,
         };
         s
@@ -219,118 +221,318 @@ impl Site {
         let (dx, dy) = (x as i64 - self.x0 as i64, wy - self.y0);
         if dx < 0 || dy < 0 || dx >= self.w as i64 || dy >= self.h as i64 { return None; }
         let c = CPM as i64; let (w, h) = (self.w as i64, self.h as i64);
+        match self.kind {
+            Kind::Mine => self.carve_mine(dx, dy, w, h, c),
+            Kind::Holt => self.carve_holt(dx, dy, w, h, c),
+            Kind::Pumpworks => self.carve_pump(dx, dy, w, h, c),
+            Kind::Fissure => self.carve_fissure(dx, dy, w, h, c),
+            Kind::Fossil => self.carve_fossil(dx, dy, w, h, c),
+            Kind::Crystal => self.carve_crystal(dx, dy, w, h, c),
+            Kind::Halt => self.carve_halt(dx, dy, w, h, c),
+        }
+    }
+    /// Two-level timbered mine: a lower haulage drift with real track, an upper heading, a shaft
+    /// between them that breaks the roof (one entrance) and two adits in the far wall (the other).
+    fn carve_mine(&self, dx: i64, dy: i64, w: i64, h: i64, c: i64) -> Option<Mat> {
         use Mat::*;
-        Some(match self.kind {
-            Kind::Mine => {
-                // a timbered drift that followed a seam: the worked face at the far (left) end is still ore,
-                // a spill of it lies at the foot, and a track runs back along the floor to the chest.
-                // The track is laid like real track, so it reads as one: a thin strap (MINE_RAIL cells) on
-                // timber sleepers bedded in grey ballast, over the rock floor; a few lengths have rusted out,
-                // leaving the sleepers. Props are 0.5 m posts with a short cap, so the drift reads as open.
-                let ore = self.mine_ore();
-                let bay = 14 * c + (self.var as i64 % 4) * c;
-                let floor = h - c; let face = MINE_FACE * c / 2; let post = c / 2;
-                if dy < c / 2 { return Some(Limestone); }
-                if dy >= floor {
-                    let fy = dy - floor; let gone = (dx / (3 * c) + (self.var as i64 >> 2)) % 4 == 3;
-                    return Some(if fy < MINE_RAIL && !gone && dx >= face { Rail }
-                        else if fy < MINE_RAIL + 3 && dx >= face && dx % c < 2 { WoodBeam } // a sleeper every metre
-                        else if fy < MINE_RAIL + 3 && dx >= face { Gravel }
-                        else { Rock });
+        let ore = self.mine_ore();
+        let bay = 20 * c + (self.var as i64 % 6) * c;
+        let floor = h - c;
+        let face = MINE_FACE * c / 2;
+        let post = c / 2;
+        let uf = 9 * c;
+        let shaft0 = 48 * c;
+        let shaft1 = shaft0 + 2 * c;
+        let in_shaft = dx >= shaft0 && dx < shaft1;
+        if dy < c { return Some(if in_shaft { Empty } else { Limestone }); }
+        if dy >= floor {
+            let fy = dy - floor; let gone = (dx / (3 * c) + (self.var as i64 >> 2)) % 4 == 3;
+            return Some(if fy < MINE_RAIL && !gone && dx >= face && !in_shaft { Rail }
+                else if fy < MINE_RAIL + 3 && dx >= face && dx % c < 2 { WoodBeam }
+                else if fy < MINE_RAIL + 3 && dx >= face { Gravel }
+                else { Rock });
+        }
+        if dy >= uf && dy < uf + c && !in_shaft {
+            return Some(if (dx / c) % 5 == 2 { WoodBeam } else { Planks });
+        }
+        if dx >= w - c / 2 {
+            let lower = dy >= floor - 3 * c && dy < floor;
+            let upper = dy >= uf - 3 * c && dy < uf;
+            return Some(if lower || upper { Empty } else { Rock });
+        }
+        let xf = face - (floor - dy).max(0) * c / (floor - c / 2).max(1);
+        if dx < xf {
+            let band = (dy + dx / 3 + (self.var as i64 & 7)) % (2 * c) < 2;
+            return Some(if band { Rock } else { ore });
+        }
+        let spill = (3 * c / 2) - (dx - face) * (3 * c / 2) / (5 * c / 2);
+        if dx >= face - c && spill > 0 && dy >= floor - spill { return Some(ore); }
+        if in_shaft && dy >= c / 2 { return Some(Empty); }
+        if dx >= bay && dx < bay + 3 * c && dy >= floor - 2 * c && dy < floor { return Some(Gravel); }
+        if dx > 30 * c && dx < 34 * c && dy >= uf - 2 * c && dy < uf {
+            return Some(if (dy + dx) % (2 * c) < c { ore } else { Rock });
+        }
+        // ore stockpile and a timber pile on the haulage floor (above the track, not in it)
+        if dx >= 14 * c && dx < 18 * c && dy >= floor - c && dy < floor {
+            return Some(if (dx + dy) % c < c / 2 { ore } else { Rock });
+        }
+        if dx >= 24 * c && dx < 27 * c && dy >= floor - c && dy < floor { return Some(WoodBeam); }
+        // crate stack on the upper heading
+        if dx >= 36 * c && dx < 39 * c && dy >= uf - 2 * c && dy < uf {
+            return Some(if dy >= uf - c { Planks } else { WoodBeam });
+        }
+        // wrecked cart body sitting on the track
+        if dx >= 40 * c && dx < 43 * c && dy >= floor - 2 * c && dy < floor {
+            return Some(if dy >= floor - c / 2 { IronBeam } else { WoodBeam });
+        }
+        let q = (dx - face - c).rem_euclid(8 * c);
+        let on_lower = dy >= uf + c && dy < floor;
+        let on_upper = dy >= c / 2 && dy < uf;
+        if dx >= face && q < post && (on_lower || on_upper) { return Some(WoodBeam); }
+        if dx >= face - c / 2 && dy < c / 2 + 2 && (q < post + c / 2 || q >= 8 * c - c / 2) { return Some(WoodBeam); }
+        if dx >= face && dy >= uf - 2 && dy < uf && (q < post + c / 2 || q >= 8 * c - c / 2) && !in_shaft {
+            return Some(WoodBeam);
+        }
+        Some(Empty)
+    }
+    /// A lived-in holt: nesting alcove, hall and fungus garden, plank floors, two doors.
+    fn carve_holt(&self, dx: i64, dy: i64, w: i64, h: i64, c: i64) -> Option<Mat> {
+        use Mat::*;
+        let t = (dx as f32 - w as f32 / 2.) / (w as f32 / 2.);
+        let top = (3.5 * c as f32 * t * t).round() as i64;
+        let floor = h - c;
+        let nest_end = 8 * c;
+        let hall_end = 18 * c;
+        let doorway = dy >= floor - 2 * c && dy < floor;
+        if dy < top + c { return Some(Limestone); }
+        if dy >= floor { return Some(if dx >= hall_end { Clay } else { Planks }); }
+        if dx < c / 2 { return Some(if doorway { Empty } else { Limestone }); }
+        if dx >= w - c / 2 { return Some(if doorway { Empty } else { Limestone }); }
+        if (dx >= nest_end && dx < nest_end + c / 2) || (dx >= hall_end && dx < hall_end + c / 2) {
+            return Some(if doorway { Empty } else { Planks });
+        }
+        if dx >= 14 * c && dx < 14 * c + c / 2 && dy >= 4 * c { return Some(WoodBeam); }
+        // nests: bedding piles beside the stamped nest sprites (each nest is 9 tiles / 2.25 m wide)
+        if dy >= floor - c && dy < floor && dx > c && (dx < 3 * c - 10 || (dx >= 5 * c + 10 && dx < nest_end - c / 2)) {
+            return Some(if (dx / (c / 2) + dy / (c / 2)) % 3 == 0 { Fungus } else { Dirt });
+        }
+        // table: plank top on two legs in the hall
+        if dx >= 10 * c && dx < 14 * c && dy >= floor - c && dy < floor - c / 2 { return Some(Planks); }
+        if (dx >= 10 * c && dx < 10 * c + c / 2 || dx >= 13 * c + c / 2 && dx < 14 * c) && dy >= floor - c && dy < floor {
+            return Some(WoodBeam);
+        }
+        // floor-standing bookcase against the garden partition
+        if dx >= hall_end - c && dx < hall_end && dy >= floor - 3 * c && dy < floor { return Some(WoodBeam); }
+        // banner hanging from the limestone roof
+        if dx >= 12 * c && dx < 12 * c + c / 2 && dy >= top + c && dy < top + 4 * c { return Some(Carved); }
+        // fungus garden: three clumps that leave farm and planter footprints open
+        if dx >= hall_end + c && dx < w - c {
+            let col = dx / c;
+            if (col == 20 || col == 22 || col == 26) && dy >= floor - 2 * c && dy < floor {
+                return Some(if col == 22 && dy >= floor - c { Clay } else { Fungus });
+            }
+        }
+        Some(Empty)
+    }
+    /// Brick pumpworks: flooded intake with a canal mouth, a sealed sluice, a dry machine hall and
+    /// a pump room, an iron gallery above, and a service door on the far wall.
+    fn carve_pump(&self, dx: i64, dy: i64, w: i64, h: i64, c: i64) -> Option<Mat> {
+        use Mat::*;
+        let floor = h - c;
+        let split = 20 * c;
+        let pump_wall = 34 * c;
+        let doorway = dy >= floor - 2 * c && dy < floor;
+        let water_line = h - 3 * c;
+        if dy < 2 * c || dy >= floor { return Some(StoneBrick); }
+        if dx < c / 2 { return Some(if dy >= water_line && dy < floor { Empty } else { StoneBrick }); }
+        if dx >= w - c / 2 { return Some(if doorway { Empty } else { StoneBrick }); }
+        if dx >= split && dx < split + c {
+            return Some(if dy >= h - 3 * c && dy < h - 2 * c { Door }
+                else if dy >= h - 2 * c && dy < h - c { Clay }
+                else { StoneBrick });
+        }
+        if dx >= pump_wall && dx < pump_wall + c / 2 { return Some(if doorway { Empty } else { StoneBrick }); }
+        if ((dx - 8 * c).abs() < c / 4 || (dx - 16 * c).abs() < c / 4 || (dx - 28 * c).abs() < c / 4 || (dx - 40 * c).abs() < c / 4) && dy >= 2 * c {
+            return Some(IronBeam);
+        }
+        let gal = 8 * c;
+        if dy >= gal && dy < gal + c / 2 && dx > c && dx < w - c {
+            if (dx - split).abs() < 2 * c { return Some(Empty); }
+            return Some(IronBeam);
+        }
+        if dx < split {
+            if (dx - 10 * c).abs() < c / 4 && dy >= water_line - c { return Some(StoneBrick); }
+            if dy >= water_line { return Some(Water); }
+            return Some(Empty);
+        }
+        // crate stacks in the dry machine hall, sitting on the brick floor
+        if dx >= split + 2 * c && dx < split + 5 * c && dy >= floor - c && dy < floor { return Some(Planks); }
+        if dx >= split + 8 * c && dx < split + 11 * c && dy >= floor - 2 * c && dy < floor {
+            return Some(if (dx / (c / 2)) % 2 == 0 { Planks } else { WoodBeam });
+        }
+        // pump housing in the pump room
+        if dx >= pump_wall + 2 * c && dx < pump_wall + 7 * c && dy >= floor - 3 * c && dy < floor {
+            let shell = dx < pump_wall + 2 * c + c / 2 || dx >= pump_wall + 7 * c - c / 2 || dy < floor - 3 * c + c / 2 || dy >= floor - c / 2;
+            return Some(if shell { IronBeam } else { Empty });
+        }
+        Some(Empty)
+    }
+    /// A tall split in the host rock, wavy walls, broken ledges and a mouth on each side.
+    fn carve_fissure(&self, dx: i64, dy: i64, w: i64, h: i64, c: i64) -> Option<Mat> {
+        use Mat::*;
+        let wave = ((dy as f32 / c as f32) * 0.55).sin() * (1.2 * c as f32);
+        let left = 3 * c + wave as i64;
+        let right = w - 3 * c + (wave * 0.45) as i64;
+        let floor = h - c;
+        let west_mouth = dy >= 5 * c && dy < 8 * c;
+        let east_mouth = dy >= 21 * c && dy < 24 * c;
+        if west_mouth && dx < left + c { return Some(Empty); }
+        if east_mouth && dx >= right - c { return Some(Empty); }
+        if dx < left || dx >= right { return None; }
+        let ledge = |at: i64| dy >= at && dy < at + c / 2;
+        if ledge(8 * c) { return Some(if dx < left + 5 * c { WoodBeam } else if dx >= right - 4 * c { IronBeam } else { Empty }); }
+        if ledge(16 * c) { return Some(if dx >= right - 6 * c { IronBeam } else if dx < left + 3 * c { WoodBeam } else { Empty }); }
+        if ledge(24 * c) { return Some(if dx < left + 6 * c { WoodBeam } else if dx >= right - 3 * c { IronBeam } else { Empty }); }
+        if ledge(32 * c) { return Some(if dx >= (left + right) / 2 { WoodBeam } else { Empty }); }
+        // rubble sitting on the ledges
+        if dy >= 8 * c - c && dy < 8 * c && dx > left && dx < left + 4 * c { return Some(Gravel); }
+        if dy >= 24 * c - c && dy < 24 * c && dx > right - 5 * c && dx < right { return Some(Rock); }
+        if dy < 6 * c && (dx / c) % 5 == 2 { return Some(Roots); }
+        if dy >= floor { return Some(if dx % c < c / 2 { Gravel } else { Rock }); }
+        if dy >= floor - c / 2 && (dx + dy) % (3 * c) < c { return Some(Water); }
+        Some(Empty)
+    }
+    /// Oval excavation around a readable mineralised skeleton, with scaffold and two mouths.
+    fn carve_fossil(&self, dx: i64, dy: i64, w: i64, h: i64, c: i64) -> Option<Mat> {
+        use Mat::*;
+        let (cx, cy) = (w as f32 / 2., h as f32 * 0.62);
+        let (rx, ry) = (w as f32 * 0.46, h as f32 * 0.34);
+        let nx = (dx as f32 - cx) / rx; let ny = (dy as f32 - cy) / ry;
+        let floor = h - c;
+        let in_mouth_x = dx < 4 * c || dx >= w - 4 * c;
+        let r2 = nx * nx + ny * ny;
+        let scaffold_post = dx >= 3 * c && dx < 3 * c + c / 2 && dy >= c && dy < floor;
+        if scaffold_post { return Some(WoodBeam); }
+        if r2 > 1. {
+            if in_mouth_x && dy >= floor - 3 * c && dy < floor {
+                return Some(if dy < floor - 2 * c { IronBeam } else { Empty });
+            }
+            return Some(Limestone);
+        }
+        // skull on the right: a rounded quartz head with two empty eye sockets
+        let (sx, sy) = (w - 7 * c, h - 5 * c);
+        let skx = (dx - sx) as f32 / (3.2 * c as f32);
+        let sky = (dy - sy) as f32 / (2.4 * c as f32);
+        let in_skull = skx * skx + sky * sky < 1. && dy < h - c;
+        let eye = |ex: i64, ey: i64| (dx - ex).abs() < c / 2 && (dy - ey).abs() < c / 2;
+        if in_skull {
+            if eye(sx - c, sy - c / 2) || eye(sx + c, sy - c / 2) { return Some(Empty); }
+            return Some(Quartz);
+        }
+        // spine: a carved band just above the floor, slightly arched
+        let spine_y = h - 2 * c - ((dx - w / 2).abs() * c) / (w / 2).max(1) / 3;
+        let spine = dx > 7 * c && dx < w - 9 * c && (dy - spine_y).abs() < c / 2;
+        // ribs: short arches rising from the spine, not floor-to-ceiling posts
+        let rib = (0..8).any(|k| {
+            let px = 8 * c + k * 2 * c;
+            let rise = 3 * c - (k as i64 - 4).abs() * c / 3;
+            let yo = spine_y - dy;
+            yo > 0 && yo < rise && (dx - px - yo / 4).abs() < c / 3
+        });
+        let limb = (dx > 9 * c && dx < 15 * c && (dy - (h - 4 * c - (dx - 9 * c) / 3)).abs() < c / 2 && dy > spine_y)
+            || (dx > 20 * c && dx < 26 * c && (dy - (h - 3 * c - (dx - 20 * c) / 4)).abs() < c / 2 && dy > spine_y);
+        let roots = dy < 2 * c && (dx / c) % 3 == 1;
+        let walk = dy >= 6 * c && dy < 6 * c + c / 2 && dx >= 3 * c && dx < 12 * c;
+        if spine || rib || limb { Some(Carved) }
+        else if scaffold_post || walk { Some(WoodBeam) }
+        else if roots { Some(Roots) }
+        else if dy >= floor { Some(Rock) }
+        else { Some(Empty) }
+    }
+    /// Salt cathedral: quartz columns, hanging and standing crystal, three pools, two mouths.
+    fn carve_crystal(&self, dx: i64, dy: i64, w: i64, h: i64, c: i64) -> Option<Mat> {
+        use Mat::*;
+        let (cx, cy) = (w as f32 / 2., h as f32 * 0.62);
+        let (rx, ry) = (w as f32 * 0.46, h as f32 * 0.34);
+        let nx = (dx as f32 - cx) / rx; let ny = (dy as f32 - cy) / ry;
+        let floor = h - c;
+        let in_mouth_x = dx < 4 * c || dx >= w - 4 * c;
+        let r2 = nx * nx + ny * ny;
+        let col = (dx - 7 * c).abs() < c / 3 || (dx - (w - 7 * c)).abs() < c / 3
+            || (dx - 10 * c).abs() < c / 3 || (dx - (w - 10 * c)).abs() < c / 3;
+        if col && dy < floor { return Some(Quartz); }
+        if r2 > 1. {
+            if in_mouth_x && dy >= floor - 3 * c && dy < floor {
+                return Some(if dy < floor - 2 * c { IronBeam } else { Empty });
+            }
+            return Some(Limestone);
+        }
+        let pool = dy >= floor && ((dx - w / 2).abs() < 4 * c || (dx - 6 * c).abs() < 2 * c || (dx - (w - 6 * c)).abs() < 2 * c);
+        let hsh = (dx / c + dy / c * 3 + (self.var as i64 & 5)).rem_euclid(6);
+        let cluster = (hsh == 0 && dy >= floor - 3 * c && dy < floor) || (hsh == 1 && dy < 3 * c && dy >= c);
+        if pool { Some(Water) }
+        else if cluster { Some(Crystal) }
+        else if dy >= floor { Some(Quartz) }
+        else { Some(Empty) }
+    }
+    /// Chunk-scale cargo halt: iron-lintelled hall on rails, a pressure tube off one side, a
+    /// warehouse with a pedestrian door off the other. Never a waygate.
+    fn carve_halt(&self, dx: i64, dy: i64, w: i64, h: i64, c: i64) -> Option<Mat> {
+        use Mat::*;
+        let floor = h - c;
+        let hall0 = 26 * c;
+        let hall1 = 56 * c;
+        let in_hall = dx >= hall0 && dx < hall1;
+        let in_west = dx < hall0;
+        let tube_west = self.left;
+        if in_hall {
+            if dy < 2 * c { return Some(IronBeam); }
+            if dy >= floor {
+                let lx = dx - hall0;
+                let fy = dy - floor;
+                return Some(if fy < MINE_RAIL && lx >= 2 * c && lx < hall1 - hall0 - 2 * c { Rail } else { Polished });
+            }
+            if (dx - hall0).abs() < c / 4 || (dx - hall1).abs() < c / 4 {
+                return Some(if dy >= 3 * c && dy < floor { Empty } else { IronBeam });
+            }
+            if ((dx - 30 * c).abs() < c / 4 || (dx - 36 * c).abs() < c / 4 || (dx - 42 * c).abs() < c / 4 || (dx - 48 * c).abs() < c / 4) && dy >= 2 * c { return Some(IronBeam); }
+            // wrecked cart and a crate on the platform, sitting on the rails
+            if dx >= 38 * c && dx < 42 * c && dy >= floor - 2 * c && dy < floor {
+                return Some(if dy >= floor - c { WoodBeam } else { IronBeam });
+            }
+            if dx >= 44 * c && dx < 46 * c && dy >= floor - c && dy < floor { return Some(WoodBeam); }
+            return Some(Empty);
+        }
+        let in_tube = if tube_west { in_west } else { dx >= hall1 };
+        if in_tube {
+            let (t0, t1) = (6 * c, 11 * c);
+            if dy < t0 - c / 2 || dy >= t1 + c / 2 {
+                if (in_west && dx > hall0 - 4 * c || !in_west && dx < hall1 + 4 * c) && dy >= floor - c && dy < floor {
+                    return Some(Gravel);
                 }
-                if dx >= w - c / 2 { return Some(Rock); }
-                // the worked face: ore broken by thin bands of rock, standing out to `face` at the floor and
-                // cut back 1 m by the roof (wider at the foot, so it stands like a slope)
-                let xf = face - (floor - dy) * c / (floor - c / 2);
-                if dx < xf {
-                    let band = (dy + dx / 3 + (self.var as i64 & 7)) % (2 * c) < 2;
-                    return Some(if band { Rock } else { ore });
-                }
-                // the spill at the foot of the face: a low heap of broken ore, 1.5 m high against the face
-                let spill = (3 * c / 2) - (dx - face) * (3 * c / 2) / (5 * c / 2);
-                if dx >= face - c && spill > 0 && dy >= floor - spill { return Some(ore); }
-                let q = (dx - face - c).rem_euclid(4 * c);
-                if dx >= face && q < post && dy >= c / 2 + 2 { WoodBeam }
-                else if dx >= face - c / 2 && dy < c / 2 + 2 && (q < post + c / 2 || q >= 4 * c - c / 2) { WoodBeam } // the cap
-                else if dx >= bay && dx < bay + 2 * c && dy >= floor - 2 * c { Gravel }
-                else { Empty }
+                return None;
             }
-            Kind::Holt => {
-                let t = (dx as f32 - w as f32 / 2.) / (w as f32 / 2.);
-                let top = (2. * c as f32 * t * t).round() as i64;
-                if dy < top + c / 2 { Limestone }
-                else if dy >= h - c { Clay }
-                else if dx < c / 2 || dx >= w - c / 2 { Limestone }
-                else if dx >= 2 * c && dx < 2 * c + c / 2 && dy >= 2 * c { WoodBeam }
-                else if dx >= w - 3 * c && dx < w - 3 * c + c / 2 && dy >= 2 * c { WoodBeam }
-                else { Empty }
+            if dy < t0 || dy >= t1 { return Some(IronBeam); }
+            if dy < t0 + c / 4 || dy >= t1 - c / 4 { return Some(IronBeam); }
+            if (dx / c) % 5 == 3 { return Some(Gravel); }
+            return Some(Tube);
+        }
+        if dy < 2 * c { return Some(IronBeam); }
+        if dy >= floor { return Some(Polished); }
+        let at_outer = if tube_west { dx >= w - c / 2 } else { dx < c / 2 };
+        if at_outer { return Some(if dy >= floor - 3 * c && dy < floor { Empty } else { IronBeam }); }
+        if ((dx - (if tube_west { 64 * c } else { 12 * c })).abs() < c / 4) && dy >= 3 * c { return Some(IronBeam); }
+        // warehouse cargo: plank-and-timber crates and a gravel bin, all sitting on the polished floor
+        let stacks = if tube_west { [60 * c, 66 * c, 72 * c] } else { [8 * c, 14 * c, 20 * c] };
+        for sx in stacks {
+            let height = if (sx / c) % 3 == 0 { 2 * c } else { c };
+            if dx >= sx && dx < sx + 2 * c && dy >= floor - height && dy < floor {
+                return Some(if (dx + dy) % (2 * c) < c { Planks } else { WoodBeam });
             }
-            Kind::Pumpworks => {
-                let split = 11 * c;
-                if dy < c / 2 || dy >= h - c { StoneBrick }
-                else if dx < c / 2 || dx >= w - c / 2 { StoneBrick }
-                else if (dx - 5 * c).abs() < c / 4 || (dx - 17 * c).abs() < c / 4 { IronBeam }
-                else if dx >= split && dx < split + c {
-                    if dy >= h - 3 * c && dy < h - 2 * c { Door }
-                    else if dy >= h - 2 * c && dy < h - c { Clay }
-                    else { StoneBrick }
-                } else if dx < split {
-                    if dy >= h - 3 * c { Water } else { Empty }
-                } else { Empty }
-            }
-            Kind::Fissure => {
-                let inner = dx >= 2 * c && dx < w - 2 * c;
-                if !inner { return None; }
-                let ledge = |at: i64| dy >= at && dy < at + c / 2 && (dx < 4 * c || dx >= w - 4 * c);
-                if ledge(7 * c) || ledge(14 * c) || ledge(20 * c) { return Some(if (dx / c) % 2 == 0 { WoodBeam } else { IronBeam }); }
-                if dy >= 14 * c && dy < 14 * c + c / 2 && (dx < 3 * c || dx >= w - 3 * c) { IronBeam }
-                else if dy >= h - c { Gravel }
-                else { Empty }
-            }
-            Kind::Fossil => {
-                let (cx, cy) = (w as f32 / 2., h as f32 * 0.55);
-                let (rx, ry) = (w as f32 * 0.46, h as f32 * 0.42);
-                let nx = (dx as f32 - cx) / rx; let ny = (dy as f32 - cy) / ry;
-                if nx * nx + ny * ny > 1. { return None; }
-                let spine = dy >= h - 2 * c && dy < h - c && (dx - w / 2).abs() < 8 * c;
-                let rib = (0..8).any(|k| {
-                    let px = 2 * c + k * 2 * c;
-                    (dx - px).abs() < c / 2 && dy >= h - 5 * c && dy < h - c
-                });
-                let skull = dx >= w - 5 * c && dy >= h - 5 * c && dy < h - c && (dx - (w - 3 * c)).abs() + (dy - (h - 3 * c)).abs() < 2 * c;
-                let roots = dy < 2 * c && (dx / c) % 3 == 1;
-                if spine || rib { Carved } else if skull { Quartz } else if roots { Roots } else if dy >= h - c / 2 { Rock } else { Empty }
-            }
-            Kind::Crystal => {
-                let (cx, cy) = (w as f32 / 2., h as f32 * 0.55);
-                let (rx, ry) = (w as f32 * 0.46, h as f32 * 0.40);
-                let nx = (dx as f32 - cx) / rx; let ny = (dy as f32 - cy) / ry;
-                if nx * nx + ny * ny > 1. { return None; }
-                let pool = dy >= h - c && ((dx - 4 * c).abs() < 2 * c || (dx - w + 4 * c).abs() < 2 * c);
-                let cluster = (dx / c + dy / c + (self.var as i64 & 3)) % 5 == 0 && dy >= h - 3 * c;
-                let col = (dx - 3 * c).abs() < c / 4 || (dx - w + 3 * c).abs() < c / 4;
-                if pool { Water } else if col && dy >= 2 * c { Quartz } else if cluster { Crystal } else if dy >= h - c / 2 { Quartz } else { Empty }
-            }
-            Kind::Halt => {
-                let hall = 14 * c;
-                let in_hall = if self.left { dx >= w - hall } else { dx < hall };
-                if in_hall {
-                    let lx = if self.left { dx - (w - hall) } else { dx };
-                    if dy < c / 2 { StoneBrick } else if dy >= h - c {
-                        if lx >= 2 * c && lx < hall - 2 * c && dy < h - c / 2 { Rail } else { StoneBrick }
-                    } else if lx < c / 2 || lx >= hall - c / 2 { StoneBrick }
-                    else if (lx - 5 * c).abs() < c / 4 || (lx - 9 * c).abs() < c / 4 { IronBeam }
-                    else { Empty }
-                } else {
-                    let (t0, t1) = (2 * c, 5 * c);
-                    if dy < t0 - c / 2 || dy >= t1 + c / 2 { return None; }
-                    if dy < t0 || dy >= t1 { StoneBrick }
-                    else if dy < t0 + c / 4 || dy >= t1 - c / 4 { IronBeam }
-                    else if (dx / c) % 4 == 3 { Gravel }
-                    else { Tube }
-                }
-            }
-        })
+        }
+        let bin = if tube_west { 70 * c } else { 16 * c };
+        if dx >= bin && dx < bin + 3 * c && dy >= floor - c && dy < floor { return Some(Gravel); }
+        Some(Empty)
     }
     /// Lining this site wants at (x, wy). None = leave whatever `line_back` would put.
     pub fn wall(&self, x: usize, wy: i64) -> Option<Wall> {
@@ -339,13 +541,13 @@ impl Site {
         if self.cell(x, wy).is_none() { return None; }
         let h = hash3(x as u32, wy as u32, self.id);
         Some(match self.kind {
-            Kind::Mine => if (h & 7) == 0 { Wall::Gap } else if (h & 7) == 1 { Wall::Beams } else if (h & 7) == 2 { Wall::Crack } else if (h & 7) <= 4 { Wall::Rock } else { Wall::Timber },
-            Kind::Holt => if dy > self.h as i64 - 2 * CPM as i64 && (h & 3) == 0 { Wall::Damp } else if (h & 5) == 0 { Wall::Masonry } else { Wall::Timber },
-            Kind::Pumpworks => if (h & 7) == 0 { Wall::Pipes } else if (h & 7) == 1 { Wall::Damp } else { Wall::Masonry },
-            Kind::Fissure => if dy > self.h as i64 - 3 * CPM as i64 { Wall::Damp } else if (h & 3) == 0 { Wall::Crack } else { Wall::Rock },
+            Kind::Mine => if (h & 7) == 0 { Wall::Gap } else if (h & 7) == 1 { Wall::Beams } else if (h & 7) == 2 { Wall::Crack } else if (h & 7) == 3 { Wall::Rock } else { Wall::Soot },
+            Kind::Holt => if dy > self.h as i64 - 2 * CPM as i64 && (h & 3) == 0 { Wall::Damp } else if dx > 18 * CPM as i64 && (h & 3) == 0 { Wall::Root } else { Wall::Timber },
+            Kind::Pumpworks => if (h & 7) == 0 { Wall::Pipes } else if (h & 7) == 1 { Wall::Damp } else { Wall::WetStone },
+            Kind::Fissure => if dy > self.h as i64 - 3 * CPM as i64 { Wall::Damp } else if (h & 3) == 0 { Wall::Crack } else { Wall::Basalt },
             Kind::Fossil => if (h & 3) == 0 { Wall::Fossil } else if (h & 3) == 1 { Wall::Crack } else { Wall::Rock },
             Kind::Crystal => if (h & 3) == 0 { Wall::Salt } else if (h & 3) == 1 { Wall::Crystal } else { Wall::Damp },
-            Kind::Halt => if (h & 7) == 0 { Wall::Pipes } else if (h & 7) == 1 { Wall::Gap } else { Wall::Masonry },
+            Kind::Halt => if (h & 7) == 0 { Wall::Ironclad } else if (h & 7) == 1 { Wall::Gap } else if (h & 15) == 2 { Wall::Pipes } else { Wall::Ashlar },
         })
     }
 }
@@ -400,35 +602,71 @@ impl World {
         let (x0, y0) = (s.x0, y0 as usize);
         match s.kind {
             Kind::Holt => {
-                self.try_furn(Item::Nest, x0 + 6 * c, y0 + s.h - 2 * c);
-                self.try_furn(Item::Table, x0 + s.w / 2, y0 + s.h - 2 * c);
-                self.try_furn(Item::Stool, x0 + s.w / 2 + 4 * S, y0 + s.h - 2 * c);
-                self.try_furn(Item::Banner, x0 + s.w / 2, y0 + 3 * c);
+                self.try_furn(Item::Nest, x0 + 3 * c, y0 + s.h - 2 * c);
+                self.try_furn(Item::Nest, x0 + 5 * c, y0 + s.h - 2 * c);
+                self.try_furn(Item::Rug, x0 + 3 * c, y0 + s.h - 2 * c);
+                self.try_furn(Item::Table, x0 + 11 * c, y0 + s.h - 2 * c);
+                self.try_furn(Item::Stool, x0 + 10 * c, y0 + s.h - 2 * c);
+                self.try_furn(Item::Stool, x0 + 13 * c, y0 + s.h - 2 * c);
+                self.try_furn(Item::Rug, x0 + 11 * c, y0 + s.h - 2 * c);
+                self.try_furn(Item::Shelf, x0 + 16 * c, y0 + s.h - 2 * c);
+                self.try_furn(Item::Banner, x0 + 13 * c, y0 + 4 * c);
+                self.try_farm(x0 + s.w - 7 * c, y0 + s.h - 2 * c);
                 self.try_farm(x0 + s.w - 5 * c, y0 + s.h - 2 * c);
-                self.try_torch(x0 + 5 * c, y0 + s.h - 3 * c);
+                self.try_furn(Item::Planter, x0 + s.w - 9 * c, y0 + s.h - 2 * c);
+                self.try_furn(Item::Planter, x0 + s.w - 3 * c, y0 + s.h - 2 * c);
+                self.try_torch(x0 + 4 * c, y0 + s.h - 4 * c);
+                self.try_torch(x0 + 13 * c, y0 + s.h - 4 * c);
+                self.try_torch(x0 + s.w - 6 * c, y0 + s.h - 4 * c);
             }
             Kind::Mine => {
-                self.try_torch(x0 + 3 * c, y0 + s.h - 3 * c);
-                self.try_torch(x0 + s.w - 4 * c, y0 + s.h - 3 * c);
+                self.try_torch(x0 + 8 * c, y0 + s.h - 3 * c);
+                self.try_torch(x0 + 30 * c, y0 + s.h - 3 * c);
+                self.try_torch(x0 + 60 * c, y0 + s.h - 3 * c);
+                self.try_torch(x0 + 20 * c, y0 + 8 * c);
+                self.try_torch(x0 + 50 * c, y0 + 8 * c);
+                self.try_furn(Item::Shelf, x0 + s.w - 10 * c, y0 + s.h - 2 * c);
+                let sx = x0 + 48 * c + c / 2;
+                self.try_ladder(sx, y0 + 9 * c, sx.saturating_sub(c), (y0 + 9 * c).saturating_sub(1));
+                self.try_cart((x0 + 40 * c) as f32 + 0.5, (y0 + s.h - c) as f32);
             }
             Kind::Pumpworks => {
-                let gx = x0 + 11 * c + c / 2; let gy = y0 + s.h - 3 * c + c / 2;
+                let gx = x0 + 20 * c + c / 2; let gy = y0 + s.h - 3 * c + c / 2;
                 self.try_dev(Dev::Floodgate, gx, gy);
-                let lx = x0 + 10 * c; let ly = y0 + s.h - 4 * c;
+                let lx = x0 + 22 * c; let ly = y0 + s.h - 4 * c;
                 self.try_dev(Dev::Lever, lx, ly);
                 self.try_wire(lx, ly); self.try_wire(gx, gy); self.try_wire((lx + gx) / 2, ly); self.try_wire((lx + gx) / 2, gy);
                 if let Some(b) = self.try_block(lx, ly) { self.logic.dev_s[b] = 1; self.logic.invalidate(); }
-                self.try_dev(Dev::Pump, x0 + s.w - 5 * c, y0 + s.h - 3 * c);
+                self.try_dev(Dev::Pump, x0 + s.w - 8 * c, y0 + s.h - 3 * c);
+                self.try_ladder(x0 + 28 * c, y0 + 8 * c, x0 + 27 * c, (y0 + 8 * c).saturating_sub(1));
+                self.try_torch(x0 + 24 * c, y0 + s.h - 4 * c);
+                self.try_torch(x0 + s.w - 6 * c, y0 + s.h - 4 * c);
             }
             Kind::Fissure => {
-                let lx = x0 + 3 * c; let top = y0 + 7 * c + c / 2;
-                self.try_ladder(lx, top, x0 + 2 * c, top.saturating_sub(1));
+                let lx = x0 + 4 * c; let top = y0 + 8 * c + c / 2;
+                self.try_ladder(lx, top, x0 + 3 * c, top.saturating_sub(1));
+                self.try_ladder(x0 + s.w - 5 * c, y0 + 24 * c + c / 2, x0 + s.w - 4 * c, y0 + 24 * c);
             }
             Kind::Halt => {
-                let cx = x0 + if s.left { s.w - 6 * c } else { 6 * c }; let cy = y0 + s.h - c;
+                let cx = x0 + 40 * c; let cy = y0 + s.h - c;
                 self.try_cart(cx as f32 + 0.5, cy as f32);
+                let wx = if s.left { x0 + s.w - 16 * c } else { x0 + 8 * c };
+                self.try_furn(Item::Shelf, wx, y0 + s.h - 2 * c);
+                self.try_furn(Item::Shelf, wx + 8 * c, y0 + s.h - 2 * c);
+                self.try_furn(Item::Table, wx + 4 * c, y0 + s.h - 2 * c);
+                self.try_torch(x0 + 40 * c, y0 + s.h - 4 * c);
+                self.try_torch(wx + 2 * c, y0 + s.h - 4 * c);
             }
-            Kind::Fossil | Kind::Crystal => { self.try_torch(x0 + s.w / 2, y0 + s.h - 3 * c); }
+            Kind::Fossil => {
+                self.try_torch(x0 + s.w / 2, y0 + s.h - 4 * c);
+                self.try_furn(Item::Shelf, x0 + 5 * c, y0 + s.h - 2 * c);
+                self.try_furn(Item::Table, x0 + 8 * c, y0 + s.h - 2 * c);
+            }
+            Kind::Crystal => {
+                self.try_torch(x0 + s.w / 2, y0 + s.h - 4 * c);
+                self.try_torch(x0 + 6 * c, y0 + s.h - 4 * c);
+                self.try_torch(x0 + s.w - 6 * c, y0 + s.h - 4 * c);
+            }
         }
     }
     fn try_block(&self, x: usize, y: usize) -> Option<usize> {

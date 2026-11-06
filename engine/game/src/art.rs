@@ -288,7 +288,7 @@ pub fn mat_tex(m: molehill_sim::mat::Mat, x: u32, y: u32, t: u64) -> f32 {
         M::Fungus => if v > 0.85 { 1.3 } else { 1. },
         // decorative blocks
         M::Planks => { // 2-tile boards with a dark seam under each and staggered butt joints, grain along the board
-            let board = cy / (2 * k); let seam = cy % (2 * k) == 2 * k - 1; let joint = (x + board * 5) % 10 == 0;
+            let board = cy / (2 * k); let seam = cy % (2 * k) == 2 * k - 1; let joint = x.wrapping_add(board.wrapping_mul(5)) % 10 == 0;
             if seam { 0.72 } else if joint { 0.8 } else { 0.92 + h(board, cx / 3, 61) * 0.06 + (h(0, cy, 62) - 0.5) * 0.1 } }
         M::Polished => { // smooth slabs with fine joints every metre and a faint diagonal sheen
             let joint = (cx % (4 * k) == 0) || (cy % (4 * k) == 0); if joint { 0.84 } else if (x + y) % 9 == 0 { 1.1 } else { 1.03 + (v - 0.5) * 0.03 } }
@@ -378,6 +378,15 @@ mod tests {
 
     /// An ore pocket is noticeable: a good share of its cells are nuggets clearly unlike plain rock, and
     /// none of it is bright enough to look lit from within.
+    #[test] fn plank_texture_survives_wrapped_world_y() {
+        use super::mat_tex;
+        let _ = mat_tex(Mat::Planks, 10, 0, 0);
+        let _ = mat_tex(Mat::Planks, 10, u32::MAX - 7, 0);
+        let _ = mat_tex(Mat::Planks, u32::MAX - 11, u32::MAX - 3, 0);
+        let _ = mat_tex(Mat::WoodBeam, 8, u32::MAX - 5, 0);
+        let _ = mat_tex(Mat::StoneBrick, 8, u32::MAX - 5, 0);
+    }
+
     #[test] fn ore_pockets_stand_out_without_glowing() {
         let rock = col(Mat::Rock);
         for m in [Mat::CopperOre, Mat::IronOre, Mat::TinOre, Mat::Coal] {
