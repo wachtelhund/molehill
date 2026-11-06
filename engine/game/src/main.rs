@@ -250,8 +250,18 @@ fn dev_dump(n: Local<u32>, g: Res<Game>, sp: Res<Sprites>, images: Res<Assets<Im
             "mine" | "holt" | "pump" | "pumpworks" | "fissure" | "fossil" | "crystal" | "salt" | "halt"
             | "site-mine" | "site-holt" | "site-pump" | "site-fissure" | "site-fossil" | "site-crystal" | "site-halt"
             | "walls" | "wall"));
-        let (cw, chh) = if site_dump { (240 * S, 160 * S) } else { (160 * S, 90 * S) };
-        let (x0, y0) = (mx.saturating_sub(cw / 2).min(W - cw), my.saturating_sub(chh / 2).min(H - chh));
+        let (cw, chh, x0, y0) = if let Some(st) = g.w.sites.last() {
+            let pad = 8 * CPM;
+            let yw0 = (st.y0 - g.w.oy).max(0) as usize;
+            let cw = (st.w + 2 * pad).min(W);
+            let chh = (st.h + 2 * pad).min(H);
+            let x0 = st.x0.saturating_sub(pad).min(W.saturating_sub(cw));
+            let y0 = yw0.saturating_sub(pad).min(H.saturating_sub(chh));
+            (cw, chh, x0, y0)
+        } else {
+            let (cw, chh) = if site_dump { (240 * S, 160 * S) } else { (160 * S, 90 * S) };
+            (cw, chh, mx.saturating_sub(cw / 2).min(W - cw), my.saturating_sub(chh / 2).min(H - chh))
+        };
         let mut v = vec![0u8; cw * chh * 4]; for y in 0..chh { let s = ((y0 + y) * W + x0) * 4; v[y * cw * 4..(y + 1) * cw * 4].copy_from_slice(&g.buf[s..s + cw * 4]); }
         // composite the translucent open cells over the parallax layers like the GPU does (linear blend)
         let camx = cam.single().map(|t| t.translation.x / CPX).unwrap_or(0.); let bw = W + 2 * PAD;
@@ -299,16 +309,21 @@ fn scene_name() -> Option<String> {
 fn scene_mode(mode: Mode) -> Mode {
     match scene_name().as_deref() { Some("walls") | Some("wall") => Mode::Creative, _ => mode }
 }
-/// `--shot-zoom=`; site stamps pull the camera back so a 26 m halt or fissure fits the still.
+/// `--shot-zoom=`; site stamps pull the camera back so a chunk-scale halt or fissure fits the still.
 fn shot_or_menu_zoom() -> f32 {
     #[cfg(not(target_arch = "wasm32"))]
     if let Some(z) = std::env::args().find_map(|a| a.strip_prefix("--shot-zoom=").and_then(|v| v.parse().ok())) {
         return molehill_sim::view::clamp_zoom(z);
     }
     molehill_sim::view::clamp_zoom(match scene_name().as_deref() {
-        Some("fissure") | Some("site-fissure") => 0.46,
-        Some("halt") | Some("site-halt") | Some("mine") | Some("site-mine") | Some("pump") | Some("pumpworks") | Some("site-pump") => 0.36,
-        Some("holt") | Some("site-holt") | Some("fossil") | Some("site-fossil") | Some("crystal") | Some("salt") | Some("site-crystal") | Some("walls") | Some("wall") => 0.32,
+        Some("fissure") | Some("site-fissure") => 0.52,
+        Some("halt") | Some("site-halt") => 0.62,
+        Some("mine") | Some("site-mine") => 0.58,
+        Some("pump") | Some("pumpworks") | Some("site-pump") => 0.50,
+        Some("holt") | Some("site-holt") => 0.36,
+        Some("fossil") | Some("site-fossil") => 0.44,
+        Some("crystal") | Some("salt") | Some("site-crystal") => 0.40,
+        Some("walls") | Some("wall") => 0.32,
         _ => crate::menu::Menu::load().zoom,
     })
 }
@@ -409,7 +424,7 @@ fn stage_site(w: &mut World, kind: SiteKind) {
     };
     let (mx, my) = (w.moles[0].x, w.moles[0].y);
     let pad = CPM;
-    let x0 = (mx + 6 * CPM).min(w.g.w.saturating_sub(sw + pad + 8)).max(8);
+    let x0 = (mx + (molehill_sim::gen::START_SAFE as usize + 2) * CPM).min(w.g.w.saturating_sub(sw + pad + 8)).max(8);
     let mut y0 = my.saturating_sub(sh.saturating_sub(CPM + 4)).max(8);
     if y0 + sh + pad + 8 >= w.g.h { y0 = w.g.h.saturating_sub(sh + pad + 8); }
     let (hx0, hy0) = (x0.saturating_sub(pad), y0.saturating_sub(pad));

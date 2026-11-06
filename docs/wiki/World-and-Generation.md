@@ -116,13 +116,13 @@ Seven families of **found places**, not random loot rooms (`sim/src/sites.rs`). 
 
 | family | size | depth | what it is | what you do |
 |---|---|---|---|---|
-| Abandoned mine | 24 × 7 m | 0–56 m | a drift that followed a seam: slim 0.5 m timber posts with short caps; along the floor, track laid like real track (a thin strap of rail on a sleeper every metre, bedded in grey gravel ballast, a few lengths rusted away to bare sleepers); at the far end the worked face of the seam, still ore with thin bands of rock, and a spill of broken ore at its foot (copper three times in four, else coal); a collapsed side bay | mine the face; salvage rails and timber; the props are real (`abandoned_mine_track_and_ore_face_read`) |
-| Abandoned holt | 16 × 7 m | −32–20 m | a dome, sleeping niche, table, fungus plot, a banner still hanging | read the room; the farm still grows |
-| Flooded pumpworks | 22 × 10 m | −12–40 m | brick chambers, a closed sluice on a lever, a clay plug, a pump on the dry side | flip the lever or dig the plug; water is real |
-| Fissure | 10 × 26 m | 8–90 m | a split in the host rock, broken bridge ledges, a rope ladder in the drop | climb; bring more rope or a lift |
-| Fossil cave | 20 × 10 m | 20–88 m | an oval hollow around mineralised ribs and a quartz skull | excavate the carved bone |
-| Salt / crystal hall | 16 × 8 m | 36–100 m | quartz columns, crystal clusters, shallow reflecting pools | harvest; crystal glows, the lining does not |
-| Buried cargo halt | 26 × 8 m | 12–84 m | a brick platform, wrecked cart, broken pressure tubes | ride or strip the cart; the tubes point at an Ancient station when one is near |
+| Abandoned mine | 72 × 22 m | 0–56 m | a two-level timbered mine: lower haulage drift with half-metre track on sleepers in grey ballast, an upper heading on plank, a shaft that breaks the roof, two adits in the far wall, sooty lining, slim posts every eight metres, a worked ore face and spill, an ore stockpile and timber pile on the haulage floor, crates on the heading, a wrecked cart on the rails, a collapsed bay | mine the face; climb the shaft; salvage rails and timber (`abandoned_mine_track_and_ore_face_read`) |
+| Abandoned holt | 28 × 14 m | −32–20 m | a domed home in limestone and warm timber: nesting alcove with dirt-and-fungus bedding, living hall with a plank table, hanging banner and bookcase, fungus garden with clay planters on clay floors, two doors | read the rooms; the farms still grow |
+| Flooded pumpworks | 48 × 20 m | −12–40 m | wet green-gray stone chambers, a canal mouth, a closed sluice on a lever with a clay plug, a dry machine hall with crate stacks, an iron pump housing, an iron gallery above, a service door | flip the lever or dig the plug; water is real |
+| Fissure | 18 × 40 m | 8–90 m | a tall split in dark basalt, wavy walls, broken wood and iron ledges with rubble on them, hanging roots, a mouth on each side, a rope ladder in the drop | climb; bring more rope or a lift |
+| Fossil cave | 36 × 16 m | 20–88 m | an oval excavation around a readable mineralised skeleton (arched spine, short ribs, a quartz skull with eye sockets, two limbs), wooden scaffold, iron-lintelled mouths, fossil prints in the lining | excavate the carved bone |
+| Salt / crystal hall | 28 × 16 m | 36–100 m | a salt cathedral: quartz columns, hanging and standing crystal, three reflecting pools, pale salt and teal crystal lining, two mouths | harvest; crystal glows, the lining does not |
+| Buried cargo halt | 80 × 18 m | 12–84 m | a chunk-scale halt: cool ashlar and ironclad hall on rails under an iron lintel, a wrecked cart and crate on the platform, a pressure tube off one side, a warehouse of plank crates and a gravel bin with a pedestrian door off the other | ride or strip the cart; the tubes point at an Ancient station when one is near |
 
 Stamped sites and their interactions: `all_seven_site_families_stamp_with_purpose`, `site_pumpworks`, `site_mine`, `site_holt`, `site_fissure`, `site_fossil`, `site_crystal`, `site_halt`. Headless tests do not prove the rooms *look* like carved rock. Native `--scene=mine` (and the other family names, or `walls`) stamps one isolated copy in host rock next to the burrow so a `--shot` can inspect lining, props and layout.
 
@@ -132,25 +132,25 @@ Stamped sites and their interactions: `all_seven_site_families_stamp_with_purpos
 
 One still of each family, stamped with `--scene=<family>` on seed 4242 and lit by the scene's torches. These are the CPU-side composite from `--dump-art` (`view.bmp`), cropped to the site and scaled up 3× with nearest sampling. Sprites are drawn on the GPU and aren't in that composite, so the mole shows as a short magenta mark and torches only as their light.
 
-![Abandoned mine: a timbered drift of propped bays in limestone](images/site-mine.png)
+![Abandoned mine: a two-level sooty drift with track, ore and a shaft](images/site-mine.png)
 *Abandoned mine* (`--scene=mine`)
 
-![Abandoned holt: a domed room in limestone](images/site-holt.png)
+![Abandoned holt: a timbered nest, hall and fungus garden](images/site-holt.png)
 *Abandoned holt* (`--scene=holt`)
 
-![Flooded pumpworks: brick chambers with water standing in them](images/site-pump.png)
+![Flooded pumpworks: wet-stone chambers, a sluice and a pump housing](images/site-pump.png)
 *Flooded pumpworks* (`--scene=pump`)
 
-![Fissure: a tall split in granite with broken ledges and a rope ladder in the drop](images/site-fissure.png)
+![Fissure: a tall basalt split with broken ledges and rubble](images/site-fissure.png)
 *Fissure* (`--scene=fissure`)
 
-![Fossil cave: an oval hollow in granite with mineralised ribs along its floor](images/site-fossil.png)
+![Fossil cave: an oval limestone hollow around a mineralised skeleton](images/site-fossil.png)
 *Fossil cave* (`--scene=fossil`)
 
-![Salt / crystal hall: a crystal-lined hollow in basalt with a shallow pool](images/site-crystal.png)
+![Salt / crystal hall: quartz columns, hanging crystal and three pools](images/site-crystal.png)
 *Salt / crystal hall* (`--scene=crystal`)
 
-![Buried cargo halt: a brick platform hall with broken pressure tube running off](images/site-halt.png)
+![Buried cargo halt: an ashlar hall on rails, a warehouse of crates and a wrecked tube](images/site-halt.png)
 *Buried cargo halt* (`--scene=halt`)
 
 ## Caves

@@ -46,14 +46,24 @@ pub enum Wall {
     Crystal,
     /// Fossil imprint left in the rock.
     Fossil,
+    /// Soot-blackened timber: an abandoned mine, not a holt's warm panelling.
+    Soot,
+    /// Damp green-gray dressed stone: pumpworks that have stood in seep water.
+    WetStone,
+    /// Dark split volcanic rock: the lining of a fissure.
+    Basalt,
+    /// Cool blue-gray dressed blocks: a cargo halt's platform hall.
+    Ashlar,
+    /// Dark iron plates on the back. They hold no weight.
+    Ironclad,
 }
-pub const NWALL: usize = 14;
+pub const NWALL: usize = 19;
 
 impl Wall {
     pub fn from_u8(v: u8) -> Wall { if (v as usize) < NWALL { unsafe { std::mem::transmute(v) } } else { Wall::None } }
     pub fn name(self) -> &'static str {
         ["", "Rock wall", "Timber wall", "Masonry wall", "Beam wall", "Pipe wall", "Carved wall",
-            "Damp stain", "Crack", "Root wall", "Missing panel", "Salt wall", "Crystal wall", "Fossil wall"][self as usize]
+            "Damp stain", "Crack", "Root wall", "Missing panel", "Salt wall", "Crystal wall", "Fossil wall", "Sooted timber", "Wet stone wall", "Basalt wall", "Ashlar wall", "Ironclad wall"][self as usize]
     }
     /// One lore-safe line. Always says it holds no roof.
     pub fn desc(self) -> &'static str {
@@ -69,25 +79,35 @@ impl Wall {
             "A panel has come away. The far rock shows; nothing here holds a roof.",
             "Salt crust on the lining. It holds no roof.",
             "Crystal crust on the lining. It holds no roof.",
-            "A bone-print in the lining. It holds no roof."][self as usize]
+            "A bone-print in the lining. It holds no roof.",
+            "Soot-blackened timber lining. Walk in front of it; it holds no roof.",
+            "Damp dressed stone lining. Walk in front of it; it holds no roof.",
+            "Split basalt lining. Walk in front of it; it holds no roof.",
+            "Dressed blue-gray stone lining. Walk in front of it; it holds no roof.",
+            "Iron plates on the back. They hold no weight."][self as usize]
     }
     /// Darker, flatter than the matching foreground block, so a wall never reads as load-bearing.
     pub fn color(self) -> [u8; 3] {
         match self {
             Wall::None => [0, 0, 0],
             Wall::Rock => [118, 108, 96],
-            Wall::Timber => [140, 102, 66],
+            Wall::Timber => [158, 112, 62],
             Wall::Masonry => [132, 78, 62],
             Wall::Beams => [118, 84, 54],
-            Wall::Pipes => [148, 96, 64],
+            Wall::Pipes => [78, 118, 96],
             Wall::Carving => [124, 116, 106],
             Wall::Damp => [78, 92, 88],
             Wall::Crack => [96, 88, 80],
             Wall::Root => [86, 96, 56],
             Wall::Gap => [58, 50, 46],
-            Wall::Salt => [168, 162, 152],
-            Wall::Crystal => [92, 132, 156],
-            Wall::Fossil => [128, 116, 94],
+            Wall::Salt => [196, 190, 178],
+            Wall::Crystal => [64, 148, 176],
+            Wall::Fossil => [154, 138, 108],
+            Wall::Soot => [72, 58, 44],
+            Wall::WetStone => [68, 92, 90],
+            Wall::Basalt => [48, 46, 56],
+            Wall::Ashlar => [88, 98, 114],
+            Wall::Ironclad => [58, 60, 66],
         }
     }
     /// How much of the far parallax shows through (0 = fully covered, 1 = none of the wall).
@@ -101,9 +121,9 @@ impl Wall {
         let k = S as u32; let (tx, ty) = (x / k, wy / k);
         match self {
             Wall::None => 1.,
-            Wall::Rock => 0.88 + h(0, ty / 3 + tx / 19, 41) * 0.14 + if v > 0.94 { 0.08 } else { 0. },
+            Wall::Rock => 0.88 + h(0, (ty / 3).wrapping_add(tx / 19), 41) * 0.14 + if v > 0.94 { 0.08 } else { 0. },
             Wall::Timber => {
-                let board = ty / 2; let seam = wy % (2 * k) == 2 * k - 1; let joint = (tx + board * 5) % 8 == 0;
+                let board = ty / 2; let seam = wy % (2 * k) == 2 * k - 1; let joint = tx.wrapping_add(board.wrapping_mul(5)) % 8 == 0;
                 if seam { 0.7 } else if joint { 0.78 } else { 0.9 + h(board, tx / 3, 61) * 0.08 }
             }
             Wall::Masonry => {
@@ -114,12 +134,26 @@ impl Wall {
             Wall::Pipes => if wy % (2 * k) < k / 2 { 1.08 } else if tx % 6 == 0 { 0.8 } else { 0.92 },
             Wall::Carving => if ty % 10 == 0 { 1.1 } else { match tx % 3 { 0 => 1.06, 1 => 0.78, _ => 0.94 } },
             Wall::Damp => 0.78 + v * 0.16,
-            Wall::Crack => if (tx as i32 - ty as i32).abs() % 7 == 0 { 0.62 } else { 0.9 },
-            Wall::Root => if (tx + ty / 2) % 3 == 0 { 0.76 } else { 1.02 },
+            Wall::Crack => if (tx as i64).wrapping_sub(ty as i64).unsigned_abs() % 7 == 0 { 0.62 } else { 0.9 },
+            Wall::Root => if tx.wrapping_add(ty / 2) % 3 == 0 { 0.76 } else { 1.02 },
             Wall::Gap => 0.7 + v * 0.1,
             Wall::Salt => 0.92 + if v > 0.9 { 0.16 } else { 0. } + h(tx / 2, ty / 2, 71) * 0.06,
             Wall::Crystal => 0.86 + if v > 0.82 { 0.2 } else { 0. } ,
-            Wall::Fossil => if (tx / 2 + ty) % 5 == 0 { 1.14 } else { 0.88 },
+            Wall::Fossil => if (tx / 2).wrapping_add(ty) % 5 == 0 { 1.14 } else { 0.88 },
+            Wall::Soot => {
+                let board = ty / 2; let seam = wy % (2 * k) == 2 * k - 1; let joint = tx.wrapping_add(board.wrapping_mul(5)) % 8 == 0;
+                if seam { 0.62 } else if joint { 0.7 } else { 0.78 + h(board, tx / 3, 61) * 0.08 }
+            }
+            Wall::WetStone => {
+                let row = ty / 2; let off = if row % 2 == 0 { 0 } else { 2 };
+                if ty % 2 == 1 || (tx + off) % 4 == 0 { 0.62 } else { 0.9 + (h((tx + off) / 4, row, 53) - 0.5) * 0.1 }
+            }
+            Wall::Basalt => 0.8 + h(0, (ty / 2).wrapping_add(tx / 11), 43) * 0.16 + if (tx as i64).wrapping_sub(ty as i64).unsigned_abs() % 9 == 0 { -0.12 } else { 0. },
+            Wall::Ashlar => {
+                let row = ty / 3; let off = if row % 2 == 0 { 0 } else { 3 };
+                if ty % 3 == 2 || (tx + off) % 6 == 0 { 0.68 } else { 0.96 + (h((tx + off) / 6, row, 59) - 0.5) * 0.1 }
+            }
+            Wall::Ironclad => if tx % 5 == 0 || ty % 4 == 0 { 1.08 } else { 0.82 + h(tx / 5, ty / 4, 67) * 0.08 },
         }
     }
     /// The pack item that places this wall, if a Delver can make it.
@@ -138,6 +172,9 @@ impl Wall {
             Wall::Masonry => Some(Item::MasonryWall),
             Wall::Pipes => Some(Item::PipeWall),
             Wall::Carving | Wall::Fossil => Some(Item::CarvedWall),
+            Wall::Soot => Some(Item::TimberWall),
+            Wall::WetStone | Wall::Ashlar => Some(Item::MasonryWall),
+            Wall::Ironclad => Some(Item::PipeWall),
             _ => Some(Item::RockWall),
         }
     }
@@ -334,3 +371,24 @@ pub fn wall_brush_range() -> (f32, f32, f32) { (0.5 * SF, 3.5 * SF, 1.0 * SF) }
 pub const WALL_K: f32 = 0.78;
 /// Floor brightness so a lined room in the dark still reads as timber or rock, never a black hole.
 pub const WALL_AMIN: f32 = 0.34;
+
+
+#[cfg(test)]
+mod shade_tests {
+    use super::Wall;
+    #[test]
+    fn shade_survives_wrapped_world_y() {
+        let walls = [
+            Wall::None, Wall::Rock, Wall::Timber, Wall::Masonry, Wall::Beams, Wall::Pipes,
+            Wall::Carving, Wall::Damp, Wall::Crack, Wall::Root, Wall::Gap, Wall::Salt,
+            Wall::Crystal, Wall::Fossil, Wall::Soot, Wall::WetStone, Wall::Basalt,
+            Wall::Ashlar, Wall::Ironclad,
+        ];
+        for w in walls {
+            let _ = w.shade(10, 0);
+            let _ = w.shade(10, u32::MAX - 7);
+            let _ = w.shade(u32::MAX - 11, u32::MAX - 3);
+            assert!(w.shade(8, 16).is_finite());
+        }
+    }
+}

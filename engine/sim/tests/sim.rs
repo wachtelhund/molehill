@@ -1359,14 +1359,16 @@ mod enrichment {
         // abandoned mine: timber props, rail fragments, a lining
         let (w, x0, y0, sw, sh) = stamp(Kind::Mine);
         assert!(has(&w, x0, y0, sw, sh, WoodBeam) && has(&w, x0, y0, sw, sh, Rail));
-        assert!(w.walls.count(Wall::Timber) > 20);
+        assert!(w.walls.count(Wall::Soot) + w.walls.count(Wall::Beams) > 20);
         // abandoned holt: a nest, a farm, timber lining
-        let (w, ..) = stamp(Kind::Holt);
+        let (w, x0, y0, sw, sh) = stamp(Kind::Holt);
         assert!(w.furniture.iter().any(|f| f.item == Item::Nest));
         assert!(!w.farms.is_empty());
+        assert!(has(&w, x0, y0, sw, sh, Fungus), "holt nests and garden grow as cells, not empty air");
         // flooded pumpworks: a held sump, a closed sluice, a floodgate
         let (mut w, x0, y0, sw, sh) = stamp(Kind::Pumpworks);
         assert!(has(&w, x0, y0, sw, sh, Water) && has(&w, x0, y0, sw, sh, Door));
+        assert!(has(&w, x0, y0, sw, sh, Planks), "dry machine hall has crates on the floor");
         assert!(w.logic.dev.iter().any(|&d| d == Dev::Floodgate as u8));
         let n0 = w.g.count(Water);
         for _ in 0..180 { w.step(); }
@@ -1384,6 +1386,7 @@ mod enrichment {
         // buried cargo halt: track and a wrecked cart, tubes, never a second waygate
         let (w, x0, y0, sw, sh) = stamp(Kind::Halt);
         assert!(has(&w, x0, y0, sw, sh, Rail) || has(&w, x0, y0, sw, sh, Tube));
+        assert!(has(&w, x0, y0, sw, sh, Planks), "warehouse crates sit on the halt floor");
         assert!(!w.tr.carts.is_empty());
         assert!(!has(&w, x0, y0, sw, sh, Door), "halts do not grow a waygate");
     }
@@ -1460,3 +1463,75 @@ fn abandoned_mine_track_and_ore_face_read() {
     let kinds = (0..64u32).filter(|&v| Site::new(1, Kind::Mine, 0, 0, v, false, None).mine_ore() == Mat::CopperOre).count();
     assert_eq!(kinds, 48, "copper three times in four");
 }
+
+/// Found places must read as different buildings: chunk-scale mines, pumpworks and halts, each
+/// family's own lining, at least two ways in on the large ones, and no overlap with the 25 m spawn zone.
+#[test]
+fn found_places_differ_in_size_lining_and_stay_clear_of_the_spawn() {
+    use molehill_sim::gen::{Gen, START_SAFE};
+    use molehill_sim::mat::{Mat, CPM};
+    use molehill_sim::sites::{Kind, Site};
+    use molehill_sim::walls::Wall;
+    let sizes: Vec<_> = (0..7).map(|k| Kind::from_u8(k).size()).collect();
+    let large = sizes.iter().filter(|&&(w, h)| w >= 40 * CPM && h >= 18 * CPM).count();
+    assert!(large >= 3, "at least three families are chunk-scale ({large} of {:?})", sizes);
+    assert!(Kind::Mine.size().0 >= 48 * CPM && Kind::Halt.size().0 >= 64 * CPM && Kind::Pumpworks.size().0 >= 40 * CPM);
+
+    let dominant = |kind: Kind, want: Wall| {
+        let site = Site::new(1, kind, 0, 0, 0, false, None);
+        let (mut n, mut tot) = (0usize, 0usize);
+        for dy in 0..site.h as i64 {
+            for dx in 0..site.w {
+                if let Some(wl) = site.wall(site.x0 + dx, site.y0 + dy) {
+                    tot += 1;
+                    if wl == want { n += 1; }
+                }
+            }
+        }
+        assert!(n * 3 > tot, "{:?} lining should be mostly {:?} ({n}/{tot})", kind, want);
+    };
+    dominant(Kind::Holt, Wall::Timber);
+    dominant(Kind::Mine, Wall::Soot);
+    dominant(Kind::Pumpworks, Wall::WetStone);
+    dominant(Kind::Fissure, Wall::Basalt);
+    dominant(Kind::Halt, Wall::Ashlar);
+    let fossil = Site::new(1, Kind::Fossil, 0, 0, 0, false, None);
+    assert!((0..fossil.w).any(|dx| (0..fossil.h as i64).any(|dy| fossil.wall(dx, fossil.y0 + dy) == Some(Wall::Fossil))));
+    let crystal = Site::new(1, Kind::Crystal, 0, 0, 0, false, None);
+    assert!((0..crystal.w).any(|dx| (0..crystal.h as i64).any(|dy| matches!(crystal.wall(dx, crystal.y0 + dy), Some(Wall::Salt | Wall::Crystal)))));
+
+    let openings = |kind: Kind| {
+        let site = Site::new(1, kind, 0, 0, 0, true, None);
+        let open = |m: Option<Mat>| matches!(m, Some(Mat::Empty) | Some(Mat::Tube) | Some(Mat::Water));
+        let mut sides = [false; 4];
+        for dy in 0..site.h as i64 {
+            if open(site.cell(site.x0, site.y0 + dy)) { sides[0] = true; }
+            if open(site.cell(site.x0 + site.w - 1, site.y0 + dy)) { sides[1] = true; }
+        }
+        for dx in 0..site.w {
+            if open(site.cell(site.x0 + dx, site.y0)) { sides[2] = true; }
+            if open(site.cell(site.x0 + dx, site.y0 + site.h as i64 - 1)) { sides[3] = true; }
+        }
+        sides.iter().filter(|&&b| b).count()
+    };
+    assert!(openings(Kind::Mine) >= 2, "mine shaft and adits");
+    assert!(openings(Kind::Holt) >= 2, "holt door and bolt-hole");
+    assert!(openings(Kind::Pumpworks) >= 2, "pump canal and service door");
+    assert!(openings(Kind::Halt) >= 2, "halt tube and warehouse door");
+    assert!(openings(Kind::Fissure) >= 2, "fissure mouths");
+    assert!(openings(Kind::Fossil) >= 2, "fossil mouths");
+    assert!(openings(Kind::Crystal) >= 2, "crystal mouths");
+
+    let (ww, c) = (2048usize, CPM as i64);
+    for seed in 0..80u32 {
+        let gen = Gen::new(seed, ww);
+        let safe = START_SAFE as i64 * c;
+        let mid = (ww / 2) as i64;
+        for site in gen.sites_in_rows(-120 * c, 200 * c) {
+            let (x0, x1, y0, y1) = (site.x0 as i64, site.x0 as i64 + site.w as i64, site.y0, site.y0 + site.h as i64);
+            assert!(!(x0 < mid + safe && x1 > mid - safe && y0 < safe && y1 > -safe),
+                "seed {seed} {:?} overlaps the spawn zone", site.kind);
+        }
+    }
+}
+
