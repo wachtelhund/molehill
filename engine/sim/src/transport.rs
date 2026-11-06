@@ -148,7 +148,10 @@ impl World {
     /// `E` on a cart: take its cargo into the pack; an empty cart (nobody in it) comes up itself.
     pub fn pick_up_transport(&mut self, x: usize, y: usize) -> Option<Item> {
         let Some(k) = self.cart_at(x, y) else { return self.pick_up_hopper(x, y).or_else(|| self.pick_up_lift(x, y)) };
-        if !self.tr.carts[k].cargo.is_empty() { for (it, n) in std::mem::take(&mut self.tr.carts[k].cargo) { self.inv[it as usize] += n; } return Some(Item::Cart); }
+        // unloading says what came home ("Unloaded the cart: 12 stone, 3 copper ore.")
+        if !self.tr.carts[k].cargo.is_empty() { let mut got = vec![];
+            for (it, n) in std::mem::take(&mut self.tr.carts[k].cargo) { self.inv[it as usize] += n; got.push(format!("{n} {}", it.name().to_lowercase())); }
+            self.say(format!("Unloaded the cart: {}.", got.join(", "))); return Some(Item::Cart); }
         if self.tr.riding == Some(k) { return None; }
         self.tr.carts.remove(k); if let Some(r) = self.tr.riding { if r > k { self.tr.riding = Some(r - 1); } }
         self.inv[Item::Cart as usize] += 1; Some(Item::Cart)

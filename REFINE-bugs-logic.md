@@ -71,6 +71,13 @@ Short log of what this run changed, and what is still open.
 * Harness: `undiscovered MAT`, `set T inv:ITEM N`, `set T quest N` / `quest`. Scenario `explore_clues`; test `quests_send_you_back_with_a_drill`.
 * Not live-visual tested: the log lines and HUD quest text were checked headless only (scenarios and tests), not in a running window.
 
+## Holt as home (refine/first-hour-holt-home, from c319c9f)
+* **Friction measured:** no quest touched furniture, panelling or hauling; the wooden furniture and timber wall recipes were already listed from the start (the kit's wood), so the gap was a reason, not access. Cart and ladder hover tips already said what E and W/S do; unloading a cart with E gave no word of what came.
+* **Quest 8, "Make it a holt":** 2 pieces of furniture within 12 m of the workbench (new `Goal::Furnished`, `World::home_furniture`, HUD counts 1/2), after the first hour's copperline. It pays 16 timber wall, and a new per-quest `then` line says how to use it ("Panel the room: timber wall in hand, hold left mouse to line the back..."). Panelling itself isn't a goal: player panelling can't be told apart from natural and burrow lining without touching walls.rs (frozen).
+* **Cart unload says what came home:** "Unloaded the cart: 6 stone, 3 copper ore." (transport.rs).
+* 21 quests; old saves past quest 7 land one step off. Scenario `holt_home`; test `holt_quest_asks_for_furniture_by_the_bench`; `explore_clues` quest numbers moved by one.
+* Not live-visual tested: the HUD quest line and count, the log lines, and placing furniture/panelling in a running window were checked headless only.
+
 ## Open
 * The design's emberiron for the Bore doesn't exist, so the Bore takes iron, copper and crystal.
 * localStorage holds about 5 MB. A band is 10–40 KB, so a holt explored over a few hundred metres of depth could fill it. Bands the player never changed could be dropped and regenerated (not done: the falling-sand settling after generation would differ).

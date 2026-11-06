@@ -977,6 +977,24 @@ mod progression {
         assert!(w.come_back_with(Mat::Limestone).is_none() && w.come_back_with(Mat::Bedrock).is_none(), "nothing to come back with for soft rock or bedrock");
         w.inv[Item::Drill as usize] = 1; assert!(w.come_back_with(Mat::IronOre).is_none() && w.dig_refusal(Mat::Basalt).unwrap().contains("your drill: come back with a bore"));
     }
+    /// The holt as home: right after the first hour's seven, a quest asks for furniture by the workbench
+    /// (only pieces near the bench count, and none without one), pays timber wall and says how to panel with
+    /// it. The wooden pieces are listed from the start, since the kit carries wood.
+    #[test] fn holt_quest_asks_for_furniture_by_the_bench() {
+        use molehill_sim::{craft::{QUESTS, Goal, HOME_M}, survival::Mode, world::{Furniture, Building}, mat::CPM};
+        let k = QUESTS.iter().position(|q| matches!(q.goal, Goal::Furnished(_))).unwrap();
+        assert!(k == 7 && matches!(QUESTS[k - 1].goal, Goal::Have(Item::CopperWire, _)), "right after the first hour's copperline");
+        assert!(QUESTS[k].reward.iter().any(|&(it, _)| it == Item::TimberWall) && QUESTS[k].then.contains("Panel"), "pays wall and says what for");
+        let mut w = World::new(256 * molehill_sim::mat::S, 128 * molehill_sim::mat::S, 3); w.set_mode(Mode::Survival); w.step();
+        for n in ["Stool", "Table", "Nest", "Shelf", "Timber wall x8"] { assert!(w.recipe_known(recipe_by_name(n).unwrap()), "{n} listed from the kit"); }
+        let (x, y) = (w.moles[0].x, w.moles[0].y);
+        w.furniture.push(Furniture { item: Item::Stool, x, y, tint: 0 });
+        assert_eq!(w.home_furniture(), 0, "no workbench: no holt yet");
+        w.buildings.push(Building { kind: Station::Workbench, x, y, built: true, claimed: false });
+        assert_eq!(w.home_furniture(), 1);
+        let far = x + (HOME_M * CPM as f32) as usize + 4 * CPM; w.furniture.push(Furniture { item: Item::Table, x: far, y, tint: 0 });
+        assert_eq!(w.home_furniture(), 1, "a table out past {HOME_M} m isn't the holt's");
+    }
     #[test] fn survival_starts_bare_and_learns() {
         use molehill_sim::survival::Mode;
         let mut w = World::new(256 * molehill_sim::mat::S, 128 * molehill_sim::mat::S, 3); w.set_mode(Mode::Survival); w.step();

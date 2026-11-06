@@ -59,6 +59,7 @@ pub fn quest_progress(w: &World) -> String {
         Goal::Have(it, n) => format!("  ({}/{n})", w.inv[it as usize].min(n)),
         Goal::Chests(n) => format!("  ({}/{n})", w.chests_opened.min(n)),
         Goal::Pillars(n) => format!("  ({}/{n})", (w.pillars / s2).min(n)),
+        Goal::Furnished(n) => format!("  ({}/{n})", w.home_furniture().min(n)),
         Goal::Built(_) | Goal::Found(_) => String::new(),
     }
 }

@@ -1,0 +1,48 @@
+// The burrow as a home. After the first hour's copperline the quest line asks for two pieces of furniture
+// by the workbench ("Make it a holt"). The wood ones are listed from the start (the kit carries wood); set
+// down beside the bench they count, the quest pays 16 timber wall and says how to panel the room with it.
+// Hauling home: a cart's cargo comes into the pack with E, and the log says what came home.
+// (bedrock roof: a wide room would cave in otherwise)
+map
+BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+#..................................................#
+#..................................................#
+#..................................................#
+#..................................................#
+#..................................................#
+#..................................................#
+#..................................................#
+#..........@.......................................#
+####################################################
+end
+mode survival
+give Wood 20
+give Stone 10
+give Cart 1
+set 1 quest 7                       // "Make it a holt: set 2 furniture by the workbench"
+expect 2 recipe:Stool == 1          // listed from the start: wood is in the kit
+expect 2 recipe:Table == 1
+station 3 -3 0 Workbench
+craft 5 Stool
+craft 6 Table
+expect 8 inv:Stool == 1
+expect 8 inv:Table == 1
+// one piece: not yet
+furnish 10 Stool 4 0
+expect 40 furn:Stool == 1
+expect 40 quest == 7
+// the second: the quest is done, pays timber wall and says what it's for
+furnish 41 Table 13 0
+expect 75 quest == 8
+expect 75 log:quest_complete:_make_it_a_holt == 1
+expect 75 inv:TimberWall == 16
+expect 75 log:panel_the_room == 1
+expect 75 log:next:_farm_mushrooms == 1
+// hauling home: a cart's load comes into the pack with E, and the log says what came
+place 80 -8 0 Cart
+load 81 6 Stone
+load 81 3 CopperOre
+pickup 85 -8 -1
+expect 86 inv:Stone == 12            // 10, less the bench's 4, and 6 unloaded
+expect 86 inv:CopperOre == 3
+expect 86 log:unloaded_the_cart:_6_stone,_3_copper_ore == 1
