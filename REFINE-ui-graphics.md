@@ -308,6 +308,20 @@ Polish only: no new systems, lore names kept. Each entry lists what changed and 
   by the mole in a still (each state was drawn from staged data, with motion from swatches and tests).
 * Test `linkage_parts_show_their_state`.
 
+## Logic art: polish (branch `refine/logic-art-polish`)
+* Evidence: #61's still drew every state from staged data, so no state had been seen changing in the running game, and
+  the float and clutch end of the hall read too dark (mean luminance 29 over that crop).
+* `--scene=logic` now puts the tread plate in the burrow floor right under the mole, rodded under the floor to the
+  pool's gate. In the running game at frame 90 the mole's weight presses the plate (its dark sunk edge shows) and
+  the gate has lifted (its leaf drawn raised, lever up), next to the turned-round gate (lever down). That's a
+  pressed-plate and lifted-gate state reached by the sim, not staged.
+* Two scene torches (inside the tank over the float, and beside the clutch): the crop's mean luminance goes from 29
+  to 39, and the water and the float's lit edge show. The clutch's middle column stays dim, so its in/out state
+  still rests on the `cells-*` swatches and `linkage_parts_show_their_state`.
+* No art change was needed: the rod collars, gate levers, scale and plate read as shipped.
+* Stills only (dump frames), no live window. Stills plus tests cover each state: the plate and gate change in the
+  running sim, while the float bob, clutch mesh and scale tip are covered by swatch and test.
+
 ## Open issues
 * `--shot` writes an empty frame on macOS when the game is launched from a background shell (the surface is
   never presented). It needs a visible window, or Linux with Xvfb.
