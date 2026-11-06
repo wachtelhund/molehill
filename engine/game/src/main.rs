@@ -135,7 +135,7 @@ const BG_BASE: [f32; 3] = [44., 34., 30.];
 #[inline] fn srgb(l: f32) -> f32 { l.max(0.).powf(1. / 2.2) * 255. }
 #[derive(Component)] pub struct WorldSprite;
 #[derive(Component)] struct Pooled(u8, usize);
-#[derive(Resource)] pub struct Sprites { pub rope: [Handle<Image>; 2], pub weight: Handle<Image>, pub boiler: [Handle<Image>; 2], pub props: Vec<Handle<Image>>, pub cart: Handle<Image>, pub bin: Vec<Handle<Image>>, pub clue: Vec<Handle<Image>>, pub furn: Vec<Option<(Handle<Image>, Option<Handle<Image>>)>>, pub tools: [Handle<Image>; 3], pub dev: Vec<Handle<Image>>, pub ring: Handle<Image>, pub mole: Vec<Handle<Image>>, pub mole_out: Vec<Handle<Image>>, pub held: Vec<Handle<Image>>, pub icons: Vec<Handle<Image>>, pub chest: [Handle<Image>; 2], pub station: Vec<[Handle<Image>; 2]>, pub torch: Handle<Image>, pub torch_f: Vec<Handle<Image>>, pub glow: Handle<Image>, pub shroom: [Handle<Image>; 3], pub px: Handle<Image> }
+#[derive(Resource)] pub struct Sprites { pub rope: [Handle<Image>; 2], pub weight: Handle<Image>, pub boiler: [Handle<Image>; 2], pub stamp: [Handle<Image>; 2], pub tub: [Handle<Image>; 2], pub smelter: [Handle<Image>; 4], pub props: Vec<Handle<Image>>, pub cart: Handle<Image>, pub bin: Vec<Handle<Image>>, pub clue: Vec<Handle<Image>>, pub furn: Vec<Option<(Handle<Image>, Option<Handle<Image>>)>>, pub tools: [Handle<Image>; 3], pub dev: Vec<Handle<Image>>, pub ring: Handle<Image>, pub mole: Vec<Handle<Image>>, pub mole_out: Vec<Handle<Image>>, pub held: Vec<Handle<Image>>, pub icons: Vec<Handle<Image>>, pub chest: [Handle<Image>; 2], pub station: Vec<[Handle<Image>; 2]>, pub torch: Handle<Image>, pub torch_f: Vec<Handle<Image>>, pub glow: Handle<Image>, pub shroom: [Handle<Image>; 3], pub px: Handle<Image> }
 
 /// `?seed=N` (web) / `--seed=N` (native) was given: the game opens straight into that holt.
 fn seed_pinned() -> bool {
@@ -306,6 +306,7 @@ fn dev_dump(n: Local<u32>, g: Res<Game>, sp: Res<Sprites>, images: Res<Assets<Im
         for (k, f) in sp.furn.iter().enumerate() { if let Some((b, c)) = f { list.push((format!("furn-{:?}", ITEMS[k]), b.clone())); if let Some(c) = c { list.push((format!("cloth-{:?}", ITEMS[k]), c.clone())); } } }
         for (k, h) in sp.tools.iter().enumerate() { list.push((format!("tool{k}"), h.clone())); }
         list.push(("cart".into(), sp.cart.clone())); list.push(("rope".into(), sp.rope[0].clone())); list.push(("hook".into(), sp.rope[1].clone())); list.push(("weight".into(), sp.weight.clone())); list.push(("boiler0".into(), sp.boiler[0].clone())); list.push(("boiler1".into(), sp.boiler[1].clone()));
+        for (k, h) in sp.stamp.iter().chain(sp.tub.iter()).chain(sp.smelter.iter()).enumerate() { list.push((format!("works{k}"), h.clone())); }
         for (k, h) in sp.bin.iter().enumerate() { list.push((format!("orebin{k}"), h.clone())); }
         for (k, h) in sp.props.iter().enumerate() { list.push((format!("prop-{:?}", props::PROPS[k]), h.clone())); }
         for (k, h) in sp.icons.iter().enumerate() { list.push((format!("icon-{:?}", ITEMS[k]), h.clone())); }
@@ -314,7 +315,7 @@ fn dev_dump(n: Local<u32>, g: Res<Game>, sp: Res<Sprites>, images: Res<Assets<Im
         for (k, h) in sp.chest.iter().enumerate() { list.push((format!("chest{k}"), h.clone())); }
         for (name, h) in list { if let Some(im) = images.get(&h) { if let Some(d) = im.data.as_ref() { bmp(&format!("{dir}/sprite-{name}.bmp"), im.width() as usize, im.height() as usize, d, false, 8); } } }
         // the production and machinery cells' own art, unlit, at rest and 1.5 cells of travel in
-        for m in [Mat::Engine, Mat::SteamPipe, Mat::Shaft, Mat::Gear, Mat::Wheel, Mat::Belt, Mat::BeltL, Mat::Drum, Mat::Chute, Mat::Screen, Mat::Bumper, Mat::Riffle] { for (j, t) in [0f32, 1.5].into_iter().enumerate() {
+        for m in [Mat::Bellows, Mat::Mould, Mat::MouldHot, Mat::Engine, Mat::SteamPipe, Mat::Shaft, Mat::Gear, Mat::Wheel, Mat::Belt, Mat::BeltL, Mat::Drum, Mat::Chute, Mat::Screen, Mat::Bumper, Mat::Riffle] { for (j, t) in [0f32, 1.5].into_iter().enumerate() {
             let im = art::swatch(m, t); if let Some(d) = im.data.as_ref() { bmp(&format!("{dir}/cells-{m:?}-{j}.bmp"), im.width() as usize, im.height() as usize, d, false, 8); } } }
         info!("dumped art to {dir}");
     }
@@ -382,6 +383,29 @@ fn stage_scene(w: &mut World) {
                 for k in 0..6u8 { put(w, ClueKind::Relic, x0 + 14 * S + k as usize * 4 * S, my, k); }
                 put(w, ClueKind::Draft, x0 + 45 * S, my, 0);
                 for k in 0..3 { w.torches.push((x0 + (6 + k * 20) * S, my - 4 * S)); }
+            }
+            "refine" => { // a sealed refinery east of the burrow: a counterweight under the roof drives a shaft and gears down to a
+                // stamp mill crushing copper ore, a washer with water in it and a block of bellows blowing a lit smelter;
+                // an empty ingot mould and a setting one stand past the smelter
+                use molehill_sim::{mat::CPM, power::Weight, refine::{Works, WorkKind}};
+                let (x0, x1, y0) = (mx + 4 * S, mx + 64 * S, my - 22 * S);
+                for x in x0 - 2 * S..x1 + 2 * S { for y in y0 - 4 * S..my + 1 + 2 * S { set(w, x, y, Mat::Bedrock); } }
+                for x in x0..x1 { for y in y0..=my { set(w, x, y, Mat::Empty); } }
+                let (xd, xg, floor) = (x0 + 10 * S, x0 + 18 * S, my + 1);
+                set(w, xd, y0, Mat::Drum); for x in xd + 1..xg { for y in y0..y0 + 2 { set(w, x, y, Mat::Shaft); } }
+                for x in xg..xg + 2 { for y in y0..y0 + 2 { set(w, x, y, Mat::Gear); } for y in y0 + 2..floor - 2 { set(w, x, y, Mat::Shaft); } for y in floor - 2..floor { set(w, x, y, Mat::Gear); } }
+                let y0w = (y0 + 2) as f32; w.tr.power.weights.push(Weight { x: xd, drum: y0, y: y0w, py: y0w, bottom: (floor - CPM / 2) as f32 });
+                let mut put = |w: &mut World, kind: WorkKind, left: usize| -> usize { let (ww, hh) = kind.size(); for r in floor - hh..floor { for c in left..left + ww { set(w, c, r, kind.mat()); } }
+                    w.tr.works.push(Works { kind, x: left + ww / 2, y: floor, input: vec![], work: 0, stroke: 0., washed: 0, water: 0., fuel: vec![], burning: None, burn: 0, temp: 20., air: 0., molten: [0.; 3], slag: 0. }); left + ww };
+                let after_stamp = put(w, WorkKind::Stamp, xg + 2); w.tr.works.last_mut().unwrap().input = vec![(Item::CopperOre, 12)];
+                let after_washer = put(w, WorkKind::Washer, after_stamp); w.tr.works.last_mut().unwrap().water = 6.;
+                for x in after_washer..after_washer + CPM / 2 { for y in floor - CPM / 2..floor { set(w, x, y, Mat::Bellows); } }
+                let after_smelter = put(w, WorkKind::Smelter, after_washer + CPM / 2);
+                { let sm = w.tr.works.last_mut().unwrap(); sm.burning = Some(Item::Coal); sm.burn = 2000; sm.fuel = vec![(Item::Coal, 6)]; sm.temp = 1200.; }
+                for (k, m) in [Mat::Mould, Mat::MouldHot].into_iter().enumerate() { for x in after_smelter + 2 + k * CPM..after_smelter + 2 + k * CPM + CPM / 2 { for y in floor - CPM / 2..floor { set(w, x, y, m); } } }
+                molehill_sim::light::reveal_box(&mut w.g, mx, y0 - 10 * S, x1 + 10 * S, my + 10 * S);
+                for k in 0..4 { w.torches.push((x0 + (6 + k * 16) * S, y0 + 4 * S)); }
+                for tx in [xg + 6, after_washer + CPM] { w.torches.push((tx, floor - 2 * CPM)); }
             }
             "steam" => { // a sealed boiler house east of the burrow: a boiler stoked with coal and full of water, a steam pipe
                 // from its side to a steam engine, and the engine driving a belt along the floor
@@ -652,7 +676,7 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, mut fonts: R
         mole_out: art::mole_sheet(false).into_iter().map(|i| images.add(i)).collect(),
         held: [art::Held::Pick, art::Held::Drill, art::Held::Bore, art::Held::Charge, art::Held::Block(Item::WoodPillar.color()), art::Held::Block(Item::Brick.color()), art::Held::Block(Item::IronBeam.color()), art::Held::RopeGun(true), art::Held::RopeGun(false)]
             .into_iter().map(|h| images.add(art::held_sprite(h))).collect(),
-        clue: (0..9).map(|k| images.add(decorart::clue(k))).collect(), props: props::PROPS.iter().map(|&p| images.add(props::image(p))).collect(), cart: images.add(art::cart()), rope: [images.add(art::rope_seg()), images.add(art::rope_hook())], weight: images.add(art::weight()), boiler: [images.add(art::boiler(false)), images.add(art::boiler(true))], bin: (0..5).map(|k| images.add(art::ore_bin(k))).collect(),
+        clue: (0..9).map(|k| images.add(decorart::clue(k))).collect(), props: props::PROPS.iter().map(|&p| images.add(props::image(p))).collect(), cart: images.add(art::cart()), rope: [images.add(art::rope_seg()), images.add(art::rope_hook())], weight: images.add(art::weight()), boiler: [images.add(art::boiler(false)), images.add(art::boiler(true))], stamp: [images.add(art::stamp_mill(0)), images.add(art::stamp_mill(1))], tub: [images.add(art::washer_tub(false)), images.add(art::washer_tub(true))], smelter: [0, 1, 2, 3].map(|k| images.add(art::smelter(k))), bin: (0..5).map(|k| images.add(art::ore_bin(k))).collect(),
         furn: ITEMS.iter().map(|&it| it.furn().map(|_| { let (b, c) = decorart::furniture(it); (images.add(decorart::finish(b)), c.map(|c| images.add(decorart::cloth(c)))) })).collect(),
         icons: ITEMS.iter().map(|&it| images.add(itemart::icon(it))).collect(),
         chest: [images.add(art::chest(false)), images.add(art::chest(true))],
@@ -1327,6 +1351,37 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
             let (cx, cy) = (x1 - 2.5, y0); // the chimney's mouth
             for j in 0..3 { let f = ((now * 0.6 + j as f32 / 3.) % 1.) as f32; let h = hash3(k as u32, j, 31) as f32 / u32::MAX as f32;
                 want.push((84, k * 3 + j as usize, cell_to_world(cx + f * 3. + h, cy - f * 2.5 * CPM as f32), 4.45, sp.glow.clone(), Vec2::splat(5. + 9. * f), false, Color::srgba(0.42, 0.4, 0.4, 0.45 * (1. - f)))); }
+        }
+    }
+    // refinement works, drawn over their shell cells: a stamp mill's two stamps rise on the cam and drop in turn
+    // through its stroke; a washer's tub rocks while its train turns, water in it while it has some; a smelter's fire
+    // mouth shows its heat, with a glow round it and smoke from its throat while it burns
+    for (k, wk) in w.tr.works.iter().enumerate() {
+        if w.g.flags[wk.y.saturating_sub(2).min(H - 1) * W + wk.x.min(W - 1)] & F_SEEN == 0 { continue; }
+        let (x0, y0, x1, y1) = wk.rect(); let (xc, yc) = ((x0 + x1) / 2., (y0 + y1) / 2.); let size = Vec2::new((x1 - x0) * CPX, (y1 - y0) * CPX);
+        let lt = lightf(wk.x, wk.y.saturating_sub(2)).to_srgba(); let lit = Color::srgb(lt.red, lt.green, lt.blue);
+        let body = wk.y.saturating_sub(2).min(H - 1) * W + wk.x.min(W - 1);
+        use molehill_sim::refine::WorkKind;
+        match wk.kind {
+            WorkKind::Stamp => {
+                want.push((85, k, cell_to_world(xc, yc), 3.9, sp.stamp[0].clone(), size, false, lit));
+                for (j, off) in [0f32, 0.5].into_iter().enumerate() { let s = (wk.stroke + off).fract(); let lift = if s < 0.8 { s / 0.8 } else { 1. - (s - 0.8) / 0.2 }; // a slow lift on the cam, a quick drop
+                    let sx = x0 + (x1 - x0) * [0.34, 0.66][j]; let top = y1 - (y1 - y0) * 5. / 24. - 3. - lift * molehill_sim::refine::STAMP_LIFT * CPM as f32; // at rest the head sits in the mortar's mouth (5/24 up the frame)
+                    want.push((86, k * 2 + j, cell_to_world(sx, top), 3.92, sp.stamp[1].clone(), Vec2::new(3., 12.), false, lit)); }
+            }
+            WorkKind::Washer => {
+                let t = w.tr.power.train.get(&body).and_then(|&t| g.turn.get(t as usize)).copied().unwrap_or(0.);
+                rot.insert((87, k), 0.12 * (t * 1.6).sin());
+                want.push((87, k, cell_to_world(xc, yc), 3.9, sp.tub[(wk.water > 0.) as usize].clone(), size, false, lit));
+            }
+            WorkKind::Smelter => {
+                let heat = if wk.temp < 300. { 0 } else if wk.temp < 800. { 1 } else if wk.temp < 1150. { 2 } else { 3 };
+                want.push((88, k, cell_to_world(xc, yc), 3.9, sp.smelter[heat].clone(), size, false, if heat >= 2 { Color::WHITE } else { lit }));
+                if heat > 0 { let fl = 0.85 + 0.1 * (now * 13.).sin() + 0.05 * (now * 29.).sin(); let a = [0., 0.2, 0.35, 0.5][heat];
+                    want.push((89, k, cell_to_world(xc, y1 - (y1 - y0) * 0.3), 4.4, sp.glow.clone(), Vec2::splat(20. * fl), false, Color::srgba(1., 0.55, 0.22, a * fl))); }
+                if wk.burning.is_some() { for j in 0..3 { let f = ((now * 0.5 + j as f32 / 3.) % 1.) as f32; let hh = hash3(k as u32, j, 37) as f32 / u32::MAX as f32;
+                    want.push((90, k * 3 + j as usize, cell_to_world(xc + f * 2. + hh - 0.5, y0 - f * 2.5 * CPM as f32), 4.45, sp.glow.clone(), Vec2::splat(5. + 9. * f), false, Color::srgba(0.4, 0.38, 0.38, 0.45 * (1. - f)))); } }
+            }
         }
     }
     // ore hoppers: the bin's back boards, the heap of what it holds tinted with that item's colour, the front

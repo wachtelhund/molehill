@@ -121,6 +121,29 @@ of any pickaxe rock is at most 30 ticks (half a second) and of soft soil at most
   so a bigger brush (the pickaxe's at its maximum, radius 3 tiles against the default 2.5) clears about 45%
   more a bite, and bite time does **not** scale with the brush's area. No change.
 
+## Stage 4 and 5 recipe costs (p9's production, main c1c079e and 8768278)
+Raw bills (`craft::raw_bill`, a coal per cold-forge job), against the ladder's drill (6 wood, 20 stone, 4 clay,
+8 copper ore, 2 tin ore, 4 coal) and bore (+12 iron ore, 4 crystal, 24 coal):
+
+| set | from the ground |
+|---|---|
+| boiler + 4 steam engines + 8 steam pipe | 14 iron ore, 4 copper ore, 4 clay, ~19 coal |
+| stamp mill | 8 iron ore, 4 wood, ~9 coal |
+| smelter | 10 clay, 4 coal |
+| washer | 6 wood, 2 clay |
+| 4 bellows / 4 ingot mould | 2 wood + 2 fungus / 2 sand + 1 clay |
+
+* First hour: untouched. Nothing here is on the drill's bill; steam and the stamp mill are iron (tier 2: after
+  the drill), about a bore's worth each.
+* Smelter vs forge: raw ore gives the forge's yield (0.5 an ore), on 0.5 coal an ingot (a coal burns 40 s,
+  four 10 s charges) against the forge's 1 (2 cold), but 20 s an ingot against 3.3 s, and it needs bellows
+  turning (copper wants 55% air, about 5 cells; iron 82%). It's a patient, coal-saving way, not a shortcut.
+  The 0.75 concentrate yield waits for the iron stamp mill. A copper smelting rig (smelter, 2 bellows crafts,
+  moulds, a water wheel and a gear) is about 10 wood, 4 fungus, 11 clay, 2 sand, 4 coal: mid-game, before the drill
+  if a player wants it, with the brick quest's 8 coal helping. No cost changes; pinned by
+  `the_smelter_is_patient_not_a_shortcut` (yield equal, coal lower, ≥ 3× slower, concentrate gated by iron,
+  the smelter kit pickaxe-diggable). Ash and slag: still residue, uses later.
+
 ## Open
 * Waking after death: the lamp holds whatever is left, with no oil in the pack (above). Option: the burrow
   keeps a measure for whoever crawls back in (a stash, not magic), once per wake.

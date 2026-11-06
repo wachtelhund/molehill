@@ -954,6 +954,25 @@ mod progression {
         assert!(food_s > light_s * 0.8 && food_s < light_s * 1.6, "mushrooms: {food_s:.0} s of food or {light_s:.0} s of light");
         assert_eq!(raw_bill(Item::FungusOil, 2)[Item::Fungus as usize], 3, "the bill takes the bench's press");
     }
+    /// Refinement beside the forge. The smelter melts raw ore at the forge's yield (2 ore an ingot), so it is no
+    /// shortcut to metal: it burns less coal an ingot but is far slower, the patient way where the forge is the
+    /// quick one. The better yield (concentrate) needs a stamp mill, which is iron, so it comes after the drill.
+    /// The smelter, its bellows and moulds and the washer are all made from what a pickaxe digs.
+    #[test] fn the_smelter_is_patient_not_a_shortcut() {
+        use molehill_sim::{refine::*, steam::burn_ticks, mat::{Mat, NMAT}};
+        let forge = &RECIPES[recipe_by_name("Iron ingot").unwrap()];
+        let ore = forge.inputs.iter().find(|i| i.0 == Item::IronOre).unwrap().1 as f32;
+        assert_eq!(ORE_YIELD * ore, 1.0, "raw ore: the smelter's yield is the forge's");
+        let coal = SMELT_TICKS as f32 / burn_ticks(Item::Coal).unwrap() as f32 / ORE_YIELD;
+        assert!(coal < 1.0, "the smelter burns {coal} coal an ingot; the forge 1, or 2 cold");
+        let (slow, quick) = (SMELT_TICKS as f32 / ORE_YIELD, forge.ticks as f32);
+        assert!(slow >= 3. * quick, "the smelter takes {slow} ticks an ingot, the forge {quick}");
+        assert!(FINES_YIELD > ORE_YIELD, "crushing and washing pay");
+        let pick = |it: Item| (0..NMAT).any(|m| { let m = Mat::from_u8(m as u8); m.p().tier <= 1 && drop_of(m) == Some(it) });
+        assert!(raw_bill(Item::StampMill, 1)[Item::IronOre as usize] > 0 && !pick(Item::IronOre), "concentrate waits for iron");
+        for it in [Item::Smelter, Item::Bellows, Item::Mould, Item::Washer] { let b = raw_bill(it, 1);
+            for (k, &n) in b.iter().enumerate() { assert!(n == 0 || pick(ITEMS[k]), "{it:?} needs {:?}, past the pickaxe", ITEMS[k]); } }
+    }
     /// Every metal made in Survival is wanted by something past it: bronze makes the drill, so no ingot is a dead end.
     #[test] fn bronze_makes_the_drill() {
         let drill = &RECIPES[recipe_by_name("Drill").unwrap()];
