@@ -1,0 +1,7 @@
+# dest<TAB>repo-relative source<TAB>sha256
+# Authentic development-build screenshots only. Build copies these; it does not generate art.
+hud-digging.png	docs/wiki/images/hud-digging.png	8d35d9586950e007ab78701fb7e961e104fc1beaea92654ab230e08e4def3a98
+blast-front.png	docs/wiki/images/blast-front.png	24a9ff2b3a9dac53e3f571988ad59637ec2d1b86057d88a9a1d3d9db738b4b83
+menu-main.png	docs/wiki/images/menu-main.png	cb6d3db01de2f3ef7e2d45f40674d940e0d8ff7ce55ecdd10b67eb2c11c90d85
+water-flood.png	engine/shots/gameplay-water-flood.png	e498cb1d8659666191f1f5d45bcb85ada26d834734cbac80cd79370b3e4df0c0
+torch-tunnel.png	engine/shots/gameplay-tnt-collapse.png	606b43d35c1f1f5c49507be73e65f8a0689eb950a9a902857227da50db8e58bc
