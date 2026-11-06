@@ -88,7 +88,26 @@ Polish only: no new features or concepts. Each entry is one commit.
     The sprite needed no change: its claws already sit on the wall face. Scenarios: `climb_smooth`
     (constant `vy` every tick on a ragged wall), `climb_mantle` (harness var `step`: distance moved this tick).
 
+15. **First hour: no hidden deaths under the feet (first-hour queue).** A new survey
+    (`examples/firsthour.rs`) measured the drops around the burrow: within 30 m, about 1 seed in 7 has a
+    ledge or a thin floor (under 1 m) over a drop that kills (~13.3 m from full health), e.g. seed 16 spawns
+    1 m above a 0.5 m worm shaft ~17 m deep. Driving the real thing (hold `S` from the burrow for 15 s on 32
+    seeds) found what actually kills: seed 9 digs into lava ~37 m down within 12 s. Fall damage is untouched.
+    Instead a dig that cuts into the floor under the body and would leave less than 1 m of it over a drop that
+    would kill at the hp left (onto rock; water is safe), or over lava, is held back at once: a warning thump
+    and "The floor rings hollow..." / "The floor is hot under your claws...", once a press and at most every
+    5 s (`World::fatal_drop`, `HOLLOW_FLOOR` = 1 m). It counts any thin column under the body, not only a
+    full hole: the first version only refused a bite that opened the whole floor, and the scenario showed the
+    stress solver snapping the 0.25 m slab a narrower bite left behind. Digging beside the drop still works,
+    so you open it, look, and go down by choice. A dig aimed past the 4.5 m reach now answers at once ("Too far
+    to dig: you reach 4.5 m."; the game passes an out-of-reach press with the pick to the sim). Scenarios
+    `dig_hollow_floor`, `dig_down_lava`, `dig_down_shallow`, `dig_down_water`, `dig_too_far`; test
+    `tests/first_hour.rs` (fails without the rule: seed 9 burns). Message wording sits beside `dig_refusal`
+    in `world.rs` (`HOLLOW`, `HOT`, `FAR`) for bugs-logic's message table.
+
 ## Open issues
+* Walking off a ledge you dug open is still a free choice: a dug-open cave shows itself, and run/stop is
+  instant, so I left ledge drops alone. Fissure sites (26 m, ledges every 6-7 m) still hurt at each ledge.
 * `main`'s solver still sends overburden through open caves, so dirt seams under deep rock are crushed in
   compression whatever supports them. That's a modelling choice from the other run; I left it alone.
 * No screenshot of the hit-flash, pops or camera: this run was on macOS without a capture setup. They need a

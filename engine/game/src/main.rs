@@ -686,6 +686,8 @@ fn input(mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<Button
         else if let Some(c) = g.charge.take() { let aim = g.throw_aim; if let Err(e) = g.w.throw_item(it, aim, c / THROW_CHARGE) { g.msg = format!("Can't throw: {e}"); } }
     } else { g.charge = None; if keys.just_pressed(KeyCode::KeyQ) { if let Some(th) = sel { g.msg = format!("{} can't be thrown", thing_name(&g, th)); } } }
     let blk = g.w.logic.block_of(cx, cy);
+    // a dig aimed past reach still goes to the sim, which answers it at once ("Too far to dig")
+    if !reach && matches!(sel, Some(Thing::Pick(_))) && mouse.pressed(MouseButton::Left) && !latched { g.w.input.mine = Some((cx, cy)); }
     if !reach || latched && mouse.pressed(MouseButton::Right) { return; }
     // E (hold and sweep): pick up the device, unlit TNT, torch or copperline under the cursor; no digging needed
     if keys.pressed(KeyCode::KeyE) && !g.inv_open && !g.e_latch {
