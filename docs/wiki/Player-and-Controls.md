@@ -10,7 +10,7 @@ You play one Delver: a body about **45 × 73 cm** (1.8 × 2.9 tiles of 0.25 m, i
 
 | input | action |
 |---|---|
-| `A` / `D` | Run. Instant start and stop. Steps of 1–2 tiles (up to 0.5 m) are climbed at full speed, and you shove through loose sand |
+| `A` / `D` | Run. Instant start and stop. Steps of 1–2 tiles (up to 0.5 m) are climbed at full speed, and you shove through loose sand. Sand, gravel or soil still falling or pouring (moved in the last two steps with air or more falling grains under it) is neither wall nor floor: you can't stand on or cling to a stream, you run and drop through it, and it pouring past you is no burial; once it settles it carries you (`World::in_flight`) |
 | `Shift` held while running | Sprint: 1.6× speed (instant), so jumps carry further; burns a little food. Shift-click is left free |
 | `Space` (or a fresh `W` press off a wall) | Jump. Hold for a full jump, tap for a short hop |
 | Into a wall in the air | Cling (side walls only: a ceiling just stops the jump). `W` / `S` climb up or down (speed eases in over ~3 ticks; a grab while falling catches at once); let go and you slide slowly. You grab as soon as a jump's rise slows to climbing speed, hold on across a notch, and ease out round a one-cell outcrop. `Space` wall-jumps away (also pressing away plus `Space`, or `Space` within 0.1 s of letting go); at the top you rise to the edge and roll over it smoothly (holding `W` or toward the wall); holding `W` through it doesn't hop |
