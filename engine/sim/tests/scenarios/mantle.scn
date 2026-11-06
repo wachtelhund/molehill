@@ -1,12 +1,14 @@
-// Cling to a 9-cell wall, climb with W, and roll over the top onto the ledge without a jump.
+// No wall climbing, but a ledge within a jump and a step: jump at a 1.75 m ledge (7 tiles) holding toward it,
+// and the mole rolls over its top onto it (a jump rises 1.5 m; the last 0.5 m is the step up, in the air too).
 map
 ##########################
 #........................#
 #........................#
 #........................#
 #........................#
-#...............##########
-#...............##########
+#........................#
+#........................#
+#........................#
 #...............##########
 #...............##########
 #...............##########
@@ -17,9 +19,9 @@ map
 ##########################
 end
 hold 1-60 right
-hold 55-60 right jump
-hold 61-140 right up
-dump 140
-expect 140 dy <= -9
+hold 52-80 right jump
+hold 81-140 right
+expect 140 dy <= -7
 expect 140 grounded == 1
 expect 140 dx > 13
+expect 140 hp == 100

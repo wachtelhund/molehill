@@ -10,15 +10,17 @@ You play one Delver: a body about **45 × 73 cm** (1.8 × 2.9 tiles of 0.25 m, i
 
 | input | action |
 |---|---|
-| `A` / `D` | Run. Instant start and stop. Steps of 1–2 tiles (up to 0.5 m) are climbed at full speed, and you shove through loose sand. Sand, gravel or soil still falling or pouring (moved in the last two steps with air or more falling grains under it) is neither wall nor floor: you can't stand on or cling to a stream, you run and drop through it, and it pouring past you is no burial; once it settles it carries you (`World::in_flight`) |
+| `A` / `D` | Run. Instant start and stop. Steps of 1–2 tiles (up to 0.5 m) are climbed at full speed, and you shove through loose sand. Sand, gravel or soil still falling or pouring (moved in the last two steps with air or more falling grains under it) is neither wall nor floor: you can't stand on a stream, you run and drop through it, and it pouring past you is no burial; once it settles it carries you (`World::in_flight`) |
 | `Shift` held while running | Sprint: 1.6× speed (instant), so jumps carry further; burns a little food. Shift-click is left free |
-| `Space` (or a fresh `W` press off a wall) | Jump. Hold for a full jump, tap for a short hop |
-| Into a wall in the air | Cling (side walls only: a ceiling just stops the jump). `W` / `S` climb up or down (speed eases in over ~3 ticks; a grab while falling catches at once); let go and you slide slowly. You grab as soon as a jump's rise slows to climbing speed, hold on across a notch, and ease out round a one-cell outcrop. `Space` wall-jumps away (also pressing away plus `Space`, or `Space` within 0.1 s of letting go); at the top you rise to the edge and roll over it smoothly (holding `W` or toward the wall); holding `W` through it doesn't hop |
+| `Space` (or a fresh `W` press) | Jump. Hold for a full jump (about 1.25 m), tap for a short hop |
+| Into a wall in the air | **No wall climbing** (Hampus, 2026-11-06): bare rock can't be clung to, climbed or wall-jumped off; you slide straight down it. A ledge whose top comes within 0.75 m of the feet as you press toward it in the air is rolled over (`TUNE.ledge`), so a full jump takes ledges up to about 2 m. Higher, use a rope ladder or the **rope gun** |
 | `W` / `Space` in water | Swim up |
 | `S` | Dig down (on the ground) |
 | Left mouse | Use the item in hand: dig, place a block brush, panel a back wall, torch, copperline, device, spore, TNT or station |
 | `Q` held, then released | Throw the item in hand toward the cursor: hold to charge (0.8 s to full power, dots show the arc), release to throw. Only throwable things fly (see [Tools and Items](Tools-and-Items.md#what-each-item-does)); a TNT charge goes out lit |
 | Right mouse | Interact: flip a lever, step a thrum pattern or ticker beat, light TNT or a fuse cord. On an empty spot it sets down the device or TNT in hand (unlit). With a **wall item** in hand it scrapes lining (the rock in front is untouched); a first-frame click on a device still uses the device |
+| Rope gun in hand: left mouse | Throw the hook at the cursor (one hook rope per throw; the rope is 16 m). It bites solid rock or a built block and stays; it glances off sand, gravel and rubble and sinks in water, and the hook rope falls where it stopped (see [Transport](Transport.md#rope-gun)) |
+| `W` by a rope-gun rope | Grab on (from the floor, a fresh press); `W` / `S` climb (2 m/s up, 3 m/s down); `A` / `D` swing (each push goes the way the swing already goes, so held it builds); toward a ledge within 0.75 m of the feet you step off onto it; `Space` lets go with a hop and the swing's speed; climbing down onto the floor lets go. A rope is never a fall. `E` on a rope takes it back as a hook rope |
 | `W` / `S` over a rope ladder | Grab on and climb (3 m/s up, 3.5 m/s down; `W` there never jumps); let go of the keys to hang still; at a ledge's ladder `S` steps on from the top and `W` climbs off onto the ledge; `A` / `D` alone or `Space` lets go. Climbing down is never a fall. A lift's cage carries you as you stand on it (see [Transport](Transport.md)) |
 | Right mouse on a tube hopper (empty paw) | Get sealed in a capsule and blown along the pipe to the hopper it sends to (its blower needs current). With something in the paw: choose where it sends |
 | Right mouse on a mine cart | Get in; `Space` jumps out, `A` / `D` lean on it. Walking into a cart pushes it (see [Transport](Transport.md)) |
@@ -45,8 +47,8 @@ Menus pause the sim. A key or mouse button held while a menu closes is ignored u
 Movement should feel like **Streets of Rogue**: instant start and stop, no input latency, and every action firing on press with immediate feedback. In practice:
 
 * Running reaches top speed in under 8 ticks and stops almost at once (ground acceleration 900, deceleration 1400 tiles/s²).
-* Reversing in mid-air takes about 4 ticks. Letting go in the air **coasts** (only 60 tiles/s² of drag), so wall-jump and run-off momentum carry.
-* **Coyote time** and a **jump buffer** of 0.1 s each: a jump 4 ticks after leaving a ledge works; 12 ticks after, it doesn't. The same 0.1 s grace applies after letting go of a wall. A jump tap is latched until the next 60 Hz step, so a quick tap on a fast display is never lost, and the camera follows after the step, so a press shows the same frame.
+* Reversing in mid-air takes about 4 ticks. Letting go in the air **coasts** (only 60 tiles/s² of drag), so run-off and rope-swing momentum carry.
+* **Coyote time** and a **jump buffer** of 0.1 s each: a jump 4 ticks after leaving a ledge works; 12 ticks after, it doesn't. A jump tap is latched until the next 60 Hz step, so a quick tap on a fast display is never lost, and the camera follows after the step, so a press shows the same frame.
 * Releasing jump early triples gravity (`cut_mul`) for a short hop. Falling uses 1.7× gravity, so arcs are snappy rather than floaty.
 * **Corner correction** (`nudge` 0.6 tiles): rising into a corner slides the head round it, and moving sideways in the air snaps the feet to the nearest row so you slot into tunnel mouths. Jumping into a 2-wide shaft half a cell off-centre still goes up.
 * Feedback is immediate, and every action answers on its tick: the mining strike sounds and gives a small shake (bigger tools shake more) on the first tick of a press and every 1/6 s after; a dig your tools can't do clinks at once and says why ("Granite is too hard for your pickaxe: come back with a drill (bronze, made at a powered workshop).", or for basalt "come back with a bore (iron, copper and crystal, made at the forge)"), once per press and material (sweeping along a granite wall clinks once, not per cell), and the words wait 5 s before repeating however often you click, even when one sweep crosses two materials with different lines (scenarios `dig_refused_once`, `dig_refused_mixed_face`); a dig beyond reach says "Too far to dig: step closer." and one into water or lava with nothing solid "Water can't be dug: it flows.", each once per press with the same 5 s wait (scenario `dig_refusals`), so no dig press goes unanswered; the dig ring turns a cold slate blue (RGB 0.42, 0.52, 0.72 at 60% opacity, `hotbar::REFUSE_RING`) over rock your tools can't dig: darker and bluer than the warm white dig ring, so it doesn't read as an outline, and you see it before you click; a block, torch, furniture, cart, ladder, lift, hopper or device that won't go down says why in one short line ("Can't place brick: needs something to rest on.", "Can't place torch: it needs fungus oil to burn.", "something is in the way", "none left", "out of reach"), and the same words wait 5 s before repeating while a different reason speaks at once (`World::refuse_place`, scenario `place_refused_once`); a throw, pick-up, device use or placed torch pops on screen; even a 0.5 m drop lands with a bump (scenario `feel_feedback`); a cleared bite or placed block pops on screen; any knock of more than 0.5 hp flashes the mole for 0.22 s and jolts the view in proportion; hard landings (8+ tiles, 2 m) thump the camera and squash the sprite.
@@ -64,22 +66,22 @@ Every movement constant lives in one place, `TUNE` in `world.rs`. Values in the 
 | `jump_v` | 42 | take-off speed (a full jump rises about 6 tiles, 1.5 m) |
 | `terminal` | 60 | maximum fall speed |
 | `coyote`, `buffer` | 0.1, 0.1 | grace windows (s) |
-| `climb`, `slide`, `climb_accel` | 10.5, 3, 240 | wall climb speed; slow slide when clinging without input; how fast climbing speeds up |
-| `wall_jump_x`, `wall_jump_y`, `wall_lock` | 17, 36, 0.13 | wall-jump kick and how long steering is locked after it |
-| `step` | 2 | cells stepped up automatically on the ground |
-| `mantle_v` | 9 | sideways speed rolling over a ledge at the top of a climb |
+| `climb` | 10.5 | a jump rising slower than this can roll over a ledge |
+| `step` | 2 | tiles (0.5 m) stepped up automatically on the ground |
+| `ledge` | 3 | tiles (0.75 m) above the feet a ledge's top may be for a jump pressing toward it to roll over it (no wall climbing) |
+| `mantle_v` | 9 | sideways speed rolling over a ledge (from a jump, a rope ladder's or a rope's top) |
 | `sprint` | 1.6 | run speed multiplier with `Shift` |
 | `nudge` | 0.6 | corner-correction reach |
 | `swim_mul`, `swim_grav`, `buoyancy`, `swim_up`, `swim_max` | 0.55, 0.35, 40, 70, 11 | water |
 | `lava_mul`, `lava_sink`, `lava_up`, `lava_dps` | 0.25, 3, 22, 75 | lava |
 | `safe_fall` | 20 | tiles (5 m) you can fall without harm |
 
-Change `TUNE`, then rerun the tests and scenarios. The feel scenarios (`run_jump`, `coyote`, `coyote_late`, `air_turn`, `wall_jump`, `wall_jump_away`, `no_ceiling_climb`, `wall_climb`, `climb_smooth`, `climb_mantle`, `mantle`, `sprint_speed`, `step_up`, `shaft_jump`, `tunnel_mouth`) assert the numbers that matter: rise, `vx` after N ticks, and the coyote window.
+Change `TUNE`, then rerun the tests and scenarios. The feel scenarios (`run_jump`, `coyote`, `coyote_late`, `air_turn`, `no_wall_climb`, `no_ceiling_climb`, `mantle`, `rope_gun_climb`, `sprint_speed`, `step_up`, `shaft_jump`, `tunnel_mouth`) assert the numbers that matter: rise, `vx` after N ticks, and the coyote window.
 
 ## Water and lava
 
 * **Water** slows you to 55 %, mostly cancels gravity, and lets you swim up with `W` or `Space`. Your breath runs down while you're under; when it runs out you lose health.
-* **Lava** is thick: you sink into it at 3 tiles/s, wade at a quarter speed, can barely claw up, can't cling to walls, and burn at 75 hp/s.
+* **Lava** is thick: you sink into it at 3 tiles/s, wade at a quarter speed, can barely claw up, and burn at 75 hp/s.
 
 ## Vitals and death
 

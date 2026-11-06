@@ -117,10 +117,9 @@ of any pickaxe rock is at most 30 ticks (half a second) and of soft soil at most
 * The first hour still flows (`progression -- 6 15` on main): first-hour finds are 1–15 s away by straight
   line, the bench is affordable at 0.2 min on every seed, nobody starves, and the light lasts 5.4–10 min. No
   code change needed.
-* **Open, for Hampus:** a bite takes the same time whatever its size, so enlarging the pickaxe's brush to its
-  maximum (radius 3 tiles against the default 2.5) clears about 45% more a bite. That claws back most of the
-  stone slowdown. Scaling a bite's time with its area would close it, but that changes the dig rule, not the
-  table, so it's left as a design call.
+* **Decided by Hampus (2026-11-06):** the brush stays as it is. A bite takes the same time whatever its size,
+  so a bigger brush (the pickaxe's at its maximum, radius 3 tiles against the default 2.5) clears about 45%
+  more a bite, and bite time does **not** scale with the brush's area. No change.
 
 ## Open
 * Waking after death: the lamp holds whatever is left, with no oil in the pack (above). Option: the burrow
