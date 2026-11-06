@@ -83,6 +83,8 @@ impl Kind {
 pub const MINE_RAIL: i64 = (CPM / 2) as i64;
 /// Metres between the mine's timber sets (post and cap), so no stretch of its roof spans further.
 pub const MINE_BAY: i64 = 4;
+/// The pumpworks' landing on the viewing window's sill, in metres below the box top.
+pub const PUMP_LANDING: usize = 12;
 /// The mine's worked face (ore) at its far end, in half metres from the end wall.
 pub const MINE_FACE: i64 = 5;
 
@@ -577,6 +579,10 @@ impl Site {
                 return Some(if shell { IronBeam } else { Empty });
             }
         }
+        // a timber landing on the viewing window's sill, keyed into the wheel's rim: a mole that comes
+        // over the wheel from the east door steps down onto it and takes the rope at its west end to the
+        // dry hall floor, instead of dropping 7 m beside the wheel
+        if dy >= PUMP_LANDING as i64 * c && dy < PUMP_LANDING as i64 * c + c / 2 && dx >= pump_wall - c && dx < pump_wall + 3 * c { return Some(WoodBeam); }
         Some(Empty)
     }
     /// A tall split in the host rock that widens mid-drop, with broken bridges, hanging ropes,
@@ -590,7 +596,8 @@ impl Site {
         let right = w - 2 * c + (wave * 0.45) as i64 + extra;
         let floor = h - c;
         let west_mouth = dy >= 5 * c && dy < 8 * c;
-        let east_mouth = dy >= 21 * c && dy < 24 * c;
+        // the east mouth's floor is the 24 m deck's top, so walking in from it is level
+        let east_mouth = dy >= 21 * c && dy < 24 * c - c / 2;
         if west_mouth && dx < left + 3 * c { return Some(Empty); }
         if east_mouth && dx >= right - 3 * c { return Some(Empty); }
         if dx < left || dx >= right { return None; }
@@ -603,7 +610,8 @@ impl Site {
         let inset = dx >= left + c / 2 && dx < right - c / 2;
         if inset && ledge(8 * c) { return Some(if dx < left + 5 * c { WoodBeam } else if dx >= right - 4 * c { IronBeam } else if span(c) { WoodBeam } else { Empty }); }
         if inset && ledge(16 * c) { return Some(if span(2 * c) { WoodBeam } else { Empty }); }
-        if inset && ledge(24 * c) { return Some(if dx < left + 6 * c { WoodBeam } else if dx >= right - 3 * c { IronBeam } else if span(c) { IronBeam } else { Empty }); }
+        // the 24 m deck runs right up to the east wall: no slot to step into from the east mouth
+        if dx >= left + c / 2 && dx < right && ledge(24 * c) { return Some(if dx < left + 6 * c { WoodBeam } else if dx >= right - 3 * c { IronBeam } else if span(c) { IronBeam } else { Empty }); }
         if inset && ledge(32 * c) { return Some(if dx >= (left + right) / 2 { WoodBeam } else { Empty }); }
         // small rubble against the wall, leaving a walkway along the deck
         if dy >= 8 * c - c / 2 && dy < 8 * c && dx > left + c && dx < left + 2 * c { return Some(Gravel); }
@@ -899,6 +907,8 @@ impl Site {
                 v.push(Thing::SwitchOn { at: [lx, ly] });
                 v.push(Thing::Device { dev: Dev::Pump, at: [x0 + 37 * c, y0 + s.h - 3 * c] });
                 v.push(Thing::Ladder { at: [x0 + 28 * c, y0 + 8 * c], anchor: [x0 + 27 * c, (y0 + 8 * c).saturating_sub(1)] });
+                // the rope off the landing's west end, tied to the landing, down to the dry hall floor
+                v.push(Thing::Ladder { at: [x0 + 33 * c - c / 2, y0 + PUMP_LANDING * c], anchor: [x0 + 33 * c, y0 + PUMP_LANDING * c] });
                 v.push(Thing::Torch { at: [x0 + 10 * c, y0 + s.h - 6 * c] });
                 v.push(Thing::Torch { at: [x0 + 24 * c, y0 + s.h - 4 * c] });
                 v.push(Thing::Torch { at: [x0 + 42 * c, y0 + s.h - 8 * c] });
