@@ -82,13 +82,34 @@ pub struct Player { pub px: f32, pub py: f32, pub ppx: f32, pub ppy: f32, pub sy
     /// rolling over a ledge after a climb (s left; direction = `wall_side`): carried onto the top, no gravity
     pub mantle: f32,
     /// "hungry and nothing to eat" was said: once until the next meal
-    pub hungry_said: bool }
+    pub hungry_said: bool,
+    /// what last hurt the player's mole: the cause the log gives if it dies
+    pub harm: Harm }
 /// Said when a bite under the feet is held back over a deadly drop (`World::fatal_drop`).
 /// Floor thinner than this (cells) over a deadly drop rings hollow: a bite that would leave less is held back.
 pub const HOLLOW_FLOOR: usize = CPM;
 pub const HOLLOW: &str = "The floor rings hollow: a deadly drop below. Dig beside it to look first.";
 /// Said when a bite under the feet is held back over lava.
 pub const HOT: &str = "The floor is hot under your claws: lava below. Dig beside it to look first.";
+/// What hurt the player's mole last: said as the cause when it dies.
+#[derive(Clone, Copy, Default, Debug, PartialEq, Eq)]
+pub enum Harm { #[default] None, Drowned, Choked, Starved, Burned, Buried, Fell, Blast }
+impl Harm {
+    /// The log's death line for the mole `name`, with its cause.
+    pub fn death_line(self, name: &str) -> String {
+        let why = match self {
+            Harm::Drowned => "drowned: its breath ran out under water",
+            Harm::Choked => "choked on stale air",
+            Harm::Starved => "starved",
+            Harm::Burned => "burned in the heat of molten rock",
+            Harm::Buried => "was buried by falling ground",
+            Harm::Fell => "died of a long fall",
+            Harm::Blast => "was caught in a blast",
+            Harm::None => "has died",
+        };
+        format!("{name} {why}. Back to the burrow...")
+    }
+}
 /// Ticks before the same "too hard" words are said again (the clink still sounds on each press).
 pub const DENY_REPEAT: u64 = 300;
 pub const REACH_CELLS: f32 = 4.5 * CPM as f32; // 4.5 m
@@ -715,29 +736,30 @@ impl World {
         let (x, y) = (self.moles[k].x, self.moles[k].y);
         let head = self.g.idx(x, y - S); let hm = self.g.m(head);
         let in_lava = (0..MOLE_H).any(|j| self.g.get(x, y - j).p().heat > 0 && !(k == 0 && self.g.get(x, y - j) == Mat::Lava));
-        let no_hunger = self.rules.no_hunger;
+        let no_hunger = self.rules.no_hunger; let mut harm = Harm::None;
         let m = &mut self.moles[k];
-        if in_lava { m.hp -= 4.; }
+        if in_lava { m.hp -= 4.; harm = Harm::Burned; }
         // needs (rates per second at 60 tps; step_moles runs every 2nd tick → dt = 1/30 s)
         let dt = 1. / 30.; let busy = matches!(m.job, Some(Job::Dig) | Some(Job::Build) | Some(Job::Craft(_)) | Some(Job::Station(_)) | Some(Job::Haul(_)) | Some(Job::Deliver));
         let mult = if busy { 1.5 } else { 1. };
         // (hunger off, a Survival option: the belly stays full)
         m.hunger = if no_hunger { 100. } else { (m.hunger - 0.33 * mult * dt).max(0.) };
         if m.job == Some(Job::Sleep) { m.sleep = (m.sleep + 2.5 * dt).min(100.); } else { m.sleep = 100.; /* one mole, no bedtime for now */ }
-        if m.hunger <= 0. { m.hp -= 1. * dt; }
+        if m.hunger <= 0. { m.hp -= 1. * dt; harm = Harm::Starved; }
         if m.hunger > 60. && m.sleep > 50. && m.breath > 80. { m.hp = (m.hp + 0.5 * dt).min(100.); }
         let co2 = self.air.at(x, y - S);
-        if hm == Mat::Water { m.breath = (m.breath - 0.25).max(0.); if m.breath <= 0. { m.hp -= 0.6; } }
-        else if co2 > 0.45 { m.breath = (m.breath - (co2 - 0.45) * 1.2).max(0.); if m.breath <= 0. { m.hp -= 0.4; } }
+        if hm == Mat::Water { m.breath = (m.breath - 0.25).max(0.); if m.breath <= 0. { m.hp -= 0.6; harm = Harm::Drowned; } }
+        else if co2 > 0.45 { m.breath = (m.breath - (co2 - 0.45) * 1.2).max(0.); if m.breath <= 0. { m.hp -= 0.4; harm = Harm::Choked; } }
         else { m.breath = (m.breath + 2.).min(100.); }
         // (a mole sealed in a pressure-tube capsule is inside the pipe, not buried)
         let buried = !(k == 0 && self.tr.in_tube.is_some()) && (0..MOLE_H).any(|j| self.g.is_solidish(self.g.idx(x, y - j)));
         if buried {
-            self.moles[k].hp -= 1.5; self.events.push(Event::Hurt);
+            self.moles[k].hp -= 1.5; self.events.push(Event::Hurt); harm = Harm::Buried;
             // try to wriggle up or sideways
             for (dx, dy) in [(0i32, -1i32), (-1, 0), (1, 0), (0, -2), (-2, 0), (2, 0), (0, -3)] { let (dx, dy) = (dx * S as i32, dy * S as i32); let (nx, ny) = ((x as i32 + dx) as usize, (y as i32 + dy) as usize); if self.fits(nx, ny) { self.moles[k].x = nx; self.moles[k].y = ny; break; } }
             self.moles[k].path.clear();
         }
+        if k == 0 && harm != Harm::None { self.pl.harm = harm; }
         // a hungry mole snacks from its pack
         // (the player's mole says what it ate and what's left, or once that there is nothing to eat)
         if self.moles[k].hunger < 40. && !self.rules.no_hunger {
@@ -753,7 +775,8 @@ impl World {
             }
         }
         if self.rules.harmless { self.moles[k].hp = self.moles[k].hp.max(1.); }
-        if self.moles[k].hp <= 0. { if k == 0 && self.rules.drop_pack { self.drop_pack(); } self.moles[k].alive = false; self.pl.dead_t = 0; self.pl.deaths += 1; let nm = self.moles[k].name; self.events.push(Event::Death); self.say(format!("{} has died. Back to the burrow...", nm)); }
+        if self.moles[k].hp <= 0. { if k == 0 && self.rules.drop_pack { self.drop_pack(); } self.moles[k].alive = false; self.pl.dead_t = 0; self.pl.deaths += 1; let nm = self.moles[k].name; self.events.push(Event::Death);
+            let line = if k == 0 { self.pl.harm.death_line(nm) } else { Harm::None.death_line(nm) }; self.say(line); }
     }
     fn drop_item(&mut self, x: usize, y: usize, item: Item, n: u32) {
         if let Some(d) = self.drops.iter_mut().find(|d| d.item == item && d.asleep() && d.fuse == 0 && d.x.abs_diff(x) <= 3 * S && d.y.abs_diff(y) <= 3 * S && d.n < 20) { d.n += n; return; }
@@ -992,7 +1015,7 @@ impl World {
         { let m = &self.moles[0]; if self.pl.sync != Some((m.x, m.y)) { self.pl.jump_was = inp.jump; self.pl.px = m.x as f32 + 0.5; self.pl.py = m.y as f32 + 1.0; self.pl.vx = 0.; self.pl.vy = 0.; self.pl.ppx = self.pl.px; self.pl.ppy = self.pl.py; self.pl.fall_from = m.y; self.pl.grounded = true; } }
         self.pl.ppx = self.pl.px; self.pl.ppy = self.pl.py;
         let (wet, lava) = self.body_fluid();
-        if lava { self.moles[0].hp -= t.lava_dps * dt; if self.tick % 20 == 0 { self.events.push(Event::Hurt); } }
+        if lava { self.moles[0].hp -= t.lava_dps * dt; self.pl.harm = Harm::Burned; if self.tick % 20 == 0 { self.events.push(Event::Hurt); } }
         let dir = inp.right as i32 - inp.left as i32;
         let jump_edge = inp.jump && !self.pl.jump_was; self.pl.jump_was = inp.jump;
         if jump_edge { self.pl.buffer = t.buffer; } else { self.pl.buffer = (self.pl.buffer - dt).max(0.); }
@@ -1109,7 +1132,7 @@ impl World {
         self.pl.px = self.pl.px.clamp(2. * SF, self.g.w as f32 - 2. * SF); self.pl.py = self.pl.py.clamp(BODY_H + 1., self.g.h as f32 - 2.);
         let (x, y) = (self.pl.px as usize, (self.pl.py - 0.001) as usize);
         let landed = self.box_hits(self.pl.px, self.pl.py + 0.05);
-        if landed && !self.pl.grounded && !wet && !lava { let f = y.saturating_sub(self.pl.fall_from); if f >= 8 * S { self.shake = self.shake.max(0.25 + f as f32 * 0.02 / SF); } else if f >= 2 * S { self.shake = self.shake.max(0.1); /* even a hop down lands with a bump */ } if f > t.safe_fall { self.moles[0].hp -= (f - t.safe_fall) as f32 * 3. / SF; self.events.push(Event::Hurt); } }
+        if landed && !self.pl.grounded && !wet && !lava { let f = y.saturating_sub(self.pl.fall_from); if f >= 8 * S { self.shake = self.shake.max(0.25 + f as f32 * 0.02 / SF); } else if f >= 2 * S { self.shake = self.shake.max(0.1); /* even a hop down lands with a bump */ } if f > t.safe_fall { self.moles[0].hp -= (f - t.safe_fall) as f32 * 3. / SF; self.pl.harm = Harm::Fell; self.events.push(Event::Hurt); } }
         if landed || wet || lava || self.pl.cling != 0 || self.pl.vy < 0. { self.pl.fall_from = y; }
         let _ = airfall;
         self.pl.grounded = landed;
