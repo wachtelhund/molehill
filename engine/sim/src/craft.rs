@@ -368,7 +368,7 @@ const ITEM_DEFS_CONST: [ItemDef; NITEM] = {
        .controls("Left mouse: build it into a drive line · join a pull-rod to it"),
     it(SteamBorer, "Steam borer", [104, 96, 92],
        "A rideable boring machine with its own firebox. It grinds a tunnel through rock and carries the spoil back.").dens(5000.0).place().pick_up()
-       .controls("Left mouse: set it down facing your way · coal in paw + right mouse: feed it · empty paw: get on · A/D: drive and bore · Space: off"),
+       .controls("Left mouse: set it down facing your way · coal in paw + right mouse: feed it · empty paw: get on · A/D: drive and bore · Space: off · E: rake out fuel, then pick up"),
     ]
 };
 /// Every item, in order.
