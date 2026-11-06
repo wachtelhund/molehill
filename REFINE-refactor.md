@@ -18,3 +18,13 @@ Behaviour-preserving refactors for scalability. Every slice: sim tests, scenario
 * Worldgen layering in gen.rs (p6) — gen.rs is busy on refine/first-hour-explore-finds; coordinate first.
 * Game crate: split main.rs systems into Bevy plugins — main.rs is open in 4 worktrees; wait.
 * Stations/recipes/quests are already tables; `drop_of` could move into the material table (`mat.rs` row) later.
+
+## Slice 2: chunk-gen hitch (`refine/chunk-gen-hitch`), Hampus's option 1
+* Cause: `World::shift` generated the fresh rows (`fill_rows`, ~100 ms), ran `stabilize_soft` over them and 32 m of old rows (up to 100 window-wide solve rounds, 0.3–1 s), woke the whole window, and re-solved it — all in one tick.
+* Fix (`sim/src/stream.rs`):
+  * A fresh band is a pure function of seed + row: generated with 16 m context above / 8 m below, shored with p4's `gen::Stab` in 32 m tiles (each round ~5 ms). Built ahead 3 slides each way: a worker thread natively, one slice per frame on the web (`World::prefetch_step`, called from `simulate`; p4 hooks it into the loading line). Never saved; visited bands untouched.
+  * A slide copies bands in, moves chunk sleep/`life` with the rock and wakes only entering chunks, and queues the **seam**: one full-window reachability pass (same rules as the solver), then the entering rows + 16 m and the far edge solved one 32 m box per tick, repairing failures as `Stab` does. The regular stress pass waits for it (~20 ticks).
+* Numbers (CPU ms per frame, single thread, seed 4242, 200 m routes; main 8f9085f vs branch):
+  * slide ticks: down 541 → 31 (web-like sliced 76), up 1312 → 35 (33), diag 551 → 16 (27), respawn 404 → 32 (53), load+dig 353 → 37 (44). Fast 40 m/s climb still outruns the buffer (1146 → 555).
+  * worst frame over 200 m straight down: 541 → 102 (the rest is ordinary stress passes from digging, also in main: 98); p99 88 → 72.
+* Tests: `tests/stream.rs` (purity across build paths, building ahead never changes the world, perf gate < 150 ms per slide/seam tick); `slide_keeps_stress_state` judges failure by the solver's rule and allows a quarter of utilisation drift from box solves.
