@@ -43,6 +43,8 @@ pub struct Rules {
 pub const OIL_SECS: f32 = 180.;
 /// Seconds of headlamp light left when it warns that the oil is running low (only when there's none spare).
 pub const OIL_LOW: f32 = 30.;
+/// A dead mole's pack is left on the last dry ground it stood on if that is this close (metres).
+pub const PACK_DRY_M: f32 = 16.;
 /// Fungus pressed into one measure of oil when the pack has no oil left.
 pub const FUNGUS_PER_OIL: u32 = 2;
 /// The Survival start kit: a pickaxe, a few torches, some food and oil.
@@ -83,6 +85,22 @@ impl World {
         if self.oil_measures() == 0 { self.say(format!("The last measure of oil: about {:.0} minutes of light. Gather fungus to press more, or turn back.", OIL_SECS / 60.)); self.events.push(Event::Warning); }
         true
     }
+    /// Can a mole stand here: open and not liquid at its feet and head, on something solid?
+    fn dry_at(&self, x: usize, y: usize) -> bool {
+        let g = &self.g; if x == 0 || x + 1 >= g.w || y < 3 * crate::mat::S || y + 1 >= g.h { return false; }
+        let clear = |m: crate::mat::Mat| matches!(m.kind(), crate::mat::Kind::Empty | crate::mat::Kind::Gas);
+        (0..3 * crate::mat::S).all(|j| clear(g.get(x, y - j))) && matches!(g.get(x, y + 1).kind(), crate::mat::Kind::Solid | crate::mat::Kind::Powder)
+    }
+    /// The nearest dry floor (feet position, cells) within `PACK_DRY_M` of the dead mole, if any.
+    fn nearest_dry_floor(&self) -> Option<(f32, f32)> {
+        let r = (PACK_DRY_M * crate::mat::CPM as f32) as i64; let (cx, cy) = (self.pl.px as i64, self.pl.py as i64 - 1);
+        let mut best: Option<(i64, (f32, f32))> = None;
+        for y in (cy - r).max(0)..=(cy + r).min(self.g.h as i64 - 2) { for x in (cx - r).max(1)..=(cx + r).min(self.g.w as i64 - 2) {
+            let d = (x - cx).pow(2) + (y - cy).pow(2); if d > r * r || best.is_some_and(|(b, _)| d >= b) { continue; }
+            if self.dry_at(x as usize, y as usize) { best = Some((d, (x as f32 + 0.5, y as f32 + 1.))); }
+        } }
+        best.map(|b| b.1)
+    }
     /// Measures of oil the pack can still give: oil, and fungus to press.
     pub fn oil_measures(&self) -> u32 { self.inv[Item::FungusOil as usize] + self.inv[Item::Fungus as usize] / FUNGUS_PER_OIL
     }
@@ -103,15 +121,23 @@ impl World {
         }
         if self.rules.harmless { for m in self.moles.iter_mut() { m.hp = 100.; m.breath = 100.; m.hunger = 100.; } }
     }
-    /// The player died: everything in the pack spills where they fell, as loose items, to go back for.
+    /// The player died: everything in the pack spills as loose items, to go back for: on the last dry ground
+    /// the mole stood on if that is within `PACK_DRY_M` (a drowned mole's pack waits at the water's edge, not
+    /// under it), otherwise where it fell.
     pub(crate) fn drop_pack(&mut self) {
-        let (cx, cy) = (self.pl.px, self.pl.py - BODY_H * 0.5); let mut k = 0;
+        let near = |(x, y): (f32, f32)| (x - self.pl.px).hypot(y - self.pl.py) <= PACK_DRY_M * crate::mat::CPM as f32;
+        // no dry place stood on nearby (it fell or swam into deep water, or the ground came down): the nearest
+        // dry floor within reach of the death instead, so the pack still waits out of the water
+        let dry = self.pl.dry.filter(|&p| near(p)).or_else(|| if self.dry_at(self.pl.px as usize, self.pl.py as usize - 1) { None } else { self.nearest_dry_floor() });
+        let (px, py) = dry.unwrap_or((self.pl.px, self.pl.py)); let moved = dry.is_some_and(|(x, y)| (x - self.pl.px).hypot(y - self.pl.py) > crate::mat::CPM as f32);
+        let (cx, cy) = (px, py - BODY_H * 0.5); let mut k = 0;
         for (i, &it) in ITEMS.iter().enumerate() {
             let n = self.inv[i]; if n == 0 { continue; }
             // a little spread so the pile reads as a pile; seeded, so runs stay deterministic
             let mut d = Drop::at(cx, cy.max(ITEM_HW + 1.), it, n); d.vx = (((k * 7) % 11) as f32 - 5.) * 2. * SF; d.vy = -6. * SF; k += 1;
             self.drops.push(d); self.inv[i] = 0;
         }
-        if k > 0 { self.say(format!("Your pack lies where you fell, {:.0} m down. Go back for it.", self.depth_m(self.pl.px as usize, self.pl.py as usize).max(0.))); }
+        let d = self.depth_m(px as usize, py as usize).max(0.);
+        if k > 0 { self.say(if moved { format!("Your pack lies on dry ground near where you fell, {d:.0} m down. Go back for it.") } else { format!("Your pack lies where you fell, {d:.0} m down. Go back for it.") }); }
     }
 }

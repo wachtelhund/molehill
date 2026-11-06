@@ -13,7 +13,7 @@ use std::collections::VecDeque;
 /// v4: the world as bands (see `band.rs`): a manifest names every band (window and off-window) by start
 /// row and content hash; blobs travel inline (`save`) or as separate keys (`save_parts`). v3: one blob
 /// with a row cache of cells (still loads). Older (surface-world) saves are refused.
-pub const VERSION: u32 = 10; // 10: background walls (band trailing RLE) and sites visited; // 9: transport (carts and their cargo; see transport.rs); // 8: Ancient relics found and ruins visited; // 7: the Lid journal and the clues found; 6: the items ever picked up (recipes unlock by touch); 5: the game mode, the headlamp's oil, and hunger on/off
+pub const VERSION: u32 = 11; // 11: grottos visited; // 10: background walls (band trailing RLE) and sites visited; // 9: transport (carts and their cargo; see transport.rs); // 8: Ancient relics found and ruins visited; // 7: the Lid journal and the clues found; 6: the items ever picked up (recipes unlock by touch); 5: the game mode, the headlamp's oil, and hunger on/off
 const MAGIC: &[u8; 8] = b"MOLEHILL";
 /// The engine tag also names the cell resolution: a save at another cells-per-metre won't load.
 const ENGINE: &str = if crate::mat::CPM == 4 { "bevy-v3" } else if crate::mat::CPM == 8 { "bevy-v3-cpm8" } else { "bevy-v3-cpm?" };
@@ -124,6 +124,7 @@ pub fn save_parts(w: &World) -> Parts<'_> {
     let mut rs: Vec<u32> = w.ruins_seen.iter().copied().collect(); rs.sort(); o.u8(w.relics); o.u32(rs.len() as u32); for id in rs { o.u32(id); }
     o.bytes(&w.encode_transport());
     let mut ss: Vec<u32> = w.sites_seen.iter().copied().collect(); ss.sort(); o.u32(ss.len() as u32); for id in ss { o.u32(id); }
+    let mut gs: Vec<u32> = w.grottos_seen.iter().copied().collect(); gs.sort(); o.u32(gs.len() as u32); for id in gs { o.u32(id); }
     o.u32(bands.len() as u32); for (wy0, h, b) in &bands { o.u64(*wy0 as u64); o.u64(*h); o.u32(b.len() as u32); }
     Parts { manifest: o.0, bands: bands.into_iter().map(|(wy0, h, b)| (band_key(wy0, h), b)).collect() }
 }
@@ -178,6 +179,8 @@ pub fn load_with(b: &[u8], fetch: &mut dyn FnMut(&str) -> Option<Vec<u8>>) -> R<
     let transport = if ver >= 9 { Some(r.bytes()?.to_vec()) } else { None };
     // v10: sites visited (walls travel with the bands)
     let sites_seen = if ver >= 10 { let mut s = std::collections::HashSet::new(); for _ in 0..r.len(1 << 20)? { s.insert(r.u32()?); } s } else { Default::default() };
+    // v11: grottos visited
+    let grottos_seen = if ver >= 11 { let mut s = std::collections::HashSet::new(); for _ in 0..r.len(1 << 20)? { s.insert(r.u32()?); } Some(s) } else { None };
     let list: Vec<(i64, u64, usize)> = (0..r.len(1 << 20)?).map(|_| Ok((r.u64()? as i64, r.u64()?, r.len(1 << 28)?))).collect::<R<_>>()?;
     let inline = !r.done() && r.u8()? == 1;
     // the world: generated from the seed, then everything mutable comes from the bands
@@ -217,6 +220,8 @@ pub fn load_with(b: &[u8], fetch: &mut dyn FnMut(&str) -> Option<Vec<u8>>) -> R<
     w.sites_seen = sites_seen;
     w.refresh_chests();
     if ver < 10 { w.infer_back(); }
+    // grottos visited: saved since v11; before that, a grotto whose hollow has been seen counts as visited
+    match grottos_seen { Some(s) => w.grottos_seen = s, None => w.mark_seen_grottos() }
     w.g.life.iter_mut().for_each(|v| *v = 0); w.g.wake_all(); w.st = crate::stress::Stress::new(gw * gh);
     let f = w.st.solve(&w.g); w.st.crack(&w.g, &f); w.g.clear_struct();
     w.say(format!("Loaded save (tick {}).", tick));

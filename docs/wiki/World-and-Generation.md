@@ -81,6 +81,7 @@ Deep down (below 70 m) the rock is mostly **basalt**, with crystal and quartz on
   * There are 1–3 **root-trees**: 0.5 m trunks, 2–3.5 m tall, standing on spreading **root-tree roots**.
 * **Root-trees regrow.** Cut a trunk and it gives **wood**. While its roots stand and there's seep water within about 6 m, the trunk grows back a cell at a time, about every 6 s per column, to its old height. Dig out the roots, or drain the pool, and it never comes back. The rule reads only the grid, so it survives slides and saves (`tree_regrow`, `tree_no_seep`).
 * **Glowmites** drift through every grotto: a swarm of 4–7 small, cold green-gold lights, each on its own slow loop round the hollow. Each one is a light source. Right mouse on one catches it in a jar (a **Glowmite** in the pack, which glows when held). A grotto's swarm refills, with a caught glowmite replaced after 5 minutes (`glowmite_catch`, `glowmites_drift_glow_and_get_caught`).
+* **Discovery:** the first time you come within 8 m of a grotto's hollow, a line goes in the log, like ruins and found places: "A grotto, 22 m down: water seeps through the rock here, root-trees drink it, and glowmites drift in the hollow. Cut root-trees for wood." ("6 m up" or "level with the burrow" for one above or beside it). Once per grotto; saves remember which (format 11). No cards (scenario `grotto_discovery`).
 * Grottos are a pure function of the seed and position like the rest of the world, so a slide or a reload regenerates them identically.
 
 ## Ruins of the Ancients
@@ -108,7 +109,7 @@ A **background wall** is a Terraria-style lining behind the player and the falli
 
 ## Found places
 
-Seven families of **found places**, not random loot rooms (`sim/src/sites.rs`). Each has a purpose, materials, layout variation, a depth band, and something a Delver can do. Foreground (props, rails, water, tubes) is ordinary cells and obeys the same physics as anything you build. Background lining comes from the wall layer and holds no roof. They **never** grow a second Ancient waygate: a buried cargo halt sits next to an existing tube station when one is near, and faces it.
+Seven families of **found places**, not random loot rooms (`sim/src/sites.rs`; what each box holds is stamped from a data template in `assets/sites/`, see [Site templates](Site-Templates.md)). Each has a purpose, materials, layout variation, a depth band, and something a Delver can do. Foreground (props, rails, water, tubes) is ordinary cells and obeys the same physics as anything you build. Background lining comes from the wall layer and holds no roof. They **never** grow a second Ancient waygate: a buried cargo halt sits next to an existing tube station when one is near, and faces it.
 
 * **Where:** the world is cut into 96 m × 48 m site cells. A seeded hash decides whether each holds a site (about 10 % in the holt layers, a little more through the mid-granite, none in the far wet up or the lava deep). None comes near the start burrow, none overlaps a grotto, a ruin, or another site. Small test windows (under 160 m wide: the arena and most scenarios) stay site-free so existing holts don't change shape. The playable window (256 m) gets them. Deterministic, rare, clear of the start: `sites_are_rare_deterministic_and_clear_of_start_ruins_and_each_other`. **A first-hour find:** every playable holt also has a found place with a chest a real trek from the burrow: its nearest cell 35–90 m away and inside the starting window (`sites::NEAR_FIND`). If the seed placed one there it is that one; otherwise an abandoned mine (else an abandoned holt) goes into an empty site cell by the same rules as any site, clear of the start, grottos and ruins, never replacing a site the seed placed (`a_rewarding_find_is_a_first_hour_trek_from_the_burrow`). Survey seeds 1–50 (after the found-place rework): 50 of 50 have one, at 40–86 m; 39 are mines, 8 holts, and one each a cargo halt, pumpworks and fossil cave. A mine's timber sets (post and cap) stand every 4 m (`sites::MINE_BAY`), so no stretch of its 1 m roof spans further: at 8 m a mine under weak host rock couldn't stand (`slides_leave_nothing_failing`, seed 11).
 * **Discovery:** the first time you come within 8 m, a line goes in the log. No cards, no banners.
@@ -126,11 +127,13 @@ Seven families of **found places**, not random loot rooms (`sim/src/sites.rs`). 
 
 Stamped sites and their interactions: `all_seven_site_families_stamp_with_purpose`, `found_places_have_open_silhouettes_not_filled_boxes` (host rock above a holt dome, a pump roof and a halt warehouse, and outside a fossil or crystal shell), `found_places_entrances_reach_every_room_and_the_chest` (from every way in, a mole body can reach the chest — or the fissure floor — and no room of 4 m² or more is cut off; salt-hall and fossil mouths keep their lintels), `site_pumpworks`, `site_mine`, `site_holt`, `site_fissure`, `site_fossil`, `site_crystal`, `site_halt`. Headless tests do not prove the rooms *look* like carved rock. Native `--scene=mine` (and the other family names, or `walls`) stamps one isolated copy in host rock next to the burrow so a `--shot` can inspect lining, props and layout.
 
+**Furnishings.** Each family is furnished with drawn props on top of the set-pieces its layout builds in cells: a winch, scaffolding and dig tools in the mine, pipes and a sluice gate in the pumpworks, broken bridge stubs and ropes in a fissure, crystal clusters in the salt hall, a railcar, bench and station sign in a halt, and a kitchen, bedroll and hanging pantry in a holt. They have no weight and can't be dug. Each is fitted against the cells actually there, so it stands on a floor or hangs from a roof. The full list and the rules are on [Item and Place Art](Item-and-Place-Art.md#found-place-furnishings).
+
 **How they read.** Rail and ore draw their own pixel art (`art::mat_color`): track is a copper strap along the top (old track flecked with verdigris) over dark timber sleepers every half metre with sooty ballast between, so it never reads as a plank floor; ore pockets and veins show rounded half-metre nuggets in the ore's own colour (copper flecked green with verdigris, rust-red iron, pale tin, glossy coal) in a darker matrix. Nothing glows: they are lit like any rock (tests `rails_do_not_read_as_a_wood_floor`, `ore_pockets_stand_out_without_glowing`).
 
 ### What they look like
 
-One still of each family, stamped with `--scene=<family>` on seed 4242 and lit by the scene's torches. These are the CPU-side composite from `--dump-art` (`view.bmp`), cropped to the site and scaled up with nearest sampling. Furniture, chests, farms, carts and rope ladders are blitted into that composite; torches show as their light.
+One still of each family, stamped with `--scene=<family>` on seed 4242 and lit by the scene's torches. These are the CPU-side composite from `--dump-art` (`view.bmp`), cropped to the site. It now carries the world sprites too (furniture, furnishings, chests, torches, carts, the mole), and the whole crop is rendered, not just the part on screen.
 
 ![Abandoned mine: a two-level sooty drift with a tall headframe, chutes and collapsed timbering](images/site-mine.png)
 *Abandoned mine* (`--scene=mine`)
@@ -181,7 +184,8 @@ The holt begins in a **domed chamber about 7.75 m wide**, carved at depth 0 in t
 * side walls tie the dome to a clay floor, and if a cavern lies underneath, limestone legs drop down to the next solid ground;
 * water and lava near the burrow are dried to clay, and nothing that flows in during the settling pass stays inside;
 * the floor stays soil, so mushrooms can grow there, and nothing just below it is granite, so even claws can dig out;
-* a **vent** is placed above the burrow and two torches inside it, and the area 15 m to each side is revealed.
+* a **vent** is placed above the burrow and two torches inside it;
+* only the burrow starts out seen: what a mole sees from inside the chamber (rays from three spots stop at the first rock, up to `SPAWN_SIGHT_M` = 6 m) and a 1 m skin of its walls. Everything else (caves, ore, the rock around) stays dark until vision, digging or the headlamp finds it, and only materials in sight count as discovered (`spawn_reveals_only_burrow_neighbourhood`, over five seeds). Before, a 30 × 23.5 m box was marked seen straight through rock.
 
 ## The stability pass
 

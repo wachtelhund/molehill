@@ -1,0 +1,24 @@
+// A death says what killed the mole, from what last hurt it: starved, drowned (see death_pack_dry_ground),
+// choked on stale air, burned, buried, a long fall, a blast. "Mossy has died." alone told a new player nothing.
+map
+BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+#..............................#
+#..............................#
+#..............................#
+#..............................#
+#.....@........................#
+################################
+end
+// starving: an empty belly wears the health down
+set 10 inv:Grub 0                   // nothing to eat
+set 10 hunger 0
+set 10 hp 3
+expect 300 log:starved == 1
+expect 300 log:has_died == 0          // never the bare line when the cause is known
+// back in the burrow, weakened, then a blast close by
+expect 399 deaths == 1
+expect 399 hp == 100                // respawned
+set 400 hp 5
+explode 401 3 -1 0.25
+expect 420 log:caught_in_a_blast == 1
+expect 420 deaths == 2

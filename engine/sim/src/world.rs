@@ -82,13 +82,42 @@ pub struct Player { pub px: f32, pub py: f32, pub ppx: f32, pub ppy: f32, pub sy
     /// rolling over a ledge after a climb (s left; direction = `wall_side`): carried onto the top, no gravity
     pub mantle: f32,
     /// "hungry and nothing to eat" was said: once until the next meal
-    pub hungry_said: bool }
+    pub hungry_said: bool,
+    /// what last hurt the player's mole: the cause the log gives if it dies
+    pub harm: Harm,
+    /// the last dry place the mole stood (on the ground, out of water, lava and stale air): where its pack
+    /// is left if it dies close by, so a drowning doesn't sink the pack with it
+    pub dry: Option<(f32, f32)> }
 /// Said when a bite under the feet is held back over a deadly drop (`World::fatal_drop`).
 /// Floor thinner than this (cells) over a deadly drop rings hollow: a bite that would leave less is held back.
 pub const HOLLOW_FLOOR: usize = CPM;
 pub const HOLLOW: &str = "The floor rings hollow: a deadly drop below. Dig beside it to look first.";
 /// Said when a bite under the feet is held back over lava.
 pub const HOT: &str = "The floor is hot under your claws: lava below. Dig beside it to look first.";
+/// The log line for a grotto first come near, `depth` metres below the burrow's level (negative: above it).
+pub fn grotto_notice(depth: f32) -> String {
+    let at = if depth >= 0.5 { format!("{depth:.0} m down") } else if depth <= -0.5 { format!("{:.0} m up", -depth) } else { "level with the burrow".into() };
+    format!("A grotto, {at}: water seeps through the rock here, root-trees drink it, and glowmites drift in the hollow. Cut root-trees for wood.")
+}
+/// What hurt the player's mole last: said as the cause when it dies.
+#[derive(Clone, Copy, Default, Debug, PartialEq, Eq)]
+pub enum Harm { #[default] None, Drowned, Choked, Starved, Burned, Buried, Fell, Blast }
+impl Harm {
+    /// The log's death line for the mole `name`, with its cause.
+    pub fn death_line(self, name: &str) -> String {
+        let why = match self {
+            Harm::Drowned => "drowned: its breath ran out under water",
+            Harm::Choked => "choked on stale air",
+            Harm::Starved => "starved",
+            Harm::Burned => "burned in the heat of molten rock",
+            Harm::Buried => "was buried by falling ground",
+            Harm::Fell => "died of a long fall",
+            Harm::Blast => "was caught in a blast",
+            Harm::None => "has died",
+        };
+        format!("{name} {why}. Back to the burrow...")
+    }
+}
 /// Ticks before the same "too hard" words are said again (the clink still sounds on each press).
 pub const DENY_REPEAT: u64 = 300;
 pub const REACH_CELLS: f32 = 4.5 * CPM as f32; // 4.5 m
@@ -167,6 +196,8 @@ impl Furniture {
 #[derive(Clone)]
 pub struct Building { pub kind: Station, pub x: usize, pub y: usize, pub built: bool, pub claimed: bool }
 
+/// How far (m) a new holt can see from inside its burrow at the start: rays from the chamber stop at the first rock.
+pub const SPAWN_SIGHT_M: usize = 6;
 pub struct World {
     pub g: Grid, pub st: Stress, pub light: Light, pub info: GenInfo, pub tick: u64,
     pub inv: [u32; NITEM], dig_acc: [u16; NMAT], place_acc: [u16; 12], pub desig: Vec<u8>,
@@ -214,6 +245,8 @@ pub struct World {
     pub walls: crate::walls::Walls,
     /// sites touching the window (refreshed with the chests); the ones already visited (ids)
     pub sites: Vec<crate::sites::Site>, pub sites_seen: std::collections::HashSet<u32>,
+    /// grottos the player has come near (the discovery line is said once each); saved
+    pub grottos_seen: std::collections::HashSet<u32>,
 }
 /// For audio / UI feedback.
 /// What `World::pick_up` took back into the pack.
@@ -245,7 +278,7 @@ impl World {
             moles: vec![], drops: vec![], stockpile: (0, 0, 0, 0), buildings: vec![], torches: vec![], chests: vec![], furniture: vec![], paint_acc: 0,
             quest: 0, log: vec![], discovered: [false; NMAT], chests_opened: 0, pillars: 0, max_depth: 0., craft_queue: vec![], gear: Gear::default(), known: [false; NITEM], mode: Default::default(), rules: Default::default(), lamp_oil: 0., lamp_dry: false, lamp_low: false, ruins: vec![], ruins_seen: Default::default(), relics: 0, crumbled: 0,
             light_rect: (0, 0, w - 1, h - 1), events: vec![], marks: vec![], react_pending: false, logic: Logic::new(w, h), disasters: Disasters::new(seed), shake: 0., air: Air::new(w, h), farms: vec![], harvested: 0, input: Input::default(), pl: Player::default(), gen: gn, oy, bands: Default::default(), opened: Default::default(), clues: vec![], found_clues: Default::default(), journal: vec![], grottos: vec![], caught: Default::default(), keep_blast_field: false, blast_field: vec![], debris: vec![], waves: vec![], strain: vec![], strain_creak: 0, tr: Default::default(), blasts_run: 0, info, g,
-            walls: crate::walls::Walls::new(w, h), sites: vec![], sites_seen: Default::default(),
+            walls: crate::walls::Walls::new(w, h), sites: vec![], sites_seen: Default::default(), grottos_seen: Default::default(),
         }
     }
     pub fn new(w: usize, h: usize, seed: u32) -> World {
@@ -261,7 +294,13 @@ impl World {
         wd.stockpile = (sx + 6 * S, fy - 2 * S, sx + 16 * S, fy);
         for k in 0..1 { wd.moles.push(Mole { name: NAMES[k], x: sx, y: fy, hp: 100., breath: 100., path: VecDeque::new(), job: None, work: 0, work_cell: None, carry: None, hunger: 80. + k as f32 * 4., sleep: 70. + k as f32 * 7., facing: 1, fall: 0, idle: 0, anim: k as u32 * 7, alive: true }); }
         wd.pl.spawn = (sx, wd.oy + fy as i64); wd.pl.fall_from = fy;
-        light::reveal_box(&mut wd.g, sx - 60 * S, fy.saturating_sub(42 * S), sx + 60 * S, (fy + 52 * S).min(h - 1)); // the colony knows its neighbourhood
+        // the colony knows its own burrow, not the rock around it: what a mole sees from inside the chamber
+        // (rays stop at the first rock) and a 1 m skin of its walls. Everything else waits to be found.
+        for (dx, up) in [(-3i64, 1i64), (0, 2), (3, 1)] {
+            let x = (sx as i64 + dx * CPM as i64).clamp(0, w as i64 - 1) as usize;
+            light::reveal(&mut wd.g, x, fy.saturating_sub(up as usize * CPM), SPAWN_SIGHT_M * CPM);
+        }
+        light::reveal_skin(&mut wd.g, sx.saturating_sub((SPAWN_SIGHT_M + 1) * CPM), fy.saturating_sub((SPAWN_SIGHT_M + 1) * CPM), sx + (SPAWN_SIGHT_M + 1) * CPM, (fy + 2 * CPM).min(h - 1), CPM);
         { let b = wd.logic.block_of(sx, fy - 5 * S); let gg = &mut wd.g; wd.logic.place(gg, Dev::Vent, b); } // the burrow's air shaft
         wd.torches.push((sx - 12 * S, fy - 2 * S)); wd.torches.push((sx + 12 * S, fy - 2 * S));
         for (it, n) in [(Item::Wood, 8), (Item::Torch, 6), (Item::WoodPillar, 12), (Item::Grub, 12), (Item::CopperWire, 40), (Item::Gate, 6), (Item::Thrummer, 3), (Item::Spore, 6), (Item::Vent, 1)] { wd.inv[it as usize] = n; }
@@ -583,7 +622,7 @@ impl World {
         let mut dz = std::mem::replace(&mut self.disasters, Disasters::new(0));
         dz.step(self); self.disasters = dz;
         if self.tick % air::UPDATE_TICKS == 0 { self.step_air(); }
-        if self.tick % 30 == 0 { self.step_farms(); self.check_furniture(); self.step_ruins(); self.step_sites(); }
+        if self.tick % 30 == 0 { self.step_farms(); self.check_furniture(); self.step_ruins(); self.step_sites(); self.step_grottos(); }
         if self.tick % 30 == 0 { self.follow_colony(); }
         self.shake *= 0.93;
         if self.tick % 30 == 0 { self.check_quests(); self.check_chests(); }
@@ -763,31 +802,32 @@ impl World {
         let (x, y) = (self.moles[k].x, self.moles[k].y);
         let head = self.g.idx(x, y - S); let hm = self.g.m(head);
         let in_lava = (0..MOLE_H).any(|j| self.g.get(x, y - j).p().heat > 0 && !(k == 0 && self.g.get(x, y - j) == Mat::Lava));
-        let no_hunger = self.rules.no_hunger;
+        let no_hunger = self.rules.no_hunger; let mut harm = Harm::None;
         let m = &mut self.moles[k];
-        if in_lava { m.hp -= 4.; }
+        if in_lava { m.hp -= 4.; harm = Harm::Burned; }
         // needs (rates per second at 60 tps; step_moles runs every 2nd tick → dt = 1/30 s)
         let dt = 1. / 30.; let busy = matches!(m.job, Some(Job::Dig) | Some(Job::Build) | Some(Job::Craft(_)) | Some(Job::Station(_)) | Some(Job::Haul(_)) | Some(Job::Deliver));
         let mult = if busy { 1.5 } else { 1. };
         // (hunger off, a Survival option: the belly stays full)
         m.hunger = if no_hunger { 100. } else { (m.hunger - 0.33 * mult * dt).max(0.) };
         if m.job == Some(Job::Sleep) { m.sleep = (m.sleep + 2.5 * dt).min(100.); } else { m.sleep = 100.; /* one mole, no bedtime for now */ }
-        if m.hunger <= 0. { m.hp -= 1. * dt; }
+        if m.hunger <= 0. { m.hp -= 1. * dt; harm = Harm::Starved; }
         if m.hunger > 60. && m.sleep > 50. && m.breath > 80. { m.hp = (m.hp + 0.5 * dt).min(100.); }
         let co2 = self.air.at(x, y - S); let b0 = m.breath;
-        if hm == Mat::Water { m.breath = (m.breath - 0.25).max(0.); if m.breath <= 0. { m.hp -= 0.6; } }
-        else if co2 > 0.45 { m.breath = (m.breath - (co2 - 0.45) * 1.2).max(0.); if m.breath <= 0. { m.hp -= 0.4; } }
+        if hm == Mat::Water { m.breath = (m.breath - 0.25).max(0.); if m.breath <= 0. { m.hp -= 0.6; harm = Harm::Drowned; } }
+        else if co2 > 0.45 { m.breath = (m.breath - (co2 - 0.45) * 1.2).max(0.); if m.breath <= 0. { m.hp -= 0.4; harm = Harm::Choked; } }
         else { m.breath = (m.breath + 2.).min(100.); }
         let b1 = m.breath;
         if k == 0 { self.breath_cues(b0, b1, hm == Mat::Water); }
         // (a mole sealed in a pressure-tube capsule is inside the pipe, not buried)
-        let buried = !(k == 0 && self.tr.in_tube.is_some()) && (0..MOLE_H).any(|j| self.g.is_solidish(self.g.idx(x, y - j)));
+        let buried = !(k == 0 && self.tr.in_tube.is_some()) && (0..MOLE_H).any(|j| self.g.is_solidish(self.g.idx(x, y - j)) && !self.in_flight(x, y - j)); // sand pouring past isn't a burial
         if buried {
-            self.moles[k].hp -= 1.5; self.events.push(Event::Hurt);
+            self.moles[k].hp -= 1.5; self.events.push(Event::Hurt); harm = Harm::Buried;
             // try to wriggle up or sideways
             for (dx, dy) in [(0i32, -1i32), (-1, 0), (1, 0), (0, -2), (-2, 0), (2, 0), (0, -3)] { let (dx, dy) = (dx * S as i32, dy * S as i32); let (nx, ny) = ((x as i32 + dx) as usize, (y as i32 + dy) as usize); if self.fits(nx, ny) { self.moles[k].x = nx; self.moles[k].y = ny; break; } }
             self.moles[k].path.clear();
         }
+        if k == 0 && harm != Harm::None { self.pl.harm = harm; }
         // a hungry mole snacks from its pack
         // (the player's mole says what it ate and what's left, or once that there is nothing to eat)
         if self.moles[k].hunger < 40. && !self.rules.no_hunger {
@@ -803,7 +843,10 @@ impl World {
             }
         }
         if self.rules.harmless { self.moles[k].hp = self.moles[k].hp.max(1.); }
-        if self.moles[k].hp <= 0. { if k == 0 && self.rules.drop_pack { self.drop_pack(); } self.moles[k].alive = false; self.pl.dead_t = 0; self.pl.deaths += 1; let nm = self.moles[k].name; self.events.push(Event::Death); self.say(format!("{} has died. Back to the burrow...", nm)); }
+        // the cause first, then where the pack lies
+        if self.moles[k].hp <= 0. { self.moles[k].alive = false; self.pl.dead_t = 0; self.pl.deaths += 1; let nm = self.moles[k].name; self.events.push(Event::Death);
+            let line = if k == 0 { self.pl.harm.death_line(nm) } else { Harm::None.death_line(nm) }; self.say(line);
+            if k == 0 && self.rules.drop_pack { self.drop_pack(); } }
     }
     fn drop_item(&mut self, x: usize, y: usize, item: Item, n: u32) {
         if let Some(d) = self.drops.iter_mut().find(|d| d.item == item && d.asleep() && d.fuse == 0 && d.x.abs_diff(x) <= 3 * S && d.y.abs_diff(y) <= 3 * S && d.n < 20) { d.n += n; return; }
@@ -936,12 +979,44 @@ impl World {
         }
         why
     }
-    /// Does the body AABB (centre px, feet py) overlap any solid cell?
+    /// A grain in flight: sand, gravel or soil that moved in the last two steps with air (or another grain
+    /// in flight) under it, so falling or pouring, not lying on anything. It isn't a wall or a floor to the
+    /// mole: a falling stream can't be stood on or clung to and the mole passes through it. A grain rolling
+    /// down a pile has the pile under it and still carries the mole.
+    pub fn in_flight(&self, x: usize, y: usize) -> bool {
+        let g = &self.g; if y + 1 >= g.h { return false; }
+        let s = ((g.tick % 255) + 1) as u8; let p = if s == 1 { 255 } else { s - 1 };
+        let moving = |i: usize| g.m(i).kind() == Kind::Powder && (g.moved[i] == s || g.moved[i] == p);
+        let (i, b) = (g.idx(x, y), g.idx(x, y + 1));
+        moving(i) && (self.passable(x, y + 1) || moving(b))
+    }
+    /// Does this cell stop the mole's body? Solid or settled, not open and not a grain in flight.
+    #[inline] fn body_blocked(&self, x: usize, y: usize) -> bool { !self.passable(x, y) && !self.in_flight(x, y) }
+    /// Does the body AABB (centre px, feet py) overlap any solid cell (grains in flight don't count)?
     pub fn box_hits(&self, px: f32, py: f32) -> bool {
         let (x0, x1) = ((px - BODY_HW).floor() as i32, (px + BODY_HW - 1e-3).floor() as i32);
         let (y0, y1) = ((py - BODY_H).floor() as i32, (py - 1e-3).floor() as i32);
-        for y in y0..=y1 { for x in x0..=x1 { if !self.g.in_bounds(x, y) || !self.passable(x as usize, y as usize) { return true; } } }
+        for y in y0..=y1 { for x in x0..=x1 { if !self.g.in_bounds(x, y) || self.body_blocked(x as usize, y as usize) { return true; } } }
         !self.tr.lifts.is_empty() && self.platform_hits(px, py) // a lift's cage floor
+    }
+    /// Every place the mole's body fits in the box of cells (x0, y0, w, h), flood-filled 4-ways into connected
+    /// regions. A position is the body's feet: centre column x0 + i % w, feet row y0 + i / w. Gravity is
+    /// ignored: the mole climbs any side wall and rope ladder, so a region its body fits through is one it can
+    /// get round, give or take a jump. Returns each position's region (0: the body doesn't fit there) and each
+    /// region's size (index 0 unused). The found-place walk check (`tests/found_places.rs`, `examples/sitewalk.rs`).
+    pub fn body_regions(&self, x0: usize, y0: usize, w: usize, h: usize) -> (Vec<u32>, Vec<usize>) {
+        let fits = |x: usize, y: usize| !self.box_hits((x0 + x) as f32, (y0 + y) as f32);
+        let mut reg = vec![0u32; w * h]; let mut sizes = vec![0usize];
+        for s in 0..w * h {
+            if reg[s] != 0 || !fits(s % w, s / w) { continue; }
+            let id = sizes.len() as u32; let mut n = 0; let mut st = vec![s]; reg[s] = id;
+            while let Some(i) = st.pop() { n += 1; let (x, y) = (i % w, i / w);
+                for (nx, ny) in [(x.wrapping_sub(1), y), (x + 1, y), (x, y.wrapping_sub(1)), (x, y + 1)] {
+                    if nx < w && ny < h && reg[ny * w + nx] == 0 && fits(nx, ny) { reg[ny * w + nx] = id; st.push(ny * w + nx); }
+                } }
+            sizes.push(n);
+        }
+        (reg, sizes)
     }
     fn body_fluid_at(&self, px: f32, py: f32) -> (bool, bool) {
         let (x, ym) = (px as usize, (py - BODY_H * 0.5) as usize); if x >= self.g.w || ym >= self.g.h { return (false, false); }
@@ -1001,7 +1076,7 @@ impl World {
         let (c0, c1) = if side > 0 { ((px + BODY_HW - 1e-3).floor() as i32 + 1, (px + BODY_HW + reach - 1e-3).floor() as i32) }
             else { ((px - BODY_HW - reach).floor() as i32, (px - BODY_HW).floor() as i32 - 1) };
         let (y0, y1) = ((py - BODY_H + 0.1 * SF).floor() as i32, (py - 0.1 * SF).floor() as i32);
-        (c0..=c1).any(|col| (y0..=y1).any(|y| !self.g.in_bounds(col, y) || !self.passable(col as usize, y as usize)))
+        (c0..=c1).any(|col| (y0..=y1).any(|y| !self.g.in_bounds(col, y) || self.body_blocked(col as usize, y as usize)))
     }
     /// Climbing on `side`: the top of the wall beside the body, if it ends below the head and there's room to
     /// stand on it (feet row as f32). A wall that only steps back a cell (a recess) isn't a ledge: you climb on.
@@ -1009,7 +1084,7 @@ impl World {
         let (px, py) = (self.pl.px, self.pl.py);
         let col = if side > 0 { (px + BODY_HW + 0.08 * SF - 1e-3).floor() as i32 } else { (px - BODY_HW - 0.08 * SF).floor() as i32 };
         let (y0, y1) = ((py - BODY_H + 0.1 * SF).floor() as i32, (py - 0.1 * SF).floor() as i32);
-        let r = (y0..=y1).find(|&y| !self.g.in_bounds(col, y) || !self.passable(col as usize, y as usize))?;
+        let r = (y0..=y1).find(|&y| !self.g.in_bounds(col, y) || self.body_blocked(col as usize, y as usize))?;
         if r == y0 { return None; } // the wall goes on past the head
         let (r, sx) = (r as f32, px + side as f32 * SF);
         (!self.box_hits(px, r) && !self.box_hits(sx, r) && !self.side_wall_at(sx, r, side as i32, 0.08 * SF)).then_some(r)
@@ -1032,7 +1107,12 @@ impl World {
             let mut y = (swy - self.oy).clamp(4 * S as i64, h - 3 * S as i64) as usize; while y > 4 * S && !self.fits(sx, y) { y -= 1; }
             let m = &mut self.moles[0]; m.x = sx; m.y = y; m.hp = 100.; m.breath = 100.; m.hunger = m.hunger.max(50.); m.alive = true; m.fall = 0;
             self.pl = Player { spawn: self.pl.spawn, deaths: self.pl.deaths, fall_from: y, ..Default::default() };
-            self.say("You crawl back into the burrow.".into()); return;
+            // Survival: the burrow's stores give a meal and fill the headlamp (never items), so there is time
+            // and light to go back for the pack
+            if self.rules.drop_pack { self.moles[0].hunger = 100.; self.lamp_oil = self.lamp_oil.max(crate::survival::OIL_SECS); self.lamp_dry = false;
+                self.say("You crawl back into the burrow. Its stores give you a meal and fill the headlamp.".into()); }
+            else { self.say("You crawl back into the burrow.".into()); }
+            return;
         }
         if self.ride_step() { return; }
         let inp = self.input.clone();
@@ -1042,7 +1122,7 @@ impl World {
         { let m = &self.moles[0]; if self.pl.sync != Some((m.x, m.y)) { self.pl.jump_was = inp.jump; self.pl.px = m.x as f32 + 0.5; self.pl.py = m.y as f32 + 1.0; self.pl.vx = 0.; self.pl.vy = 0.; self.pl.ppx = self.pl.px; self.pl.ppy = self.pl.py; self.pl.fall_from = m.y; self.pl.grounded = true; } }
         self.pl.ppx = self.pl.px; self.pl.ppy = self.pl.py;
         let (wet, lava) = self.body_fluid();
-        if lava { self.moles[0].hp -= t.lava_dps * dt; if self.tick % 20 == 0 { self.events.push(Event::Hurt); } }
+        if lava { self.moles[0].hp -= t.lava_dps * dt; self.pl.harm = Harm::Burned; if self.tick % 20 == 0 { self.events.push(Event::Hurt); } }
         let dir = inp.right as i32 - inp.left as i32;
         let jump_edge = inp.jump && !self.pl.jump_was; self.pl.jump_was = inp.jump;
         if jump_edge { self.pl.buffer = t.buffer; } else { self.pl.buffer = (self.pl.buffer - dt).max(0.); }
@@ -1058,7 +1138,7 @@ impl World {
         // grab as soon as the rise has slowed to climbing speed (no float up to the apex first)
         self.pl.cling = if !ground && !wet && !lava && self.pl.mantle <= 0. && side != 0 && (self.pl.vy >= -t.climb || c != 0) && !(dir == -side) { side as i8 } else { 0 };
         // on a rope ladder (transport, lifts.rs): no cling, and a jump off it counts as from the ground
-        let climbing = self.ladder_climb(ground, jump_edge); if climbing { self.pl.cling = 0; self.pl.coyote = t.coyote; }
+        let climbing = self.ladder_climb(ground, jump_edge, dir); if climbing { self.pl.cling = 0; self.pl.coyote = t.coyote; }
         if self.pl.cling != 0 { self.pl.wall_t = t.coyote; self.pl.wall_side = self.pl.cling; } else if ground { self.pl.wall_t = 0.; } else { self.pl.wall_t = (self.pl.wall_t - dt).max(0.); }
         if dir != 0 { self.moles[0].facing = dir as i8; }
         let swim = if lava { t.lava_mul } else if wet { t.swim_mul } else { 1. };
@@ -1072,7 +1152,19 @@ impl World {
         if climbing {
             // hands on the rungs: W/S climb at the ladder's pace, and it hangs still otherwise (no slide)
             self.pl.vy = if inp.up { -crate::lifts::LADDER_UP } else if inp.down { crate::lifts::LADDER_DOWN } else { 0. };
-            self.pl.vx = self.pl.vx.clamp(-4. * SF, 4. * SF);
+            self.pl.vx = self.pl.vx.clamp(-8. * SF, 8. * SF); // sideways on the rope (with W/S held): 2 m/s
+            if let Some(k) = self.ladder_on(self.pl.px, self.pl.py) {
+                // no sideways key: pulled onto the rope (clear of the rock it hangs over) at once
+                if dir == 0 { self.pl.vx = ((self.ladder_hang_x(k) - self.pl.px) / dt).clamp(-8. * SF, 8. * SF); }
+                // up at a ledge's ladder's top: climb off onto the ledge (like rolling over a wall's top)
+                if inp.up { if let Some((r, side)) = self.ladder_top_out(k) {
+                    if self.pl.py - r <= crate::lifts::LADDER_UP * dt + 1e-3 && !self.box_hits(self.pl.px, r) {
+                        self.pl.py = r; self.pl.vy = 0.; self.pl.mantle = 0.12; self.pl.wall_side = side; self.pl.vx = side as f32 * t.mantle_v; self.tr.climbing = false;
+                    } } }
+                // the rope's top end: hang there (W held climbs no higher, so the mole doesn't bob off the end)
+                let top = self.tr.ladders[k].top as f32 + 1.;
+                if self.tr.climbing && self.pl.vy < 0. && self.pl.py + self.pl.vy * dt < top { self.pl.vy = ((top - self.pl.py) / dt).min(0.); }
+            }
         } else if self.pl.mantle > 0. {
             // rolling over the ledge: carried sideways onto the top at the ledge's height
             self.pl.mantle -= dt; self.pl.vy = 0.; self.pl.vx = self.pl.wall_side as f32 * t.mantle_v;
@@ -1160,7 +1252,8 @@ impl World {
         let (x, y) = (self.pl.px as usize, (self.pl.py - 0.001) as usize);
         let landed = self.box_hits(self.pl.px, self.pl.py + 0.05);
         if landed && !self.pl.grounded && !wet && !lava { let f = y.saturating_sub(self.pl.fall_from); if f >= 8 * S { self.shake = self.shake.max(0.25 + f as f32 * 0.02 / SF); } else if f >= 2 * S { self.shake = self.shake.max(0.1); /* even a hop down lands with a bump */ } if f > t.safe_fall { self.moles[0].hp -= (f - t.safe_fall) as f32 * 3. / SF; self.events.push(Event::Hurt); } }
-        if landed || wet || lava || self.pl.cling != 0 || self.pl.vy < 0. { self.pl.fall_from = y; }
+        if landed || wet || lava || self.pl.cling != 0 || self.pl.vy < 0. || self.tr.climbing { self.pl.fall_from = y; } // climbing down a rope isn't falling
+        if landed && !wet && !lava && self.air.at(x, y.saturating_sub(S)) <= 0.45 { self.pl.dry = Some((self.pl.px, self.pl.py)); }
         let _ = airfall;
         self.pl.grounded = landed;
         if self.pl.vx.abs() > 0.5 * SF && landed || self.pl.cling != 0 && self.pl.vy.abs() > SF { self.moles[0].anim += 1; }
@@ -1390,6 +1483,21 @@ impl World {
         hit.iter().copied().find(|&k| self.furniture[k].item != Item::Rug).or(hit.first().copied())
     }
     /// Furniture whose floor (or ceiling) was dug away falls loose as its item.
+    /// First time within 8 m of a grotto's hollow: a line in the log, like ruins and found places. No cards.
+    pub(crate) fn step_grottos(&mut self) {
+        let Some(m) = self.moles.first().filter(|m| m.alive) else { return };
+        let (mx, my) = (m.x as i64, self.oy + m.y as i64); let reach = 8 * CPM as i64;
+        let near: Vec<(u32, i64)> = self.grottos.iter().filter(|g| !self.grottos_seen.contains(&g.id)
+            && (mx - g.cx as i64).abs() <= g.rx as i64 + reach && (my - g.cy).abs() <= g.ry as i64 + reach).map(|g| (g.id, g.cy)).collect();
+        for (id, cy) in near {
+            self.grottos_seen.insert(id); self.events.push(Event::Discover);
+            self.say(grotto_notice(cy as f32 * CELL_M));
+        }
+    }
+    /// Old saves (before grottos were remembered): a grotto whose hollow centre has been seen counts as visited.
+    pub fn mark_seen_grottos(&mut self) {
+        for g in &self.grottos { let y = g.cy - self.oy; if y >= 0 && (y as usize) < self.g.h && g.cx < self.g.w && self.g.flags[y as usize * self.g.w + g.cx] & F_SEEN != 0 { self.grottos_seen.insert(g.id); } }
+    }
     /// Furniture standing within `HOME_M` of a built workbench: the holt's own (0 without a workbench).
     pub fn home_furniture(&self) -> u32 {
         let r = crate::craft::HOME_M * CPM as f32;

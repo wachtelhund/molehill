@@ -22,4 +22,5 @@ pub mod survival;
 pub mod ruins;
 pub mod walls;
 pub mod sites;
+pub mod templates;
 pub mod lore;
