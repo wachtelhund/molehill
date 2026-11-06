@@ -250,7 +250,7 @@ fn dev_dump(n: Local<u32>, g: Res<Game>, sp: Res<Sprites>, images: Res<Assets<Im
             "mine" | "holt" | "pump" | "pumpworks" | "fissure" | "fossil" | "crystal" | "salt" | "halt"
             | "site-mine" | "site-holt" | "site-pump" | "site-fissure" | "site-fossil" | "site-crystal" | "site-halt"
             | "walls" | "wall"));
-        let (cw, chh, x0, y0) = if let Some(st) = g.w.sites.last() {
+        let (cw, chh, x0, y0) = if let Some(st) = g.w.sites.last().filter(|_| site_dump) { // only a stamped scene crops to its site; a plain holt crops round the mole
             let pad = 8 * CPM;
             let yw0 = (st.y0 - g.w.oy).max(0) as usize;
             let cw = (st.w + 2 * pad).min(W);
@@ -624,8 +624,9 @@ fn input(mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<Button
     let upk = keys.pressed(KeyCode::KeyW) || keys.pressed(KeyCode::ArrowUp);
     g.w.input.up = upk; g.w.input.down = keys.pressed(KeyCode::KeyS) || keys.pressed(KeyCode::ArrowDown);
     // Space jumps (and wall-jumps); W also jumps when not on a wall, and climbs when clinging
-    // W jumps only from a fresh press off a wall (held through a climb and mantle it doesn't hop on arrival)
-    let upj = (keys.just_pressed(KeyCode::KeyW) || keys.just_pressed(KeyCode::ArrowUp)) && g.w.pl.cling == 0;
+    // W jumps only from a fresh press off a wall (held through a climb and mantle it doesn't hop on arrival),
+    // and never on a rope ladder: there W grabs and climbs (`World::ladder_takes_up`)
+    let upj = (keys.just_pressed(KeyCode::KeyW) || keys.just_pressed(KeyCode::ArrowUp)) && g.w.pl.cling == 0 && !g.w.ladder_takes_up();
     g.w_jump = upk && (g.w_jump || upj);
     let jk = keys.pressed(KeyCode::Space) || g.w_jump;
     if keys.just_pressed(KeyCode::Space) || upj { g.jump_tap = true; }
@@ -693,7 +694,8 @@ fn input(mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<Button
     if dead { g.aim = None; return; }
     // S: dig straight down (with the pick in hand, else the pickaxe)
     let (mx, my) = (g.w.moles[0].x, g.w.moles[0].y);
-    if (keys.pressed(KeyCode::KeyS) || keys.pressed(KeyCode::ArrowDown)) && g.w.pl.grounded { g.w.input.mine = Some((mx, my + 2 * S)); }
+    // S digs down, except where it climbs down a rope ladder (at its head, or with rope below the feet)
+    if (keys.pressed(KeyCode::KeyS) || keys.pressed(KeyCode::ArrowDown)) && g.w.pl.grounded && !g.w.ladder_takes_down() { g.w.input.mine = Some((mx, my + 2 * S)); }
     let on_panel = over.is_some() || cur.map_or(false, |c| craft_row_at(&g, c).is_some()) || g.inv_open && cur.map_or(false, |c| { let a = ui::slot_pos(10, win.width(), win.height()); c.y > a.y - 10. && (c.x - win.width() / 2.).abs() < 5. * (ui::S + ui::GAP) + 10. });
     let Some(cur) = cur else { g.aim = None; return };
     if on_panel { g.aim = None; return; }

@@ -921,6 +921,34 @@ mod progression {
             let f = cut as f32 / solid as f32; println!("seed {seed}: {:.0}% of the rock within 25 m is the pickaxe's", f * 100.);
             assert!(f >= 0.95, "seed {seed}: only {:.0}% of the rock within 25 m of the burrow is the pickaxe's", f * 100.);
         }
+    /// The drill's whole bill from the ground (workbench, forge, a workshop with its copperline, and the drill;
+    /// a coal per cold-forge job) is a first-hour haul: no more wood than the kit carries, since wood is scarce
+    /// near the burrow, and only what the pickaxe digs. `examples/progression.rs` prints the full ladder.
+    #[test] fn the_drill_costs_a_first_hour_haul() {
+        use molehill_sim::{survival::KIT, mat::{Mat, NMAT}};
+        let mut b = raw_bill(Item::Drill, 1);
+        for s in STATIONS { let sb = bill_of_station(s); for k in 0..NITEM { b[k] += sb[k]; } }
+        let kit_wood = KIT.iter().find(|k| k.0 == Item::Wood).unwrap().1;
+        assert!(b[Item::Wood as usize] <= kit_wood, "the drill needs {} wood, the kit has {kit_wood}", b[Item::Wood as usize]);
+        let total: u32 = b.iter().sum(); assert!(total <= 60, "the drill's bill is {total} items: {b:?}");
+        for (k, &n) in b.iter().enumerate() { if n == 0 { continue; }
+            let pick = (0..NMAT).any(|m| { let m = Mat::from_u8(m as u8); m.p().tier <= 1 && drop_of(m) == Some(ITEMS[k]) });
+            assert!(pick, "{:?} in the drill's bill isn't dug with a pickaxe", ITEMS[k]); }
+        assert_eq!((b[Item::CopperOre as usize], b[Item::TinOre as usize]), (8, 2), "copper and tin: {b:?}");
+    }
+    /// The oil press: at a workbench fungus gives more oil than the pack presses on the go, so bringing fungus
+    /// home pays; and a mushroom farm's crop can go to the lamp instead of the belly (a choice, both fair:
+    /// two mushrooms are 70 of food, about 3.5 minutes; their measure is 3 minutes of light).
+    #[test] fn the_bench_presses_oil_better_than_the_pack() {
+        use molehill_sim::survival::{FUNGUS_PER_OIL, OIL_SECS};
+        let r = &RECIPES[recipe_by_name("Fungus oil x2").unwrap()];
+        assert_eq!((r.station, r.out.0), (Station::Workbench, Item::FungusOil));
+        let per = r.inputs[0].1 as f32 / r.out.1 as f32; assert!(r.inputs[0].0 == Item::Fungus && per < FUNGUS_PER_OIL as f32, "{per} fungus a measure at the bench");
+        let m = &RECIPES[recipe_by_name("Fungus oil (mushroom)").unwrap()];
+        assert_eq!((m.station, m.inputs[0].0, m.out.0), (Station::Workbench, Item::Mushroom, Item::FungusOil));
+        let food_s = m.inputs[0].1 as f32 * food_value(Item::Mushroom) / 0.33; let light_s = m.out.1 as f32 * OIL_SECS;
+        assert!(food_s > light_s * 0.8 && food_s < light_s * 1.6, "mushrooms: {food_s:.0} s of food or {light_s:.0} s of light");
+        assert_eq!(raw_bill(Item::FungusOil, 2)[Item::Fungus as usize], 3, "the bill takes the bench's press");
     }
     /// Every metal made in Survival is wanted by something past it: bronze makes the drill, so no ingot is a dead end.
     #[test] fn bronze_makes_the_drill() {
@@ -1799,3 +1827,30 @@ fn found_places_entrances_reach_every_room_and_the_chest() {
 
 
 
+
+/// A new holt sees its own burrow and a skin of its walls, not a 30 m box of rock: caves and ore beyond stay
+/// dark until vision, digging or the headlamp finds them (the start used to reveal ±15 m straight through rock).
+#[test]
+fn spawn_reveals_only_burrow_neighbourhood() {
+    use molehill_sim::grid::F_SEEN;
+    use molehill_sim::mat::{Mat, CPM};
+    use molehill_sim::world::SPAWN_SIGHT_M;
+    for seed in [1u32, 7, 42, 4242, 90210] {
+        let w = World::new(512 * S, 256 * S, seed); let (gw, gh) = (w.g.w, w.g.h);
+        let (mx, my) = (w.moles[0].x, w.moles[0].y);
+        let seen = |x: usize, y: usize| w.g.flags[y * gw + x] & F_SEEN != 0;
+        // inside: where the mole stands, and the chamber's air a metre up on both sides
+        assert!(seen(mx, my - 1) && seen(mx - 2 * CPM, my - CPM) && seen(mx + 2 * CPM, my - CPM), "seed {seed}: the burrow itself is dark");
+        // nothing far out is seen, open or not: 10 m and more from the mole in any direction
+        let far = (SPAWN_SIGHT_M + 4) * CPM; let mut n_seen = 0;
+        for y in 0..gh { for x in 0..gw {
+            if !seen(x, y) { continue; } n_seen += 1;
+            let (dx, dy) = (x as i64 - mx as i64, y as i64 - my as i64);
+            assert!(dx * dx + dy * dy < (far * far) as i64, "seed {seed}: {:?} seen {:.1} m, {:.1} m from the mole", w.g.get(x, y), dx as f32 / CPM as f32, dy as f32 / CPM as f32);
+        } }
+        // the old box was 30 × 23.5 m (~45 000 cells); the burrow and its skin are a small fraction of that
+        assert!(n_seen < 12_000, "seed {seed}: {n_seen} cells seen at the start");
+        // materials only count as discovered if they're in sight: no far ore in the journal of materials
+        for m in [Mat::IronOre, Mat::Granite, Mat::Basalt, Mat::Lava] { assert!(!w.discovered[m as usize] || w.g.mat.iter().zip(&w.g.flags).any(|(&c, &f)| c == m as u8 && f & F_SEEN != 0), "seed {seed}: {m:?} discovered unseen"); }
+    }
+}

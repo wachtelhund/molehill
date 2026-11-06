@@ -196,6 +196,8 @@ impl Furniture {
 #[derive(Clone)]
 pub struct Building { pub kind: Station, pub x: usize, pub y: usize, pub built: bool, pub claimed: bool }
 
+/// How far (m) a new holt can see from inside its burrow at the start: rays from the chamber stop at the first rock.
+pub const SPAWN_SIGHT_M: usize = 6;
 pub struct World {
     pub g: Grid, pub st: Stress, pub light: Light, pub info: GenInfo, pub tick: u64,
     pub inv: [u32; NITEM], dig_acc: [u16; NMAT], place_acc: [u16; 12], pub desig: Vec<u8>,
@@ -285,7 +287,13 @@ impl World {
         wd.stockpile = (sx + 6 * S, fy - 2 * S, sx + 16 * S, fy);
         for k in 0..1 { wd.moles.push(Mole { name: NAMES[k], x: sx, y: fy, hp: 100., breath: 100., path: VecDeque::new(), job: None, work: 0, work_cell: None, carry: None, hunger: 80. + k as f32 * 4., sleep: 70. + k as f32 * 7., facing: 1, fall: 0, idle: 0, anim: k as u32 * 7, alive: true }); }
         wd.pl.spawn = (sx, wd.oy + fy as i64); wd.pl.fall_from = fy;
-        light::reveal_box(&mut wd.g, sx - 60 * S, fy.saturating_sub(42 * S), sx + 60 * S, (fy + 52 * S).min(h - 1)); // the colony knows its neighbourhood
+        // the colony knows its own burrow, not the rock around it: what a mole sees from inside the chamber
+        // (rays stop at the first rock) and a 1 m skin of its walls. Everything else waits to be found.
+        for (dx, up) in [(-3i64, 1i64), (0, 2), (3, 1)] {
+            let x = (sx as i64 + dx * CPM as i64).clamp(0, w as i64 - 1) as usize;
+            light::reveal(&mut wd.g, x, fy.saturating_sub(up as usize * CPM), SPAWN_SIGHT_M * CPM);
+        }
+        light::reveal_skin(&mut wd.g, sx.saturating_sub((SPAWN_SIGHT_M + 1) * CPM), fy.saturating_sub((SPAWN_SIGHT_M + 1) * CPM), sx + (SPAWN_SIGHT_M + 1) * CPM, (fy + 2 * CPM).min(h - 1), CPM);
         { let b = wd.logic.block_of(sx, fy - 5 * S); let gg = &mut wd.g; wd.logic.place(gg, Dev::Vent, b); } // the burrow's air shaft
         wd.torches.push((sx - 12 * S, fy - 2 * S)); wd.torches.push((sx + 12 * S, fy - 2 * S));
         for (it, n) in [(Item::Wood, 8), (Item::Torch, 6), (Item::WoodPillar, 12), (Item::Grub, 12), (Item::CopperWire, 40), (Item::Gate, 6), (Item::Thrummer, 3), (Item::Spore, 6), (Item::Vent, 1)] { wd.inv[it as usize] = n; }
@@ -962,6 +970,25 @@ impl World {
         for y in y0..=y1 { for x in x0..=x1 { if !self.g.in_bounds(x, y) || self.body_blocked(x as usize, y as usize) { return true; } } }
         !self.tr.lifts.is_empty() && self.platform_hits(px, py) // a lift's cage floor
     }
+    /// Every place the mole's body fits in the box of cells (x0, y0, w, h), flood-filled 4-ways into connected
+    /// regions. A position is the body's feet: centre column x0 + i % w, feet row y0 + i / w. Gravity is
+    /// ignored: the mole climbs any side wall and rope ladder, so a region its body fits through is one it can
+    /// get round, give or take a jump. Returns each position's region (0: the body doesn't fit there) and each
+    /// region's size (index 0 unused). The found-place walk check (`tests/found_places.rs`, `examples/sitewalk.rs`).
+    pub fn body_regions(&self, x0: usize, y0: usize, w: usize, h: usize) -> (Vec<u32>, Vec<usize>) {
+        let fits = |x: usize, y: usize| !self.box_hits((x0 + x) as f32, (y0 + y) as f32);
+        let mut reg = vec![0u32; w * h]; let mut sizes = vec![0usize];
+        for s in 0..w * h {
+            if reg[s] != 0 || !fits(s % w, s / w) { continue; }
+            let id = sizes.len() as u32; let mut n = 0; let mut st = vec![s]; reg[s] = id;
+            while let Some(i) = st.pop() { n += 1; let (x, y) = (i % w, i / w);
+                for (nx, ny) in [(x.wrapping_sub(1), y), (x + 1, y), (x, y.wrapping_sub(1)), (x, y + 1)] {
+                    if nx < w && ny < h && reg[ny * w + nx] == 0 && fits(nx, ny) { reg[ny * w + nx] = id; st.push(ny * w + nx); }
+                } }
+            sizes.push(n);
+        }
+        (reg, sizes)
+    }
     fn body_fluid_at(&self, px: f32, py: f32) -> (bool, bool) {
         let (x, ym) = (px as usize, (py - BODY_H * 0.5) as usize); if x >= self.g.w || ym >= self.g.h { return (false, false); }
         let m = self.g.get(x, ym);
@@ -1082,7 +1109,7 @@ impl World {
         // grab as soon as the rise has slowed to climbing speed (no float up to the apex first)
         self.pl.cling = if !ground && !wet && !lava && self.pl.mantle <= 0. && side != 0 && (self.pl.vy >= -t.climb || c != 0) && !(dir == -side) { side as i8 } else { 0 };
         // on a rope ladder (transport, lifts.rs): no cling, and a jump off it counts as from the ground
-        let climbing = self.ladder_climb(ground, jump_edge); if climbing { self.pl.cling = 0; self.pl.coyote = t.coyote; }
+        let climbing = self.ladder_climb(ground, jump_edge, dir); if climbing { self.pl.cling = 0; self.pl.coyote = t.coyote; }
         if self.pl.cling != 0 { self.pl.wall_t = t.coyote; self.pl.wall_side = self.pl.cling; } else if ground { self.pl.wall_t = 0.; } else { self.pl.wall_t = (self.pl.wall_t - dt).max(0.); }
         if dir != 0 { self.moles[0].facing = dir as i8; }
         let swim = if lava { t.lava_mul } else if wet { t.swim_mul } else { 1. };
@@ -1096,7 +1123,19 @@ impl World {
         if climbing {
             // hands on the rungs: W/S climb at the ladder's pace, and it hangs still otherwise (no slide)
             self.pl.vy = if inp.up { -crate::lifts::LADDER_UP } else if inp.down { crate::lifts::LADDER_DOWN } else { 0. };
-            self.pl.vx = self.pl.vx.clamp(-4. * SF, 4. * SF);
+            self.pl.vx = self.pl.vx.clamp(-8. * SF, 8. * SF); // sideways on the rope (with W/S held): 2 m/s
+            if let Some(k) = self.ladder_on(self.pl.px, self.pl.py) {
+                // no sideways key: pulled onto the rope (clear of the rock it hangs over) at once
+                if dir == 0 { self.pl.vx = ((self.ladder_hang_x(k) - self.pl.px) / dt).clamp(-8. * SF, 8. * SF); }
+                // up at a ledge's ladder's top: climb off onto the ledge (like rolling over a wall's top)
+                if inp.up { if let Some((r, side)) = self.ladder_top_out(k) {
+                    if self.pl.py - r <= crate::lifts::LADDER_UP * dt + 1e-3 && !self.box_hits(self.pl.px, r) {
+                        self.pl.py = r; self.pl.vy = 0.; self.pl.mantle = 0.12; self.pl.wall_side = side; self.pl.vx = side as f32 * t.mantle_v; self.tr.climbing = false;
+                    } } }
+                // the rope's top end: hang there (W held climbs no higher, so the mole doesn't bob off the end)
+                let top = self.tr.ladders[k].top as f32 + 1.;
+                if self.tr.climbing && self.pl.vy < 0. && self.pl.py + self.pl.vy * dt < top { self.pl.vy = ((top - self.pl.py) / dt).min(0.); }
+            }
         } else if self.pl.mantle > 0. {
             // rolling over the ledge: carried sideways onto the top at the ledge's height
             self.pl.mantle -= dt; self.pl.vy = 0.; self.pl.vx = self.pl.wall_side as f32 * t.mantle_v;
@@ -1183,8 +1222,8 @@ impl World {
         self.pl.px = self.pl.px.clamp(2. * SF, self.g.w as f32 - 2. * SF); self.pl.py = self.pl.py.clamp(BODY_H + 1., self.g.h as f32 - 2.);
         let (x, y) = (self.pl.px as usize, (self.pl.py - 0.001) as usize);
         let landed = self.box_hits(self.pl.px, self.pl.py + 0.05);
-        if landed && !self.pl.grounded && !wet && !lava { let f = y.saturating_sub(self.pl.fall_from); if f >= 8 * S { self.shake = self.shake.max(0.25 + f as f32 * 0.02 / SF); } else if f >= 2 * S { self.shake = self.shake.max(0.1); /* even a hop down lands with a bump */ } if f > t.safe_fall { self.moles[0].hp -= (f - t.safe_fall) as f32 * 3. / SF; self.pl.harm = Harm::Fell; self.events.push(Event::Hurt); } }
-        if landed || wet || lava || self.pl.cling != 0 || self.pl.vy < 0. { self.pl.fall_from = y; }
+        if landed && !self.pl.grounded && !wet && !lava { let f = y.saturating_sub(self.pl.fall_from); if f >= 8 * S { self.shake = self.shake.max(0.25 + f as f32 * 0.02 / SF); } else if f >= 2 * S { self.shake = self.shake.max(0.1); /* even a hop down lands with a bump */ } if f > t.safe_fall { self.moles[0].hp -= (f - t.safe_fall) as f32 * 3. / SF; self.events.push(Event::Hurt); } }
+        if landed || wet || lava || self.pl.cling != 0 || self.pl.vy < 0. || self.tr.climbing { self.pl.fall_from = y; } // climbing down a rope isn't falling
         if landed && !wet && !lava && self.air.at(x, y.saturating_sub(S)) <= 0.45 { self.pl.dry = Some((self.pl.px, self.pl.py)); }
         let _ = airfall;
         self.pl.grounded = landed;

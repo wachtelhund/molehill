@@ -136,6 +136,20 @@ Polish only: no new systems, lore names kept. Each entry lists what changed and 
   sprites but get hotbar icons (`devart::hotbar_icon`): a coil of cord with a lit end, the plate from above.
 * Test `every_slot_icon_fills_its_slot` (≥ 80 px; slim shapes like sand, torch and crystal sit at 86-89).
   Icon sheet regenerated.
+## Spawn fog stays local (branch `refine/spawn-fog-local`, playtest bug)
+
+* Cause confirmed: `World::new` marked a 30 × 23.5 m box around the burrow seen with `light::reveal_box`, which
+  ignores rock, so the whole start chunk opened on the first frame and every material in it counted as
+  discovered.
+* Now: `light::reveal` raycasts from three spots inside the chamber (6 m, stopping at the first rock), then
+  `light::reveal_skin` marks a 1 m skin around the open cells that saw. The rest stays dark until vision,
+  digging or the headlamp finds it. The discovered-materials loop runs on that, so it only counts what's in
+  sight. Seen at spawn: 712 m² before (the box), 36 m² after (five seeds, 2319 cells each); 5-8 materials
+  start discovered.
+* Test `spawn_reveals_only_burrow_neighbourhood` (five seeds). Wiki World and Generation, TESTING.md.
+* Polish run: a fresh seed 4242 dumped at frame 150 shows the burrow as a small torch-lit dome in dark rock,
+  nothing beyond its walls. Found on the way: `--dump-art` without `--scene` cropped to the last found place in
+  the window (off-window, so it panicked); only a stamped scene crops to its site now.
 
 ## Open issues
 * `--shot` writes an empty frame on macOS when the game is launched from a background shell (the surface is
