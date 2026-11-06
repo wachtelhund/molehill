@@ -223,3 +223,13 @@ cells from its own torches and glowing rock, one charge in the mine / pumpworks 
 * Blast flash: a charge going off in an unlit bay added no light at all. Now its wave record drives a short warm
   light (kinds::BLAST_FLASH, 10 m, (1 − t/T)² over 0.35 s) that casts ordinary shadows. No rule change: the blast
   is the same. Scenario blast_flash_lights_a_dark_drift.
+* Mood light: glowing rock and growth (crystal, mycelium, fungus) now cast a soft source (0.32 of lava's
+  brightness per unit of glow, +1.5 m reach); lava and fire keep their hard light. Salt hall: cells blown out
+  (> 1.2) away from any torch 401 → 69, peak 2.18 → 1.73, still only 16 % dark. Test
+  crystal_glow_is_soft_mood_light_and_lava_stays_hard (fails on the old values: peak 1.44).
+* Tried and dropped: a faint "fill" of bounced light spread on through open air. No measurable change at any
+  site (pool edges, dark share) for an extra light pass every frame.
+* Found, not mine to fix (env-rework owns layouts): mine timber posts run floor to roof, so in side view each
+  4 m bay is its own dark box (a torch's light dies 3–5 m out; 98 % of a torch's 5.5–8.5 m ring is dark); the
+  halt sheds 113 cells and 14 rumbles in 10 s with no charge; the pumpworks' west wall has an open gap at the
+  sump's level, which would drain into open host rock.

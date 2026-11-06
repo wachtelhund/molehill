@@ -1556,3 +1556,34 @@ fn a_rewarding_find_is_a_first_hour_trek_from_the_burrow() {
     assert_eq!(a.near_site.map(|n| (n.0, n.1, n.2.id)), b.near_site.map(|n| (n.0, n.1, n.2.id)));
     assert!(Gen::new(77, 96 * S).near_site.is_none(), "small test windows keep their shape");
 }
+
+/// Mood light in found places: glowing rock (a crystal face in a salt hall) lights a room cold and even, a
+/// soft glow that carries a few metres, never a lamp's blaze, while a lava pool's light stays hard and bright
+/// (`light::SOFT_GLOW`, `SOFT_REACH_M`). No torches, the mole out of the way.
+#[test]
+fn crystal_glow_is_soft_mood_light_and_lava_stays_hard() {
+    use molehill_sim::mat::CPM;
+    let lum = |l: [f32; 3]| 0.3 * l[0] + 0.5 * l[1] + 0.2 * l[2];
+    let room = |glow: Mat, floor: bool| {
+        let (mut w, x0, y0) = arena(); let c = CPM;
+        w.moles[0].alive = false;
+        // a 6 m wide, 4 m high room left of the spawn; the glowing material is its left wall (or floor pool)
+        let ry = y0 - 4 * c;
+        let (ax, bx) = (x0 - 7 * c, x0 - c);
+        for y in ry - c..=y0 { for x in ax - c..=bx + c { let i = w.g.idx(x, y); w.g.set(i, Mat::Granite); w.g.flags[i] = 0; } }
+        for y in ry..y0 { for x in ax..bx { let i = w.g.idx(x, y); w.g.set(i, Mat::Empty); } }
+        if floor { for y in y0 - c / 2..y0 { for x in ax..bx { let i = w.g.idx(x, y); w.g.set(i, glow); } } }
+        else { for y in ry..y0 { for x in ax - c / 2..ax { let i = w.g.idx(x, y); w.g.set(i, glow); } } }
+        w.compute_light((ax - 2 * c, ry - 2 * c, bx + 2 * c, y0 + 2 * c));
+        let at = |dx: usize, up: usize| lum(w.light.at(w.g.idx(ax + dx, y0 - up)));
+        let peak = (ry..y0).flat_map(|y| (ax..bx).map(move |x| (x, y))).filter(|&(x, y)| w.g.get(x, y) == Mat::Empty)
+            .map(|(x, y)| lum(w.light.at(w.g.idx(x, y)))).fold(0f32, f32::max);
+        (peak, at(c, 2 * c), at(4 * c, 2 * c))
+    };
+    let (peak, near, far) = room(Mat::Crystal, false);
+    assert!(peak < 0.9, "a crystal face glows, it doesn't blaze (peak luma {peak:.2})");
+    assert!(near > 0.1, "1 m from the crystal is lit ({near:.2})");
+    assert!(far > 0.02 && far < near, "4 m out it still glows faintly ({far:.2})");
+    let (lpeak, ..) = room(Mat::Lava, true);
+    assert!(lpeak > peak * 1.3, "lava's light stays hard and bright ({lpeak:.2} vs crystal {peak:.2})");
+}

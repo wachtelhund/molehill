@@ -32,6 +32,17 @@ fn light(kind: Kind) {
     v.sort_by(|a, b| a.partial_cmp(b).unwrap());
     let n = v.len().max(1) as f32; let mean = v.iter().sum::<f32>() / n;
     let dark = v.iter().filter(|&&l| l < 0.05).count() as f32 / n; let hot = v.iter().filter(|&&l| l > 1.2).count() as f32 / n;
+    if std::env::var("TORCHES").is_ok() { for &(tx, ty) in &w.torches { let c = CPM;
+        let at = |dx: i64| { let x = (tx as i64 + dx) as usize; format!("{:.2}{}", lum(w.light.at(ty * w.g.w + x)), if w.g.get(x, ty) == Mat::Empty { "" } else { "#" }) };
+        println!("  torch at site {:.1},{:.1} m: {:?} there; luma at 0/1/3/5 m right: {} {} {} {}; left 3 m {}", (tx - x0) as f32 / c as f32, (ty - y0) as f32 / c as f32, w.g.get(tx, ty), at(0), at(c as i64), at(3 * c as i64), at(5 * c as i64), at(-3 * c as i64)); } }
+    // the edge of each torch's pool (5.5-8.5 m out, in its own room): how much of it is pitch dark
+    let c = CPM as f32; let (mut ring, mut ring_dark) = (0usize, 0usize);
+    for y in y0..y0 + sh { for x in x0..x0 + sw { if w.g.get(x, y) != Mat::Empty { continue; }
+        if w.torches.iter().any(|&(tx, ty)| { let d = (((x as f32 - tx as f32).powi(2) + (y as f32 - ty as f32).powi(2)).sqrt()) / c; d > 5.5 && d < 8.5 }) {
+            ring += 1; if lum(w.light.at(y * w.g.w + x)) < 0.05 { ring_dark += 1; } } } }
+    let blown_where: usize = (y0..y0 + sh).flat_map(|y| (x0..x0 + sw).map(move |x| (x, y))).filter(|&(x, y)| lum(w.light.at(y * w.g.w + x)) > 1.2 && w.g.get(x, y) == Mat::Empty
+        && w.torches.iter().all(|&(tx, ty)| (((x as f32 - tx as f32).powi(2) + (y as f32 - ty as f32).powi(2)).sqrt()) / c > 1.5)).count();
+    println!("{:<18} pool edge 5.5-8.5 m: {} cells, {:.0}% dark;  blown cells more than 1.5 m from any torch: {}", "", ring, ring_dark as f32 * 100. / ring.max(1) as f32, blown_where);
     println!("{:<18} light: open {:>6}  mean {:.2}  p90 {:.2}  max {:.2}  dark {:>3.0}%  blown {:>3.0}%  torches {}",
         kind.name(), v.len(), mean, v[(v.len() * 9 / 10).min(v.len() - 1)], v.last().unwrap_or(&0.), dark * 100., hot * 100., w.torches.len());
 }
