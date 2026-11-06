@@ -1639,3 +1639,141 @@ fn found_places_have_open_silhouettes_not_filled_boxes() {
     let mine = Site::new(1, Kind::Mine, 0, 0, 0, false, None);
     assert!(mine.cell(8 * CPM, 0).is_none(), "host above the mine drift roof");
 }
+
+/// Every way into a found place reaches its chest (or the fissure floor) and the rest of its
+/// rooms, with starting movement only: the mole's collision box flood-fills the stamped layout
+/// (gravity off, as the mole climbs walls and rope ladders). Chests stand in open space so they
+/// open. Walked across seeds, layout variants and both halt sides. Coordinate with the movement
+/// agent's `site_*_traverse` scenarios: this test owns the positive layout check; those own the
+/// climb feel.
+#[test]
+fn found_places_entrances_reach_every_room_and_the_chest() {
+    use molehill_sim::mat::{Mat, CPM};
+    use molehill_sim::sites::Kind;
+    use molehill_sim::world::World;
+
+    fn regions(w: &World, x0: usize, y0: usize, bw: usize, bh: usize) -> (Vec<u32>, Vec<usize>) {
+        let fits = |x: usize, y: usize| !w.box_hits((x0 + x) as f32, (y0 + y) as f32);
+        let mut reg = vec![0u32; bw * bh];
+        let mut sizes = vec![0usize];
+        for s in 0..bw * bh {
+            if reg[s] != 0 || !fits(s % bw, s / bw) { continue; }
+            let id = sizes.len() as u32;
+            let mut n = 0;
+            let mut st = vec![s];
+            reg[s] = id;
+            while let Some(i) = st.pop() {
+                n += 1;
+                let (x, y) = (i % bw, i / bw);
+                for (nx, ny) in [(x.wrapping_sub(1), y), (x + 1, y), (x, y.wrapping_sub(1)), (x, y + 1)] {
+                    if nx < bw && ny < bh && reg[ny * bw + nx] == 0 && fits(nx, ny) {
+                        reg[ny * bw + nx] = id;
+                        st.push(ny * bw + nx);
+                    }
+                }
+            }
+            sizes.push(n);
+        }
+        (reg, sizes)
+    }
+
+    let kinds = [
+        Kind::Holt, Kind::Mine, Kind::Pumpworks, Kind::Fissure,
+        Kind::Fossil, Kind::Crystal, Kind::Halt,
+    ];
+    let mut bad = vec![];
+    for seed in [1u32, 11, 4242] {
+        for &kind in &kinds {
+            let lefts: &[bool] = if kind == Kind::Halt { &[false, true] } else { &[false] };
+            for &left in lefts {
+                let var = seed & 7;
+                let mut w = World::new(1024, 512, seed);
+                w.disasters.enabled = false;
+                let (sw, sh) = kind.size();
+                let m = 2 * CPM;
+                let (x0, y0) = (64, 512 - sh - 3 * m);
+                for y in y0 - m..y0 + sh + m {
+                    for x in x0 - m..x0 + sw + m {
+                        let i = w.g.idx(x, y);
+                        w.g.set(i, Mat::Granite);
+                        w.g.flags[i] = 0;
+                    }
+                }
+                w.tr.ladders.clear();
+                w.chests.clear();
+                w.stamp_site_var(kind, x0, y0, var, left);
+                let name = kind.name();
+                let tag = format!("{name} seed={seed} var={var} left={left}");
+                let (bx0, by0, bw, bh) = (x0 - m / 2, y0 - m / 2, sw + m, sh + m);
+                let (reg, sizes) = regions(&w, bx0, by0, bw, bh);
+                let mut edge = vec![false; sizes.len()];
+                let mut goal = vec![false; sizes.len()];
+                let chest = w.chests.first().map(|c| (c.x, c.y));
+                let buried = chest.map_or(false, |(cx, cy)| w.g.is_solidish(w.g.idx(cx, cy)));
+                if buried {
+                    bad.push(format!("{tag}: chest is inside a solid at {:?}", chest));
+                }
+                for (i, &r) in reg.iter().enumerate() {
+                    if r == 0 { continue; }
+                    let (gx, gy) = (bx0 + i % bw, by0 + i / bw);
+                    if gx < x0 + CPM / 2 || gx + CPM / 2 >= x0 + sw || gy < y0 + CPM {
+                        edge[r as usize] = true;
+                    }
+                    let at_goal = match chest {
+                        Some((cx, cy)) => gx.abs_diff(cx) <= CPM && gy.abs_diff(cy) <= CPM,
+                        None => gy + 2 * CPM >= y0 + sh,
+                    };
+                    if at_goal { goal[r as usize] = true; }
+                }
+                let where_goal = if kind == Kind::Fissure { "its floor" } else { "its chest" };
+                let edge_ids: Vec<_> = (1..sizes.len()).filter(|&k| edge[k]).collect();
+                if edge_ids.is_empty() {
+                    bad.push(format!("{tag}: no way in (no entrance the body fits)"));
+                    continue;
+                }
+                for &k in &edge_ids {
+                    if !goal[k] {
+                        bad.push(format!(
+                            "{tag}: a way in (region {k}, {} body positions) does not reach {where_goal}",
+                            sizes[k]
+                        ));
+                    }
+                }
+                let main = edge_ids.iter().copied().max_by_key(|&k| sizes[k]);
+                let big = 4 * CPM * CPM;
+                let cut: Vec<_> = (1..sizes.len())
+                    .filter(|&k| Some(k) != main && sizes[k] >= big)
+                    .map(|k| sizes[k])
+                    .collect();
+                if !cut.is_empty() {
+                    bad.push(format!("{tag}: rooms cut off from the way in ({cut:?} body positions)"));
+                }
+                if matches!(kind, Kind::Crystal | Kind::Fossil) {
+                    let (mx, my) = (x0 + sw - 2 * CPM, y0 + sh - 2 * CPM);
+                    if !w.moles.is_empty() {
+                        w.moles[0].x = mx;
+                        w.moles[0].y = my;
+                        let hp0 = w.moles[0].hp;
+                        for _ in 0..180 { w.step(); }
+                        if w.moles[0].hp + 5. < hp0 {
+                            bad.push(format!(
+                                "{tag}: east-mouth lintel buried the mole ({hp0:.0} -> {:.0} hp)",
+                                w.moles[0].hp
+                            ));
+                        }
+                        if let Some(c) = w.chests.first() {
+                            if w.g.is_solidish(w.g.idx(c.x, c.y)) {
+                                bad.push(format!("{tag}: chest was buried after 180 ticks"));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    assert!(bad.is_empty(), "{}", bad.join("\n"));
+}
+
+
+
+
