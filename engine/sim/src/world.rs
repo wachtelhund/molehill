@@ -34,12 +34,13 @@ pub const D_RAIL: u8 = 9; pub const D_TUBE: u8 = 10;
 /// The build code for a block item (structural or decorative).
 /// Block items and the cells they build, in build-code order from `D_WOOD` (code = index + 2; codes 2..=10 are
 /// fixed: saves keep designations by code). A new block item is a new row here.
-pub const BUILDS: [(Item, Mat); 17] = [
+pub const BUILDS: [(Item, Mat); 19] = [
     (Item::WoodPillar, Mat::WoodBeam), (Item::Brick, Mat::StoneBrick), (Item::IronBeam, Mat::IronBeam), (Item::Planks, Mat::Planks),
     (Item::PolishedStone, Mat::Polished), (Item::Tiles, Mat::Tiles), (Item::CarvedPillar, Mat::Carved), (Item::Rail, Mat::Rail), (Item::Tube, Mat::Tube),
     // production (production.rs, sluice.rs, power.rs)
     (Item::Chute, Mat::Chute), (Item::Screen, Mat::Screen), (Item::Bumper, Mat::Bumper), (Item::Riffle, Mat::Riffle),
     (Item::Shaft, Mat::Shaft), (Item::Gear, Mat::Gear), (Item::WaterWheel, Mat::Wheel), (Item::Belt, Mat::Belt),
+    (Item::Engine, Mat::Engine), (Item::SteamPipe, Mat::SteamPipe),
 ];
 /// Number of build codes (`place_acc` slots).
 pub const NBUILD: usize = BUILDS.len() + 2;
@@ -665,6 +666,8 @@ impl World {
     fn step_air(&mut self) {
         for m in &self.moles { if m.alive { self.air.add(m.x, m.y - 1, if m.job == Some(Job::Sleep) { air::MOLE_CO2 * 0.5 } else { air::MOLE_CO2 }); } }
         for &(x, y) in &self.torches { self.air.add(x, y, air::TORCH_CO2); }
+        // a lit firebox breathes like four torches (steam.rs)
+        for b in &self.tr.boilers { if b.burning.is_some() && !b.choked { self.air.add(b.x, b.y.saturating_sub(2), 4. * air::TORCH_CO2); } }
         for f in &self.farms { self.air.add(f.x, f.y, air::FARM_CO2); }
         let v = self.vents(); self.air.update(&self.g, &v);
     }

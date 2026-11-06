@@ -128,3 +128,25 @@ I playtested the trains in context and probed the edges:
   Now it rescans once a second, cells join as they're built, and the cached list is re-checked between: about 0 ms a
   solve between rescans.
 * `site/` is rebuilt on main after #45.
+
+## Stage 4: coal power (branch `refine/production-steam`)
+
+* **Boiler** (`steam.rs`): a machine whose body is solid `Mat::Boiler` shell cells on the tile grid. A first draft had an
+  entity over empty cells, so water would have flowed through it and an engine couldn't rest on it.
+  - Fuel dropped on top is fed in. Coal and charcoal burn 40 s, wood 15 s, at 6 kW.
+  - It draws water cells from touching ground (tank of 32 cells), turns heat into steam at 70 % (40 kJ boils a cell), holds
+    up to 600 kJ, then vents steam cells.
+  - Each lump leaves ash, and every third coal slag too, as loose items out of the ash door. Ten at the door choke the
+    grate.
+  - A lit firebox adds four torches' worth of stale air. Saved in transport encoding v7.
+* **Steam engine and pipe:** engine cells (machinery) fed by touching the boiler or along pipe. Steam fills a whole engine
+  block; it first stopped at the first engine cells, so a piped engine ran at 57 %. An engine covers its train's shortfall
+  after wheels (25 W a cell, 15 % efficiency) and puffs exhaust where there's open air.
+* Scenarios `boiler_drives_belt`, `boiler_ash_chokes`, `boiler_dry`, `steam_pipe_feeds_engine`. Harness: legend `E` `P`;
+  vars `boilers`, `bsteam`, `bwater`, `bfuel`, `bburning`, `bchoked`.
+* For p3: **Boiler** (shell cells plus a fire glow and smoke when lit would help), **Steam engine** (a moving crank),
+  **Steam pipe**, **Ash**, **Slag**. All five have placeholder pack icons.
+* For p7: boiler (4 iron ingots + 6 brick), steam engine x4 (3 iron + 1 copper ingot), steam pipe x8 (1 copper ingot), all
+  at the forge. Ash and slag are residue, not made; uses for them are open.
+* **Not tested live:** no screenshot or playtest in the running game; only headless scenarios. Exhaust and valve steam
+  aren't covered by a scenario (the test engine hangs under rock).

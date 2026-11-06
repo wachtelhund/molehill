@@ -64,7 +64,7 @@ impl Cart {
 }
 
 /// Pack items that go down whole as a transport machine (`World::place_transport`).
-pub fn is_machine(it: Item) -> bool { matches!(it, Item::Cart | Item::RopeLadder | Item::Lift | Item::TubeHopper | Item::OreHopper | Item::Counterweight) }
+pub fn is_machine(it: Item) -> bool { matches!(it, Item::Cart | Item::RopeLadder | Item::Lift | Item::TubeHopper | Item::OreHopper | Item::Counterweight | Item::Boiler) }
 
 /// Everything transport keeps between ticks.
 #[derive(Clone, Debug, Default)]
@@ -83,6 +83,8 @@ pub struct Transport {
     pub ropes: Vec<crate::ropes::Rope>, pub hook: Option<crate::ropes::Hook>, pub on_rope: Option<(usize, f32)>,
     /// drive trains and counterweights (see power.rs)
     pub power: crate::power::Power,
+    /// boilers (see steam.rs)
+    pub boilers: Vec<crate::steam::Boiler>,
 }
 
 impl World {
@@ -132,9 +134,9 @@ impl World {
                 self.tr.carts.push(Cart { x: xf, y, px: xf, py: y, v: 0., vy: 0., dir: self.moles.first().map_or(1, |m| m.facing), on_rail: false, cargo: vec![], tip: 0 });
                 self.events.push(Event::Place); Ok(true)
             }
-            Item::RopeLadder | Item::Lift | Item::TubeHopper | Item::OreHopper | Item::Counterweight => {
+            Item::RopeLadder | Item::Lift | Item::TubeHopper | Item::OreHopper | Item::Counterweight | Item::Boiler => {
                 if self.inv[it as usize] == 0 { return Err("none left"); }
-                match it { Item::RopeLadder => self.place_ladder(x, y)?, Item::Lift => self.place_lift(x, y)?, Item::OreHopper => self.place_bin(x, y)?, Item::Counterweight => self.place_weight(x, y)?, _ => self.place_hopper(x, y)? }
+                match it { Item::RopeLadder => self.place_ladder(x, y)?, Item::Lift => self.place_lift(x, y)?, Item::OreHopper => self.place_bin(x, y)?, Item::Counterweight => self.place_weight(x, y)?, Item::Boiler => self.place_boiler(x, y)?, _ => self.place_hopper(x, y)? }
                 self.inv[it as usize] -= 1; Ok(true)
             }
             _ => Ok(false),
@@ -156,7 +158,7 @@ impl World {
     }
     /// `E` on a cart: take its cargo into the pack; an empty cart (nobody in it) comes up itself.
     pub fn pick_up_transport(&mut self, x: usize, y: usize) -> Option<Item> {
-        let Some(k) = self.cart_at(x, y) else { return self.pick_up_bin(x, y).or_else(|| self.pick_up_weight(x, y)).or_else(|| self.pick_up_hopper(x, y)).or_else(|| self.pick_up_lift(x, y)).or_else(|| self.pick_up_rope(x, y)) };
+        let Some(k) = self.cart_at(x, y) else { return self.pick_up_bin(x, y).or_else(|| self.pick_up_boiler(x, y)).or_else(|| self.pick_up_weight(x, y)).or_else(|| self.pick_up_hopper(x, y)).or_else(|| self.pick_up_lift(x, y)).or_else(|| self.pick_up_rope(x, y)) };
         // unloading says what came home ("Unloaded the cart: 12 stone, 3 copper ore.")
         if !self.tr.carts[k].cargo.is_empty() { let mut got = vec![];
             for (it, n) in std::mem::take(&mut self.tr.carts[k].cargo) { self.inv[it as usize] += n; got.push(format!("{n} {}", it.name().to_lowercase())); }
@@ -300,14 +302,14 @@ impl World {
             if riding == Some(k as i64) { new_ride = Some(keep.len()); } keep.push(c);
         }
         self.tr.carts = keep; self.tr.riding = new_ride;
-        self.shift_tubes(rows); self.shift_bins(rows, h); self.shift_ropes(rows); self.shift_power(rows, h);
+        self.shift_tubes(rows); self.shift_bins(rows, h); self.shift_ropes(rows); self.shift_power(rows, h); self.shift_boilers(rows, h);
         let (dr, hh) = (rows, h as i64);
         self.tr.ladders.retain_mut(|l| { let t = l.top as i64 - dr; let a = l.ay as i64 - dr; if t < 1 || a < 0 || t + l.len as i64 >= hh { return false; } l.top = t as usize; l.ay = a as usize; true });
         self.tr.lifts.retain_mut(|l| { let hd = l.head as i64 - dr; let b = l.bottom as i64 - dr; if hd < 1 || b >= hh - 1 { return false; } l.head = hd as usize; l.bottom = b as usize; l.y -= dy; l.py -= dy; true });
     }
     /// Save: the carts (window-relative cells) and their cargo.
     pub fn encode_transport(&self) -> Vec<u8> {
-        let mut o = crate::band::Wr(vec![]); o.u8(6);
+        let mut o = crate::band::Wr(vec![]); o.u8(7);
         o.u32(self.tr.carts.len() as u32);
         for c in &self.tr.carts { o.f32(c.x); o.f32(c.y); o.f32(c.v); o.u8((c.dir + 1) as u8); o.u32(c.cargo.len() as u32); for &(it, n) in &c.cargo { o.u8(it as u8); o.u32(n); } }
         // v2: ladders and lifts
@@ -321,6 +323,8 @@ impl World {
         self.encode_ropes(&mut o);
         // v6: counterweights
         self.encode_power(&mut o);
+        // v7: boilers
+        self.encode_boilers(&mut o);
         o.0
     }
     pub fn decode_transport(&mut self, b: &[u8]) -> Result<(), String> {
@@ -341,6 +345,7 @@ impl World {
         if ver >= 4 { self.decode_bins(&mut r)?; }
         if ver >= 5 { self.decode_ropes(&mut r)?; }
         if ver >= 6 { self.decode_power(&mut r)?; }
+        if ver >= 7 { self.decode_boilers(&mut r)?; }
         Ok(())
     }
 }

@@ -1,13 +1,13 @@
 # Production
 
-A mine's output moves as **real loose items**: every lump is a loose item in the world, in a cart, or in an ore hopper's bin (drawn as its heap). Nothing teleports and nothing is stored out of sight. Lumps get from the face to where they are wanted by falling, sliding and rolling, so a line can jam, spill and pile up. The code is `engine/sim/src/production.rs`, `sluice.rs` and `power.rs`; carts are in [Transport](Transport.md).
+A mine's output moves as **real loose items**: every lump is a loose item in the world, in a cart, or in an ore hopper's bin (drawn as its heap). Nothing teleports and nothing is stored out of sight. Lumps get from the face to where they are wanted by falling, sliding and rolling, so a line can jam, spill and pile up. The code is `engine/sim/src/production.rs`, `sluice.rs`, `power.rs` and `steam.rs`; carts are in [Transport](Transport.md).
 
 | stage | what | state |
 |---|---|---|
 | 1 | Chutes, shaker screens, bumpers (carts tip), ore hoppers that feed carts | **built** |
 | 2 | Water sluicing: running water carries fines off, riffle bars catch heavy lumps, water drains through screens | **built** |
 | 3 | Mechanical power: water wheels, shafts, gears, belts that carry and queue real lumps, counterweights | **built** |
-| 4 | Coal power: boiler and steam engine; ash and slag to haul away | design |
+| 4 | Coal power: a boiler raises steam from coal and real water; a steam engine drives a train; ash and slag come out to haul away | **built** |
 | 5 | Refinement: stamp mill, washer, bellows smelter, foundry | design |
 | 6 | Non-electric logic: plates, tipping scales, float valves, gates | design |
 
@@ -95,6 +95,23 @@ Drive trains of iron and timber carry a stream's push to belts and machines (`po
 
 **Every block item can be built.** The brush now builds any block item from one table (`world::BUILDS`). Chutes, screens, bumpers and riffle bars had been missing from it, so in the game they couldn't be placed at all (test `every_block_item_can_be_built`).
 
+## Coal power
+
+A boiler burns real lumps, boils real water out of the ground, and its steam drives an engine on a drive train (`steam.rs`). What burns leaves ash and slag as loose items that have to be taken away.
+
+* **Boiler** (`Item::Boiler`): 1.5 m wide and 1.25 m tall, standing on a level floor on the tile grid. Its body is solid shell cells (`Mat::Boiler`), so water stays out of it and an engine can rest on it. Break the shell up (dig or blast it) and the boiler is wrecked, spilling its fuel.
+  * **Fuel:** coal, charcoal or wood dropped on its top goes in through the hatch. One lump burns at a time, giving 6 kW of heat: 40 s for coal or charcoal, 15 s for wood. Anything else lies on its top.
+  * **Water:** it draws water cells from the ground touching it, one every 6 ticks while its drum has room (32 cells), so it wants to stand by a sump or a channel, and the water level visibly drops. Every 40 kJ of steam boils away one cell; this is a game measure, so a drum lasts a few minutes of hard firing. Dry, the fire only heats iron (`boiler_dry`).
+  * **Steam:** heat becomes steam at 70 %, held up to 600 kJ. Past that its safety valve lifts and the excess goes up as steam cells.
+  * **Ash and slag:** each lump burnt drops a lump of **ash** out of the ash door (its right side, at the floor). Every third coal also drops a lump of **slag**. Ash is fine (it falls through a screen and running water washes it off); slag is a heavy lump to haul. With 10 of them lying against the door, the grate chokes and the fire is smothered until they're cleared, and the log says so (`boiler_ash_chokes`).
+  * A lit firebox stales the air like four torches.
+* **Steam engine** (`Mat::Engine`): machinery, joining a train like a gear. Engine cells touching the boiler, or joined to it by **steam pipe** (`Mat::SteamPipe`), take its steam; steam fills a whole engine block. Each engine cell gives up to 25 W. An engine covers what its train is short of after any water wheel, drawing steam at 1/0.15 of what it gives, and puffs exhaust steam from its top where there is open air.
+* Scenarios:
+  * `boiler_drives_belt`: coal and a sump drive a belt through an engine on the boiler. Ash and slag come out, and the boiler is saved.
+  * `boiler_ash_chokes`: a choked ash door holds the fire until the mole picks up the ash.
+  * `boiler_dry`: no water, no steam.
+  * `steam_pipe_feeds_engine`: steam goes along a pipe to an engine 3.5 m away. Cut the pipe and the belt stops.
+
 ## How they look
 
 Chutes, screens and bumpers are cells with their own patterns (`art::mat_color`). A chute has a pale worn lip and boards along it. A screen is iron bars over a dark mesh under a timber rail. A bumper is red-painted timber with a bright head and iron bands. The ore hopper is drawn: its heap is tinted with what it holds, it shows through the open front of the bin and rises with the load, and the gate under the spout swings open when it lets a lump down. `--scene=production` stamps a small works (chute onto screen, a hopper of copper ore over track, a bumper) for stills. See [Item and Place Art](Item-and-Place-Art.md).
@@ -116,6 +133,9 @@ The chute, screen (shaking or not) and bumper say what moves things along them. 
 | Workbench | 8 water wheel | 4 wood |
 | Workbench | 8 belt | 2 wood + 2 fungus |
 | Forge | 8 iron shaft | 1 iron ingot |
+| Forge | boiler | 4 iron ingots + 6 brick |
+| Forge | 4 steam engine | 3 iron ingots + 1 copper ingot |
+| Forge | 8 steam pipe | 1 copper ingot |
 | Forge | counterweight | 4 iron ingots + 2 wood |
 | Forge | 4 shaker screen | 1 iron ingot + 1 wood |
 | Forge | ore hopper | 6 wood + 1 copper ingot |

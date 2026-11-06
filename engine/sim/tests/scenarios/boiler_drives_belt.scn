@@ -1,0 +1,51 @@
+// Coal power, end to end. A boiler stands by a sump; a steam engine hangs from the roof resting on the boiler's
+// top, geared through a shaft and a gear down to a belt on the floor. Three lumps of coal dropped on the boiler go
+// in through its hatch and burn one at a time (40 s each). The boiler draws water out of the sump, raises steam,
+// and the engine drives the belt: a stone dropped on it rides to its end. Each lump burnt leaves a lump of ash
+// out of the ash door, and the third coal a lump of slag as well, as loose items on the floor. A stone dropped on
+// the boiler is no fuel and stays lying on its top. The boiler, its water and its steam are saved.
+map
+########################################
+########################################
+########################################
+########################################
+########################################
+########################################
+########################################
+########################################
+#........EE*jjjjjjjjjjjj*..............#
+######..................j..............#
+#wwwww..................j..............#
+#wwwww..................j..............#
+#wwwww..................j..............#
+#wwwww..............@...*>>>>>>>>>>>...#
+########################################
+########################################
+end
+give Boiler 1
+place 2 -11 -2 Boiler
+expect 3 boilers == 1
+drop 10 Coal -13 -6
+drop 20 Coal -13 -6
+drop 30 Coal -13 -6
+drop 30 Stone -15 -6
+drop 40 Stone 7 -1
+expect 60 bfuel == 3                  // all three in, one burning
+expect 60 bburning == 1
+expect 300 bwater > 30                // its drum filled from the sump...
+expect 300 count:Water < 13           // ...and the sump went down (it had 20 tiles)
+expect 300 bsteam > 10                // steam up
+expect 300 turning:5,0 == 1           // the engine drives the belt
+expect 300 supply:5,0 > 50
+expect 300 zone:Stone,15,18,-1,0 == 1 // the stone rode to the belt's end and off it
+expect 300 zone:Stone,-16,-10,-7,-5 == 1   // the other stone still lies on the boiler's top
+expect 2500 items:Ash == 1            // the first lump burnt out
+expect 7500 bfuel == 0                // all burnt
+expect 7500 items:Ash == 3
+expect 7500 items:Slag == 1
+expect 7500 zone:Ash,-9,-4,-1,0 == 3  // out of the ash door, at the boiler's foot
+expect 7500 turning:5,0 == 1          // the steam it raised still drives the belt
+saveload 7510
+expect 7511 boilers == 1
+expect 7511 bsteam > 300
+expect 7511 bwater > 25

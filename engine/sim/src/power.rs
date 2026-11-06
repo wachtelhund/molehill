@@ -132,6 +132,7 @@ impl World {
     /// Find the trains, balance each one's power, move the counterweights.
     pub(crate) fn step_power(&mut self) {
         if self.tick % MECH_EVERY != 0 { return; }
+        self.step_boilers(MECH_EVERY as f32 / 60.);
         let (gw, gh) = (self.g.w, self.g.h);
         // weights whose drum is gone fall as an item
         let mut k = 0;
@@ -189,6 +190,11 @@ impl World {
             let floor = (top..end).find(|&r| blocked(r)).unwrap_or(end);
             let b = (floor - (CPM / 2) as i32).max(top) as f32;
             let w = &mut self.tr.power.weights[k]; w.bottom = b; if w.y > b { w.y = b; } }
+        // steam engines cover what the water wheels leave short, drawing steam from their boilers
+        let dt0 = MECH_EVERY as f32 / 60.;
+        for t in 0..nt { let short = demand[t] - supply[t]; if short <= 0. { continue; }
+            let cap = self.engine_cap(&train, t as u32, dt0); if cap <= 0. { continue; }
+            let w = short.min(cap); supply[t] += w; self.engine_draw(&train, t as u32, w, dt0); }
         // counterweights make up the difference: falling to give, winding to take
         let dt = MECH_EVERY as f32 / 60.; let g = 9.81; let cpm = CPM as f32;
         let mut wsup = vec![0f32; nt];

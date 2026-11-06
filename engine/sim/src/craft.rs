@@ -27,8 +27,10 @@ pub enum Item {
     Riffle,
     // mechanical power (power.rs): shafts, gears, water wheels, belts and a counterweight on its drum
     Shaft, Gear, WaterWheel, Belt, Counterweight,
+    // coal power (steam.rs): the boiler, a steam engine and its pipe, and what burning leaves
+    Boiler, Engine, SteamPipe, Ash, Slag,
 }
-pub const NITEM: usize = 81;
+pub const NITEM: usize = 86;
 /// What an item can do in the world (see `Item::uses`).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Uses { pub place: bool, pub throw: bool, pub pick_up: bool }
@@ -306,6 +308,19 @@ const ITEM_DEFS_CONST: [ItemDef; NITEM] = {
     it(Counterweight, "Counterweight", [118, 112, 108],
        "A rope drum and an iron weight. Spare power winds it up; when the drive runs short, it falls and turns it.").dens(5000.0).place().pick_up()
        .controls("Left mouse: hang the drum under a roof over a drop · join it to the drive · E: take down"),
+    it(Boiler, "Boiler", [120, 84, 70],
+       "Brick firebox under an iron drum. Coal in, water from the ground; makes steam and leaves ash.").dens(4000.0).place().pick_up()
+       .controls("Left mouse: stand it in a sump or by water · drop coal, charcoal or wood in · haul its ash away · E: rake out fuel, then pick up"),
+    it(Engine, "Steam engine", [96, 92, 98],
+       "Iron cylinder and crank. Touching a boiler, or piped to one, it turns the drive train it's part of.").lump(Mat::Engine).block(Mat::Engine).place()
+       .controls("Left mouse: build against a boiler or at a steam pipe's end · join it to a shaft, gear or belt"),
+    it(SteamPipe, "Steam pipe", [176, 108, 66],
+       "Copper pipe. Lay it from a boiler to a steam engine to carry the steam.").lump(Mat::SteamPipe).block(Mat::SteamPipe).place()
+       .controls("Left mouse: lay it from a boiler to an engine (hold; X: snap)"),
+    it(Ash, "Ash", [150, 146, 140],
+       "Fine grey ash from a firebox. Light: water washes it off and a screen lets it through.").size(0.001).dens(600.0).throw(),
+    it(Slag, "Slag", [70, 66, 74],
+       "A glassy lump of fused clinker from burnt coal. Heavy, and it has to be hauled off.").size(0.08).dens(2500.0).throw(),
     ]
 };
 /// Every item, in order.
@@ -453,6 +468,10 @@ pub static RECIPES: &[Recipe] = &[
     Recipe { name: "Mine cart", station: Station::Forge, inputs: &[(Item::CopperIngot, 2), (Item::Wood, 4)], out: (Item::Cart, 1), ticks: 200 },
     // production: the ore hopper is timber bound with copper; the shaker screen is an iron grating
     // mechanical power: an iron shaft and a counterweight cast in iron (gears, wheels and belts are workbench timber)
+    // coal power: an iron drum on a brick firebox, an iron engine, copper steam pipe
+    Recipe { name: "Boiler", station: Station::Forge, inputs: &[(Item::IronIngot, 4), (Item::Brick, 6)], out: (Item::Boiler, 1), ticks: 300 },
+    Recipe { name: "Steam engine x4", station: Station::Forge, inputs: &[(Item::IronIngot, 3), (Item::CopperIngot, 1)], out: (Item::Engine, 4), ticks: 240 },
+    Recipe { name: "Steam pipe x8", station: Station::Forge, inputs: &[(Item::CopperIngot, 1)], out: (Item::SteamPipe, 8), ticks: 90 },
     Recipe { name: "Iron shaft x8", station: Station::Forge, inputs: &[(Item::IronIngot, 1)], out: (Item::Shaft, 8), ticks: 120 },
     Recipe { name: "Counterweight", station: Station::Forge, inputs: &[(Item::IronIngot, 4), (Item::Wood, 2)], out: (Item::Counterweight, 1), ticks: 200 },
     Recipe { name: "Ore hopper", station: Station::Forge, inputs: &[(Item::Wood, 6), (Item::CopperIngot, 1)], out: (Item::OreHopper, 1), ticks: 200 },
