@@ -1,12 +1,11 @@
-//! Generative ambient music: a slow, sparse composer that hands out timed notes for the WebAudio
-//! synth in `audio.rs` to play. Pure Rust (no audio here) so it can be tested natively.
+//! Generative ambient music: a slow, sparse composer that hands out timed notes for `audio.rs` to play
+//! (WebAudio on the web, `synth.rs` natively). Pure Rust (no audio here) so it can be tested natively.
 //!
 //! Shape: a piece plays for one to two minutes, then a long near-silent rest, then another piece.
 //! Each piece picks a texture (pads and plucks, a lone kalimba, pads and bells, or a drone with the odd
 //! pluck) and a mood from where the mole is: airy and major up in the wet layers, earthy in the
 //! middle, darker and lower in the deep, and low and smouldering near lava. Melodies are a gentle random walk
 //! on a pentatonic-ish scale at a slow pulse, with lots of space. The synth adds the reverb and echo.
-#![cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)] pub enum Voice { Pad, Pluck, Bell, Drone }
 #[derive(Clone, Copy, Debug)] pub struct Note { pub t: f64, pub voice: Voice, pub hz: f32, pub dur: f32, pub vel: f32 }
@@ -48,7 +47,7 @@ impl Composer {
     }
     fn r(&mut self) -> f32 { let mut s = self.rng; s ^= s << 13; s ^= s >> 17; s ^= s << 5; self.rng = s; (s >> 8) as f32 / (1u32 << 24) as f32 }
     fn range(&mut self, a: f64, b: f64) -> f64 { a + (b - a) * self.r() as f64 }
-    pub fn playing(&self) -> bool { matches!(self.state, State::Play { .. }) }
+    #[allow(dead_code)] pub fn playing(&self) -> bool { matches!(self.state, State::Play { .. }) }
 
     /// Write every note that starts before `horizon` into `out`. `mood` is where the mole is now.
     /// Call often with a horizon a second or two ahead of the audio clock.
