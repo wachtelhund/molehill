@@ -118,6 +118,8 @@ impl Run {
                     "irest" => d.asleep() as u8 as f64, _ => (d.fuse > 0) as u8 as f64 } }
             _ if v.starts_with("ev:") => self.events.iter().filter(|e| e.split(':').nth(1) == Some(&v[3..])).count() as f64,
             "sites" => self.w.sites.len() as f64, "sites_seen" => self.w.sites_seen.len() as f64,
+            // strain: strained roof cells the strain watch sees near the mole (past capacity, still holding)
+            "strain" => self.w.strain.len() as f64,
             _ if v.starts_with("walls:") => {
                 let wl = molehill_sim::walls::Wall::from_u8(wall_code(&v[6..])?); self.w.walls.count(wl) as f64 }
             _ if v.starts_with("wall:") => {

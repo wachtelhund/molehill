@@ -476,7 +476,7 @@ fn stage_scene(w: &mut World) {
             "walls" | "wall" => stage_wall_edit(w, mx, my, set),
             _ => {}
         }
-        let f = w.st.solve(&w.g); w.st.crack(&f);
+        let f = w.st.solve(&w.g); w.st.crack(&w.g, &f);
     }
 }
 
@@ -1130,6 +1130,13 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
         if pl.grounded && pl.vx.abs() > 6. * SF && floor != Mat::Empty { fx.dust_t += dt; } else { fx.dust_t = 0.; }
         while fx.dust_t > 0.11 { fx.dust_t -= 0.11; let c = PROPS[floor as usize].color; let h = hash3(g.frame as u32, 7, 11); let r = ((h & 255) as f32 / 255.) - 0.5;
             fx.parts.push(Part { p: cell_to_world(g.disp.x, g.disp.y + SF) + Vec2::new(-pl.vx.signum() * 4., 1.), v: Vec2::new(-pl.vx.signum() * (10. + r * 8.), 12. + r * 6.), life: 0., max: 0.28, c: [c[0] as f32 * 0.8 + 30., c[1] as f32 * 0.8 + 30., c[2] as f32 * 0.8 + 30.], size: 1.4, g: 90., drag: 0., al: 1. }); }
+        // a roof giving warning: dust sifts from strained rock (loaded past capacity, still holding) now and
+        // then, and faster from rock that has started to crack (it lets go in 1.5 s)
+        let cracking = w.st.cracking.iter().filter(|&&i| (i as usize % W).abs_diff(pl.px as usize) < 20 * molehill_sim::mat::CPM).take(64).copied();
+        for (k, i) in w.strain.iter().copied().map(|i| (0u32, i)).chain(cracking.map(|i| (1u32, i))) {
+            let h = hash3(i, g.frame as u32, 23); if h % 1000 >= if k == 0 { 6 } else { 40 } { continue; }
+            let (x, y) = ((i as usize % W) as f32, (i as usize / W) as f32 + 1.); let c = PROPS[w.g.mat[i as usize] as usize].color; let r = ((h >> 10) & 255) as f32 / 255. - 0.5;
+            fx.parts.push(Part { p: cell_to_world(x + 0.5 + r, y), v: Vec2::new(r * 4., -2.), life: 0., max: 1.1, c: [c[0] as f32 * 0.7 + 40., c[1] as f32 * 0.7 + 38., c[2] as f32 * 0.7 + 34.], size: 1.1, g: 45., drag: 0.6, al: 0.8 }); }
         // splash: entering water (or lava) throws a crown of droplets
         let body = w.g.m(((pl.py - SF) as usize).min(H - 1) * W + (pl.px as usize).min(W - 1)); let wet = matches!(body, Mat::Water | Mat::Lava);
         if wet && !fx.wet && pl.vy.abs() > 4. * SF { let c = if body == Mat::Lava { [255., 140., 40.] } else { [120., 170., 230.] };

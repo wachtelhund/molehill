@@ -7,7 +7,7 @@ BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
 #......................................#
 #......................................#
 #......................................#
-#.....@.........ddd.#..................#
+#.....@.........ddd..#.................#
 ##########################.............#
 ##########################.............#
 #######################################
@@ -19,8 +19,9 @@ tool 1 1
 mine 10-12 11 0
 expect 10 ev:Dig == 1
 expect 10 shake > 0.05
-// granite with only the pickaxe: a clink and a word, at once
-mine 40-42 14 0
+// granite with only the pickaxe: a clink and a word, at once (the granite tile stands clear of the dirt,
+// so the bite holds only granite)
+mine 40-42 15 0
 expect 40 ev:Crack == 1
 expect 40 shake > 0.05
 // a throw

@@ -233,3 +233,29 @@ cells from its own torches and glowing rock, one charge in the mine / pumpworks 
   4 m bay is its own dark box (a torch's light dies 3–5 m out; 98 % of a torch's 5.5–8.5 m ring is dark); the
   halt sheds 113 cells and 14 rumbles in 10 s with no charge; the pumpworks' west wall has an open gap at the
   sump's level, which would drain into open host rock.
+
+## Rarer, telegraphed cave-ins (Hampus playtest: "near-constant cave-ins when digging")
+Measured with `--example digbot` (new): a Survival mole tunnels and digs staircases near home, 16 seeds × 2 min.
+"Before" is main's rules run in the same code (fail at u > 1, a creak on every crack start).
+
+| per minute of digging | before | after |
+|---|---|---|
+| creaks (Event::Crack) | 56 | 6.6–7.8 |
+| cave-in episodes (any size) | 6.5 | 6.0–6.9 |
+| big cave-ins (≥ 1 m²) | 0.9 | 0.4–0.7 |
+| big cave-ins warned by a creak 0.5–10 s before | (creak constant) | 6 of 7 (8 seeds) |
+
+* What falls is mostly limestone and rock cut free by the dig (no load path), not overloaded roofs; most episodes
+  are under a tile. Drift near the mole is mostly loose gravel rubble on some seeds and worldgen sand on others
+  (seed 7: 63 000 sand moves a minute from one lens). The sand share near spawn is p6's.
+* Strain band (natural ground only): past capacity a roof creaks and sheds dust but holds; it fails past
+  stress::FAIL_U = 1.5. Built blocks still fail at 1 (building rules unchanged). Strained cells near the mole
+  (World::strain) creak once when they appear and every 10 s while you stay; the game sifts dust from them.
+* The creak now means "this is going": at least a tile of overloaded rock starting to crack, or a mass of a
+  square metre or more cut free and jammed against rock (wedged 45 ticks, creaks). Slivers drop silently.
+* Tried and dropped (no measurable gain or worse, by ablation on 8 seeds): a corner-contact hold for slivers;
+  longer crack countdowns (1.5 s: more, smaller episodes as digging kept failing the edges); joining new cracks
+  to a neighbour's countdown; re-settling resting rubble into ground (it fails again as weak gravel: 15/min).
+* Scenarios: strained_roof_creaks_and_holds (new); hall_sag_arrests widened to 24 m; roof_needs_pillar and
+  pillars_rock_roof at 16 m; feel_feedback's granite tile moved clear of the dirt (it had passed only because
+  the dirt next to it crumbled).
