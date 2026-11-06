@@ -27,4 +27,5 @@ Behaviour-preserving refactors for scalability. Every slice: sim tests, scenario
 * Numbers (CPU ms per frame, single thread, seed 4242, 200 m routes; main 8f9085f vs branch):
   * slide ticks: down 541 → 31 (web-like sliced 76), up 1312 → 35 (33), diag 551 → 16 (27), respawn 404 → 32 (53), load+dig 353 → 37 (44). Fast 40 m/s climb still outruns the buffer (1146 → 555).
   * worst frame over 200 m straight down: 541 → 102 (the rest is ordinary stress passes from digging, also in main: 98); p99 88 → 72.
+* Merged as PR #37 (ceded02); gate on the merged branch: sim tests green, 194/194 scenarios, 25 game tests, game and web build. p4 adds the loading-line stage on top. Polish PR: stream.rs docs (seam escalation, reach pass cost).
 * Tests: `tests/stream.rs` (purity across build paths, building ahead never changes the world, perf gate < 150 ms per slide/seam tick); `slide_keeps_stress_state` judges failure by the solver's rule and allows a quarter of utilisation drift from box solves.

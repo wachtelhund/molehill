@@ -343,6 +343,10 @@ pub fn mat_color(m: molehill_sim::mat::Mat, cx: u32, cy: u32, above: u32) -> Opt
         // metre with a bolt in it
         M::Bumper => { let band = cy % c == c - 1; let g = 0.92 + h(cx, 0, 93) * 0.12;
             Some(if above == 0 { [216., 78., 56.] } else if above == 1 { [120., 40., 32.] } else if band { if cx % 3 == 1 { [196., 196., 204.] } else { [96., 98., 110.] } } else { [152. * g, 60. * g, 42. * g] }) }
+        // riffle bars: short upright timber slats across the sluice floor, a dark gap between each pair, the tops worn
+        // pale by the water running over them
+        M::Riffle => { let q = c / 2; let g = 0.9 + h(cx / q, 0, 97) * 0.16;
+            Some(if cx % q == 0 { [62., 44., 30.] } else if above == 0 { [186., 150., 100.] } else { [122. * g, 88. * g, 54. * g] }) }
         _ => None,
     }
 }
@@ -385,9 +389,26 @@ pub fn ore_bin(part: u8) -> Image {
     }
 }
 
+/// A half-metre length of hook rope (1 px = 1 world unit, lying along +x): twisted fungus fibre, the twist
+/// running across it in light and dark strands, stretched along each rope segment.
+pub fn rope_seg() -> Image {
+    let mut p = Px::new(8, 2); let fib = [176, 146, 96];
+    for x in 0..8 { for y in 0..2 { p.set(x, y, if (x + y * 2) % 4 < 2 { fib } else { shade(fib, 0.68) }); } }
+    p.image()
+}
+/// The stone hook at a rope's end (1 px = 1 world unit), its point toward +x: a knapped stone head with two
+/// barbs swept back, lashed onto the rope.
+pub fn rope_hook() -> Image {
+    let mut p = Px::new(8, 7); let st = [150, 146, 140];
+    p.rect(0, 3, 1, 3, [176, 146, 96]); p.rect(2, 2, 3, 4, [120, 96, 64]); // rope end and lashing
+    p.rect(4, 3, 6, 3, st); p.set(7, 3, shade(st, 1.25)); // shank and point
+    for (x, y) in [(5, 2), (4, 1), (3, 0)] { p.set(x, y, shade(st, 1.1)); } for (x, y) in [(5, 4), (4, 5), (3, 6)] { p.set(x, y, shade(st, 0.85)); } // barbs
+    p.finish([30, 20, 30]).image()
+}
+
 /// What the mole holds, drawn at the mole's own pixel scale (1 pixel = 1 world unit), pointing right
 /// with the grip at the left edge's middle, so the game can turn it toward the aim around the paw.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)] pub enum Held { Pick, Drill, Bore, Charge, Block([u8; 3]) }
+#[derive(Clone, Copy, PartialEq, Eq, Debug)] pub enum Held { Pick, Drill, Bore, Charge, Block([u8; 3]), /** the rope gun; true while a hook sits in its muzzle */ RopeGun(bool) }
 pub fn held_sprite(h: Held) -> Image {
     let wood = [150, 105, 60]; let line = [30, 20, 30];
     let p = match h {
@@ -401,6 +422,15 @@ pub fn held_sprite(h: Held) -> Image {
         Held::Charge => { let mut p = Px::new(7, 8); for (k, x) in [0, 2, 4].into_iter().enumerate() { p.rect(x, 2, x + 1, 7, if k == 1 { [230, 70, 56] } else { [200, 50, 40] }); }
             p.rect(0, 4, 5, 4, [90, 70, 50]); p.set(3, 1, [120, 100, 80]); p.set(4, 0, [255, 200, 90]); p }
         Held::Block(c) => { let mut p = Px::new(6, 6); p.rect(0, 0, 5, 5, c); p.rect(0, 0, 5, 0, shade(c, 1.25)); p.rect(0, 5, 5, 5, shade(c, 0.75)); p }
+        Held::RopeGun(loaded) => { // a root-wood stock, the bow-spring bent across its fore end with the cord drawn back to
+            // the catch, a crank on its side; loaded, a stone hook sits in the muzzle
+            let mut p = Px::new(16, 11); let root = [122, 84, 52]; let cord = [196, 170, 120];
+            p.rect(0, 5, 10, 6, root); p.rect(0, 7, 2, 8, shade(root, 0.8)); p.set(3, 5, shade(root, 1.25)); p.set(7, 6, shade(root, 0.75)); // stock and grip
+            for y in 0..11 { let x = 10 + ((y as f32 - 5.).abs() * 0.3) as i32; p.set(x, y, if y == 0 || y == 10 { shade(root, 1.2) } else { root }); } // the bow-spring
+            for y in [1, 9] { let x = 10. + ((y as f32 - 5.).abs() * 0.3).floor(); crate::devart::line(&mut p, x, y as f32 + 0.5, 6.5, 5.5, 1, cord); } // the cord to the catch
+            p.set(5, 4, [196, 156, 72]); p.set(5, 3, [140, 104, 44]); // crank
+            if loaded { p.rect(11, 5, 13, 5, [150, 146, 140]); p.set(14, 4, [176, 172, 166]); p.set(15, 3, [176, 172, 166]); p.set(14, 6, [120, 116, 110]); p.set(15, 7, [120, 116, 110]); } // the hook's shank and barbs
+            p }
     };
     p.finish(line).image()
 }
@@ -443,8 +473,9 @@ mod tests {
         let screen = patch(Mat::Screen); let mesh = screen.iter().filter(|&&c| lum(c) < 50.).count() as f32 / screen.len() as f32;
         assert!(mesh > 0.4, "the screen's mesh is dark between the bars ({mesh:.2})");
         assert!(screen.iter().any(|&c| lum(c) > 150.), "the screen's bars are bright iron");
-        let (chute, bump) = (mean(&patch(Mat::Chute)), mean(&patch(Mat::Bumper)));
-        for (a, b, what) in [(chute, mean(&screen), "chute/screen"), (chute, bump, "chute/bumper"), (bump, mean(&screen), "bumper/screen")] { assert!(dist(a, b) > 30., "{what} too alike"); }
+        let (chute, bump, riffle) = (mean(&patch(Mat::Chute)), mean(&patch(Mat::Bumper)), mean(&patch(Mat::Riffle)));
+        for (a, b, what) in [(chute, mean(&screen), "chute/screen"), (chute, bump, "chute/bumper"), (bump, mean(&screen), "bumper/screen"), (riffle, chute, "riffle/chute"), (riffle, bump, "riffle/bumper"), (riffle, mean(&screen), "riffle/screen")] { assert!(dist(a, b) > 30., "{what} too alike"); }
+        let slats = patch(Mat::Riffle).iter().filter(|&&c| lum(c) < 0.6 * lum(riffle)).count(); assert!(slats >= 16, "riffle slats have dark gaps between them");
         assert!(lum(mat_color(Mat::Chute, 3, 3, 0).unwrap()) > lum(chute) * 1.2, "a chute's top is a pale worn lip");
         let head = mat_color(Mat::Bumper, 3, 3, 0).unwrap(); assert!(head[0] > 2.5 * head[1], "a bumper's head is painted red");
         let seams = (0..CPM as u32).map(|y| mat_color(Mat::Chute, 4, 16 + y, 2).unwrap()).filter(|&c| lum(c) < 0.75 * lum(chute)).count(); assert!(seams >= 1, "chute boards have seams");
@@ -463,6 +494,20 @@ mod tests {
         assert!(a(&back, 0, h - 3) == 0 && a(&shut, 1, h - 3) == 0, "it tapers to a spout");
         assert_ne!(shut, open, "the gate shows open");
         let heap = px(4); assert!(heap.chunks(4).filter(|c| c[3] > 0).all(|c| c[0] > 150), "the heap is pale so its tint gives the ore colour");
+    }
+
+    /// The rope gun reads as loaded or empty in the paws, and the rope and hook are drawn, not dots: the
+    /// rope's twist shows as light and dark strands, and the hook has a point and two barbs.
+    #[test] fn rope_gun_art_is_drawn() {
+        use super::{held_sprite, rope_seg, rope_hook, Held};
+        let (on, off) = (held_sprite(Held::RopeGun(true)).data.unwrap(), held_sprite(Held::RopeGun(false)).data.unwrap());
+        let cover = |d: &[u8]| d.chunks(4).filter(|c| c[3] > 0).count();
+        assert!(cover(&on) > cover(&off) + 4, "a loaded gun shows its hook in the muzzle");
+        let rope = rope_seg().data.unwrap(); let lums: Vec<u32> = rope.chunks(4).map(|c| c[0] as u32 + c[1] as u32 + c[2] as u32).collect();
+        assert!(rope.chunks(4).all(|c| c[3] == 255), "rope is solid fibre");
+        assert!(lums.iter().max().unwrap() - lums.iter().min().unwrap() > 120, "the twist shows");
+        let hook = rope_hook().data.unwrap(); let w = 8; let px = |x: usize, y: usize| hook[(y * w + x) * 4 + 3] > 0;
+        assert!(px(7, 3) && px(3, 0) && px(3, 6), "a point and two barbs");
     }
 
     #[test] fn ore_pockets_stand_out_without_glowing() {
