@@ -8,7 +8,7 @@ Every item has its own drawing. No two share a silhouette, and none is another i
 
 ![Every item's pack icon, then every device as the hotbar shows it](images/item-icons.png)
 
-The sheet shows the first 100 items, then the 21 devices. The steam borer is not on it yet.
+The sheet shows all 101 items, then the 21 devices.
 
 The pack, the hotbar, the item in the mole's paws and anything lying loose all use the icon (a loose item is drawn at half size). Devices in the hotbar use their own in-world sprite (`devart::hotbar_icon`, switched off), so a lever, a plate and a floodgate no longer share one placeholder. The fuse and the pressure plate are the exceptions: in the world each is a thin strip along the floor of its block, so the hotbar shows a coil of fuse cord and the plate seen from above at an angle.
 
@@ -107,7 +107,7 @@ The pack, the hotbar, the item in the mole's paws and anything lying loose all u
 | Sluice gate | a planked gate leaf in a frame with a lifting rod and wheel | shut: placed leaf cells, upright planks with two iron straps; lifted: the leaf drawn raised out of the opening (`art::gate_leaf`). Its lever on the head points up (lifts when pulled) or down (turned round: shuts when pulled) (`art::gate_lever`) |
 | Tipping scale | a beam on a post with a pan of ore one side and stones the other | its pan is placed cells (an iron pan with a bright rim); drawn beside it (`art::scale_part`): a post at the pan's end, the beam on it tipping pan side down once the pan outweighs the stones, a rod down to the pan, and the counter-pan with up to 8 of its stones |
 | Clutch | two toothed iron halves on a shaft, a fork lever on one | placed cells: two iron halves with dog teeth between; out, a dark gap; in, the teeth mesh and turn with the train |
-| Steam borer | an iron body on two wheels, a toothed cone of a bore head at its front, a stack with smoke | borer body, head and rider |
+| Steam borer | the borer side on: a brick firebox with its door glowing, a riveted barrel, the stack with a puff, a toothed steel cone, two spoked wheels | drawn (`art::borer`), flipped to the way it faces: the body (firebox door dark when cold, glowing when lit; barrel, stack, seat and drive lever, the spoil belt running back over the top), the toothed bore head turning while it drives or grinds with steam up, two wheels turning with the ground it covers, and while it burns a glow at the door and smoke from the stack |
 | Ore hopper | a timber bin heaped with ore, tapering to a spout, on splayed legs | ore hopper sprite: back boards, the heap tinted with what it holds, the front frame open over the heap, a boarded taper to an iron spout whose gate shows shut or swung open, two legs down to the floor (`art::ore_bin`) |
 | Rock wall | a rough slab of scraped host rock with tool marks | background lining |
 | Timber wall | boards standing on end, uneven tops, gaps between | background lining |
@@ -160,6 +160,7 @@ Game-crate tests (`cargo test --release -p molehill`):
 * `boiler_and_pipe_are_drawn`: the lit boiler shows at least 12 bright fire pixels through its door and the cold one none; a steam pipe has brass flanges on copper; a vertical pipe is the horizontal one turned. The steam engine is one of the kinds in `machinery_moves_when_its_train_turns`.
 * `refinement_works_are_drawn`: the smelter's fire mouth brightens with each heat step (none cold), water shows in the washer's tub only when it has some, the stamp mill has its frame and stamp, and a setting mould glows where an empty one's hollow is dark. The bellows are one of the kinds in `machinery_moves_when_its_train_turns`.
 * `linkage_parts_show_their_state`: the six linkage cell kinds each differ from the others in over 64 of 256 cells; a rod, tread plate, clutch and float each show being pulled (at least 8 cells change); a pressed plate's top is a dark gap; the gate lever differs turned round; the scale has its four parts.
+* `borer_is_drawn`: the borer's firebox door glows only while lit, its head's three frames differ (it turns), and its body, head and wheel are the right sizes.
 * `ore_hopper_is_a_drawn_bin`: the bin's back boards fill it, the front leaves the upper part open (so the heap shows), the taper is boarded down to a spout, the open gate differs from the shut one, and the heap sprite is pale so its tint gives the ore colour.
 * `found_places_are_furnished`: each family is stamped into rock and must get its listed furnishings, all inside the site and none in rock. Every prop kind is placed somewhere.
 

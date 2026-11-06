@@ -135,7 +135,7 @@ const BG_BASE: [f32; 3] = [44., 34., 30.];
 #[inline] fn srgb(l: f32) -> f32 { l.max(0.).powf(1. / 2.2) * 255. }
 #[derive(Component)] pub struct WorldSprite;
 #[derive(Component)] struct Pooled(u8, usize);
-#[derive(Resource)] pub struct Sprites { pub leaf: Handle<Image>, pub lever: [Handle<Image>; 2], pub scale: [Handle<Image>; 4], pub rope: [Handle<Image>; 2], pub weight: Handle<Image>, pub boiler: [Handle<Image>; 2], pub stamp: [Handle<Image>; 2], pub tub: [Handle<Image>; 2], pub smelter: [Handle<Image>; 4], pub props: Vec<Handle<Image>>, pub cart: Handle<Image>, pub bin: Vec<Handle<Image>>, pub clue: Vec<Handle<Image>>, pub furn: Vec<Option<(Handle<Image>, Option<Handle<Image>>)>>, pub tools: [Handle<Image>; 3], pub dev: Vec<Handle<Image>>, pub ring: Handle<Image>, pub mole: Vec<Handle<Image>>, pub mole_out: Vec<Handle<Image>>, pub held: Vec<Handle<Image>>, pub icons: Vec<Handle<Image>>, pub chest: [Handle<Image>; 2], pub station: Vec<[Handle<Image>; 2]>, pub torch: Handle<Image>, pub torch_f: Vec<Handle<Image>>, pub glow: Handle<Image>, pub shroom: [Handle<Image>; 3], pub px: Handle<Image> }
+#[derive(Resource)] pub struct Sprites { pub borer: Vec<Handle<Image>>, pub leaf: Handle<Image>, pub lever: [Handle<Image>; 2], pub scale: [Handle<Image>; 4], pub rope: [Handle<Image>; 2], pub weight: Handle<Image>, pub boiler: [Handle<Image>; 2], pub stamp: [Handle<Image>; 2], pub tub: [Handle<Image>; 2], pub smelter: [Handle<Image>; 4], pub props: Vec<Handle<Image>>, pub cart: Handle<Image>, pub bin: Vec<Handle<Image>>, pub clue: Vec<Handle<Image>>, pub furn: Vec<Option<(Handle<Image>, Option<Handle<Image>>)>>, pub tools: [Handle<Image>; 3], pub dev: Vec<Handle<Image>>, pub ring: Handle<Image>, pub mole: Vec<Handle<Image>>, pub mole_out: Vec<Handle<Image>>, pub held: Vec<Handle<Image>>, pub icons: Vec<Handle<Image>>, pub chest: [Handle<Image>; 2], pub station: Vec<[Handle<Image>; 2]>, pub torch: Handle<Image>, pub torch_f: Vec<Handle<Image>>, pub glow: Handle<Image>, pub shroom: [Handle<Image>; 3], pub px: Handle<Image> }
 
 /// `?seed=N` (web) / `--seed=N` (native) was given: the game opens straight into that holt.
 fn seed_pinned() -> bool {
@@ -307,7 +307,7 @@ fn dev_dump(n: Local<u32>, g: Res<Game>, sp: Res<Sprites>, images: Res<Assets<Im
         for (k, h) in sp.tools.iter().enumerate() { list.push((format!("tool{k}"), h.clone())); }
         list.push(("cart".into(), sp.cart.clone())); list.push(("rope".into(), sp.rope[0].clone())); list.push(("hook".into(), sp.rope[1].clone())); list.push(("weight".into(), sp.weight.clone())); list.push(("boiler0".into(), sp.boiler[0].clone())); list.push(("boiler1".into(), sp.boiler[1].clone()));
         for (k, h) in sp.stamp.iter().chain(sp.tub.iter()).chain(sp.smelter.iter()).enumerate() { list.push((format!("works{k}"), h.clone())); }
-        list.push(("gate-leaf".into(), sp.leaf.clone())); for (k, h) in sp.lever.iter().chain(sp.scale.iter()).enumerate() { list.push((format!("logic{k}"), h.clone())); }
+        list.push(("gate-leaf".into(), sp.leaf.clone())); for (k, h) in sp.borer.iter().enumerate() { list.push((format!("borer{k}"), h.clone())); } for (k, h) in sp.lever.iter().chain(sp.scale.iter()).enumerate() { list.push((format!("logic{k}"), h.clone())); }
         for (k, h) in sp.bin.iter().enumerate() { list.push((format!("orebin{k}"), h.clone())); }
         for (k, h) in sp.props.iter().enumerate() { list.push((format!("prop-{:?}", props::PROPS[k]), h.clone())); }
         for (k, h) in sp.icons.iter().enumerate() { list.push((format!("icon-{:?}", ITEMS[k]), h.clone())); }
@@ -384,6 +384,19 @@ fn stage_scene(w: &mut World) {
                 for k in 0..6u8 { put(w, ClueKind::Relic, x0 + 14 * S + k as usize * 4 * S, my, k); }
                 put(w, ClueKind::Draft, x0 + 45 * S, my, 0);
                 for k in 0..3 { w.torches.push((x0 + (6 + k * 20) * S, my - 4 * S)); }
+            }
+            "borer" => { // a tunnel east of the burrow ending in a dirt face, and a lit steam borer in it facing the face with
+                // water and steam up and the mole riding it: with `--shot-walk` the running game drives it into the face
+                use molehill_sim::{mat::CPM, borer::{Borer, TANK, STEAM_MAX}};
+                let (x0, x1, y0) = (mx + 4 * S, mx + 60 * S, my - 12 * S);
+                for x in x0 - 2 * S..x1 + 2 * S { for y in y0 - 4 * S..my + 1 + 2 * S { set(w, x, y, Mat::Bedrock); } }
+                for x in x0..x1 { for y in y0..=my { set(w, x, y, if x >= x0 + 26 * S { Mat::Dirt } else { Mat::Empty }); } }
+                let bx = (x0 + 16 * S) as f32;
+                w.tr.borers.push(Borer { x: bx, y: (my + 1) as f32, px: bx, py: (my + 1) as f32, vx: 0., vy: 0., dir: 1, fuel: vec![(Item::Coal, 6)], burning: Some(Item::Coal), burn: 2000, water: TANK, steam: STEAM_MAX, grind: 0., jammed: false });
+                w.tr.borer_ride = Some(w.tr.borers.len() - 1);
+                molehill_sim::light::reveal_box(&mut w.g, mx, y0 - 10 * S, x1 + 10 * S, my + 10 * S);
+                for k in 0..3 { w.torches.push((x0 + (4 + k * 10) * S, y0 + 2 * S)); }
+                let _ = CPM;
             }
             "logic" => { // a sealed hall east of the burrow with every linkage part: a tread plate in the burrow floor under the mole,
                 // rodded to a sluice gate holding back a pool (the mole's weight lifts it), a turned-round gate standing lifted, a tipping scale with three stones on its
@@ -717,7 +730,7 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, mut fonts: R
         mole_out: art::mole_sheet(false).into_iter().map(|i| images.add(i)).collect(),
         held: [art::Held::Pick, art::Held::Drill, art::Held::Bore, art::Held::Charge, art::Held::Block(Item::WoodPillar.color()), art::Held::Block(Item::Brick.color()), art::Held::Block(Item::IronBeam.color()), art::Held::RopeGun(true), art::Held::RopeGun(false)]
             .into_iter().map(|h| images.add(art::held_sprite(h))).collect(),
-        clue: (0..9).map(|k| images.add(decorart::clue(k))).collect(), props: props::PROPS.iter().map(|&p| images.add(props::image(p))).collect(), cart: images.add(art::cart()), leaf: images.add(art::gate_leaf()), lever: [images.add(art::gate_lever(false)), images.add(art::gate_lever(true))], scale: [0, 1, 2, 3].map(|k| images.add(art::scale_part(k))), rope: [images.add(art::rope_seg()), images.add(art::rope_hook())], weight: images.add(art::weight()), boiler: [images.add(art::boiler(false)), images.add(art::boiler(true))], stamp: [images.add(art::stamp_mill(0)), images.add(art::stamp_mill(1))], tub: [images.add(art::washer_tub(false)), images.add(art::washer_tub(true))], smelter: [0, 1, 2, 3].map(|k| images.add(art::smelter(k))), bin: (0..5).map(|k| images.add(art::ore_bin(k))).collect(),
+        clue: (0..9).map(|k| images.add(decorart::clue(k))).collect(), props: props::PROPS.iter().map(|&p| images.add(props::image(p))).collect(), cart: images.add(art::cart()), borer: (0..6).map(|k| images.add(art::borer(k))).collect(), leaf: images.add(art::gate_leaf()), lever: [images.add(art::gate_lever(false)), images.add(art::gate_lever(true))], scale: [0, 1, 2, 3].map(|k| images.add(art::scale_part(k))), rope: [images.add(art::rope_seg()), images.add(art::rope_hook())], weight: images.add(art::weight()), boiler: [images.add(art::boiler(false)), images.add(art::boiler(true))], stamp: [images.add(art::stamp_mill(0)), images.add(art::stamp_mill(1))], tub: [images.add(art::washer_tub(false)), images.add(art::washer_tub(true))], smelter: [0, 1, 2, 3].map(|k| images.add(art::smelter(k))), bin: (0..5).map(|k| images.add(art::ore_bin(k))).collect(),
         furn: ITEMS.iter().map(|&it| it.furn().map(|_| { let (b, c) = decorart::furniture(it); (images.add(decorart::finish(b)), c.map(|c| images.add(decorart::cloth(c)))) })).collect(),
         icons: ITEMS.iter().map(|&it| images.add(itemart::icon(it))).collect(),
         chest: [images.add(art::chest(false)), images.add(art::chest(true))],
@@ -1428,16 +1441,24 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
             }
         }
     }
-    // steam borers (placeholder until p3's art): an iron body, its bore head at the front, a glow while its fire burns
+    // steam borers: the body (its firebox door glowing while lit), the toothed bore head turning while it drives or grinds
+    // with steam up, two wheels turning with the ground covered, a glow at the door and smoke from the stack while it burns
     for (k, b) in w.tr.borers.iter().enumerate() {
         let (x, y) = (b.px + (b.x - b.px) * a, b.py + (b.y - b.py) * a); let (cx, cy) = (x as usize, (y as usize).saturating_sub(2));
         if cx >= W || cy >= H || w.g.flags[cy * W + cx] & F_SEEN == 0 { continue; }
-        let lt = lightf(cx, cy).to_srgba(); let lit = |r: f32, gg: f32, bb: f32| Color::srgb(r * lt.red, gg * lt.green, bb * lt.blue);
-        let (bw, bh) = (molehill_sim::borer::BORER_W, molehill_sim::borer::BORER_H);
-        want.push((120, k, cell_to_world(x, y - bh / 2.), 4.2, sp.px.clone(), Vec2::new(bw * CPX * 0.8, bh * CPX * 0.7), false, lit(0.42, 0.40, 0.40)));
-        want.push((121, k, cell_to_world(x + b.dir as f32 * bw * 0.42, y - bh / 2.), 4.21, sp.px.clone(), Vec2::new(bw * CPX * 0.2, bh * CPX * 0.8), false, lit(0.7, 0.55, 0.28)));
-        for (j, s) in [-1f32, 1.].into_iter().enumerate() { want.push((122, k * 2 + j, cell_to_world(x + s * bw * 0.28, y - 1.), 4.22, sp.px.clone(), Vec2::splat(bh * CPX * 0.35), false, lit(0.2, 0.18, 0.17))); }
-        if b.burning.is_some() { want.push((123, k, cell_to_world(x - b.dir as f32 * bw * 0.15, y - bh * 0.45), 4.23, sp.px.clone(), Vec2::splat(bh * CPX * 0.2), false, Color::srgb(1.6, 0.8, 0.3))); }
+        let lt = lightf(cx, cy).to_srgba(); let lit = Color::srgb(lt.red, lt.green, lt.blue);
+        let (bw, bh) = (molehill_sim::borer::BORER_W, molehill_sim::borer::BORER_H); let d = b.dir as f32; let flip = b.dir < 0; let on = b.burning.is_some();
+        want.push((120, k, cell_to_world(x, y - bh / 2.), 4.2, sp.borer[on as usize].clone(), Vec2::new(bw * CPX, bh * CPX), flip, lit));
+        let spin = b.steam > 0. && (b.vx.abs() > 0.1 || b.grind > 0.); let f = if spin { (now * 14.) as usize % 3 } else { 0 };
+        want.push((121, k, cell_to_world(x + d * (bw / 2. + 0.5), y - bh / 2. + 0.5), 4.21, sp.borer[2 + f].clone(), Vec2::new(6., 12.), flip, lit));
+        for (j, s) in [-1f32, 1.].into_iter().enumerate() { let id = k * 2 + j; rot.insert((122, id), -x / 1.5);
+            want.push((122, id, cell_to_world(x + s * bw * 0.28, y - 1.5), 4.22, sp.borer[5].clone(), Vec2::splat(6.), false, lit)); }
+        if on {
+            let fl = 0.85 + 0.1 * (now * 11.).sin() + 0.05 * (now * 23.).sin();
+            want.push((123, k, cell_to_world(x - d * 4.5, y - bh + 4.), 4.4, sp.glow.clone(), Vec2::splat(14. * fl), false, Color::srgba(1., 0.6, 0.25, 0.4 * fl)));
+            for j in 0..3 { let ff = ((now * 0.7 + j as f32 / 3.) % 1.) as f32; let hh = hash3(k as u32, j, 41) as f32 / u32::MAX as f32;
+                want.push((124, k * 3 + j as usize, cell_to_world(x - d * (1.75 + ff * 2.) + hh - 0.5, y - bh - ff * 2. * CPM as f32), 4.45, sp.glow.clone(), Vec2::splat(4. + 8. * ff), false, Color::srgba(0.42, 0.4, 0.4, 0.45 * (1. - ff)))); }
+        }
     }
     // sluice gates: lifted, the leaf is drawn raised out of the opening (its cells are open then); its lever on the head
     // shows which way round it is (up: lifts when pulled; down: shuts when pulled)
