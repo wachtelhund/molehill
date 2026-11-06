@@ -72,6 +72,8 @@ One row per item in the item registry (`ITEM_DEFS` in `craft.rs`, read through `
 | Mine cart | left mouse, on the track (right mouse: get in) | no | its cargo, then the empty cart |
 | Rope ladder | left mouse in a drop: it hangs from the rock above or a ledge's lip | no | yes |
 | Pressure tube | left mouse (brush; `X` snaps a straight run) | no | no (dig it) |
+| Chute, shaker screen, bumper | left mouse (brush) | no | no (dig it; a chute or bumper gives wood back) |
+| Ore hopper | left mouse over the track: both legs need a floor | no | `E` empties its load into the pack, then picks up the empty hopper |
 | Tube hopper | left mouse on a tube (drop items in to send; right mouse: ride, or pick where it sends) | no | yes |
 | Lift | left mouse in a shaft: the head hangs under its ceiling (right mouse on head or cage: stone ballast on or off) | no | yes, with its ballast |
 | Lamp, vent; levers, knots, thrummers and other devices | left mouse, or right mouse on an empty spot | no | yes |
@@ -174,6 +176,8 @@ Chains are short: nothing is more than two steps from the ground (ore → ingot 
 | | vent | 2 wood + 2 stone |
 | | TNT | 2 coal + 2 sand |
 | | rope ladder | 2 wood + 2 fungus |
+| | 8 chute | 2 wood |
+| | 2 bumper | 2 wood + 1 stone |
 | | 2 fungus oil / 1 fungus oil | 3 fungus / 2 mushrooms (the oil press: better than the pack's 2 fungus a measure) |
 | | 8 rock wall / 8 timber wall | 2 stone / 2 wood |
 | | 4 carved wall | 2 stone |
@@ -190,6 +194,8 @@ Chains are short: nothing is more than two steps from the ground (ore → ingot 
 | | 8 pressure tube | 1 iron ingot + 2 glass |
 | | 8 rail | 1 copper ingot + 1 wood |
 | | mine cart | 2 copper ingots + 4 wood |
+| | ore hopper | 6 wood + 1 copper ingot |
+| | 4 shaker screen | 1 iron ingot + 1 wood |
 | | lamp | 1 glass + 2 fungus |
 | | 8 masonry wall | 2 brick |
 | | 4 pipe wall | 1 copper ingot |

@@ -25,9 +25,9 @@ Scenario `shaker_sorts`: gravel and copper ore dropped on a 1-in-4 screen. The g
 
 ## Bumpers and tipping
 
-**Bumper** (`Mat::Bumper`, flag `BUMPER`): a timber buffer built at the end of a track. A **loaded** cart that runs into one **tips**. It is held against the buffer while its load comes out over the front, one item every 3 ticks, thrown forward at 3 m/s and up at 1 m/s. Then it rights itself, empty and still on the rails, and its running direction flips, so a powered line drives it back. If there is no room for a lump to come out (the buffer stands above the rim, or the spill has piled up), the load **jams** and stays in the cart ("The cart's load is jammed against the buffer."). An empty cart, or a plain track end with no bumper, just stops as before.
+**Bumper** (`Mat::Bumper`, flag `BUMPER`): a timber buffer built at the end of a track. A **loaded** cart that runs into one **tips**. It is held against the buffer while its load comes out over the front, one item every 3 ticks, thrown forward at 3 m/s and up at 1 m/s. Then it rights itself, empty and still on the rails, and its running direction flips, so a powered line drives it back. If there is no room for a lump to come out (the buffer stands above the rim, or the spill has piled up), the load **jams** and stays in the cart ("The cart's load is jammed against the buffer."). An empty cart, or a plain track end with no bumper, just stops as before. A loaded cart standing against a bumper tips too: one eased up to it, or one loaded back from a save taken mid-tip (the tip itself isn't saved, so it simply starts again with what is left).
 
-Scenario `cart_tips_at_bumper`: a cart with 20 stones rolls down a 1-in-4 slope into a bumper, tips, and all 20 land in the pit beyond.
+Scenario `cart_tips_at_bumper`: a cart with 20 stones rolls down a 1-in-4 slope into a bumper, tips, and all 20 land in the pit beyond. Scenario `cart_tip_resumes`: saved mid-tip, it finishes after loading.
 
 ## Ore hoppers
 
@@ -40,13 +40,22 @@ Scenario `cart_tips_at_bumper`: a cart with 20 stones rolls down a 1-in-4 slope 
 
 Scenario `ore_hopper_feeds_cart`: ten stones and a pour of sand go in. The gate stays shut until it's held open, and two lumps drop onto the track. A cart rolled down under the spout scoops those up and is filled until the hopper is empty. The load survives a save.
 
+## A whole line
+
+Scenario `production_line` runs the line end to end with nothing carried by hand:
+1. Gravel and copper ore go into an ore hopper, which fills a cart under its spout.
+2. A lever powers copperline on the level stretch, which drives the cart off. It rolls down to a bumper and tips.
+3. The load slides down a chute onto a steep shaker screen. The gravel drops through into the pit under it, and the ore slides off its foot into the far pit.
+
+The mole stands by the hopper throughout and picks up nothing, because lumps let down from a hopper or tipped from a cart can't be picked up for their first third of a second.
+
 ## How they look
 
 Chutes, screens and bumpers are cells with their own patterns (`art::mat_color`). A chute has a pale worn lip and boards along it. A screen is iron bars over a dark mesh under a timber rail. A bumper is red-painted timber with a bright head and iron bands. The ore hopper is drawn: its heap is tinted with what it holds, it shows through the open front of the bin and rises with the load, and the gate under the spout swings open when it lets a lump down. `--scene=production` stamps a small works (chute onto screen, a hopper of copper ore over track, a bumper) for stills. See [Item and Place Art](Item-and-Place-Art.md).
 
 ## Hover tips
 
-The chute, screen (shaking or not) and bumper say what moves things along them. The ore hopper's tip gives its load and capacity, and says whether the gate is held open or opens for a cart.
+The chute, screen (shaking or not) and bumper say what moves things along them. The ore hopper's tip gives its load and capacity, and says whether the gate is held open or opens for a cart (test `production_hover_tips_say_what_to_do`).
 
 ## Making them
 
@@ -57,4 +66,4 @@ The chute, screen (shaking or not) and bumper say what moves things along them. 
 | Forge | 4 shaker screen | 1 iron ingot + 1 wood |
 | Forge | ore hopper | 6 wood + 1 copper ingot |
 
-Costs are provisional, pending the crafting balance pass. Digging a chute or bumper gives wood back.
+Chutes and bumpers come from the workbench (8 chute from 2 wood; 2 bumper from 2 wood and 1 stone), the hopper needs copper but no iron (forge: 6 wood and 1 copper ingot), and the screen needs iron (forge: 4 from 1 iron ingot and 1 wood) (test `production_is_reachable_in_survival`; all recipes are on [Tools and Items](Tools-and-Items.md#recipes)). Digging a chute or bumper gives wood back.

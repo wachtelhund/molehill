@@ -112,7 +112,7 @@ Z  = b · h² / 6
 
 The moment isn't spread evenly: it follows `x(L − x)` for a beam resting at both ends (peaking at midspan) and the distance from the free tip squared for a cantilever. An overloaded roof therefore **breaks where the moment peaks**, an arch forms, and the cave-in stops. It doesn't peel the room row by row. In a test, an over-wide 15 m hall went from 840 crumbled cells to 12 after this change.
 
-Examples from the tests: a 1 m span of 1 m-thick dirt holds and a 6 m span fails; a 12 m rock roof caves in, but two pillars at its third points save it.
+Examples from the tests: a 1 m span of 1 m-thick dirt holds and a 6 m span fails; a 16 m rock roof caves in, but two pillars at its third points save it; an unpropped 15 m granite hall only strains: it creaks and holds (`strained_roof_creaks_and_holds`).
 
 ### 4. Pillars and walls in compression
 
@@ -129,12 +129,20 @@ Two refinements keep this honest:
 
 ### 5. Cracking and crumbling
 
-Utilisation is `u = σ / strength`. When `u > 1` the cell **cracks** visibly and a **40-tick** countdown starts. If the load is relieved in time, for example by building a pillar or digging less, the crack heals. Otherwise the cell crumbles into its loose form (dirt, gravel, sand, or splinters of its own material for wood and iron) and joins the falling sand. That debris can load the next roof, so failures can cascade.
+Utilisation is `u = σ / strength`. Natural ground has a **strain band** between full load and failing (`stress::FAIL_U` = 1.5):
+
+* **Strained** (`1 < u ≤ 1.5`): the rock holds, but it warns. Dust sifts from it and it creaks: once when the strain first appears near the mole, and again every 10 s or so while you stay under it (`World::step_strain`, `strained_roof_creaks_and_holds`). As a tunnel lengthens, its roof passes through this band before it fails, so you hear it coming.
+* **Failing** (`u > 1.5`): the cell **cracks** visibly, creaks (when at least a tile starts at once), sheds dust faster, and a **40-tick** countdown starts. If the load is relieved in time, for example by building a pillar or digging less, the crack heals. Otherwise the cell crumbles into its loose form (dirt, gravel, sand, or splinters of its own material for wood and iron) and joins the falling sand. That debris can load the next roof, so failures can cascade.
+* **Cut free** (no load path left): a sliver drops after 8 ticks without a sound. A mass of a square metre or more that still bears on something (supported rock at a corner, or rubble or sand under it) is wedged for 45 ticks (0.75 s) and creaks first; a chunk adrift in water or air just drops (`chunk_sinks_in_water`). Measured with `digbot` over 16 seeds: creaks fell from about 55 to 8 a minute of digging, big cave-ins from 0.9 to 0.75, and 20 of 24 big ones were warned by a creak 0.5–10 s before.
+
+**Built blocks** (beams, brick, rail, planks) have no strain band: they fail at `u > 1`, so the building rules below are unchanged (`rail_needs_support`, `ruin_hall_caves_in`).
+
+The cave-in rate while tunnelling is measured with `cargo run --release -p molehill-sim --example digbot -- [minutes] [seeds…]`: a Survival mole digs tunnels and staircases near home and the example counts creaks, cave-ins (and how many big ones were warned), crumbled area and drifting loose ground per minute.
 
 **Broken ground bulks.** Rubble takes more room than the solid it came from: 3 in 10 crumbling cells of natural ground leave an extra cell of rubble. It spills to the nearest open cell reachable from the break through loose ground, level with the break or lower, searching up to 48 tiles (12 m). It never passes through rock, so rubble can't appear in a sealed room. A cave-in therefore fills its own void and chokes off instead of chimneying up through a whole dirt layer: a 10 × 4 void under 30 rows of dirt rises about 7 rows and stops (`dirt_cavein_chokes`). Built blocks (wood, iron, doors, brick, glass) don't bulk.
 
 ```
- dig wide ─▶ beam σt > tensile ─▶ crack (40 ticks) ─▶ crumble ─▶ debris loads the roof below ─▶ …
+ dig wide ─▶ strained (creak, dust) ─▶ σ > 1.5× ─▶ crack (40 ticks) ─▶ crumble ─▶ debris loads the roof below ─▶ …
                      ▲                    │
                      └── prop it in time ◀┘  (crack heals)
 ```

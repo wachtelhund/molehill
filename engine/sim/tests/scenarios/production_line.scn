@@ -1,0 +1,61 @@
+// The whole stage-1 line, end to end, nothing carried by hand. Gravel and copper ore dropped into an ore
+// hopper stood over the track; a cart set under its spout trips the gate and is filled. Throw the lever:
+// copperline on the level stretch drives the cart off, it rolls down the slope into a bumper and tips. The
+// load comes out over the buffer onto a timber chute, slides down onto a steep shaker screen, and sorts there:
+// the gravel drops through into the pit under the screen, the ore slides off its foot into the far pit. The
+// mole stands by the hopper the whole time and picks up nothing.
+map
+############################################################
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#.@........................................................#
+#============..............................................#
+#############====..........................................#
+#################====......|...............................#
+#####################======|...............................#
+############################hh.............................#
+##############################hh...........................#
+################################hh.........................#
+##################################HH.......................#
+##################################.HH......................#
+##################################..HH.....................#
+##################################...#.....................#
+##################################...#.....................#
+############################################################
+end
+give OreHopper 1
+give Cart 1
+give CopperWire 20
+place 2 6 0 OreHopper
+device 2 0 -4 Lever
+wire 2 0 -4 0 1
+wire 2 0 1 11 1
+drop 5 Gravel 6 -7
+drop 10 CopperOre 6 -7
+drop 15 Gravel 6 -7
+drop 20 CopperOre 6 -7
+drop 25 Gravel 6 -7
+drop 30 CopperOre 6 -7
+drop 35 Gravel 6 -7
+drop 40 CopperOre 6 -7
+expect 59 bins == 1
+expect 59 binload == 8                           // all eight in the bin
+place 60 6 0 Cart                                // under the spout
+expect 140 cargo == 8                            // let down into the cart
+expect 140 binload == 0
+expect 140 cartv == 0                            // waiting under the hopper
+use 150 0 -4                                     // lever on: the level stretch drives it off
+expect 160 cartv > 2
+expect 300 tips == 1                             // into the bumper, tipped
+expect 600 cargo == 0
+expect 600 zone:Gravel,32,35,8,12 == 4           // the gravel under the screen
+expect 600 zone:CopperOre,36,56,8,12 == 4        // the ore in the far pit
+expect 600 zone:Gravel,36,56,-8,13 == 0
+expect 600 zone:CopperOre,-1,35,-8,13 == 0
+expect 600 inv:Gravel == 0                       // the mole by the hopper picked up nothing
+expect 600 inv:CopperOre == 0

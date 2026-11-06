@@ -64,3 +64,33 @@ fn reachable() -> [bool; NITEM] {
     assert_eq!(w.place_transport(Item::TubeHopper, mx + 4 * c + 2, my), Ok(true));
     let t = tip(&w, mx + 4 * c + 2, my - 2); assert!(t.starts_with("Tube hopper") && t.contains("No current") && t.contains("only receives"), "hopper: {t}");
 }
+
+/// The production line (production.rs) can be built in Survival: chutes and bumpers from the workbench (tier 1
+/// wood and stone), the ore hopper from the forge (copper), the shaker screen once there's iron.
+#[test] fn production_is_reachable_in_survival() {
+    let have = reachable();
+    for it in [Item::Chute, Item::Bumper, Item::OreHopper, Item::Screen] { assert!(have[it as usize], "{it:?} can't be made in Survival"); }
+    let at = |n: &str| RECIPES.iter().find(|r| r.name == n).unwrap();
+    for n in ["Chute x8", "Bumper x2"] { assert_eq!(at(n).station, Station::Workbench, "{n}"); }
+    assert!(at("Ore hopper").inputs.iter().all(|&(it, _)| !matches!(it, Item::IronIngot | Item::IronOre)), "the ore hopper needs no iron");
+}
+
+/// Hover tips for the production line: an ore hopper set over track says what it holds and how its gate
+/// opens; chute, screen and bumper cells say what moves things along them.
+#[test] fn production_hover_tips_say_what_to_do() {
+    use molehill_sim::{grid::F_SEEN, mat::CPM, tips::describe};
+    let mut w = World::new(256 * molehill_sim::mat::S, 128 * molehill_sim::mat::S, 3); w.disasters.enabled = false; w.set_mode(Mode::Creative);
+    let (mx, my) = (w.moles[0].x, w.moles[0].y); let c = CPM;
+    for y in my - 5 * c..=my + 2 * c { for x in mx - 6 * c..=mx + 6 * c { let i = w.g.idx(x, y);
+        let rock = y > my || y <= my - 5 * c || x < mx - 5 * c || x > mx + 5 * c;
+        w.g.set(i, if rock { Mat::Granite } else { Mat::Empty }); w.g.flags[i] = F_SEEN; } }
+    for x in mx + c..mx + 4 * c { let i = w.g.idx(x, my + 1); w.g.set(i, Mat::Rail); }
+    for (x, m) in [(mx - 4 * c, Mat::Chute), (mx - 3 * c, Mat::Screen), (mx - 2 * c, Mat::Bumper)] { let i = w.g.idx(x, my + 1); w.g.set(i, m); }
+    w.drops.clear(); for _ in 0..3 { w.step(); }
+    let tip = |w: &World, x: usize, y: usize| describe(w, x, y).map(|t| format!("{}: {}", t.name, t.lines.join(" / "))).unwrap_or_default();
+    assert_eq!(w.place_transport(Item::OreHopper, mx + 2 * c + c / 2, my), Ok(true));
+    let t = tip(&w, mx + 2 * c + c / 2, my - c); assert!(t.starts_with("Ore hopper") && t.contains("Holding 0 of 60") && t.contains("cart under its spout"), "hopper: {t}");
+    assert!(tip(&w, mx - 4 * c, my + 1).contains("slide down it"), "chute: {}", tip(&w, mx - 4 * c, my + 1));
+    assert!(tip(&w, mx - 3 * c, my + 1).contains("shakes it"), "screen: {}", tip(&w, mx - 3 * c, my + 1));
+    assert!(tip(&w, mx - 2 * c, my + 1).contains("tips its load"), "bumper: {}", tip(&w, mx - 2 * c, my + 1));
+}
