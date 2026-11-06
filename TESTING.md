@@ -268,6 +268,7 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `cart_tip_resumes.scn` | A cart saved while tipping at a bumper finishes tipping after loading (a loaded cart standing against a bumper tips) |
 | `production_line.scn` | The whole line: an ore hopper fills a cart, a lever drives it off, it tips at a bumper, the load slides down a chute onto a steep shaker screen, gravel and ore end in separate pits; the mole beside the hopper picks up nothing |
 | `water_through_screen.scn` | A pool on a shaker screen drains through its mesh into the basin under it; an ore lump stays on top, sand falls through |
+| `blast_ore_leaves_ore.scn` | A blast in an iron-ore seam leaves loose iron ore (over half the seam), not gravel |
 | `sluice_sorts.scn` | A reservoir runs down a stepped 1-in-4 channel with riffle bars: gravel, coal and sand reach the tailings pond, ore and stone settle in the riffle traps |
 | `sluice_washes_rubble.scn` | After a blast: running water washes every grain of loose sand and gravel off two rubble heaps into the pond; the iron ore stays |
 | `shaker_sorts.scn` | Gravel drops through a 1-in-4 shaker screen; ore lies on it until current shakes it, then walks off the end into its own pit |
