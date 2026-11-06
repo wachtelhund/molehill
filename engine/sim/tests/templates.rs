@@ -11,6 +11,8 @@ fn templates_match_the_procedural_sites() {
     let mut bad = vec![];
     for &(kind, name) in &FAMILIES {
         let t = templates::get(kind);
+        // painted in the cave editor: sites.rs is no longer its source
+        if t.file.from_editor() { continue; }
         let (w, h) = kind.size();
         assert_eq!((t.w, t.h), (w, h), "{name}: size");
         let lefts: &[bool] = if kind == Kind::Halt { &[false, true] } else { &[false] };
@@ -86,4 +88,25 @@ fn template_files_are_canonical_and_parse_fast() {
     let ms = t0.elapsed().as_secs_f32() * 1000.;
     eprintln!("parsed and re-wrote seven templates in {ms:.1} ms");
     assert!(ms < 250., "templates took {ms:.0} ms");
+}
+
+/// `World::stamp_template` (the cave editor's checks) stamps what the game's own site stamping does.
+#[test]
+fn stamp_template_matches_the_game_stamp() {
+    use molehill_sim::mat::Mat;
+    use molehill_sim::world::World;
+    for &(kind, name) in &FAMILIES {
+        let mk = || { let mut w = World::new(1024, 512, 1); w.disasters.enabled = false; w.chests.clear(); w.torches.clear(); w.furniture.clear(); w.tr.ladders.clear(); w };
+        let (mut a, mut b) = (mk(), mk());
+        let (x0, y0) = (64, 512 - kind.size().1 - 48);
+        a.stamp_site_var(kind, x0, y0, 5, true);
+        let id = a.sites.last().unwrap().id;
+        b.stamp_template(templates::get(kind), x0, y0, 5, true, id);
+        assert!(a.g.mat == b.g.mat, "{name}: cells");
+        assert!(a.walls.cell == b.walls.cell, "{name}: linings");
+        assert_eq!(a.chests.iter().map(|c| (c.x, c.y)).collect::<Vec<_>>(), b.chests.iter().map(|c| (c.x, c.y)).collect::<Vec<_>>(), "{name}: chest");
+        assert_eq!(a.torches, b.torches, "{name}: torches");
+        assert_eq!(a.tr.ladders.len(), b.tr.ladders.len(), "{name}: ropes");
+        let _ = Mat::Empty;
+    }
 }
