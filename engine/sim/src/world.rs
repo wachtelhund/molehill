@@ -235,6 +235,8 @@ pub struct World {
     pub walls: crate::walls::Walls,
     /// sites touching the window (refreshed with the chests); the ones already visited (ids)
     pub sites: Vec<crate::sites::Site>, pub sites_seen: std::collections::HashSet<u32>,
+    /// grottos the player has come near (the discovery line is said once each); saved
+    pub grottos_seen: std::collections::HashSet<u32>,
 }
 /// For audio / UI feedback.
 /// What `World::pick_up` took back into the pack.
@@ -260,7 +262,7 @@ impl World {
             moles: vec![], drops: vec![], stockpile: (0, 0, 0, 0), buildings: vec![], torches: vec![], chests: vec![], furniture: vec![], paint_acc: 0,
             quest: 0, log: vec![], discovered: [false; NMAT], chests_opened: 0, pillars: 0, max_depth: 0., craft_queue: vec![], gear: Gear::default(), known: [false; NITEM], mode: Default::default(), rules: Default::default(), lamp_oil: 0., lamp_dry: false, lamp_low: false, ruins: vec![], ruins_seen: Default::default(), relics: 0, crumbled: 0,
             light_rect: (0, 0, w - 1, h - 1), events: vec![], marks: vec![], react_pending: false, logic: Logic::new(w, h), disasters: Disasters::new(seed), shake: 0., air: Air::new(w, h), farms: vec![], harvested: 0, input: Input::default(), pl: Player::default(), gen: gn, oy, bands: Default::default(), opened: Default::default(), clues: vec![], found_clues: Default::default(), journal: vec![], grottos: vec![], caught: Default::default(), keep_blast_field: false, blast_field: vec![], debris: vec![], waves: vec![], tr: Default::default(), blasts_run: 0, info, g,
-            walls: crate::walls::Walls::new(w, h), sites: vec![], sites_seen: Default::default(),
+            walls: crate::walls::Walls::new(w, h), sites: vec![], sites_seen: Default::default(), grottos_seen: Default::default(),
         }
     }
     pub fn new(w: usize, h: usize, seed: u32) -> World {
@@ -593,7 +595,7 @@ impl World {
         let mut dz = std::mem::replace(&mut self.disasters, Disasters::new(0));
         dz.step(self); self.disasters = dz;
         if self.tick % air::UPDATE_TICKS == 0 { self.step_air(); }
-        if self.tick % 30 == 0 { self.step_farms(); self.check_furniture(); self.step_ruins(); self.step_sites(); }
+        if self.tick % 30 == 0 { self.step_farms(); self.check_furniture(); self.step_ruins(); self.step_sites(); self.step_grottos(); }
         if self.tick % 30 == 0 { self.follow_colony(); }
         self.shake *= 0.93;
         if self.tick % 30 == 0 { self.check_quests(); self.check_chests(); }
@@ -1372,6 +1374,21 @@ impl World {
         hit.iter().copied().find(|&k| self.furniture[k].item != Item::Rug).or(hit.first().copied())
     }
     /// Furniture whose floor (or ceiling) was dug away falls loose as its item.
+    /// First time within 8 m of a grotto's hollow: a line in the log, like ruins and found places. No cards.
+    pub(crate) fn step_grottos(&mut self) {
+        let Some(m) = self.moles.first().filter(|m| m.alive) else { return };
+        let (mx, my) = (m.x as i64, self.oy + m.y as i64); let reach = 8 * CPM as i64;
+        let near: Vec<(u32, i64)> = self.grottos.iter().filter(|g| !self.grottos_seen.contains(&g.id)
+            && (mx - g.cx as i64).abs() <= g.rx as i64 + reach && (my - g.cy).abs() <= g.ry as i64 + reach).map(|g| (g.id, g.cy)).collect();
+        for (id, cy) in near {
+            self.grottos_seen.insert(id); self.events.push(Event::Discover);
+            self.say(format!("A grotto, {:.0} m down: water seeps through the rock here, root-trees drink it, and glowmites drift in the hollow. Cut root-trees for wood.", (cy as f32 * CELL_M).max(0.)));
+        }
+    }
+    /// Old saves (before grottos were remembered): a grotto whose hollow centre has been seen counts as visited.
+    pub fn mark_seen_grottos(&mut self) {
+        for g in &self.grottos { let y = g.cy - self.oy; if y >= 0 && (y as usize) < self.g.h && g.cx < self.g.w && self.g.flags[y as usize * self.g.w + g.cx] & F_SEEN != 0 { self.grottos_seen.insert(g.id); } }
+    }
     /// Furniture standing within `HOME_M` of a built workbench: the holt's own (0 without a workbench).
     pub fn home_furniture(&self) -> u32 {
         let r = crate::craft::HOME_M * CPM as f32;
