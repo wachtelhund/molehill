@@ -51,6 +51,7 @@ The rule is simple: **gameplay goes in the sim.** If it changes what happens in 
 | `steam.rs` | coal power: a boiler burns real fuel lumps and boils water from the ground it stands in, its steam drives an engine on a drive train (touching it or along a steam pipe), and the ash and slag it leaves are loose items (see [Production](Production.md)) |
 | `refine.rs` | refinement: a stamp mill crushes ore into concentrate and sand, a washer sorts lumps by weight, a smelter blown by bellows melts them, and ingot moulds cast the metal; every lump in and out is a loose item (see [Production](Production.md#refinement)) |
 | `linkage.rs` | non-electric logic: pull-rod linkages from tread plates, tipping scales and floats to sluice gates, clutches and ore hoppers; any pressed sensor pulls the rods, and every actuator on them moves (see [Production](Production.md)) |
+| `borer.rs` | the steam borer: a rideable machine with its own firebox and water tank that grinds a tunnel and drops its spoil as loose rubble behind it, so it jams in a dead end (see [Production](Production.md#steam-borer)) |
 | `sluice.rs` | sluicing: the current read from the water surface's slope, which washes light loose items and grains downstream and leaves heavy lumps behind riffle bars (see [Production](Production.md)) |
 | `lifts.rs` | rope ladders and counterweighted lifts, balanced with stone or wound up by current |
 | `ropes.rs` | the rope gun: a thrown hook that bites solid rock or a block, and its 16 m verlet rope to climb and swing on (the way up, since there is no wall climbing) |

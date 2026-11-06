@@ -86,6 +86,7 @@ One row per item in the item registry (`ITEM_DEFS` in `craft.rs`, read through `
 | Pull-rod, tread plate, float, clutch | left mouse (brush; `X` snaps a rod line): rods run from a plate, scale or float to a gate, clutch or ore hopper; a tread plate goes into a floor, a float where the water should reach, a clutch into a drive line | no | no (dig it) |
 | Sluice gate | left mouse in an opening up to 2 m tall, joined to pull-rods; right mouse turns it round (pulled shuts instead of opens) | no | yes (`E` takes it up) |
 | Tipping scale | left mouse on a floor; right mouse puts a stone on its counter-pan (stone in paw) or takes one off | no | yes (`E` takes it up) |
+| Steam borer | left mouse: set it down facing your way; right mouse with coal, charcoal or wood in paw feeds it, with an empty paw gets on; `A`/`D` drive and bore, `Space` gets off | no | `E` rakes out its fuel, then picks it up |
 | Ore hopper | left mouse over the track: both legs need a floor | no | `E` empties its load into the pack, then picks up the empty hopper |
 | Tube hopper | left mouse on a tube (drop items in to send; right mouse: ride, or pick where it sends) | no | yes |
 | Lift | left mouse in a shaft: the head hangs under its ceiling (right mouse on head or cage: stone ballast on or off) | no | yes, with its ballast |
@@ -252,6 +253,7 @@ Chains are short: nothing is more than two steps from the ground (ore → ingot 
 | | thrummer | 2 crystal + 2 copper ingots + 1 glass |
 | | lift | 2 iron ingots + 4 wood + 1 copper ingot |
 | | tube hopper | 2 iron ingots + 2 copper ingots + 1 glass |
+| | steam borer | 8 iron ingots + 4 bronze ingots + 4 brick |
 
 The chain is the design: wood and stone give a bench and a pickaxe; heat (fire at first, lava deeper) lights a forge for copper and iron; copper and tin alloy into bronze, and copperline and a lever power a workshop to make the bronze drill; and iron, copper and crystal from the deep make the bore.
 
