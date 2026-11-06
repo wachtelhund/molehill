@@ -778,7 +778,7 @@ impl World {
         let b1 = m.breath;
         if k == 0 { self.breath_cues(b0, b1, hm == Mat::Water); }
         // (a mole sealed in a pressure-tube capsule is inside the pipe, not buried)
-        let buried = !(k == 0 && self.tr.in_tube.is_some()) && (0..MOLE_H).any(|j| self.g.is_solidish(self.g.idx(x, y - j)));
+        let buried = !(k == 0 && self.tr.in_tube.is_some()) && (0..MOLE_H).any(|j| self.g.is_solidish(self.g.idx(x, y - j)) && !self.in_flight(x, y - j)); // sand pouring past isn't a burial
         if buried {
             self.moles[k].hp -= 1.5; self.events.push(Event::Hurt); harm = Harm::Buried;
             // try to wriggle up or sideways
@@ -935,11 +935,24 @@ impl World {
         }
         why
     }
-    /// Does the body AABB (centre px, feet py) overlap any solid cell?
+    /// A grain in flight: sand, gravel or soil that moved in the last two steps with air (or another grain
+    /// in flight) under it, so falling or pouring, not lying on anything. It isn't a wall or a floor to the
+    /// mole: a falling stream can't be stood on or clung to and the mole passes through it. A grain rolling
+    /// down a pile has the pile under it and still carries the mole.
+    pub fn in_flight(&self, x: usize, y: usize) -> bool {
+        let g = &self.g; if y + 1 >= g.h { return false; }
+        let s = ((g.tick % 255) + 1) as u8; let p = if s == 1 { 255 } else { s - 1 };
+        let moving = |i: usize| g.m(i).kind() == Kind::Powder && (g.moved[i] == s || g.moved[i] == p);
+        let (i, b) = (g.idx(x, y), g.idx(x, y + 1));
+        moving(i) && (self.passable(x, y + 1) || moving(b))
+    }
+    /// Does this cell stop the mole's body? Solid or settled, not open and not a grain in flight.
+    #[inline] fn body_blocked(&self, x: usize, y: usize) -> bool { !self.passable(x, y) && !self.in_flight(x, y) }
+    /// Does the body AABB (centre px, feet py) overlap any solid cell (grains in flight don't count)?
     pub fn box_hits(&self, px: f32, py: f32) -> bool {
         let (x0, x1) = ((px - BODY_HW).floor() as i32, (px + BODY_HW - 1e-3).floor() as i32);
         let (y0, y1) = ((py - BODY_H).floor() as i32, (py - 1e-3).floor() as i32);
-        for y in y0..=y1 { for x in x0..=x1 { if !self.g.in_bounds(x, y) || !self.passable(x as usize, y as usize) { return true; } } }
+        for y in y0..=y1 { for x in x0..=x1 { if !self.g.in_bounds(x, y) || self.body_blocked(x as usize, y as usize) { return true; } } }
         !self.tr.lifts.is_empty() && self.platform_hits(px, py) // a lift's cage floor
     }
     fn body_fluid_at(&self, px: f32, py: f32) -> (bool, bool) {
@@ -1000,7 +1013,7 @@ impl World {
         let (c0, c1) = if side > 0 { ((px + BODY_HW - 1e-3).floor() as i32 + 1, (px + BODY_HW + reach - 1e-3).floor() as i32) }
             else { ((px - BODY_HW - reach).floor() as i32, (px - BODY_HW).floor() as i32 - 1) };
         let (y0, y1) = ((py - BODY_H + 0.1 * SF).floor() as i32, (py - 0.1 * SF).floor() as i32);
-        (c0..=c1).any(|col| (y0..=y1).any(|y| !self.g.in_bounds(col, y) || !self.passable(col as usize, y as usize)))
+        (c0..=c1).any(|col| (y0..=y1).any(|y| !self.g.in_bounds(col, y) || self.body_blocked(col as usize, y as usize)))
     }
     /// Climbing on `side`: the top of the wall beside the body, if it ends below the head and there's room to
     /// stand on it (feet row as f32). A wall that only steps back a cell (a recess) isn't a ledge: you climb on.
@@ -1008,7 +1021,7 @@ impl World {
         let (px, py) = (self.pl.px, self.pl.py);
         let col = if side > 0 { (px + BODY_HW + 0.08 * SF - 1e-3).floor() as i32 } else { (px - BODY_HW - 0.08 * SF).floor() as i32 };
         let (y0, y1) = ((py - BODY_H + 0.1 * SF).floor() as i32, (py - 0.1 * SF).floor() as i32);
-        let r = (y0..=y1).find(|&y| !self.g.in_bounds(col, y) || !self.passable(col as usize, y as usize))?;
+        let r = (y0..=y1).find(|&y| !self.g.in_bounds(col, y) || self.body_blocked(col as usize, y as usize))?;
         if r == y0 { return None; } // the wall goes on past the head
         let (r, sx) = (r as f32, px + side as f32 * SF);
         (!self.box_hits(px, r) && !self.box_hits(sx, r) && !self.side_wall_at(sx, r, side as i32, 0.08 * SF)).then_some(r)
