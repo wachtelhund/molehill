@@ -88,6 +88,7 @@ map
 end
 site 2 halt -160 -80
 expect 4 carts >= 1
+expect 4 count:Carved > 0
 expect 4 count:Rail > 0
 expect 4 count:Door == 0
 expect 4 walls:ashlar > 0
