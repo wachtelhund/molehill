@@ -1436,6 +1436,7 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
         want.push((121, k, cell_to_world(x + b.dir as f32 * bw * 0.42, y - bh / 2.), 4.21, sp.px.clone(), Vec2::new(bw * CPX * 0.2, bh * CPX * 0.8), false, lit(0.7, 0.55, 0.28)));
         for (j, s) in [-1f32, 1.].into_iter().enumerate() { want.push((122, k * 2 + j, cell_to_world(x + s * bw * 0.28, y - 1.), 4.22, sp.px.clone(), Vec2::splat(bh * CPX * 0.35), false, lit(0.2, 0.18, 0.17))); }
         if b.burning.is_some() { want.push((123, k, cell_to_world(x - b.dir as f32 * bw * 0.15, y - bh * 0.45), 4.23, sp.px.clone(), Vec2::splat(bh * CPX * 0.2), false, Color::srgb(1.6, 0.8, 0.3))); }
+    }
     // sluice gates: lifted, the leaf is drawn raised out of the opening (its cells are open then); its lever on the head
     // shows which way round it is (up: lifts when pulled; down: shuts when pulled)
     for (k, gt) in w.tr.links.gates.iter().enumerate() {
