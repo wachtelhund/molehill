@@ -1,0 +1,25 @@
+// A counterweight's floor is what lies under it now. Let down its rope, it falls to drive the belt; a pillar built
+// under it stops it on the pillar's top instead of passing into it (before, it fell through to the floor it had
+// when it was hung).
+map
+################################
+################################
+#....jjjjjjjjjj*...............#
+#..............j...............#
+#..............j...............#
+#..............j...............#
+#..............j...............#
+#..............j...............#
+#..............j...............#
+#..............j..@............#
+#..............*>>>>>>>>>>>....#
+################################
+end
+give Counterweight 1
+give WoodPillar 10
+place 2 -14 -7 Counterweight
+put 100 -14 1 WoodPillar           // a pillar under the weight, two tiles high
+put 100 -14 0 WoodPillar
+set 101 weight 4
+expect 1500 weighty == 7           // resting on the pillar's top (row 9), not down at the floor (row 11)
+expect 1500 weights == 1

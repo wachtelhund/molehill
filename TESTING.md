@@ -276,6 +276,8 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `belt_counterweight.scn` | A falling counterweight drives a belt through shafts and gears; stones ride at 1 m/s and drop off its end; with the weight taken down the belt is still; saved |
 | `belt_backs_up.scn` | Fourteen stones on a 3 m belt running into its drive gear: twelve queue one to a tile, two are pushed off the back |
 | `water_wheel.scn` | A stream under a water wheel gives several hundred watts, shakes a screen and winds a counterweight up; when it runs dry the weight carries on |
+| `belt_carries_mole.scn` | A mole standing on a turning belt rides it at the belt's 1 m/s and stays on its feet |
+| `counterweight_stops_on_build.scn` | A pillar built under a counterweight stops it on the pillar's top, not at the floor it had when hung |
 | `shaker_sorts.scn` | Gravel drops through a 1-in-4 shaker screen; ore lies on it until current shakes it, then walks off the end into its own pit |
 | `rail_needs_support.scn` | A rail span over a drop breaks and falls; its ends on rock hold |
 | `blast_moves_sand.scn` | A charge by a sand bed throws a third of it into the air at once; the near end is scoured, and it all lands (none lost) |
