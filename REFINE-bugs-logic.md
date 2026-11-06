@@ -120,6 +120,11 @@ Measured on native release, with other agents loading the machine:
 * Following Hampus 15:05 (a longer load, then smooth play): a last stage on the loading line, "Shoring up the deeper rock", calls p8's `World::prefetch_step` until `stream_progress()` is 1, after a new holt and after a load. Natively, seed 4242: holt 5.0 s, then the ground ahead 5.4 s. Test `loading_prefetch_finishes_the_ground_ahead` (new holt and reloaded save).
 * Not tested: the web build, where prefetch runs on the main thread in slices of a few ms inside the 20 ms budget, so this stage will be longer there.
 
+## Final polish (from a9bcf4b)
+* **Tube hopper vs ore hopper:** confirmed with a test that the two could be set down on top of each other. Neither placement checked the other machine. With both standing there, right mouse and `E` reached only the one that comes first in the dispatch (ore hopper before tube hopper). Each placement now refuses the other's box and names it ("there's a tube hopper there" / "there's an ore hopper there"). The tube hopper's log lines say "tube hopper" instead of a bare "hopper". Test `hoppers_do_not_stack` (fails without the fix).
+* **Browser prefetch:** the web's path (`stream.sliced`, slices on the calling thread) is now in `loading_prefetch_finishes_the_ground_ahead`. Measured natively, seeds 4242/7/99: 970–1020 steps, 9–13 s in all, about 11 ms a step, the longest 75–170 ms. Progress only climbs and ends at 1. On wasm, expect it to be slower by a constant factor; it all runs behind the loading line, not in play.
+* Not done in a live window or browser: the wasm build is built and copied to site/ but was not opened, and the hopper refusals were not seen in a window.
+
 ## Open
 * The design's emberiron for the Bore doesn't exist, so the Bore takes iron, copper and crystal.
 * localStorage holds about 5 MB. A band is 10–40 KB, so a holt explored over a few hundred metres of depth could fill it. Bands the player never changed could be dropped and regenerated (not done: the falling-sand settling after generation would differ).

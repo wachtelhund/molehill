@@ -109,7 +109,7 @@ A **lift** is a cage on a rope over a head frame, balanced by a counterweight. L
 
 A sealed pipe network that blows capsules along it with air.
 * **Pipe.** Pressure tube is a built block: iron-banded glass pipe (`Mat::Tube`, flag `TUBE`). Lay it with the block brush (`X` snaps straight runs). Tube cells that touch edge to edge are one line, and like any built block it needs support.
-* **Hoppers.** A tube hopper is a 1 m mouth with a blower in it. Left mouse sets it on the floor or pipe under the cursor, and it must touch a tube within a tile of its mouth. Its blower runs while copperline in its block carries current.
+* **Hoppers.** A tube hopper is a 1 m mouth with a blower in it. Left mouse sets it on the floor or pipe under the cursor, and it must touch a tube within a tile of its mouth. It can't go inside an ore hopper's bin or legs (the two would hide each other from right mouse and `E`); its log lines say "tube hopper" so they aren't taken for the ore hopper's. Its blower runs while copperline in its block carries current.
 * **Sending.** Loose items dropped or thrown into the mouth of a hopper whose blower runs are sealed in a capsule and blown along the pipe to that hopper's destination: the nearest other hopper on the line, and right mouse cycles through the others. They come out of the destination's mouth. A hopper without current only receives, so what arrives stays there.
 * **Riding.** Right mouse with an empty paw on a hopper whose blower runs seals the mole in a capsule. It's carried along the pipe out of sight, unhurt by the rock the pipe runs through, and climbs out of the far hopper (`tube_rides_mole`).
 * **Speed.** Capsules run at 12 m/s, up a riser as easily as along the flat (`tube_sends_items`).
