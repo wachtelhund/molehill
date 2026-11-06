@@ -1,0 +1,18 @@
+# Dev-only cave editor for found-place templates (assets/sites/*.json). Never shipped: not a default
+# workspace member, not a dependency of the game, not built by build-web.sh (tests/packaging.rs checks).
+[package]
+name = "molehill-cave-editor"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+molehill-sim = { path = "../../sim" }
+serde_json = { version = "1", features = ["preserve_order"] }
+# the same features as the game's native build, so this reuses its compiled Bevy
+bevy = { version = "0.20", default-features = false, features = [
+  "std", "async_executor", "bevy_asset", "bevy_log", "bevy_winit", "bevy_window", "default_font",
+  "bevy_render", "bevy_core_pipeline", "bevy_sprite", "bevy_sprite_render", "bevy_text",
+  "bevy_ui", "bevy_ui_render", "bevy_color", "bevy_image", "bevy_camera", "bevy_shader", "bevy_mesh",
+  "multi_threaded", "x11", "wayland",
+] }
