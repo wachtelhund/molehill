@@ -180,11 +180,18 @@ pub fn icon_px(it: Item) -> Px {
         RopeLadder => { // ropes and rungs, rolled at the bottom
             for x in [3, 12] { p.rect(x, 0, x, 11, ROPE); } for y in [2, 5, 8] { p.rect(4, y, 11, y, WOOD); }
             p.oval(8., 13., 6., 2.4, sh(ROPE, 0.85)); p.oval(8., 13., 3.5, 1.2, WOOD_D); }
-        RopeGun => { // placeholder (p3 to replace): a root-wood stock with a crank and a stone hook in the muzzle
-            p.rect(1, 8, 11, 10, WOOD); p.rect(1, 11, 3, 14, WOOD_D); p.rect(11, 7, 13, 9, [150, 146, 140]); p.set(14, 8, [110, 106, 100]); p.set(14, 7, [110, 106, 100]);
-            p.oval(7., 6., 1.6, 1.6, BRASS); p.rect(7, 3, 7, 5, IRON); p.rect(4, 4, 10, 4, ROPE); }
-        HookRope => { // placeholder (p3 to replace): a coil of rope with a stone hook on top
-            p.oval(8., 10., 5.5, 4., ROPE); p.oval(8., 10., 3., 2., sh(ROPE, 0.7)); p.rect(7, 2, 8, 6, [150, 146, 140]); p.rect(9, 1, 10, 2, [150, 146, 140]); p.rect(5, 1, 6, 2, [150, 146, 140]); }
+        RopeGun => { // a root-wood bow-spring launcher, side on: the stock running down to a grip, the spring bent
+            // across the fore end with its cord drawn back to the catch, a brass crank, a stone hook in the muzzle
+            let root = [122, 84, 52]; line(&mut p, 1., 12., 9., 7., 2, root); p.rect(1, 12, 3, 15, sh(root, 0.8)); p.set(4, 10, sh(root, 1.25));
+            for y in 1..14 { let x = 10 + ((y as f32 - 7.).abs() * 0.4) as i32; p.set(x, y, root); p.set(x + 1, y, sh(root, 0.8)); }
+            line(&mut p, 11., 1.5, 6., 8.5, 1, [206, 180, 128]); line(&mut p, 11., 13.5, 6., 8.5, 1, [206, 180, 128]);
+            p.oval(6.5, 11., 1.4, 1.4, BRASS); p.set(6, 13, BRASS_D);
+            p.rect(11, 6, 13, 7, STONE); p.set(14, 5, sh(STONE, 1.25)); p.set(15, 4, sh(STONE, 1.25)); p.set(14, 8, sh(STONE, 0.8)); p.set(15, 9, sh(STONE, 0.8)); }
+        HookRope => { // a coil of twisted fungus-fibre rope, its loose end running out to a barbed stone hook lashed on
+            for r in [5.5f32, 4.0] { for k in 0..48 { let t = k as f32 / 48. * std::f32::consts::TAU; let (x, y) = (7. + r * t.cos(), 10. + r * 0.7 * t.sin());
+                p.set(x as i32, y as i32, if k % 4 < 2 { ROPE } else { sh(ROPE, 0.68) }); } }
+            line(&mut p, 12., 8., 13., 4., 1, ROPE); p.rect(12, 3, 13, 4, [120, 96, 64]);
+            p.rect(13, 1, 13, 2, STONE); p.set(14, 0, sh(STONE, 1.25)); p.set(11, 0, sh(STONE, 1.1)); p.set(12, 1, sh(STONE, 1.1)); p.set(15, 1, sh(STONE, 0.85)); }
         Lift => { // a cage hung from a sheave
             p.oval(8., 2.5, 2.4, 2.4, IRON); p.set(8, 2, BRASS); p.rect(8, 5, 8, 6, ROPE); p.rect(3, 6, 12, 7, WOOD); p.rect(3, 13, 12, 14, WOOD);
             for x in [3, 6, 9, 12] { p.rect(x, 7, x, 13, col); } }
@@ -239,7 +246,7 @@ pub fn world_form(it: Item) -> &'static str {
     match it {
         Planks | PolishedStone | Tiles | CarvedPillar | Rail | Tube | Chute | Screen | Bumper | Riffle | WoodPillar | IronBeam | Brick | Glass => "placed cells",
         Torch => "torch flame", Lamp | Thrummer | Gate | Tnt | Vent => "device sprite", CopperWire => "copperline tile",
-        Cart => "cart sprite", RopeLadder => "rope ladder", HookRope => "rope chain and hook", RopeGun => "held (icon)", Lift => "lift cage", TubeHopper => "hopper mouth", OreHopper => "ore hopper bin",
+        Cart => "cart sprite", RopeLadder => "rope ladder", HookRope => "rope chain and stone hook", RopeGun => "held rope gun (loaded or empty)", Lift => "lift cage", TubeHopper => "hopper mouth", OreHopper => "ore hopper bin",
         Mushroom | Spore => "mushroom plot (planted)",
         _ => "loose (icon)",
     }
