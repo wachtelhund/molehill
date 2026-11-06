@@ -896,7 +896,7 @@ mod progression {
     }
     /// Dig tempo (`examples/digtempo.rs` prints the table): stone takes work, so a dug room feels earned, but
     /// the first hour stays open. The kit's pickaxe bites every pickaxe rock in at most half a second and soft
-    /// soil at once; each better tool clears at least twice the room a second of the tool before; and within
+    /// soil at once; each better tool clears about twice the room a second of the tool before, or more; and within
     /// 25 m of a new holt's burrow nearly all the rock is the pickaxe's (tiers decide that, not tempo).
     #[test] fn dig_tempo_is_earned_but_the_first_hour_is_open() {
         use molehill_sim::mat::{Mat, Kind, NMAT, CPM, S};
@@ -921,6 +921,7 @@ mod progression {
             let f = cut as f32 / solid as f32; println!("seed {seed}: {:.0}% of the rock within 25 m is the pickaxe's", f * 100.);
             assert!(f >= 0.95, "seed {seed}: only {:.0}% of the rock within 25 m of the burrow is the pickaxe's", f * 100.);
         }
+    }
     /// The drill's whole bill from the ground (workbench, forge, a workshop with its copperline, and the drill;
     /// a coal per cold-forge job) is a first-hour haul: no more wood than the kit carries, since wood is scarce
     /// near the burrow, and only what the pickaxe digs. `examples/progression.rs` prints the full ladder.

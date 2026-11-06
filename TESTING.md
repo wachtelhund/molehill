@@ -185,7 +185,7 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `sprint_speed.scn` | `Shift` sprint reaches 1.6x run speed in 2 ticks, stops at once, and a sprint jump carries further |
 | `climb_smooth.scn` | Climbing a ragged wall (a notch, an outcrop overhead) holds a constant speed every tick, easing round the outcrop |
 | `climb_mantle.scn` | Climbing over the top with only `W`: never moves down, never moves more than 0.25 cell in a tick, ends on the ledge |
-| `dig_tiers.scn` | The pickaxe clears rock within 40 ticks; the bore within 10 |
+| `dig_tiers.scn` | Claws clear sandstone within 55 ticks (a bite is 49); the bore within 15 (a bite is 13) |
 | `water_flood.scn` | Mining a dirt plug floods the room below |
 | `tnt_collapse.scn` | A blast removes rock, and the sand cap falls |
 | `cave_stability.scn` | A small granite cave shows no crumbling over 600 ticks |
