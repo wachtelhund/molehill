@@ -894,6 +894,34 @@ mod progression {
         let bronze = [pos("Bronze x2"), pos("Bronze x4")].into_iter().flatten().min();
         assert!(bronze.is_some() && pos("Drill") > bronze, "bronze comes before the drill (made: {order:?})");
     }
+    /// Dig tempo (`examples/digtempo.rs` prints the table): stone takes work, so a dug room feels earned, but
+    /// the first hour stays open. The kit's pickaxe bites every pickaxe rock in at most half a second and soft
+    /// soil at once; each better tool clears about twice the room a second of the tool before, or more; and within
+    /// 25 m of a new holt's burrow nearly all the rock is the pickaxe's (tiers decide that, not tempo).
+    #[test] fn dig_tempo_is_earned_but_the_first_hour_is_open() {
+        use molehill_sim::mat::{Mat, Kind, NMAT, CPM, S};
+        let mut w = World::new(64 * S, 64 * S, 1); let i = w.g.idx(w.g.w / 2, w.g.h / 2);
+        let mut bite = |m: Mat, t: u8| { w.g.set(i, m); w.input.tool = t; w.mine_time(i) };
+        let natural = (0..NMAT).map(|k| Mat::from_u8(k as u8)).filter(|m| matches!(m.kind(), Kind::Solid | Kind::Powder) && m.p().dig > 0 && m.p().flags & molehill_sim::mat::BUILT == 0);
+        for m in natural { if m.p().tier <= 1 {
+            let t = bite(m, 1).unwrap(); assert!(t <= 30, "{} takes {t} ticks a pickaxe bite", m.p().name);
+            if m.p().dig <= 2 { assert!(t <= 6, "soft {} takes {t} ticks", m.p().name); } } }
+        let rate = |t: u8, ticks: u32| BITES[t as usize] * BITES[t as usize] / ticks as f32;
+        let (l, g) = (Mat::Limestone, Mat::Granite);
+        let (c, p, d) = (rate(0, bite(l, 0).unwrap()), rate(1, bite(l, 1).unwrap()), rate(2, bite(l, 2).unwrap()));
+        let (dg, bg) = (rate(2, bite(g, 2).unwrap()), rate(3, bite(g, 3).unwrap()));
+        assert!(p >= 2. * c && d >= 2. * p && bg >= 1.8 * dg, "limestone claws {c:.2} pick {p:.2} drill {d:.2}; granite drill {dg:.2} bore {bg:.2}");
+        assert!(bite(l, 1).unwrap() >= 24, "a pickaxe bite of limestone is real work");
+        for seed in [1u32, 2, 3] {
+            let w = World::new(512 * S, 256 * S, seed * 7919); let (mx, my) = (w.moles[0].x as i64, w.moles[0].y as i64); let r = 25 * CPM as i64;
+            let (mut solid, mut cut) = (0u32, 0u32);
+            for y in (my - r).max(0)..(my + r).min(w.g.h as i64) { for x in (mx - r).max(0)..(mx + r).min(w.g.w as i64) {
+                if (x - mx).pow(2) + (y - my).pow(2) > r * r { continue; } let m = w.g.get(x as usize, y as usize);
+                if matches!(m.kind(), Kind::Solid | Kind::Powder) && m != Mat::Bedrock { solid += 1; if m.p().tier <= 1 { cut += 1; } } } }
+            let f = cut as f32 / solid as f32; println!("seed {seed}: {:.0}% of the rock within 25 m is the pickaxe's", f * 100.);
+            assert!(f >= 0.95, "seed {seed}: only {:.0}% of the rock within 25 m of the burrow is the pickaxe's", f * 100.);
+        }
+    }
     /// The drill's whole bill from the ground (workbench, forge, a workshop with its copperline, and the drill;
     /// a coal per cold-forge job) is a first-hour haul: no more wood than the kit carries, since wood is scarce
     /// near the burrow, and only what the pickaxe digs. `examples/progression.rs` prints the full ladder.
