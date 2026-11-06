@@ -35,3 +35,11 @@ fn every_item_has_a_sane_density_and_a_controls_line_when_usable() {
         if u.place || u.throw { assert!(!it.controls().is_empty(), "{it:?} can be used but its controls line is empty"); }
     }
 }
+
+#[test]
+fn shaker_screen_sorts_fines_from_lumps_by_size() {
+    use molehill_sim::production::MESH_M;
+    for &it in ITEMS.iter() { let s = it.size_m(); assert!(s > 0. && s <= 0.25, "{it:?}: lump size {s} m"); }
+    for it in [Item::Sand, Item::Dirt, Item::Clay, Item::Gravel] { assert!(it.size_m() < MESH_M, "{it:?} should fall through a screen"); }
+    for it in [Item::Stone, Item::Coal, Item::CopperOre, Item::TinOre, Item::IronOre] { assert!(it.size_m() >= MESH_M, "{it:?} should ride over a screen"); }
+}

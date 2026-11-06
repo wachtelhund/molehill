@@ -95,6 +95,10 @@ pub fn describe(w: &World, x: usize, y: usize) -> Option<Tip> {
     // track and pipe: what makes them go
     if m.has(TRACK) && !loose { l.push(if w.rail_powered(x, y) { "Powered: carts on it are driven along.".into() } else { "Set a mine cart on it; copperline with current along it drives carts.".into() }); }
     if m.has(TUBE) && !loose { l.push("Put tube hoppers on the line: one with current sends, the others receive.".into()); }
+    // production: what moves things along it
+    if m.has(crate::mat::SCREEN) && !loose { l.push(if w.shaking(x, y) { "Shaking: lumps walk down it and off the end.".into() } else { "Lumps lie on it unless it's steep; copperline current along it shakes it.".into() }); }
+    else if m.has(crate::mat::CHUTE) && !loose { l.push("Loose things slide down it where it slopes.".into()); }
+    if m.has(crate::mat::BUMPER) && !loose { l.push("A loaded cart that runs into it tips its load out over it.".into()); }
     tip(if loose { format!("Loose {}", m.p().name.to_lowercase()) } else { m.p().name.to_string() }, l)
 }
 
@@ -118,6 +122,12 @@ pub fn transport_tip(w: &World, x: usize, y: usize) -> Option<Tip> {
         l.push(if c.load() > 0 { format!("Carrying {} items · E: unload them.", c.load()) } else if w.tr.riding == Some(k) { "Empty.".into() } else { "Empty: throw things in to load it · E: pick it up.".into() });
         if !c.on_rail { l.push("Off the rails: it won't roll until it's back on track.".into()); }
         return tip("Mine cart", l);
+    }
+    if let Some(k) = w.bin_at(x, y) {
+        let b = &w.tr.bins[k];
+        let l = vec![format!("Holding {} of {} · fill it from above (items, sand, rubble) · E: empty it.", b.load(), crate::production::BIN_LOAD),
+            if b.held { "Gate held open: it empties onto what's under it · right mouse: let go.".into() } else { "A cart under its spout trips the gate and is filled · right mouse: hold it open.".into() }];
+        return tip("Ore hopper", l);
     }
     if let Some(k) = w.hopper_at(x, y) {
         let mut l = vec![if w.hopper_blowing(k) { "Blowing: drop items in to send them · right mouse (empty paw): ride.".into() } else { "No current: it only receives. Copperline current runs its blower.".into() }];
