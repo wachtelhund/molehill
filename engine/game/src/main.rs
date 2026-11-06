@@ -1261,6 +1261,14 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
         want.push((44, k, cell_to_world(cx, cy - n * 0.15), 3.9, sp.px.clone(), Vec2::new(n * 0.8 * CPX, n * 0.3 * CPX), false, lit(0.7, 0.52, 0.26)));
         want.push((45, k, cell_to_world(cx, cy - n * 0.32), 3.95, sp.px.clone(), Vec2::new(n * 0.6 * CPX, 1.5), false, lit(0.15, 0.13, 0.12)));
     }
+    // counterweights (placeholder until p3's art): the rope from the drum down to an iron weight
+    for (k, wt) in w.tr.power.weights.iter().enumerate() {
+        if w.g.flags[wt.drum.min(H - 1) * W + wt.x.min(W - 1)] & F_SEEN == 0 { continue; }
+        let y = wt.py + (wt.y - wt.py) * a; let xc = wt.x as f32 + 0.5; let top = wt.drum as f32 + 1.;
+        let lt = lightf(wt.x, (y as usize).min(H - 1)).to_srgba(); let lit = |r: f32, gg: f32, b: f32| Color::srgb(r * lt.red, gg * lt.green, b * lt.blue);
+        want.push((80, k, cell_to_world(xc, (top + y) / 2.), 3.9, sp.px.clone(), Vec2::new(1., (y - top).max(0.) * CPX), false, lit(0.62, 0.52, 0.34)));
+        want.push((81, k, cell_to_world(xc, y + 0.25 * CPM as f32), 4.1, sp.px.clone(), Vec2::new(0.5 * CPM as f32 * CPX, 0.5 * CPM as f32 * CPX), false, lit(0.42, 0.42, 0.46)));
+    }
     // ore hoppers: the bin's back boards, the heap of what it holds tinted with that item's colour, the front
     // frame (its gate shut or swung open under the spout) and two legs stretched down to the floor
     for (k, b) in w.tr.bins.iter().enumerate() {

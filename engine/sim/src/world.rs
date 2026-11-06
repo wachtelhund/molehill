@@ -32,7 +32,18 @@ pub const D_PLANK: u8 = 5; pub const D_POLISH: u8 = 6; pub const D_TILE: u8 = 7;
 /// Transport blocks: rail, pressure tube.
 pub const D_RAIL: u8 = 9; pub const D_TUBE: u8 = 10;
 /// The build code for a block item (structural or decorative).
-pub fn block_code(it: Item) -> Option<u8> { Some(match it { Item::WoodPillar => D_WOOD, Item::Brick => D_BRICK, Item::IronBeam => D_IRON, Item::Planks => D_PLANK, Item::PolishedStone => D_POLISH, Item::Tiles => D_TILE, Item::CarvedPillar => D_CARVED, Item::Rail => D_RAIL, Item::Tube => D_TUBE, _ => return None }) }
+/// Block items and the cells they build, in build-code order from `D_WOOD` (code = index + 2; codes 2..=10 are
+/// fixed: saves keep designations by code). A new block item is a new row here.
+pub const BUILDS: [(Item, Mat); 17] = [
+    (Item::WoodPillar, Mat::WoodBeam), (Item::Brick, Mat::StoneBrick), (Item::IronBeam, Mat::IronBeam), (Item::Planks, Mat::Planks),
+    (Item::PolishedStone, Mat::Polished), (Item::Tiles, Mat::Tiles), (Item::CarvedPillar, Mat::Carved), (Item::Rail, Mat::Rail), (Item::Tube, Mat::Tube),
+    // production (production.rs, sluice.rs, power.rs)
+    (Item::Chute, Mat::Chute), (Item::Screen, Mat::Screen), (Item::Bumper, Mat::Bumper), (Item::Riffle, Mat::Riffle),
+    (Item::Shaft, Mat::Shaft), (Item::Gear, Mat::Gear), (Item::WaterWheel, Mat::Wheel), (Item::Belt, Mat::Belt),
+];
+/// Number of build codes (`place_acc` slots).
+pub const NBUILD: usize = BUILDS.len() + 2;
+pub fn block_code(it: Item) -> Option<u8> { BUILDS.iter().position(|b| b.0 == it).map(|k| (k + 2) as u8) }
 /// The fewest cells crumbling in one tick that sound as a collapse (`Event::Crumble`): two tiles' worth.
 pub const CRUMBLE_LOUD: usize = 2 * S * S;
 pub const MOLE_H: usize = 3 * S;
@@ -202,7 +213,7 @@ pub struct Building { pub kind: Station, pub x: usize, pub y: usize, pub built: 
 pub const SPAWN_SIGHT_M: usize = 6;
 pub struct World {
     pub g: Grid, pub st: Stress, pub light: Light, pub info: GenInfo, pub tick: u64,
-    pub inv: [u32; NITEM], dig_acc: [u16; NMAT], place_acc: [u16; 12], pub desig: Vec<u8>,
+    pub inv: [u32; NITEM], dig_acc: [u16; NMAT], place_acc: [u16; NBUILD], pub desig: Vec<u8>,
     pub moles: Vec<Mole>, pub drops: Vec<Drop>, pub stockpile: (usize, usize, usize, usize),
     pub buildings: Vec<Building>, pub torches: Vec<(usize, usize)>, pub chests: Vec<Chest>, pub furniture: Vec<Furniture>, paint_acc: u16,
     pub quest: usize, pub log: Vec<(u64, String)>, pub discovered: [bool; NMAT], pub chests_opened: u32, pub pillars: u32,
@@ -278,7 +289,7 @@ impl World {
     }
     fn shell(g: Grid, w: usize, h: usize, seed: u32, oy: i64, gn: Gen, info: gen::GenInfo) -> World {
         World {
-            st: Stress::new(w * h), light: Light::new(w, h), tick: 0, inv: [0; NITEM], dig_acc: [0; NMAT], place_acc: [0; 12], desig: vec![0; w * h],
+            st: Stress::new(w * h), light: Light::new(w, h), tick: 0, inv: [0; NITEM], dig_acc: [0; NMAT], place_acc: [0; NBUILD], desig: vec![0; w * h],
             moles: vec![], drops: vec![], stockpile: (0, 0, 0, 0), buildings: vec![], torches: vec![], chests: vec![], furniture: vec![], paint_acc: 0,
             quest: 0, log: vec![], discovered: [false; NMAT], chests_opened: 0, pillars: 0, max_depth: 0., craft_queue: vec![], gear: Gear::default(), known: [false; NITEM], mode: Default::default(), rules: Default::default(), lamp_oil: 0., lamp_dry: false, lamp_low: false, ruins: vec![], ruins_seen: Default::default(), relics: 0, crumbled: 0,
             light_rect: (0, 0, w - 1, h - 1), events: vec![], marks: vec![], react_pending: false, logic: Logic::new(w, h), disasters: Disasters::new(seed), shake: 0., air: Air::new(w, h), farms: vec![], harvested: 0, input: Input::default(), pl: Player::default(), gen: gn, oy, bands: Default::default(), opened: Default::default(), clues: vec![], found_clues: Default::default(), journal: vec![], grottos: vec![], caught: Default::default(), keep_blast_field: false, blast_field: vec![], debris: vec![], waves: vec![], strain: vec![], strain_creak: 0, tr: Default::default(), blasts_run: 0, info, g,
@@ -602,6 +613,7 @@ impl World {
         self.step_player();
         self.step_transport();
         self.step_items();
+        self.belt_queue();
         self.step_wash();
         self.step_debris(); let now = self.tick; self.waves.retain(|v| v.live(now));
         if self.tick % 2 == 0 { self.step_moles(); }
@@ -869,7 +881,9 @@ impl World {
         let it = build_item(d);
         if self.place_acc[d as usize] == 0 { if self.inv[it as usize] == 0 { return; } self.inv[it as usize] -= 1; self.place_acc[d as usize] = CELLS_PER_BLOCK; }
         self.place_acc[d as usize] -= 1;
-        self.g.set(i, build_mat(d)); self.desig[i] = 0; self.pillars += 1; self.events.push(Event::Place);
+        // a belt runs the way the mole faces as it lays it (right mouse on a belt turns the run round)
+        let m = match build_mat(d) { Mat::Belt if self.moles.first().is_some_and(|m| m.facing < 0) => Mat::BeltL, m => m };
+        self.g.set(i, m); self.desig[i] = 0; self.pillars += 1; self.events.push(Event::Place);
     }
     /// Lava loses heat where there's little of it: a cell with fewer than 10 tiles' worth of lava in
     /// the 5×5-tile (1.25 m) neighbourhood (a splash, a thin sheet, a trickle down a wall) now and then freezes into solid
@@ -1626,8 +1640,8 @@ impl World {
 /// What the Delver eats from the pack, best first, and how much hunger each restores.
 pub const FOODS: [Item; 4] = [Item::Grub, Item::Mushroom, Item::Root, Item::Fungus];
 pub fn food_value(it: Item) -> f32 { match it { Item::Grub => 45., Item::Mushroom => 35., Item::Root => 30., Item::Fungus => 25., _ => 0. } }
-pub fn build_item(d: u8) -> Item { match d { D_BRICK => Item::Brick, D_IRON => Item::IronBeam, D_PLANK => Item::Planks, D_POLISH => Item::PolishedStone, D_TILE => Item::Tiles, D_CARVED => Item::CarvedPillar, D_RAIL => Item::Rail, D_TUBE => Item::Tube, _ => Item::WoodPillar } }
-pub fn build_mat(d: u8) -> Mat { match d { D_BRICK => Mat::StoneBrick, D_IRON => Mat::IronBeam, D_PLANK => Mat::Planks, D_POLISH => Mat::Polished, D_TILE => Mat::Tiles, D_CARVED => Mat::Carved, D_RAIL => Mat::Rail, D_TUBE => Mat::Tube, _ => Mat::WoodBeam } }
+pub fn build_item(d: u8) -> Item { BUILDS.get((d as usize).wrapping_sub(2)).map_or(Item::WoodPillar, |b| b.0) }
+pub fn build_mat(d: u8) -> Mat { BUILDS.get((d as usize).wrapping_sub(2)).map_or(Mat::WoodBeam, |b| b.1) }
 
 /// A new holt built in small steps so a game can draw a loading line between them (`World::new` runs it
 /// to the end at once; both give the same world). `step` does one slice of work, a few tens of ms at

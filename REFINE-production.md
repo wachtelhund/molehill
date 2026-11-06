@@ -91,3 +91,25 @@ I playtested sluicing in context and probed the edges:
 * **Fungus under running water (no change needed):** it's lighter than water, so p2's CA floats it up, and floating
   debris drifts with the current. That's correct.
 * `site/` is rebuilt on main after #33.
+
+## Stage 3: mechanical power (branch `refine/production-power`)
+
+* **Trains** (`power.rs`): `MECH` cells flood-filled over (cell, axis) states. A plain shaft passes along its own axis only;
+  a `HUB` (gear, wheel, belt, drum) passes every way, so corners need a gear. Solved every 6 ticks over the active region.
+* **Power balance** per train: wheel supply against belt, item and screen demand; speed is supply/demand, capped at 1.
+  - **Water wheel:** undershot, ½ρAv³η with the current read beside the wheel (the water under it is capped). It first gave
+    nothing, because a one-cell sheet never touched the paddles; they now reach 2 cells down.
+  - **Counterweight:** 200 kg on a drum; falls to cover a shortfall and winds up on surplus, at up to 0.25 m/s. Saved
+    (transport encoding v6).
+* **Belts:** `Belt` runs right and `BeltL` left (laid facing; right mouse turns a run round). Items are gripped toward
+  belt speed; the per-tick settling friction is exempt on belts, as on chutes (at first it halved the speed). `belt_queue`
+  keeps lumps from passing on a belt row, never pushing one into rock (a jam).
+* **Screens** are shaken by a turning train within a tile.
+* **Fixed (stages 1 and 2):** chutes, screens, bumpers and riffle bars had no build code, so the game's brush couldn't
+  place them. Scenarios stamp maps and never caught it. Block codes now come from one table, `world::BUILDS`; codes 2..=10
+  are unchanged. Test `every_block_item_can_be_built`.
+* **Lore:** belts are woven fungus-fibre, not leather (there's no hide in the Deepholt).
+* Recipes (for p7): gear x2 (2 wood), water wheel x8 (4 wood), belt x8 (2 wood + 2 fungus) at the workbench; iron shaft
+  x8 (1 iron ingot) and counterweight (4 iron ingots + 2 wood) at the forge.
+* For p3: Iron shaft, Gear, Water wheel, Belt (two directions; a moving look would help), Counterweight (drum, rope and
+  weight; a placeholder is drawn in `main.rs`). All five have placeholder pack icons in `itemart.rs`.

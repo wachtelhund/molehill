@@ -218,6 +218,20 @@ pub fn icon_px(it: Item) -> Px {
             poly(&mut p, &[(0., 6.), (16., 12.), (16., 15.), (0., 9.)], WOOD_D); for (k, x) in [2., 7., 12.].into_iter().enumerate() { let y = 6.5 + x * 0.375;
                 p.rect(x as i32, y as i32 - 3, x as i32 + 1, y as i32, if k % 2 == 0 { col } else { sh(col, 1.15) }); }
             line(&mut p, 0., 4., 16., 10., 1, [92, 150, 210]); p.set(5, 5, [180, 210, 240]); p.set(10, 7, [180, 210, 240]); }
+        Shaft => { // an iron rod in two bearing blocks
+            p.rect(0, 7, 15, 8, col); p.rect(0, 7, 15, 7, sh(col, 1.3)); for x in [3, 11] { p.rect(x - 1, 5, x + 1, 10, WOOD_D); p.set(x, 7, IRON_D); } p.set(15, 8, IRON_D); }
+        Gear => { // a toothed wheel with a hub and spokes
+            p.oval(8., 8., 6., 6., col); for k in 0..8 { let a = k as f32 * std::f32::consts::PI / 4.; p.rect((8. + 6.6 * a.cos()) as i32, (8. + 6.6 * a.sin()) as i32, (8. + 6.6 * a.cos()) as i32 + 1, (8. + 6.6 * a.sin()) as i32 + 1, sh(col, 0.8)); }
+            p.oval(8., 8., 3.5, 3.5, sh(col, 1.15)); p.oval(8., 8., 1.4, 1.4, IRON_D); line(&mut p, 8., 3., 8., 13., 1, sh(col, 0.85)); }
+        WaterWheel => { // a paddle wheel dipping into blue water
+            p.rect(0, 13, 15, 15, [72, 128, 200]); p.oval(8., 7., 6., 6., WOOD_D); p.oval(8., 7., 4.5, 4.5, [0, 0, 0]);
+            p.c.iter_mut().for_each(|c| if c[0] == 0 && c[1] == 0 && c[2] == 0 { c[3] = 0; });
+            for (x0, y0, x1, y1) in [(8., 1., 8., 13.), (2., 7., 14., 7.), (4., 3., 12., 11.), (12., 3., 4., 11.)] { line(&mut p, x0, y0, x1, y1, 1, col); } p.oval(8., 7., 1.5, 1.5, IRON); p.set(5, 13, [180, 210, 240]); }
+        Belt => { // a fibre belt over two rollers, an arrow of stitching along it
+            p.rect(2, 5, 13, 6, col); p.rect(2, 10, 13, 11, sh(col, 0.8)); for x in [2.5, 13.5] { p.oval(x, 8., 2.6, 2.6, WOOD); p.set(x as i32, 8, IRON_D); }
+            for x in [6, 8, 10] { p.set(x, 5, ROPE); } p.set(11, 4, ROPE); p.set(11, 6, ROPE); }
+        Counterweight => { // a rope drum and a hanging iron weight
+            p.rect(3, 0, 12, 3, WOOD); p.oval(7.5, 1.5, 2., 1.5, IRON_D); p.rect(7, 4, 8, 7, ROPE); p.rect(4, 8, 11, 15, col); p.rect(4, 8, 11, 9, sh(col, 1.25)); p.set(6, 12, IRON_D); p.set(9, 12, IRON_D); }
         // ---- background linings: a piece of each, darker, as it sits behind
         RockWall => { // a rough slab of scraped host rock with tool marks
             poly(&mut p, &[(1., 3.), (6., 1.), (14., 2.), (15., 9.), (13., 15.), (3., 14.), (1., 9.)], sh(col, 0.85)); for y in [5, 9, 12] { line(&mut p, 3., y as f32, 11., y as f32 - 2., 1, sh(col, 0.6)); } }
@@ -244,9 +258,9 @@ pub fn world_form(it: Item) -> &'static str {
     if it.furn().is_some() { return "furniture sprite"; }
     if it.is_wall() { return "background lining"; }
     match it {
-        Planks | PolishedStone | Tiles | CarvedPillar | Rail | Tube | Chute | Screen | Bumper | Riffle | WoodPillar | IronBeam | Brick | Glass => "placed cells",
+        Planks | PolishedStone | Tiles | CarvedPillar | Rail | Tube | Chute | Screen | Bumper | Riffle | Shaft | Gear | WaterWheel | Belt | WoodPillar | IronBeam | Brick | Glass => "placed cells",
         Torch => "torch flame", Lamp | Thrummer | Gate | Tnt | Vent => "device sprite", CopperWire => "copperline tile",
-        Cart => "cart sprite", RopeLadder => "rope ladder", HookRope => "rope chain and stone hook", RopeGun => "held rope gun (loaded or empty)", Lift => "lift cage", TubeHopper => "hopper mouth", OreHopper => "ore hopper bin",
+        Cart => "cart sprite", RopeLadder => "rope ladder", HookRope => "rope chain and stone hook", RopeGun => "held rope gun (loaded or empty)", Lift => "lift cage", TubeHopper => "hopper mouth", OreHopper => "ore hopper bin", Counterweight => "counterweight on its drum",
         Mushroom | Spore => "mushroom plot (planted)",
         _ => "loose (icon)",
     }

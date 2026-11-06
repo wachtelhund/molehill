@@ -100,6 +100,10 @@ pub fn describe(w: &World, x: usize, y: usize) -> Option<Tip> {
     else if m.has(crate::mat::CHUTE) && !loose { l.push("Loose things slide down it where it slopes.".into()); }
     if m == Mat::Water { if let Some((v, _)) = crate::sluice::current(w, x as f32 + 0.5, y as f32 + 0.5) {
         l.push(format!("Running {}, {:.1} m/s: it carries sand, dirt, gravel and coal; ore and stone stay.", if v > 0. { "right" } else { "left" }, v.abs())); } }
+    // machinery: how fast its train turns and on what
+    if m.has(crate::mat::MECH) && !loose { let i = y * w.g.w + x; let p = &w.tr.power;
+        l.push(match p.train.get(&i) { Some(&t) if p.speed.get(t as usize).copied().unwrap_or(0.) > 0.01 => format!("Turning at {:.0}%: {:.0} W to give, {:.0} W to do.", 100. * p.speed[t as usize], p.supply[t as usize], p.demand[t as usize]),
+            _ => "Still: nothing turns it. A water wheel in a stream or a counterweight drives a train.".into() }); }
     if m.has(crate::mat::BUMPER) && !loose { l.push("A loaded cart that runs into it tips its load out over it.".into()); }
     tip(if loose { format!("Loose {}", m.p().name.to_lowercase()) } else { m.p().name.to_string() }, l)
 }
@@ -124,6 +128,10 @@ pub fn transport_tip(w: &World, x: usize, y: usize) -> Option<Tip> {
         l.push(if c.load() > 0 { format!("Carrying {} items · E: unload them.", c.load()) } else if w.tr.riding == Some(k) { "Empty.".into() } else { "Empty: throw things in to load it · E: pick it up.".into() });
         if !c.on_rail { l.push("Off the rails: it won't roll until it's back on track.".into()); }
         return tip("Mine cart", l);
+    }
+    if let Some(k) = w.weight_at(x, y) {
+        let wt = &w.tr.power.weights[k]; let down = (wt.y - (wt.drum + 2) as f32) / CPM as f32; let left = (wt.bottom - wt.y) / CPM as f32;
+        return tip("Counterweight", vec![format!("{:.0} kg, {:.1} m down its rope ({:.1} m more to fall): it falls to drive its train and is wound up by spare power.", crate::power::WEIGHT_KG, down, left), "E: take it down.".into()]);
     }
     if let Some(k) = w.bin_at(x, y) {
         let b = &w.tr.bins[k];

@@ -25,8 +25,10 @@ pub enum Item {
     RopeGun, HookRope,
     // sluicing (production.rs, sluice.rs): riffle bars for a sluice floor
     Riffle,
+    // mechanical power (power.rs): shafts, gears, water wheels, belts and a counterweight on its drum
+    Shaft, Gear, WaterWheel, Belt, Counterweight,
 }
-pub const NITEM: usize = 76;
+pub const NITEM: usize = 81;
 /// What an item can do in the world (see `Item::uses`).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Uses { pub place: bool, pub throw: bool, pub pick_up: bool }
@@ -289,6 +291,21 @@ const ITEM_DEFS_CONST: [ItemDef; NITEM] = {
     it(Riffle, "Riffle bar", [122, 88, 54],
        "Low timber bars for a sluice floor. Running water washes the fines on; heavy lumps settle behind them.").lump(Mat::Riffle).block(Mat::Riffle).place()
        .controls("Left mouse: build bars across a sloping channel (hold) · run water down it to wash what's tipped in"),
+    it(Shaft, "Iron shaft", [140, 144, 156],
+       "Iron rod on bearings. Lay it in a straight line to carry turning; a gear takes it round a corner.").lump(Mat::Shaft).block(Mat::Shaft).place()
+       .controls("Left mouse: lay a straight line (hold; X: snap) · join it to a wheel, gear or belt"),
+    it(Gear, "Gear", [160, 120, 72],
+       "Toothed wooden wheels. One joins shafts, belts and wheels on all sides and turns a drive round a corner.").lump(Mat::Gear).block(Mat::Gear).place()
+       .controls("Left mouse: build where shafts meet or turn"),
+    it(WaterWheel, "Water wheel", [128, 96, 60],
+       "Timber paddles on an axle. Build it over a running stream, its foot in the water: the current turns it.").lump(Mat::Wheel).block(Mat::Wheel).place()
+       .controls("Left mouse: build it over a stream so its lowest paddles dip in · gear or shaft it to what it drives"),
+    it(Belt, "Belt", [92, 64, 44],
+       "Woven fungus-fibre belt over wooden rollers. Turned, it carries what lies on it the way it was laid.").lump(Mat::Belt).block(Mat::Belt).place()
+       .controls("Left mouse: lay it (it runs the way you face) · right mouse: turn the run round · join it to a turning shaft or gear"),
+    it(Counterweight, "Counterweight", [118, 112, 108],
+       "A rope drum and an iron weight. Spare power winds it up; when the drive runs short, it falls and turns it.").dens(5000.0).place().pick_up()
+       .controls("Left mouse: hang the drum under a roof over a drop · join it to the drive · E: take down"),
     ]
 };
 /// Every item, in order.
@@ -342,7 +359,7 @@ pub fn drop_of(m: Mat) -> Option<Item> {
         Dirt | Grass => Item::Dirt, Clay => Item::Clay, Sand => Item::Sand, Gravel => Item::Gravel,
         Granite | Rock | Limestone | Basalt | StoneBrick => Item::Stone, Coal => Item::Coal, CopperOre => Item::CopperOre, TinOre => Item::TinOre,
         IronOre => Item::IronOre, Quartz => Item::Quartz, Crystal => Item::Crystal, Roots | WoodBeam | Door | RootTree | TreeRoot => Item::Wood, Fungus | Mycelium => Item::Fungus, Moss => Item::Dirt,
-        IronBeam => Item::IronIngot, Glass => Item::Glass, Planks | Chute | Bumper | Riffle => Item::Wood, Polished | Carved => Item::Stone, Tiles => Item::Clay,
+        IronBeam => Item::IronIngot, Glass => Item::Glass, Planks | Chute | Bumper | Riffle | Gear | Wheel | Belt | BeltL => Item::Wood, Polished | Carved => Item::Stone, Tiles => Item::Clay,
         _ => return None,
     })
 }
@@ -411,6 +428,9 @@ pub static RECIPES: &[Recipe] = &[
     // pack takes 2 a measure), and a mushroom farm's crop can feed the lamp instead of the belly
     Recipe { name: "Fungus oil x2", station: Station::Workbench, inputs: &[(Item::Fungus, 3)], out: (Item::FungusOil, 2), ticks: 60 },
     Recipe { name: "Chute x8", station: Station::Workbench, inputs: &[(Item::Wood, 2)], out: (Item::Chute, 8), ticks: 60 },
+    Recipe { name: "Gear x2", station: Station::Workbench, inputs: &[(Item::Wood, 2)], out: (Item::Gear, 2), ticks: 90 },
+    Recipe { name: "Belt x8", station: Station::Workbench, inputs: &[(Item::Wood, 2), (Item::Fungus, 2)], out: (Item::Belt, 8), ticks: 120 },
+    Recipe { name: "Water wheel x8", station: Station::Workbench, inputs: &[(Item::Wood, 4)], out: (Item::WaterWheel, 8), ticks: 150 },
     Recipe { name: "Riffle bar x8", station: Station::Workbench, inputs: &[(Item::Wood, 2)], out: (Item::Riffle, 8), ticks: 60 },
     Recipe { name: "Bumper x2", station: Station::Workbench, inputs: &[(Item::Wood, 2), (Item::Stone, 1)], out: (Item::Bumper, 2), ticks: 60 },
     Recipe { name: "Fungus oil (mushroom)", station: Station::Workbench, inputs: &[(Item::Mushroom, 2)], out: (Item::FungusOil, 1), ticks: 60 },
@@ -432,6 +452,9 @@ pub static RECIPES: &[Recipe] = &[
     Recipe { name: "Rail x8", station: Station::Forge, inputs: &[(Item::CopperIngot, 1), (Item::Wood, 1)], out: (Item::Rail, 8), ticks: 120 },
     Recipe { name: "Mine cart", station: Station::Forge, inputs: &[(Item::CopperIngot, 2), (Item::Wood, 4)], out: (Item::Cart, 1), ticks: 200 },
     // production: the ore hopper is timber bound with copper; the shaker screen is an iron grating
+    // mechanical power: an iron shaft and a counterweight cast in iron (gears, wheels and belts are workbench timber)
+    Recipe { name: "Iron shaft x8", station: Station::Forge, inputs: &[(Item::IronIngot, 1)], out: (Item::Shaft, 8), ticks: 120 },
+    Recipe { name: "Counterweight", station: Station::Forge, inputs: &[(Item::IronIngot, 4), (Item::Wood, 2)], out: (Item::Counterweight, 1), ticks: 200 },
     Recipe { name: "Ore hopper", station: Station::Forge, inputs: &[(Item::Wood, 6), (Item::CopperIngot, 1)], out: (Item::OreHopper, 1), ticks: 200 },
     Recipe { name: "Shaker screen x4", station: Station::Forge, inputs: &[(Item::IronIngot, 1), (Item::Wood, 1)], out: (Item::Screen, 4), ticks: 150 },
     Recipe { name: "Pressure tube x8", station: Station::Forge, inputs: &[(Item::IronIngot, 1), (Item::Glass, 2)], out: (Item::Tube, 8), ticks: 150 },
