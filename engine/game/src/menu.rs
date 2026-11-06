@@ -92,10 +92,12 @@ pub fn spawn_controls(p: &mut ChildSpawnerCommands, f: &Handle<Font>, size: f32)
 #[derive(Component)] pub struct MenuControls;
 
 #[allow(clippy::too_many_arguments)]
-pub fn update(mut m: ResMut<Menu>, mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<ButtonInput<MouseButton>>, mut commands: Commands,
+pub fn update(mut m: ResMut<Menu>, mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<ButtonInput<MouseButton>>,
     mut au: NonSendMut<Audio>, mut cam: Query<&mut Transform, With<Camera2d>>, mut win: Query<&mut Window, With<PrimaryWindow>>,
     mut ctl: Query<&mut Visibility, (With<MenuControls>, Without<MenuRoot>, Without<MenuRow>)>, mut q: ParamSet<(Query<&mut Visibility, With<MenuRoot>>, Query<(&MenuRow, &mut Text, &mut TextColor, &Interaction, &mut Visibility)>, Query<&mut Text, With<MenuHint>>, Query<&mut Text, With<MenuTitle>>)>,
-    mut exit: MessageWriter<AppExit>) {
+    mut exit: MessageWriter<AppExit>, mut ld: ResMut<crate::loading::Loading>) {
+    // the loading line is up: no menu under it, no input
+    if ld.busy() { for mut v in q.p0().iter_mut() { *v = Visibility::Hidden; } for mut v in &mut ctl { *v = Visibility::Hidden; } return; }
     if !m.open() {
         if keys.just_pressed(KeyCode::Escape) && !g.inv_open && !g.help { m.go(Screen::Pause); g.paused = true; }
     } else {
@@ -128,14 +130,14 @@ pub fn update(mut m: ResMut<Menu>, mut g: ResMut<Game>, keys: Res<ButtonInput<Ke
             Item::Music if adj != 0. || act => { if adj != 0. { m.music = (m.music + adj * 0.1).clamp(0., 1.); if m.music > 0. { m.music_on = m.music; } } else { m.music = if m.music > 0. { 0. } else { m.music_on.max(0.1) }; } m.persist(); }
             Item::Zoom if adj != 0. || act => z(&mut m, if adj != 0. { adj } else if clicked { click_dir } else { 1. }),
             _ if act => match it {
-                Item::Continue => { if crate::load_saved(&mut g, &mut commands) { m.go(Screen::Off); } }
+                Item::Continue => ld.load(),
                 Item::NewHolt => m.go(Screen::NewHolt),
                 Item::NewMode => m.new_mode = if m.new_mode == Mode::Survival { Mode::Creative } else { Mode::Survival },
-                Item::Start | Item::Seed => { let mode = m.new_mode; let seed = m.seed_text.parse().unwrap_or_else(|_| crate::seed_now() % 100000); crate::begin(&mut g, &mut commands, seed, mode); if mode == Mode::Survival && !m.hunger { g.w.set_hunger(false); } m.seed_text.clear(); m.go(Screen::Off); if let Ok(mut ct) = cam.single_mut() { ct.scale = Vec3::splat(m.zoom); } }
-                Item::Restart => { let (s, mode, nh) = (g.seed, g.w.mode, g.w.rules.no_hunger); crate::begin(&mut g, &mut commands, s, mode); if nh { g.w.set_hunger(false); } m.go(Screen::Off); }
+                Item::Start | Item::Seed => { let mode = m.new_mode; let seed = m.seed_text.parse().unwrap_or_else(|_| crate::seed_now() % 100000); ld.new_holt(seed, mode, mode == Mode::Survival && !m.hunger); m.seed_text.clear(); if let Ok(mut ct) = cam.single_mut() { ct.scale = Vec3::splat(m.zoom); } }
+                Item::Restart => { let (s, mode, nh) = (g.seed, g.w.mode, g.w.rules.no_hunger); ld.new_holt(s, mode, nh); }
                 Item::Resume => m.go(Screen::Off),
                 Item::Save => { crate::save_now(&mut g); m.go(Screen::Off); }
-                Item::Load => { if crate::load_saved(&mut g, &mut commands) { m.go(Screen::Off); } }
+                Item::Load => ld.load(),
                 Item::Settings => m.go(Screen::Settings), Item::Controls => m.go(Screen::Controls),
                 Item::MainMenu => { crate::save_auto(&mut g); m.go(Screen::Main); }
                 Item::Quit => { crate::save_auto(&mut g); exit.write(AppExit::Success); }
@@ -166,6 +168,6 @@ pub fn update(mut m: ResMut<Menu>, mut g: ResMut<Game>, keys: Res<ButtonInput<Ke
     }
     let title = match m.screen { Screen::Pause => "Paused".to_string(), Screen::Settings => "Settings".into(), Screen::Controls => "Controls".into(), Screen::NewHolt => "New Holt".into(), _ => "Molehill".into() };
     for mut t in q.p3().iter_mut() { t.0 = title.clone(); }
-    let hint = match m.screen { Screen::Controls => "Esc back".to_string(), Screen::NewHolt => "Survival: find food, oil and tools.   Creative: everything, nothing hurts.\nA / D mode     type digits for a seed     Enter start     Esc back".to_string(), Screen::Settings => "A / D adjust     Esc back".into(), Screen::Main => format!("W / S choose     Enter select\nholt {}", g.seed), _ => "W / S choose     Enter select     Esc resume".into() };
+    let hint = match m.screen { Screen::Controls => "Esc back".to_string(), Screen::NewHolt => "Survival: find food, oil and tools.   Creative: everything, nothing hurts.\nA / D mode     type digits for a seed     Enter start     Esc back".to_string(), Screen::Settings => "A / D adjust     Esc back".into(), Screen::Main => if g.live { format!("W / S choose     Enter select\nholt {}", g.seed) } else { "W / S choose     Enter select".into() }, _ => "W / S choose     Enter select     Esc resume".into() };
     for mut t in q.p2().iter_mut() { t.0 = hint.clone(); }
 }
