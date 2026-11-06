@@ -1,0 +1,35 @@
+// Digging down onto a drop that only hurts (here 2.5 m, under the safe fall) isn't held back: the floor
+// goes, the mole drops into the hollow, and nothing is said. Only a drop that would kill rings hollow.
+map
+BBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+B............................B
+B............................B
+B............................B
+B............................B
+B............................B
+B.......@....................B
+BrrrrrrrrrrrrrrrrrrrrrrrrrrrrB
+BrrrrrrrrrrrrrrrrrrrrrrrrrrrrB
+BrrrrrrrrrrrrrrrrrrrrrrrrrrrrB
+BrrrrrrrrrrrrrrrrrrrrrrrrrrrrB
+B###..........###############B
+B###..........###############B
+B###..........###############B
+B###..........###############B
+B###..........###############B
+B###..........###############B
+B###..........###############B
+B###..........###############B
+B###..........###############B
+B###..........###############B
+B############################B
+B############################B
+B############################B
+BBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+end
+mode survival
+nohunger
+dig 3-200 0 2
+expect 201 log:rings_hollow == 0
+expect 201 dy > 10
+expect 201 hp == 100

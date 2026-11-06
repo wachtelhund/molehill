@@ -9,6 +9,8 @@ cargo test --release -p molehill-sim          # about 1 min; build the release p
 cargo test --release -p molehill-sim --test sim -- jump coyote   # filter by name
 ```
 
+The game crate has a few headless unit tests of its own for HUD and art logic that needs no window: `cargo test --release -p molehill` (the Survival hotbar layout and faint slots, the refusal ring's colour and jolt, the vitals notes and hover tips, quest progress, rail and ore pixel colours, the music composer).
+
 `sim/tests/sim.rs` covers stress and collapse, fluids, digging tiers, and movement. The movement tests check jump height, the variable short hop, coyote time, wall cling, climbing and wall jumping. Helpers: `arena()` makes a cleared granite box around spawn, and `press(&mut w, n, |input| ...)` steps n ticks with a given input.
 
 ## 2. Scenario harness (`sim/examples/scenario.rs`)
@@ -255,6 +257,9 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `craft_unlock_by_touch.scn` | Survival: a recipe appears once any input is picked up; Creative lists all |
 | `craft_stations.scn` | Survival crafting at a workbench; a forge refuses cold and works with lava in reach; a workshop refuses unpowered and makes the drill once a lever powers its line |
 | `place_refused_once.scn` | A refused place says why in one line (brick in mid-air or into rock, table or cart with none left, torch into rock or with no oil), once per 5 s for the same words; a different reason speaks at once |
+| `dig_hollow_floor.scn` | Digging down on 1 m of rock over a 16 m drop is held back at once ("The floor rings hollow"), said once; digging beside the mole still works and it never falls |
+| `dig_down_lava.scn` | Digging down on a thin floor over lava is held back ("The floor is hot") and the mole never sinks in |
+| `dig_down_shallow.scn` / `dig_down_water.scn` | A drop that only hurts (2.5 m), or a deep drop into water, isn't held back: the floor goes and the mole drops, silently |
 | `dig_refused_once.scn` | A dig the Pickaxe can't do says so once per press and material (not per cell swept), repeats the words only after 5 s, and soft rock beside it still digs |
 | `dig_refusals.scn` | Every dig refusal says why at once: out of reach ("Too far to dig"), water with nothing solid, granite too hard for the pickaxe; each once per press, the same words not again within 5 s |
 | `tool_tiers_survival.scn` | Survival digs with the best tool owned: claws (dirt, soft stone), pickaxe, drill (granite), bore (basalt) |
@@ -297,7 +302,7 @@ Zoom limits and brush ranges also have unit tests in `sim/tests/sim.rs` (`zoom_i
 
 `cargo run --release -p molehill-sim --example stepbench [seed] [ticks]` times `World::step` on the game-sized window from a fresh holt: mean/p50/p95/p99/max per tick, the average per tick class (stress passes every 6 ticks, air every 15), a full stress solve and a light pass. Add `--no-default-features` for single-threaded numbers, which are closer to the web build.
 
-`cargo run --release -p molehill-sim --example grottos [seed]` lists the grottos in a fresh holt's window and draws one; `--example slidecheck [seed]` counts cells that would fail a full stress solve after generation and after a slide each way (should be 0). `--example grottoseed -- [SEEDS] [--show SEED]` scores seeds by how close the new holt spawns to a grotto with trees (generator only, fast); `--show SEED` generates that world and prints an ASCII map around the spawn. `--example survey -- SEEDS` reports what the ground offers around the burrow per seed (item counts within reach and the nearest of each, in metres, plus the nearest grotto with trees and the nearest abandoned mine); Survival's kit and costs are balanced from it.
+`cargo run --release -p molehill-sim --example grottos [seed]` lists the grottos in a fresh holt's window and draws one; `--example slidecheck [seed]` counts cells that would fail a full stress solve after generation and after a slide each way (should be 0). `--example grottoseed -- [SEEDS] [--show SEED]` scores seeds by how close the new holt spawns to a grotto with trees (generator only, fast); `--show SEED` generates that world and prints an ASCII map around the spawn. `--example firsthour -- [SEEDS] [RADIUS_M] [--show SEED] [--col SEED]` lists, per seed, the worst drop off a ledge and through a thin floor (under 1 m) within the radius of the burrow and how many would kill (first-hour traversal traps); `--show` maps the spawn, `--col` the cells under it. `--example survey -- SEEDS` reports what the ground offers around the burrow per seed (item counts within reach and the nearest of each, in metres, plus the nearest root tangle, grotto with trees and abandoned mine); Survival's kit and costs are balanced from it.
 
 `cargo run --release -p molehill-sim --example genbench [seed]` times world generation: fill, one full stress solve, stabilisation, and `World::new` in total.
 

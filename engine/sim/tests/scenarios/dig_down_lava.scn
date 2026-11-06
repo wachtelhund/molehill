@@ -1,0 +1,26 @@
+// Digging down onto lava: a 0.75 m rock floor over a lava pocket. The bite under the feet is held back at
+// once ("The floor is hot under your claws: lava below. Dig beside it to look first."), however shallow the
+// lava; the mole never sinks into it. (Seed 9 dug straight down into lava ~37 m deep within 12 s before.)
+map
+BBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+B............................B
+B............................B
+B............................B
+B............................B
+B............................B
+B.......@....................B
+BrrrrrrrrrrrrrrrrrrrrrrrrrrrrB
+BrrrrrrrrrrrrrrrrrrrrrrrrrrrrB
+BrrrrrrrrrrrrrrrrrrrrrrrrrrrrB
+B###llllllllll###############B
+B###llllllllll###############B
+B###llllllllll###############B
+B###llllllllll###############B
+BBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+end
+mode survival
+nohunger
+dig 3-200 0 2
+expect 201 log:lava_below == 1
+expect 201 hp == 100
+expect 201 dy == 0

@@ -72,12 +72,21 @@ pub struct Player { pub px: f32, pub py: f32, pub ppx: f32, pub ppy: f32, pub sy
     pub far: bool,
     /// the last "can't place" line said and its tick: the same words wait `DENY_REPEAT` ticks (see `refuse_place`)
     pub place_said: Option<(String, u64)>,
+    /// a bite under the feet was held back this press because the floor rang hollow over a deadly drop
+    /// (`fatal_drop`), and the tick that was last said aloud (the words wait `DENY_REPEAT` ticks)
+    pub hollow: bool, pub hollow_said: Option<u64>,
     /// wall-jump grace (s left) after leaving a cling, and the side that wall was on
     pub wall_t: f32, pub wall_side: i8,
     /// rolling over a ledge after a climb (s left; direction = `wall_side`): carried onto the top, no gravity
     pub mantle: f32,
     /// "hungry and nothing to eat" was said: once until the next meal
     pub hungry_said: bool }
+/// Said when a bite under the feet is held back over a deadly drop (`World::fatal_drop`).
+/// Floor thinner than this (cells) over a deadly drop rings hollow: a bite that would leave less is held back.
+pub const HOLLOW_FLOOR: usize = CPM;
+pub const HOLLOW: &str = "The floor rings hollow: a deadly drop below. Dig beside it to look first.";
+/// Said when a bite under the feet is held back over lava.
+pub const HOT: &str = "The floor is hot under your claws: lava below. Dig beside it to look first.";
 /// Ticks before the same "too hard" words are said again (the clink still sounds on each press).
 pub const DENY_REPEAT: u64 = 300;
 pub const REACH_CELLS: f32 = 4.5 * CPM as f32; // 4.5 m
@@ -832,6 +841,39 @@ impl World {
         for y in ys.0..=ys.1 { for x in xs.0..=xs.1 { if self.g.in_bounds(x, y) { v.push(self.g.idx(x as usize, y as usize)); } } }
         v
     }
+    /// Would taking these bite cells leave the mole over a deadly drop, or lava, with too little floor to
+    /// trust? Some(the line to say) only if the bite cuts into the floor under the body and afterwards any
+    /// column under the body has less than `HOLLOW_FLOOR` of floor left above lava (`HOT`) or above a fall,
+    /// to rock rather than water, that does more damage than the hp left (`HOLLOW`): a notch in a slab over a
+    /// void is where it snaps (the stress solver cracks it), so a thin spot under the feet is as deadly as a
+    /// hole. Reads the cells as they are, dark or not: the mole feels a hollow or hot floor through its claws.
+    pub fn fatal_drop(&self, cells: &[usize]) -> Option<&'static str> {
+        let (px, py) = (self.pl.px, self.pl.py);
+        let (c0, c1) = ((px - BODY_HW).floor() as i32, (px + BODY_HW - 1e-3).floor() as i32);
+        let fy = (py + 0.05 - 1e-3).floor() as i32; // the row the feet stand on (as `box_hits` reads ground)
+        let bit: std::collections::HashSet<usize> = cells.iter().copied().filter(|&i| self.mine_time(i).is_some()).collect();
+        if !bit.iter().any(|&i| { let (x, y) = ((i % self.g.w) as i32, (i / self.g.w) as i32); x >= c0 && x <= c1 && y >= fy }) { return None; }
+        let open = |x: i32, y: i32| self.g.in_bounds(x, y) && (self.passable(x as usize, y as usize) || bit.contains(&self.g.idx(x as usize, y as usize)));
+        let at = |x: i32, y: i32| if self.g.in_bounds(x, y) { self.g.get(x as usize, y as usize) } else { Mat::Bedrock };
+        let liquid = |x: i32, y: i32| at(x, y).kind() == Kind::Liquid;
+        let hp = self.moles.first().map_or(0., |m| m.hp);
+        let deadly = |fall: i32| fall > TUNE.safe_fall as i32 && (fall - TUNE.safe_fall as i32) as f32 * 3. / SF >= hp;
+        let (thick, deep) = (HOLLOW_FLOOR as i32, 64 * CPM as i32);
+        let mut why = None;
+        for x in c0..=c1 {
+            // the hole this bite leaves (the mole drops into it), the floor left under that, then the open
+            // drop below it to a landing: rock (deadly if far), water (safe) or lava (always deadly)
+            let mut y = fy; while y < fy + deep && open(x, y) && !liquid(x, y) { y += 1; }
+            if at(x, y) == Mat::Lava { return Some(HOT); }
+            if liquid(x, y) || !self.g.in_bounds(x, y) { continue; }
+            let f0 = y; while y < f0 + thick && self.g.in_bounds(x, y) && !open(x, y) { y += 1; }
+            if y >= f0 + thick || !self.g.in_bounds(x, y) { continue; } // solid enough here
+            while y < fy + deep && open(x, y) && !liquid(x, y) { y += 1; }
+            if at(x, y) == Mat::Lava { return Some(HOT); }
+            if !liquid(x, y) && deadly(y - fy) { why = Some(HOLLOW); }
+        }
+        why
+    }
     /// Does the body AABB (centre px, feet py) overlap any solid cell?
     pub fn box_hits(&self, px: f32, py: f32) -> bool {
         let (x0, x1) = ((px - BODY_HW).floor() as i32, (px + BODY_HW - 1e-3).floor() as i32);
@@ -1068,7 +1110,16 @@ impl World {
                 let mut cells = self.bite_cells(mx, my);
                 for c in self.passage_cells(mx, my) { if !cells.contains(&c) { cells.push(c); } }
                 let need = cells.iter().filter_map(|&i| self.mine_time(i)).max();
-                if let Some(need) = need {
+                if let Some(why) = need.and_then(|_| self.fatal_drop(&cells)) {
+                    // the bite would open the floor under the whole body onto a drop that kills: hold it back and
+                    // say so at once (a mole feels the hollow through its claws). Digging beside the drop still
+                    // works, so the player can open it up, look, and climb or jump down by choice.
+                    self.pl.mine = None;
+                    if !self.pl.hollow {
+                        self.pl.hollow = true; self.events.push(Event::Warning); self.shake = self.shake.max(0.08);
+                        if self.pl.hollow_said.map_or(true, |t| self.tick >= t + DENY_REPEAT) { self.pl.hollow_said = Some(self.tick); self.say(why.into()); }
+                    }
+                } else if let Some(need) = need {
                     let i = self.g.idx(mx, my);
                     let work = match self.pl.mine { Some((j, w, _)) if (j % self.g.w).abs_diff(mx) <= 2 * S && (j / self.g.w).abs_diff(my) <= 2 * S => w + 1, _ => 1 };
                     self.moles[0].facing = if mx >= x { 1 } else { -1 };
@@ -1094,7 +1145,7 @@ impl World {
             }
             // held but out of reach: said once per press (the press goes on, so no repeat while held)
             Some(_) => { self.pl.mine = None; if !self.pl.far { self.pl.far = true; self.say_dig_no("Too far to dig: step closer.".into()); } }
-            None => { self.pl.mine = None; self.pl.deny = None; self.pl.far = false; }
+            None => { self.pl.mine = None; self.pl.deny = None; self.pl.far = false; self.pl.hollow = false; }
         }
         // pick up anything lying within 3 cells
         let mut k = 0;

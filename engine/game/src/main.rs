@@ -9,6 +9,7 @@ mod devart;
 mod decorart;
 mod journal;
 mod hotbar;
+mod vitals;
 mod wiring;
 mod ui;
 mod menu;
@@ -686,6 +687,8 @@ fn input(mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<Button
         else if let Some(c) = g.charge.take() { let aim = g.throw_aim; if let Err(e) = g.w.throw_item(it, aim, c / THROW_CHARGE) { g.msg = format!("Can't throw: {e}"); } }
     } else { g.charge = None; if keys.just_pressed(KeyCode::KeyQ) { if let Some(th) = sel { g.msg = format!("{} can't be thrown", thing_name(&g, th)); } } }
     let blk = g.w.logic.block_of(cx, cy);
+    // a dig aimed past reach still goes to the sim, which answers it at once ("Too far to dig")
+    if !reach && matches!(sel, Some(Thing::Pick(_))) && mouse.pressed(MouseButton::Left) && !latched { g.w.input.mine = Some((cx, cy)); }
     if !reach || latched && mouse.pressed(MouseButton::Right) { return; }
     // E (hold and sweep): pick up the device, unlit TNT, torch or copperline under the cursor; no digging needed
     if keys.pressed(KeyCode::KeyE) && !g.inv_open && !g.e_latch {
@@ -871,7 +874,10 @@ fn render_world(mut gm: ResMut<Game>, bg: Res<Bg>, mut images: ResMut<Assets<Ima
                     let emit = p.emit; let em = (emit[0] as u16 + emit[1] as u16 + emit[2] as u16) > 0;
                     let lm = |c: f32, li: f32| if em { c * (0.8 + 0.4 * v) } else { c * (li.min(1.25) * 0.94 + 0.06) };
                     // paint: the pigment takes over most of the colour; the material's pattern and shading stay
-                    let pn = gr.paint(i); let base = if pn > 0 && p.kind == Kind::Solid { let pc = craft::PIGMENTS[pn as usize]; [0usize, 1, 2].map(|j| p.color[j] as f32 * 0.25 + pc[j] as f32 * 0.75) } else { p.color.map(|v| v as f32) };
+                    let pn = gr.paint(i); let base = if pn > 0 && p.kind == Kind::Solid { let pc = craft::PIGMENTS[pn as usize]; [0usize, 1, 2].map(|j| p.color[j] as f32 * 0.25 + pc[j] as f32 * 0.75) } else {
+                        // rails and ore pockets draw their own two-tone pixel art (`art::mat_color`)
+                        let above = (1..=2).take_while(|&d| y >= d && gr.m(i - d * W) == m).count() as u32;
+                        art::mat_color(m, x as u32, wy, above).unwrap_or(p.color.map(|v| v as f32)) };
                     let mut c = [lm(base[0] * k, l[0]), lm(base[1] * k, l[1]), lm(base[2] * k, l[2])];
                     let mut alpha = 255.;
                     if m == Mat::Water { c = [lm(40. + 30. * v2, l[0]), lm(90. + 20. * v2, l[1]), lm(170., l[2])]; alpha = 255.; }
@@ -943,7 +949,7 @@ fn render_far(gm: &mut Game, ct: &Transform, win: &Window, images: &mut Assets<I
 }
 
 /// Frame-to-frame feedback state for the mole sprite and the little particles (dig chips, landing dust).
-#[derive(Default)] struct Fx { waves_seen: u64, grounded: bool, vy: f32, squash: f32, parts: Vec<Part>, last_mine: Option<[f32; 3]>, chip_t: f32, dust_t: f32, wet: bool, ember_t: f32 }
+#[derive(Default)] struct Fx { waves_seen: u64, grounded: bool, vy: f32, squash: f32, parts: Vec<Part>, last_mine: Option<[f32; 3]>, chip_t: f32, dust_t: f32, wet: bool, ember_t: f32, deny: bool, deny_t: f32 }
 /// A pixel particle; `g` is its gravity (negative drifts up, like embers).
 struct Part { p: Vec2, v: Vec2, life: f32, max: f32, c: [f32; 3], size: f32, g: f32, drag: f32, al: f32 }
 /// How far up (cells) a floor object's centre sits: half its height in world units.
@@ -1024,6 +1030,14 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
             let dir = (cell_to_world(g.disp.x, g.disp.y) - cell_to_world(x as f32 + 0.5, y as f32 + 0.5)).normalize_or_zero();
             fx.parts.push(Part { p: cell_to_world(x as f32 + 0.5, y as f32 + 0.5) + Vec2::new(r(0), r(8)) * 6., v: dir * 40. + Vec2::new(r(16) * 60., 30. + r(24) * 40.), life: 0., max: 0.35 + r(4) * 0.2, c: col, size: 1.2 + (h & 1) as f32 * 0.8, g: 260., drag: 0., al: 1. }); }
     } else { fx.chip_t = 0.; }
+    // a refused dig (`World::dig_refusal`; the sim clinks and shakes): pale sparks glance off the face and the
+    // cold ring jolts, so the no is seen and felt at the cursor, not only read in the log
+    let deny = pl.deny.is_some();
+    if deny && !fx.deny { fx.deny_t = now; if let Some((x, y, _)) = g.aim {
+        let at = cell_to_world(x as f32 + 0.5, y as f32 + 0.5); let away = (cell_to_world(g.disp.x, g.disp.y) - at).normalize_or_zero();
+        for k in 0..7u32 { let h = hash3(g.frame as u32, k, 5); let r = |b: u32| ((h >> b) & 255) as f32 / 255. - 0.5;
+            fx.parts.push(Part { p: at + Vec2::new(r(0), r(8)) * 4., v: away * 70. + Vec2::new(r(16) * 90., 40. + r(24) * 50.), life: 0., max: 0.22 + r(4).abs() * 0.15, c: [205., 212., 228.], size: 1.1, g: 300., drag: 0., al: 1. }); } } }
+    fx.deny = deny;
     // a burst when a bite breaks through
     // (the sim marks the bite the tick it clears; `Event::Dig` also sounds the strike on press, so it can't be the trigger)
     if let Some(&(_, bx, by, _, _)) = g.pops.iter().find(|p| p.0 == 0 && p.4 == now) { if let Some(col) = fx.last_mine.take() {
@@ -1205,8 +1219,10 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
             let f = if matches!(b, sw::Brush::Dig(_)) { w.pl.mine.map_or(0., |(_, a, b)| a as f32 / b.max(1) as f32) } else { 0. };
             // dig: warm white ring that tightens as the bite gives way (a dim cold ring over rock your tools can't
             // dig, so it shows before the click); place: ring in the block's colour
-            let c = if !reach { Color::srgba(1., 0.45, 0.35, 0.35) } else if matches!(b, sw::Brush::Dig(_)) && x < w.g.w && y < w.g.h && w.dig_refusal(w.g.get(x, y)).is_some() { let [r, gg, bb, a] = hotbar::REFUSE_RING; Color::srgba(r, gg, bb, a) } else if let sw::Brush::Place(it) = b { let k = it.color(); Color::srgba(k[0] as f32 / 255. * 1.2, k[1] as f32 / 255. * 1.2, k[2] as f32 / 255. * 1.2, 0.8) } else { Color::srgba(1., 0.97, 0.9, 0.6 + 0.4 * f) };
-            want.push((7, 0, cell_to_world(x as f32 + 0.5, y as f32 + 0.5), 6., sp.ring.clone(), Vec2::splat(d * (1. - 0.15 * f)), false, c)); }
+            let refused = reach && matches!(b, sw::Brush::Dig(_)) && x < w.g.w && y < w.g.h && w.dig_refusal(w.g.get(x, y)).is_some();
+            let c = if !reach { Color::srgba(1., 0.45, 0.35, 0.35) } else if refused { let [r, gg, bb, a] = hotbar::REFUSE_RING; let j = hotbar::refuse_jolt(now - fx.deny_t); Color::srgba(r + 0.3 * j, gg + 0.3 * j, bb + 0.25 * j, (a + 0.35 * j).min(1.)) } else if let sw::Brush::Place(it) = b { let k = it.color(); Color::srgba(k[0] as f32 / 255. * 1.2, k[1] as f32 / 255. * 1.2, k[2] as f32 / 255. * 1.2, 0.8) } else { Color::srgba(1., 0.97, 0.9, 0.6 + 0.4 * f) };
+            let jolt = if refused { Vec2::new(hotbar::refuse_shake(now - fx.deny_t) * CPX * SF, 0.) } else { Vec2::ZERO };
+            want.push((7, 0, cell_to_world(x as f32 + 0.5, y as f32 + 0.5) + jolt, 6., sp.ring.clone(), Vec2::splat(d * (1. - 0.15 * f)), false, c)); }
         else { let c = if reach { Color::srgba(1., 1., 0.85, 0.22) } else { Color::srgba(1., 0.4, 0.3, 0.10) }; want.push((7, 0, cell_to_world(x as f32 + 0.5, y as f32 + 0.5), 6., sp.px.clone(), Vec2::splat(CPX), false, c)); }
     }
     // placement pop: the placed block (or brush) flashes white and settles (bites burst into chips, above)

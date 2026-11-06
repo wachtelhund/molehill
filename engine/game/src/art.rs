@@ -300,6 +300,43 @@ pub fn mat_tex(m: molehill_sim::mat::Mat, x: u32, y: u32, t: u64) -> f32 {
     }
 }
 
+/// Per-cell colour for materials that need more than a brightness pattern to read at play zoom, at
+/// absolute cell (cx, cy); `above` is how many cells of the same material sit straight above (0 = the top
+/// face). None keeps the material's own colour.
+/// * Rail: a copper strap along the top two rows (old ones flecked with verdigris), and under it dark
+///   timber sleepers every half metre with sooty ballast between, so track never reads as a plank floor.
+/// * Ores: rounded half-metre nuggets of the ore's own colour (copper flecked green with verdigris, as the
+///   quest line describes it; rust-red iron, pale tin, glossy coal) in a darker matrix, so a pocket stands out from the rock without glowing.
+pub fn mat_color(m: molehill_sim::mat::Mat, cx: u32, cy: u32, above: u32) -> Option<[f32; 3]> {
+    use molehill_sim::grid::hash3;
+    use molehill_sim::mat::{Mat as M, CPM};
+    let h = |a: u32, b: u32, s: u32| (hash3(a, b, s) & 255) as f32 / 255.;
+    let c = CPM as u32;
+    match m {
+        M::Rail => Some(match above {
+            0 => if h(cx, cy, 81) > 0.9 { [92., 150., 122.] } else { [222., 146., 86.] },
+            1 => [150., 86., 50.],
+            _ => if cx % c < c * 3 / 8 { let g = 0.9 + h(cx / c, 0, 83) * 0.2; [96. * g, 64. * g, 40. * g] } else { [40., 35., 34.] },
+        }),
+        M::CopperOre | M::IronOre | M::TinOre | M::Coal => {
+            let b = c / 2; let row = cy / b; let off = (h(row, 0, 85) * b as f32) as u32;
+            let (bx, lx, ly) = ((cx + off) / b, (cx + off) % b, cy % b);
+            let corner = (lx == 0 || lx == b - 1) && (ly == 0 || ly == b - 1);
+            let nug = !corner && h(bx, row, 87 + m as u32) > 0.45;
+            let v = h(cx, cy, 89);
+            Some(match (m, nug) {
+                (M::CopperOre, true) => if v > 0.6 { [92., 172., 128.] } else if ly == 0 { [236., 150., 88.] } else { [196., 110., 60.] },
+                (M::IronOre, true) => if ly == 0 { [200., 104., 72.] } else { [164., 72., 50.] },
+                (M::TinOre, true) => if ly == 0 { [222., 224., 234.] } else { [178., 182., 196.] },
+                (M::Coal, true) => if ly == 0 && v > 0.5 { [128., 128., 142.] } else { [22., 20., 24.] },
+                (M::Coal, false) => [58., 54., 56.],
+                _ => [104., 90., 80.],
+            })
+        }
+        _ => None,
+    }
+}
+
 /// What the mole holds, drawn at the mole's own pixel scale (1 pixel = 1 world unit), pointing right
 /// with the grip at the left edge's middle, so the game can turn it toward the aim around the paw.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)] pub enum Held { Pick, Drill, Bore, Charge, Block([u8; 3]) }
@@ -318,4 +355,37 @@ pub fn held_sprite(h: Held) -> Image {
         Held::Block(c) => { let mut p = Px::new(6, 6); p.rect(0, 0, 5, 5, c); p.rect(0, 0, 5, 0, shade(c, 1.25)); p.rect(0, 5, 5, 5, shade(c, 0.75)); p }
     };
     p.finish(line).image()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::mat_color;
+    use molehill_sim::mat::{Mat, PROPS, CPM};
+    fn lum(c: [f32; 3]) -> f32 { 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2] }
+    fn dist(a: [f32; 3], b: [f32; 3]) -> f32 { ((a[0] - b[0]).powi(2) + (a[1] - b[1]).powi(2) + (a[2] - b[2]).powi(2)).sqrt() }
+    fn col(m: Mat) -> [f32; 3] { PROPS[m as usize].color.map(|v| v as f32) }
+
+    /// Track reads as track, not a plank floor: a bright copper strap on top, and under it dark sleepers
+    /// and darker gaps, all far from the wood beam's colour.
+    #[test] fn rails_do_not_read_as_a_wood_floor() {
+        let wood = col(Mat::WoodBeam);
+        let strap: Vec<[f32; 3]> = (0..40).map(|x| mat_color(Mat::Rail, x, 7, 0).unwrap()).collect();
+        let copper = strap.iter().filter(|c| c[0] > 200. && c[0] > c[2] * 2.).count(); assert!(copper >= 30, "mostly copper on top");
+        let under: Vec<[f32; 3]> = (0..2 * CPM as u32).map(|x| mat_color(Mat::Rail, x, 9, 2).unwrap()).collect();
+        assert!(under.iter().all(|&c| lum(c) < 0.6 * lum(wood) && dist(c, wood) > 90.), "sleepers and gaps are dark, not wood-beam tan");
+        let (lo, hi) = under.iter().fold((f32::MAX, 0f32), |(a, b), &c| (a.min(lum(c)), b.max(lum(c)))); assert!(hi - lo > 20., "sleepers stand out from the gaps");
+    }
+
+    /// An ore pocket is noticeable: a good share of its cells are nuggets clearly unlike plain rock, and
+    /// none of it is bright enough to look lit from within.
+    #[test] fn ore_pockets_stand_out_without_glowing() {
+        let rock = col(Mat::Rock);
+        for m in [Mat::CopperOre, Mat::IronOre, Mat::TinOre, Mat::Coal] {
+            let cells: Vec<[f32; 3]> = (0..32u32).flat_map(|y| (0..32u32).map(move |x| (x, y))).map(|(x, y)| mat_color(m, x, y, 1).unwrap()).collect();
+            let far = cells.iter().filter(|&&c| dist(c, rock) > 60.).count() as f32 / cells.len() as f32;
+            assert!(far > 0.25, "{m:?}: only {far:.2} of the pocket stands apart from rock");
+            assert!(cells.iter().all(|&c| lum(c) < 235.), "{m:?}: nothing near-white");
+            if m == Mat::CopperOre { let green = cells.iter().filter(|c| c[1] > c[0] + 40.).count(); assert!(green * 10 > cells.len(), "copper ore reads green-flecked"); }
+        }
+    }
 }
