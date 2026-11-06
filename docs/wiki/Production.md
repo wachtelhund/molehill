@@ -10,6 +10,9 @@ A mine's output moves as **real loose items**: every lump is a loose item in the
 | 4 | Coal power: a boiler raises steam from coal and real water; a steam engine drives a train; ash and slag come out to haul away | **built** |
 | 5 | Refinement: a stamp mill crushes ore under falling stamps, a washer sorts by weight, a smelter blown by bellows melts it, moulds cast ingots | **built** |
 | 6 | Non-electric logic: pull-rods from tread plates, tipping scales and floats to sluice gates, clutches and ore hoppers | **built** |
+| 7 | Steam borer: a rideable boring machine with its own firebox that carries its spoil back | **built** |
+
+**Headless only.** Every stage's behaviour, the steam borer included, has been checked only in headless scenarios. None has been playtested in the running game yet.
 
 ## Chutes
 

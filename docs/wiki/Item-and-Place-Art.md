@@ -8,7 +8,7 @@ Every item has its own drawing. No two share a silhouette, and none is another i
 
 ![Every item's pack icon, then every device as the hotbar shows it](images/item-icons.png)
 
-The sheet shows all 100 items, then the 21 devices.
+The sheet shows the first 100 items, then the 21 devices. The steam borer is not on it yet.
 
 The pack, the hotbar, the item in the mole's paws and anything lying loose all use the icon (a loose item is drawn at half size). Devices in the hotbar use their own in-world sprite (`devart::hotbar_icon`, switched off), so a lever, a plate and a floodgate no longer share one placeholder. The fuse and the pressure plate are the exceptions: in the world each is a thin strip along the floor of its block, so the hotbar shows a coil of fuse cord and the plate seen from above at an angle.
 
@@ -107,6 +107,7 @@ The pack, the hotbar, the item in the mole's paws and anything lying loose all u
 | Sluice gate | a planked gate leaf in a frame with a lifting rod and wheel | shut: placed leaf cells, upright planks with two iron straps; lifted: the leaf drawn raised out of the opening (`art::gate_leaf`). Its lever on the head points up (lifts when pulled) or down (turned round: shuts when pulled) (`art::gate_lever`) |
 | Tipping scale | a beam on a post with a pan of ore one side and stones the other | its pan is placed cells (an iron pan with a bright rim); drawn beside it (`art::scale_part`): a post at the pan's end, the beam on it tipping pan side down once the pan outweighs the stones, a rod down to the pan, and the counter-pan with up to 8 of its stones |
 | Clutch | two toothed iron halves on a shaft, a fork lever on one | placed cells: two iron halves with dog teeth between; out, a dark gap; in, the teeth mesh and turn with the train |
+| Steam borer | an iron body on two wheels, a toothed cone of a bore head at its front, a stack with smoke | borer body, head and rider |
 | Ore hopper | a timber bin heaped with ore, tapering to a spout, on splayed legs | ore hopper sprite: back boards, the heap tinted with what it holds, the front frame open over the heap, a boarded taper to an iron spout whose gate shows shut or swung open, two legs down to the floor (`art::ore_bin`) |
 | Rock wall | a rough slab of scraped host rock with tool marks | background lining |
 | Timber wall | boards standing on end, uneven tops, gaps between | background lining |
