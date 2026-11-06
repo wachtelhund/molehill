@@ -38,7 +38,7 @@ You play one Delver: a body about **45 × 73 cm** (1.8 × 2.9 tiles of 0.25 m, i
 | `K` / `L` | Quick save / quick load |
 | `F3` | Developer info |
 
-**Loading.** The game opens on the main menu at once. A new holt (Start or Restart, or a `?seed=` link) is built a slice at a time behind a dark veil with one centred line: what it is doing and how far along it is, for example "Laying down the rock…  8 %", then "Hollowing the burrow", "Shoring up the caves", "Letting the water find its level" and "Waking the mole". Continue, Load and `L` show "Opening the save…" for the moment the save is being read. Nothing takes input while the line is up. Code: `engine/game/src/loading.rs`.
+**Loading.** The game opens on the main menu at once. A new holt (Start or Restart, or a `?seed=` link) is built a slice at a time behind a dark veil with one centred line: what it is doing and how far along it is, for example "Laying down the rock…  8 %", then "Hollowing the burrow", "Shoring up the caves", "Letting the water find its level" and "Waking the mole". Continue, Load and `L` show "Opening the save…" for the moment the save is being read. A load that fails says why above the menu's hint line ("No save yet", "Load failed: …"), since the in-game message line is hidden behind a menu. Nothing takes input while the line is up. Code: `engine/game/src/loading.rs`.
 
 Menus pause the sim. A key or mouse button held while a menu closes is ignored until released, so the click or `Space` that started the game never digs or jumps.
 

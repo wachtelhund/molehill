@@ -112,6 +112,10 @@ Measured on native release, with other agents loading the machine:
 * Same holt byte for byte (save hashes on 4 seeds before and after, and test `staged_new_holt_matches_and_climbs`). `loadbench` example.
 * Not tested: the web build in a browser, where wasm is single-threaded and slower, so steps will be longer. The `--shot-ui=loading` still came back blank from a background shell (the existing pause still did too).
 
+## Loading polish (after PR #28)
+* A failed Continue or Load from a menu said nothing: its message went to the in-game line, which is hidden behind the menu. It now shows above the menu's hint until the screen changes (`Menu.note`).
+* site/ rebuilt on main after #30.
+
 ## Open
 * The design's emberiron for the Bore doesn't exist, so the Bore takes iron, copper and crystal.
 * localStorage holds about 5 MB. A band is 10–40 KB, so a holt explored over a few hundred metres of depth could fill it. Bands the player never changed could be dropped and regenerated (not done: the falling-sand settling after generation would differ).

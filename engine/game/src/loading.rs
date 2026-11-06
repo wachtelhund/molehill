@@ -61,7 +61,7 @@ pub fn update(mut ld: ResMut<Loading>, mut g: ResMut<Game>, mut m: ResMut<Menu>,
             m.go(Screen::Off);
         }
         Some(Job::Load { t0, .. }) => {
-            if crate::load_saved(&mut g, &mut commands) { m.go(Screen::Off); }
+            if crate::load_saved(&mut g, &mut commands) { m.go(Screen::Off); } else if m.open() { m.note = g.msg.clone(); }
             info!("save read in {:.0} ms", t0.elapsed().as_secs_f32() * 1e3);
         }
         None => {}
