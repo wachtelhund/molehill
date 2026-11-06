@@ -180,11 +180,20 @@ Polish only: no new features or concepts. Each entry is one commit.
     Found places without wall climbing (no layout edits): the holt, salt hall, mine and fissure walks pass as
     they were. The halt's 4.25 m crate stacks, the fossil mound's 2.2 m east face and the pumpworks' 9 m wheel
     need the rope gun; their walk-throughs now use it and reach the chest unhurt (`site_halt_traverse`,
-    `site_fossil_over_the_beast`, `site_pumpworks_traverse`, `site_pumpworks_rope_to_chest`). A mole arriving
-    at those three without a rope gun can't get past those faces; whether they want a ladder or steps is a
-    layout call for Hampus.
+    `site_fossil_over_the_beast`, `site_pumpworks_traverse`, `site_pumpworks_rope_to_chest`). Hampus (16:47): those
+    three faces are meant to need the rope gun (no ladders or steps added): intentional gating, see item 20.
+20. **Rope gun polish (after #32).** Headless: up a rope, `Space` off, `W` held falling past catches it at
+    once with no damage, `S` onto the floor lets go (`rope_gun_catch`). One leak fixed: a hook in the air when
+    the world window slid was dropped with its hook rope; now the rope goes back into the pack
+    (`rope_gun_slide`). Left as is: 2 m/s up a rope (ladders keep their 3 m/s edge, agreed with p7).
+    **Rope-gun gating (Hampus 16:47):** the halt's crate stacks (4.25 m), the fossil mound's east face (2.2 m)
+    and the pumpworks wheel (9 m) are meant to need the rope gun. Their walk-throughs reach the chest with it,
+    and `found_places::rope_gun_comes_before_the_faces_that_need_it` checks the gate opens in the first minutes:
+    workbench, gun and one hook rope cost only wood, stone and fungus, the wood within the Survival kit's 6.
 
 ## Open issues
+* Ropes and rope ladders the world window leaves (a long trip up or down) are lost with it: they aren't kept
+  in the 64-row bands. Worth a band record if players rig long routes.
 * Walking off a ledge you dug open is still a free choice: a dug-open cave shows itself, and run/stop is
   instant, so I left ledge drops alone. Fissure sites (26 m, ledges every 6-7 m) still hurt at each ledge.
 * `main`'s solver still sends overburden through open caves, so dirt seams under deep rock are crushed in
