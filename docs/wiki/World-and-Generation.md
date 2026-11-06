@@ -126,11 +126,13 @@ Seven families of **found places**, not random loot rooms (`sim/src/sites.rs`). 
 
 Stamped sites and their interactions: `all_seven_site_families_stamp_with_purpose`, `site_pumpworks`, `site_mine`, `site_holt`, `site_fissure`, `site_fossil`, `site_crystal`, `site_halt`. Headless tests do not prove the rooms *look* like carved rock. Native `--scene=mine` (and the other family names, or `walls`) stamps one isolated copy in host rock next to the burrow so a `--shot` can inspect lining, props and layout.
 
+**Furnishings.** Each family is furnished with drawn props: a headframe and winch over the mine shaft, an ore chute, scaffolding at the face, a pump wheel, pipes and a sluice gate, broken bridge stubs and ropes in a fissure, a railcar, bench and station sign in a halt, and a kitchen, bedroll and hanging pantry in a holt. They have no weight and can't be dug; each is fitted against the cells actually there, so it stands on a floor or hangs from a roof. The full list and the rules are on [Item and Place Art](Item-and-Place-Art.md#found-place-furnishings).
+
 **How they read.** Rail and ore draw their own pixel art (`art::mat_color`): track is a copper strap along the top (old track flecked with verdigris) over dark timber sleepers every half metre with sooty ballast between, so it never reads as a plank floor; ore pockets and veins show rounded half-metre nuggets in the ore's own colour (copper flecked green with verdigris, rust-red iron, pale tin, glossy coal) in a darker matrix. Nothing glows: they are lit like any rock (tests `rails_do_not_read_as_a_wood_floor`, `ore_pockets_stand_out_without_glowing`).
 
 ### What they look like
 
-One still of each family, stamped with `--scene=<family>` on seed 4242 and lit by the scene's torches. These are the CPU-side composite from `--dump-art` (`view.bmp`), cropped to the site and scaled up with nearest sampling. Sprites are drawn on the GPU and aren't in that composite, so the mole shows as a short magenta mark and torches only as their light.
+One still of each family, stamped with `--scene=<family>` on seed 4242 and lit by the scene's torches. These are the CPU-side composite from `--dump-art` (`view.bmp`), cropped to the site. It now carries the world sprites too (furniture, furnishings, chests, torches, carts, the mole), and the whole crop is rendered, not just the part on screen.
 
 ![Abandoned mine: a two-level sooty drift with track, ore and a shaft](images/site-mine.png)
 *Abandoned mine* (`--scene=mine`)

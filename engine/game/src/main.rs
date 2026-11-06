@@ -8,7 +8,7 @@ mod music;
 mod devart;
 mod decorart;
 mod journal;
-mod hotbar;
+mod hotbar; mod itemart; mod props;
 mod vitals;
 mod wiring;
 mod ui;
@@ -133,7 +133,7 @@ const BG_BASE: [f32; 3] = [44., 34., 30.];
 #[inline] fn srgb(l: f32) -> f32 { l.max(0.).powf(1. / 2.2) * 255. }
 #[derive(Component)] pub struct WorldSprite;
 #[derive(Component)] struct Pooled(u8, usize);
-#[derive(Resource)] pub struct Sprites { pub clue: Vec<Handle<Image>>, pub furn: Vec<Option<(Handle<Image>, Option<Handle<Image>>)>>, pub tools: [Handle<Image>; 3], pub dev: Handle<Image>, pub ring: Handle<Image>, pub mole: Vec<Handle<Image>>, pub mole_out: Vec<Handle<Image>>, pub held: Vec<Handle<Image>>, pub icons: Vec<Handle<Image>>, pub chest: [Handle<Image>; 2], pub station: Vec<[Handle<Image>; 2]>, pub torch: Handle<Image>, pub torch_f: Vec<Handle<Image>>, pub glow: Handle<Image>, pub shroom: [Handle<Image>; 3], pub px: Handle<Image> }
+#[derive(Resource)] pub struct Sprites { pub props: Vec<Handle<Image>>, pub cart: Handle<Image>, pub clue: Vec<Handle<Image>>, pub furn: Vec<Option<(Handle<Image>, Option<Handle<Image>>)>>, pub tools: [Handle<Image>; 3], pub dev: Vec<Handle<Image>>, pub ring: Handle<Image>, pub mole: Vec<Handle<Image>>, pub mole_out: Vec<Handle<Image>>, pub held: Vec<Handle<Image>>, pub icons: Vec<Handle<Image>>, pub chest: [Handle<Image>; 2], pub station: Vec<[Handle<Image>; 2]>, pub torch: Handle<Image>, pub torch_f: Vec<Handle<Image>>, pub glow: Handle<Image>, pub shroom: [Handle<Image>; 3], pub px: Handle<Image> }
 
 pub fn seed_now() -> u32 {
     // ?seed=N (web) / --seed=N (native) pins the first world
@@ -237,8 +237,8 @@ fn write_bmp(path: &str, im: &Image) {
     bmp(path, im.width() as usize, im.height() as usize, d, bgra, 1);
 }
 /// Dev (native): with `--shot`, `--dump-art=DIR` also writes the composited world around the mole
-/// (`view.bmp`, 4× per cell; sprites are GPU-only so they're not in it) and every sprite (`sprite-*.bmp`, 8×).
-fn dev_dump(n: Local<u32>, g: Res<Game>, sp: Res<Sprites>, images: Res<Assets<Image>>, mut done: Local<bool>, bg: Res<Bg>, cam: Query<&Transform, With<Camera2d>>, wires: Query<(&Transform, &Sprite), Or<(With<wiring::WireSpr>, With<Pooled>)>>) {
+/// with every visible world sprite composited on (`view.bmp`; `view_cells.bmp` is the cells alone) and every sprite (`sprite-*.bmp`, 8×).
+fn dev_dump(n: Local<u32>, g: Res<Game>, sp: Res<Sprites>, images: Res<Assets<Image>>, mut done: Local<bool>, bg: Res<Bg>, cam: Query<&Transform, With<Camera2d>>, wires: Query<(&Transform, &Sprite, &Visibility), Or<(With<wiring::WireSpr>, With<Pooled>)>>) {
     #[cfg(not(target_arch = "wasm32"))] {
         let _ = &n; if *done { return; }
         let arg = |k: &str| std::env::args().find_map(|a| a.strip_prefix(k).map(|v| v.to_string()));
@@ -272,26 +272,30 @@ fn dev_dump(n: Local<u32>, g: Res<Game>, sp: Res<Sprites>, images: Res<Assets<Im
             for j in 0..3 { v[o + j] = srgb(lin(c[j]) * (1. - a) + lin(v[o + j] as f32) * a).min(255.) as u8; } v[o + 3] = 255; } }
         // mark the mole's body cells so the crop can be read without sprites
         for dy in 0..3 * S { let (x, y) = (mx - x0, my - dy - y0); let o = (y * cw + x) * 4; v[o..o + 4].copy_from_slice(&[255, 0, 255, 255]); }
-        bmp(&format!("{dir}/view.bmp"), cw, chh, &v, false, 4 / S.min(4));
-        // the same at one pixel per world unit with the wiring layer's sprites blitted on (unrotated ones)
+        bmp(&format!("{dir}/view_cells.bmp"), cw, chh, &v, false, 4 / S.min(4));
+        // view.bmp: the same at one pixel per world unit with every visible world sprite blitted on in depth
+        // order (furniture, found-place props, chests, torches, carts, the mole, copperline); rotated ones are left out
         { let k = (1. / CPX).recip() as usize; let (ww, wh) = (cw * k, chh * k); let mut u = vec![0u8; ww * wh * 4];
             for y in 0..wh { for x in 0..ww { let s = ((y / k) * cw + x / k) * 4; u[(y * ww + x) * 4..(y * ww + x) * 4 + 4].copy_from_slice(&v[s..s + 4]); } }
-            let mut list: Vec<(&Transform, &Sprite)> = wires.iter().collect(); list.sort_by(|a, b| a.0.translation.z.partial_cmp(&b.0.translation.z).unwrap());
+            let mut list: Vec<(&Transform, &Sprite)> = wires.iter().filter(|(_, _, v)| **v != Visibility::Hidden).map(|(t, s, _)| (t, s)).collect(); list.sort_by(|a, b| a.0.translation.z.partial_cmp(&b.0.translation.z).unwrap());
             for (t, spr) in list { if t.rotation != Quat::IDENTITY { continue; } let Some(im) = images.get(&spr.image) else { continue }; let Some(d) = im.data.as_ref() else { continue };
                 let (iw, ih) = (im.width() as usize, im.height() as usize); let size = spr.custom_size.unwrap_or(Vec2::new(iw as f32, ih as f32));
                 let c = spr.color.to_srgba(); let cell = |wx: f32, wy: f32| (((wx + W as f32 * CPX / 2.) / CPX - x0 as f32) * k as f32, ((H as f32 * CPX / 2. - wy) / CPX - y0 as f32) * k as f32);
                 let (left, top) = cell(t.translation.x - size.x / 2., t.translation.y + size.y / 2.);
                 for py in 0..size.y as usize { for px in 0..size.x as usize { let (ox, oy) = (left as i64 + px as i64, top as i64 + py as i64); if ox < 0 || oy < 0 || ox >= ww as i64 || oy >= wh as i64 { continue; }
-                    let (sx, sy) = (px * iw / size.x as usize, py * ih / size.y as usize); let q = (sy * iw + sx) * 4; let a = d[q + 3] as f32 / 255. * c.alpha; if a <= 0. { continue; }
+                    let (sx, sy) = (px * iw / size.x as usize, py * ih / size.y as usize); let sx = if spr.flip_x { iw - 1 - sx.min(iw - 1) } else { sx }; let q = (sy * iw + sx) * 4; let a = d[q + 3] as f32 / 255. * c.alpha; if a <= 0. { continue; }
                     let o = (oy as usize * ww + ox as usize) * 4; let tint = [c.red, c.green, c.blue];
                     for j in 0..3 { u[o + j] = (u[o + j] as f32 * (1. - a) + d[q + j] as f32 * tint[j] * a).min(255.) as u8; } } } }
-            bmp(&format!("{dir}/view_wire.bmp"), ww, wh, &u, false, 1); }
-        let mut list: Vec<(String, Handle<Image>)> = vec![("torch".into(), sp.torch_f[0].clone()), ("torch1".into(), sp.torch_f[1].clone()), ("glow".into(), sp.glow.clone()), ("ring".into(), sp.ring.clone()), ("dev".into(), sp.dev.clone())];
+            bmp(&format!("{dir}/view.bmp"), ww, wh, &u, false, 1); }
+        let mut list: Vec<(String, Handle<Image>)> = vec![("torch".into(), sp.torch_f[0].clone()), ("torch1".into(), sp.torch_f[1].clone()), ("glow".into(), sp.glow.clone()), ("ring".into(), sp.ring.clone())];
+        for (k, h) in sp.dev.iter().enumerate() { list.push((format!("dev-{:?}", DEVS[k]), h.clone())); }
         for (k, h) in sp.mole.iter().enumerate() { list.push((format!("mole{k}"), h.clone())); }
         for (k, h) in sp.mole_out.iter().enumerate() { list.push((format!("moleout{k}"), h.clone())); }
         for (k, h) in sp.held.iter().enumerate() { list.push((format!("held{k}"), h.clone())); }
         for (k, f) in sp.furn.iter().enumerate() { if let Some((b, c)) = f { list.push((format!("furn-{:?}", ITEMS[k]), b.clone())); if let Some(c) = c { list.push((format!("cloth-{:?}", ITEMS[k]), c.clone())); } } }
         for (k, h) in sp.tools.iter().enumerate() { list.push((format!("tool{k}"), h.clone())); }
+        list.push(("cart".into(), sp.cart.clone()));
+        for (k, h) in sp.props.iter().enumerate() { list.push((format!("prop-{:?}", props::PROPS[k]), h.clone())); }
         for (k, h) in sp.icons.iter().enumerate() { list.push((format!("icon-{:?}", ITEMS[k]), h.clone())); }
         for (k, h) in sp.station.iter().enumerate() { list.push((format!("station{k}"), h[1].clone())); }
         for (k, h) in sp.shroom.iter().enumerate() { list.push((format!("shroom{k}"), h.clone())); }
@@ -299,6 +303,11 @@ fn dev_dump(n: Local<u32>, g: Res<Game>, sp: Res<Sprites>, images: Res<Assets<Im
         for (name, h) in list { if let Some(im) = images.get(&h) { if let Some(d) = im.data.as_ref() { bmp(&format!("{dir}/sprite-{name}.bmp"), im.width() as usize, im.height() as usize, d, false, 8); } } }
         info!("dumped art to {dir}");
     }
+}
+/// Dev (native): `--dump-art=` was given.
+fn dumping() -> bool {
+    #[cfg(not(target_arch = "wasm32"))] { static D: std::sync::OnceLock<bool> = std::sync::OnceLock::new(); *D.get_or_init(|| std::env::args().any(|a| a.starts_with("--dump-art="))) }
+    #[cfg(target_arch = "wasm32")] { false }
 }
 fn make_world(seed: u32, mode: Mode) -> World { let mut w = World::new(W, H, seed); w.disasters.enabled = false; w.set_mode(scene_mode(mode)); stage_scene(&mut w); w }
 fn scene_name() -> Option<String> {
@@ -550,17 +559,17 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, mut fonts: R
     ui::setup(&mut commands, &font); journal::setup(&mut commands, &font);
     { let ring = images.add(art::ring()); let px = images.add(art::image(1, 1, vec![255; 4], true)); wiring::setup(&mut commands, &mut images, &font, ring, px); }
     commands.insert_resource(ui::UiFont(font));
-    let sp = Sprites { tools: [images.add(art::tool_icon(1)), images.add(art::tool_icon(2)), images.add(art::tool_icon(3))], dev: images.add(art::icon([200, 150, 90], 1)), ring: images.add(art::ring()),
+    let sp = Sprites { tools: [images.add(art::tool_icon(1)), images.add(art::tool_icon(2)), images.add(art::tool_icon(3))], dev: DEVS.iter().map(|&d| images.add(devart::device(d, false, 0))).collect(), ring: images.add(art::ring()),
         mole: art::mole_sheet(true).into_iter().map(|i| images.add(i)).collect(),
         mole_out: art::mole_sheet(false).into_iter().map(|i| images.add(i)).collect(),
         held: [art::Held::Pick, art::Held::Drill, art::Held::Bore, art::Held::Charge, art::Held::Block(Item::WoodPillar.color()), art::Held::Block(Item::Brick.color()), art::Held::Block(Item::IronBeam.color())]
             .into_iter().map(|h| images.add(art::held_sprite(h))).collect(),
-        clue: (0..9).map(|k| images.add(decorart::clue(k))).collect(),
+        clue: (0..9).map(|k| images.add(decorart::clue(k))).collect(), props: props::PROPS.iter().map(|&p| images.add(props::image(p))).collect(), cart: images.add(art::cart()),
         furn: ITEMS.iter().map(|&it| it.furn().map(|_| { let (b, c) = decorart::furniture(it); (images.add(decorart::finish(b)), c.map(|c| images.add(decorart::cloth(c)))) })).collect(),
-        icons: ITEMS.iter().map(|it| { if it.block().is_some() || it.pigment().is_some() || it.furn().is_some() { return images.add(decorart::icon(*it)); } let k = match it { Item::Crystal | Item::Quartz => 2, Item::Brick | Item::Glass | Item::CopperIngot | Item::TinIngot | Item::BronzeIngot | Item::IronIngot | Item::WoodPillar | Item::IronBeam => 1, Item::Torch | Item::Lamp => 3, Item::Tnt => 4, _ => 0 }; images.add(art::icon(it.color(), k)) }).collect(),
+        icons: ITEMS.iter().map(|&it| images.add(itemart::icon(it))).collect(),
         chest: [images.add(art::chest(false)), images.add(art::chest(true))],
         station: (0..4u8).map(|k| [images.add(art::station(k, false)), images.add(art::station(k, true))]).collect(),
-        torch: images.add(art::icon([255, 190, 90], 3)), torch_f: art::torch_frames().into_iter().map(|i| images.add(i)).collect(), glow: images.add(art::glow()),
+        torch: images.add(itemart::icon(Item::Torch)), torch_f: art::torch_frames().into_iter().map(|i| images.add(i)).collect(), glow: images.add(art::glow()),
         shroom: [images.add(art::mushroom(0)), images.add(art::mushroom(1)), images.add(art::mushroom(2))],
         px: images.add(art::image(1, 1, vec![255; 4], true)),
     };
@@ -817,7 +826,8 @@ fn render_world(mut gm: ResMut<Game>, bg: Res<Bg>, mut images: ResMut<Assets<Ima
         let f = bg.layers[l.0].1; t.translation.x = ct.translation.x * f;
         if bg.is_changed() { if let Some(mut im) = images.get_mut(&spr.image) { if let Some(d) = im.data.as_mut() { if d.len() == bg.layers[l.0].0.len() { d.copy_from_slice(&bg.layers[l.0].0); } } } }
     }
-    let (x0, y0, x1, y1) = view_rect(ct, win, 2);
+    // `--dump-art` composites the whole window, so a site crop wider than the screen isn't half unrendered
+    let (x0, y0, x1, y1) = if dumping() { (0, 0, W - 1, H - 1) } else { view_rect(ct, win, 2) };
     // snap the composited rect to whole chunks
     let (x0, y0) = (x0 / CH * CH, y0 / CH * CH); let (x1, y1) = (((x1 / CH) + 1) * CH - 1, ((y1 / CH) + 1) * CH - 1);
     let (x1, y1) = (x1.min(W - 1), y1.min(H - 1));
@@ -964,7 +974,7 @@ fn render_far(gm: &mut Game, ct: &Transform, win: &Window, images: &mut Assets<I
 }
 
 /// Frame-to-frame feedback state for the mole sprite and the little particles (dig chips, landing dust).
-#[derive(Default)] struct Fx { waves_seen: u64, grounded: bool, vy: f32, squash: f32, parts: Vec<Part>, last_mine: Option<[f32; 3]>, chip_t: f32, dust_t: f32, wet: bool, ember_t: f32, deny: bool, deny_t: f32 }
+#[derive(Default)] struct Fx { waves_seen: u64, grounded: bool, vy: f32, squash: f32, parts: Vec<Part>, last_mine: Option<[f32; 3]>, chip_t: f32, dust_t: f32, wet: bool, ember_t: f32, deny: bool, deny_t: f32, props: Vec<props::Placed>, props_key: (i64, Vec<u32>) }
 /// A pixel particle; `g` is its gravity (negative drifts up, like embers).
 struct Part { p: Vec2, v: Vec2, life: f32, max: f32, c: [f32; 3], size: f32, g: f32, drag: f32, al: f32 }
 /// How far up (cells) a floor object's centre sits: half its height in world units.
@@ -972,7 +982,7 @@ fn sz_up(s: Vec2) -> f32 { s.y / 2. / CPX }
 /// A held item takes the light where the mole stands, like the mole does.
 fn c_hold(w: &World, m: &molehill_sim::world::Mole) -> Color { let l = w.light.at((m.y.saturating_sub(S)).min(H - 1) * W + m.x.min(W - 1)); let v = (l[0] * 0.3 + l[1] * 0.5 + l[2] * 0.2).clamp(0.5, 1.); Color::srgb(v, v, v) }
 fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Res<Time>, mut fx: Local<Fx>, mut q: Query<(Entity, &Pooled, &mut Transform, &mut Sprite, &mut Visibility)>) {
-    // kind 0 moles, 12 throw arc, 16/17 furniture and its cloth, 18 furniture ghost, 19 Lid clues, 1 drops, 2 chests, 3 stations, 4 torches, 5 mushroom plots, 7 aim, 8 particles, 9 torch halos, 10 lamp halos, 11 placement pops, 14 held item, 15 headlamp lens halo
+    // kind 0 moles, 22 found-place props, 12 throw arc, 16/17 furniture and its cloth, 18 furniture ghost, 19 Lid clues, 1 drops, 2 chests, 3 stations, 4 torches, 5 mushroom plots, 7 aim, 8 particles, 9 torch halos, 10 lamp halos, 11 placement pops, 14 held item, 15 headlamp lens halo
     let dt = if g.paused { 0. } else { time.delta_secs().min(0.05) }; let now = time.elapsed_secs();
     let w = &g.w;
     let mut want: Vec<(u8, usize, Vec2, f32, Handle<Image>, Vec2, bool, Color)> = vec![];
@@ -1109,7 +1119,7 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
         for k in 0..40 { let dt = 1. / 60.; for _ in 0..3 { vy = (vy + t.gravity * dt).min(t.terminal); x += vx * dt; y += vy * dt; }
             if x < 0. || y < 0. || x as usize >= W || y as usize >= H || w.g.is_solidish(y as usize * W + x as usize) { break; }
             want.push((12, k, cell_to_world(x, y), 6., sp.px.clone(), Vec2::splat(CPX * SF * 0.6), false, Color::srgba(1., 0.95, 0.8, 0.25 + 0.5 * f))); } }
-    // mine carts: a plank box with a bronze rim on two wheels, drawn between their last two sim positions;
+    // mine carts: a plank tub with a bronze rim on two iron wheels (`art::cart`), drawn between their last two sim positions;
     // its cargo heaped over the rim; the mole riding sits in it (the box is drawn in front of it)
     for (k, c) in w.tr.carts.iter().enumerate() {
         let (x, y) = (c.px + (c.x - c.px) * a, c.py + (c.y - c.py) * a); let (cx, cy) = (x as usize, (y as usize).saturating_sub(1));
@@ -1118,12 +1128,9 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
         let (cw, ch) = (molehill_sim::transport::CART_W * CPX + 4., molehill_sim::transport::CART_H * CPX);
         let z = if w.tr.riding == Some(k) { 5.2 } else { 4.2 };
         let mid = cell_to_world(x, y) + Vec2::new(0., ch / 2. + 2.);
-        want.push((30, k, mid, z, sp.px.clone(), Vec2::new(cw, ch), false, lit(0.43, 0.31, 0.19)));
-        want.push((31, k, mid + Vec2::new(0., ch / 2. - 1.), z + 0.01, sp.px.clone(), Vec2::new(cw + 1., 2.), false, lit(0.75, 0.55, 0.28)));
+        want.push((30, k, cell_to_world(x, y) + Vec2::new(0., 5.), z, sp.cart.clone(), Vec2::new(20., 10.), false, lit(1., 1., 1.)));
         if let Some(&(it, _)) = c.cargo.first() { let col = it.color(); let n = c.load().min(40) as f32 / 40.;
             want.push((32, k, mid + Vec2::new(0., ch / 2. + 1. + 2. * n), z - 0.02, sp.px.clone(), Vec2::new(cw - 4., 2. + 4. * n), false, lit(col[0] as f32 / 255., col[1] as f32 / 255., col[2] as f32 / 255.))); }
-        for (j, s) in [-1f32, 1.].into_iter().enumerate() {
-            want.push((33, k * 2 + j, cell_to_world(x, y) + Vec2::new(s * (cw / 2. - 3.), 2.5), z + 0.02, sp.px.clone(), Vec2::splat(5.), false, lit(0.2, 0.18, 0.17))); }
     }
     // rope ladders: two fibre ropes with wooden rungs every 0.25 m, lit where they hang
     for (k, l) in w.tr.ladders.iter().enumerate() {
@@ -1197,6 +1204,15 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
         want.push((16, k, pos, z, base, size, false, Color::srgb(l.red, l.green, l.blue)));
         if let Some(c) = cloth { let t = if fu.tint > 0 { craft::PIGMENTS[fu.tint as usize] } else { decorart::undyed(fu.item) };
             want.push((17, k, pos, z + 0.01, c, size, false, Color::srgb(t[0] as f32 / 255. * l.red, t[1] as f32 / 255. * l.green, t[2] as f32 / 255. * l.blue))); }
+    }
+    // found-place furnishings (props.rs): placed once per window against the cells there, drawn behind the
+    // furniture and lit like it; they show once you've seen where they stand
+    let key = (w.oy, w.sites.iter().map(|s| s.id).collect::<Vec<_>>()); if fx.props_key != key { fx.props = props::dress(w); fx.props_key = key; }
+    for (k, p) in fx.props.iter().enumerate() {
+        let (cx, by) = ((p.x + p.w / 2).min(W - 1), (p.y + p.h - 1).min(H - 1));
+        if w.g.flags[by * W + cx] & F_SEEN == 0 && w.g.flags[p.y.min(H - 1) * W + cx] & F_SEEN == 0 { continue; }
+        let pos = cell_to_world(p.x as f32 + p.w as f32 / 2., p.y as f32 + p.h as f32 / 2.);
+        want.push((22, k, pos, 2.3, sp.props[p.prop as usize].clone(), Vec2::new(p.w as f32 * CPX, p.h as f32 * CPX), false, lightf(cx, (p.y + p.h / 2).min(H - 1))));
     }
     // Lid clues: carvings set in the wall, notes and odd finds on the floor (dimmer once read); a draft is only
     // felt: dust motes drifting down through it
