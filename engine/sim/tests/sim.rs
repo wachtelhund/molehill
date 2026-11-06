@@ -894,6 +894,35 @@ mod progression {
         let bronze = [pos("Bronze x2"), pos("Bronze x4")].into_iter().flatten().min();
         assert!(bronze.is_some() && pos("Drill") > bronze, "bronze comes before the drill (made: {order:?})");
     }
+    /// The drill's whole bill from the ground (workbench, forge, a workshop with its copperline, and the drill;
+    /// a coal per cold-forge job) is a first-hour haul: no more wood than the kit carries, since wood is scarce
+    /// near the burrow, and only what the pickaxe digs. `examples/progression.rs` prints the full ladder.
+    #[test] fn the_drill_costs_a_first_hour_haul() {
+        use molehill_sim::{survival::KIT, mat::{Mat, NMAT}};
+        let mut b = raw_bill(Item::Drill, 1);
+        for s in STATIONS { let sb = bill_of_station(s); for k in 0..NITEM { b[k] += sb[k]; } }
+        let kit_wood = KIT.iter().find(|k| k.0 == Item::Wood).unwrap().1;
+        assert!(b[Item::Wood as usize] <= kit_wood, "the drill needs {} wood, the kit has {kit_wood}", b[Item::Wood as usize]);
+        let total: u32 = b.iter().sum(); assert!(total <= 60, "the drill's bill is {total} items: {b:?}");
+        for (k, &n) in b.iter().enumerate() { if n == 0 { continue; }
+            let pick = (0..NMAT).any(|m| { let m = Mat::from_u8(m as u8); m.p().tier <= 1 && drop_of(m) == Some(ITEMS[k]) });
+            assert!(pick, "{:?} in the drill's bill isn't dug with a pickaxe", ITEMS[k]); }
+        assert_eq!((b[Item::CopperOre as usize], b[Item::TinOre as usize]), (8, 2), "copper and tin: {b:?}");
+    }
+    /// The oil press: at a workbench fungus gives more oil than the pack presses on the go, so bringing fungus
+    /// home pays; and a mushroom farm's crop can go to the lamp instead of the belly (a choice, both fair:
+    /// two mushrooms are 70 of food, about 3.5 minutes; their measure is 3 minutes of light).
+    #[test] fn the_bench_presses_oil_better_than_the_pack() {
+        use molehill_sim::survival::{FUNGUS_PER_OIL, OIL_SECS};
+        let r = &RECIPES[recipe_by_name("Fungus oil x2").unwrap()];
+        assert_eq!((r.station, r.out.0), (Station::Workbench, Item::FungusOil));
+        let per = r.inputs[0].1 as f32 / r.out.1 as f32; assert!(r.inputs[0].0 == Item::Fungus && per < FUNGUS_PER_OIL as f32, "{per} fungus a measure at the bench");
+        let m = &RECIPES[recipe_by_name("Fungus oil (mushroom)").unwrap()];
+        assert_eq!((m.station, m.inputs[0].0, m.out.0), (Station::Workbench, Item::Mushroom, Item::FungusOil));
+        let food_s = m.inputs[0].1 as f32 * food_value(Item::Mushroom) / 0.33; let light_s = m.out.1 as f32 * OIL_SECS;
+        assert!(food_s > light_s * 0.8 && food_s < light_s * 1.6, "mushrooms: {food_s:.0} s of food or {light_s:.0} s of light");
+        assert_eq!(raw_bill(Item::FungusOil, 2)[Item::Fungus as usize], 3, "the bill takes the bench's press");
+    }
     /// Every metal made in Survival is wanted by something past it: bronze makes the drill, so no ingot is a dead end.
     #[test] fn bronze_makes_the_drill() {
         let drill = &RECIPES[recipe_by_name("Drill").unwrap()];

@@ -164,7 +164,7 @@ A recipe appears the first time **any** of its inputs reaches the pack: picked u
 
 ## Recipes
 
-Chains are short: nothing is more than two steps from the ground (ore → ingot → tool), checked by the test `recipes_are_short_chains`. The balance follows a survey of what lies around the burrow across seeds (`survey` example): wood is scarce near spawn, so the kit carries it; lava is 20–34 m away, so a forge can burn coal until then; copper and tin come before iron, so the drill is bronze, their alloy (test `bronze_makes_the_drill`). Bronze can be co-smelted straight from the two ores, so the bronze drill stays two steps from the ground. The test `survival_ladder_is_reachable` checks the whole tool ladder can be made from the kit and the ground.
+Chains are short: nothing is more than two steps from the ground (ore → ingot → tool), checked by the test `recipes_are_short_chains`. The balance follows a survey of what lies around the burrow across seeds (`survey` example): wood is scarce near spawn, so the kit carries it; lava is 20–34 m away, so a forge can burn coal until then; copper and tin come before iron, so the drill is bronze, their alloy (test `bronze_makes_the_drill`). Bronze can be co-smelted straight from the two ores, so the bronze drill stays two steps from the ground. The test `survival_ladder_is_reachable` checks the whole tool ladder can be made from the kit and the ground. `craft::raw_bill` works out what the ground has to give for anything (the cheapest recipes, a coal per cold-forge job): the drill with its three stations is 6 wood (the kit's), 20 stone, 4 clay, 8 copper ore, 2 tin ore and 4 coal (test `the_drill_costs_a_first_hour_haul`); `examples/progression.rs` prints the whole ladder and when a digging bot's pack could first have paid each rung.
 
 | station | makes | from |
 |---|---|---|
@@ -174,6 +174,7 @@ Chains are short: nothing is more than two steps from the ground (ore → ingot 
 | | vent | 2 wood + 2 stone |
 | | TNT | 2 coal + 2 sand |
 | | rope ladder | 2 wood + 2 fungus |
+| | 2 fungus oil / 1 fungus oil | 3 fungus / 2 mushrooms (the oil press: better than the pack's 2 fungus a measure) |
 | | 8 rock wall / 8 timber wall | 2 stone / 2 wood |
 | | 4 carved wall | 2 stone |
 | | 4 beam wall | 1 wood pillar |

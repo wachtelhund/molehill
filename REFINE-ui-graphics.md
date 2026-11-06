@@ -147,6 +147,9 @@ Polish only: no new systems, lore names kept. Each entry lists what changed and 
   sight. Seen at spawn: 712 m² before (the box), 36 m² after (five seeds, 2319 cells each); 5-8 materials
   start discovered.
 * Test `spawn_reveals_only_burrow_neighbourhood` (five seeds). Wiki World and Generation, TESTING.md.
+* Polish run: a fresh seed 4242 dumped at frame 150 shows the burrow as a small torch-lit dome in dark rock,
+  nothing beyond its walls. Found on the way: `--dump-art` without `--scene` cropped to the last found place in
+  the window (off-window, so it panicked); only a stamped scene crops to its site now.
 
 ## Open issues
 * `--shot` writes an empty frame on macOS when the game is launched from a background shell (the surface is
