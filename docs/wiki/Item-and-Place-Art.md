@@ -83,6 +83,11 @@ The pack, the hotbar, the item in the mole's paws and anything lying loose all u
 | Shaker screen | an iron grating in a timber frame, the mesh open between the bars | placed cells: a timber top rail, iron bars every half metre, the dark mesh between |
 | Bumper | a squat timber buffer with a red pad, standing on a rail end | placed cells: red-painted timber, a brighter worn head, an iron band and bolt every metre |
 | Riffle bar | three low timber bars across a sloping floor, water running over them | placed cells: upright timber slats with a dark gap every half metre, their tops worn pale by the water |
+| Iron shaft | an iron rod in two wooden bearing blocks | placed cells |
+| Gear | a toothed wooden wheel with a hub and spokes | placed cells |
+| Water wheel | a paddle wheel dipping into blue water | placed cells |
+| Belt | a fibre belt over two rollers, stitching along it | placed cells |
+| Counterweight | a rope drum over a hanging iron weight | counterweight on its drum: the rope from the drum down to an iron block (placeholder) |
 | Ore hopper | a timber bin heaped with ore, tapering to a spout, on splayed legs | ore hopper sprite: back boards, the heap tinted with what it holds, the front frame open over the heap, a boarded taper to an iron spout whose gate shows shut or swung open, two legs down to the floor (`art::ore_bin`) |
 | Rock wall | a rough slab of scraped host rock with tool marks | background lining |
 | Timber wall | boards standing on end, uneven tops, gaps between | background lining |
