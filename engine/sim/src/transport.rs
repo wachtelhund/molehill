@@ -78,6 +78,9 @@ pub struct Transport {
     pub hoppers: Vec<crate::tubes::Hopper>, pub capsules: Vec<crate::tubes::Capsule>, pub in_tube: Option<usize>,
     /// ore hoppers over the track (see production.rs), and how many times a cart has tipped at a bumper
     pub bins: Vec<crate::production::OreHopper>, pub tips: u32,
+    /// rope-gun ropes fixed in the rock, the hook in flight, and the rope the mole hangs on with the length
+    /// of rope above its hands (see ropes.rs)
+    pub ropes: Vec<crate::ropes::Rope>, pub hook: Option<crate::ropes::Hook>, pub on_rope: Option<(usize, f32)>,
 }
 
 impl World {
@@ -151,7 +154,7 @@ impl World {
     }
     /// `E` on a cart: take its cargo into the pack; an empty cart (nobody in it) comes up itself.
     pub fn pick_up_transport(&mut self, x: usize, y: usize) -> Option<Item> {
-        let Some(k) = self.cart_at(x, y) else { return self.pick_up_bin(x, y).or_else(|| self.pick_up_hopper(x, y)).or_else(|| self.pick_up_lift(x, y)) };
+        let Some(k) = self.cart_at(x, y) else { return self.pick_up_bin(x, y).or_else(|| self.pick_up_hopper(x, y)).or_else(|| self.pick_up_lift(x, y)).or_else(|| self.pick_up_rope(x, y)) };
         // unloading says what came home ("Unloaded the cart: 12 stone, 3 copper ore.")
         if !self.tr.carts[k].cargo.is_empty() { let mut got = vec![];
             for (it, n) in std::mem::take(&mut self.tr.carts[k].cargo) { self.inv[it as usize] += n; got.push(format!("{n} {}", it.name().to_lowercase())); }
@@ -245,6 +248,7 @@ impl World {
         self.step_bins();
         self.step_lifts();
         self.step_tubes();
+        self.step_ropes();
     }
 
     /// The mole walking into a cart pushes it: a force on the cart's mass, and the mole is held at its side
@@ -293,14 +297,14 @@ impl World {
             if riding == Some(k as i64) { new_ride = Some(keep.len()); } keep.push(c);
         }
         self.tr.carts = keep; self.tr.riding = new_ride;
-        self.shift_tubes(rows); self.shift_bins(rows, h);
+        self.shift_tubes(rows); self.shift_bins(rows, h); self.shift_ropes(rows);
         let (dr, hh) = (rows, h as i64);
         self.tr.ladders.retain_mut(|l| { let t = l.top as i64 - dr; let a = l.ay as i64 - dr; if t < 1 || a < 0 || t + l.len as i64 >= hh { return false; } l.top = t as usize; l.ay = a as usize; true });
         self.tr.lifts.retain_mut(|l| { let hd = l.head as i64 - dr; let b = l.bottom as i64 - dr; if hd < 1 || b >= hh - 1 { return false; } l.head = hd as usize; l.bottom = b as usize; l.y -= dy; l.py -= dy; true });
     }
     /// Save: the carts (window-relative cells) and their cargo.
     pub fn encode_transport(&self) -> Vec<u8> {
-        let mut o = crate::band::Wr(vec![]); o.u8(4);
+        let mut o = crate::band::Wr(vec![]); o.u8(5);
         o.u32(self.tr.carts.len() as u32);
         for c in &self.tr.carts { o.f32(c.x); o.f32(c.y); o.f32(c.v); o.u8((c.dir + 1) as u8); o.u32(c.cargo.len() as u32); for &(it, n) in &c.cargo { o.u8(it as u8); o.u32(n); } }
         // v2: ladders and lifts
@@ -310,6 +314,8 @@ impl World {
         self.encode_tubes(&mut o);
         // v4: ore hoppers
         self.encode_bins(&mut o);
+        // v5: rope-gun ropes
+        self.encode_ropes(&mut o);
         o.0
     }
     pub fn decode_transport(&mut self, b: &[u8]) -> Result<(), String> {
@@ -328,6 +334,7 @@ impl World {
         }
         if ver >= 3 { self.decode_tubes(&mut r)?; }
         if ver >= 4 { self.decode_bins(&mut r)?; }
+        if ver >= 5 { self.decode_ropes(&mut r)?; }
         Ok(())
     }
 }
