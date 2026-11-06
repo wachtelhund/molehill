@@ -47,6 +47,19 @@ pub fn wire(mask: u8, lit: bool, f: u8) -> Image {
 }
 
 /// A device in a 1 m block. `on`: its powered / lit / pressed state; `f`: animation frame (0..3).
+/// The hotbar icon for a device: its sprite, except where the in-world sprite is a sliver along the floor
+/// of its block (fuse, pressure plate) and would read as nothing in a slot.
+pub fn hotbar_icon(d: Dev) -> Image {
+    match d {
+        Dev::Fuse => { let mut p = Px::new(16, 16); // a coil of fuse cord with a free end
+            for k in 0..3 { let r = 5.5 - k as f32 * 1.8; for a in 0..30 { let t = a as f32 / 30. * std::f32::consts::TAU; p.set((7. + t.cos() * r).round() as i32, (9. + t.sin() * r * 0.75).round() as i32, if k == 1 { [110, 86, 60] } else { [150, 118, 82] }); } }
+            line(&mut p, 12., 8., 15., 2., 1, [150, 118, 82]); p.set(15, 1, [255, 200, 90]); p.finish(LINE).image() }
+        Dev::Plate => { let mut p = Px::new(16, 16); // the plate seen from above at an angle, on its frame
+            for y in 5..12 { let o = (11 - y) / 2; p.rect(1 + o, y, 14 - o, y, if y == 5 { sh(IRON, 1.3) } else { IRON }); }
+            p.rect(1, 12, 14, 13, IRON_D); for (x, y) in [(4, 7), (11, 7), (3, 10), (12, 10)] { p.set(x, y, BRASS); } p.finish(LINE).image() }
+        _ => device(d, false, 0),
+    }
+}
 pub fn device(d: Dev, on: bool, f: u8) -> Image {
     let mut p = Px::new(16, 16);
     let glow = [255, 230, 120];

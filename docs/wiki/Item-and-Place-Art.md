@@ -8,7 +8,7 @@ Every item has its own drawing. No two share a silhouette, and none is another i
 
 ![Every item's pack icon, then every device as the hotbar shows it](images/item-icons.png)
 
-The pack, the hotbar, the item in the mole's paws and anything lying loose all use the icon (a loose item is drawn at half size). Devices in the hotbar use their own in-world sprite (`devart::device`, switched off), so a lever, a plate and a floodgate no longer share one placeholder.
+The pack, the hotbar, the item in the mole's paws and anything lying loose all use the icon (a loose item is drawn at half size). Devices in the hotbar use their own in-world sprite (`devart::hotbar_icon`, switched off), so a lever, a plate and a floodgate no longer share one placeholder. The fuse and the pressure plate are the exceptions: in the world each is a thin strip along the floor of its block, so the hotbar shows a coil of fuse cord and the plate seen from above at an angle.
 
 | item | pack icon | in the world |
 |---|---|---|
@@ -62,7 +62,7 @@ The pack, the hotbar, the item in the mole's paws and anything lying loose all u
 | Soot | a drawstring pouch, black dust at its mouth | lies loose as its icon |
 | Table | its furniture sprite, scaled | furniture sprite |
 | Stool | its furniture sprite, scaled | furniture sprite |
-| Nest | its furniture sprite, scaled | furniture sprite (cloth takes pigment) |
+| Nest | a woven basket bed heaped with a blanket and a pillow | furniture sprite (cloth takes pigment) |
 | Shelf | its furniture sprite, scaled | furniture sprite |
 | Rug | a rug laid flat in perspective: a diamond worked in, fringe at both ends | furniture sprite (cloth takes pigment) |
 | Banner | its furniture sprite, scaled | furniture sprite (cloth takes pigment) |
@@ -117,6 +117,7 @@ The game places them once per window and redraws them each frame. Like furniture
 Game-crate tests (`cargo test --release -p molehill`):
 
 * `every_item_has_its_own_icon`: every icon has at least 40 px and four colours. For every pair of icons, at least 20 pixels differ in coverage or brightness band (judged against each icon's own range, so a tint scores 0), and at least 8 differ in silhouette.
+* `every_slot_icon_fills_its_slot`: every pack icon and device hotbar icon covers at least 80 of its 256 pixels. The nest (its 9 × 3-tile sprite scaled), the fuse and the plate were slivers of 64–74 px; the median icon covers 135.
 * `every_device_has_its_own_sprite`: the same pattern check for the 21 devices.
 * `every_prop_has_its_own_sprite`: every prop is mostly filled, has at least four colours and differs from the others.
 * `found_places_are_furnished`: each family is stamped into rock and must get its listed furnishings, all inside the site and none in rock. Every prop kind is placed somewhere.

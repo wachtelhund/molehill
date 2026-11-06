@@ -128,6 +128,15 @@ Polish only: no new systems, lore names kept. Each entry lists what changed and 
 * Not seen in a live window: the props' scale against the mole in play, and whether the cold lamps read as
   lamps at play zoom. The holt is crowded, so its kitchen stands on the table and its pantry hangs.
 
+## Unique item art: polish (branch `refine/unique-item-art-polish`)
+
+* Measured slot coverage of every shipped icon from a `--dump-art` run: the nest (69 px of 256, its 9 × 3-tile
+  sprite scaled), the fuse (64) and the pressure plate (74) were floor-level slivers against a median of 135.
+  The nest gets its own icon (a basket bed with blanket and pillow). The fuse and plate keep their in-world
+  sprites but get hotbar icons (`devart::hotbar_icon`): a coil of cord with a lit end, the plate from above.
+* Test `every_slot_icon_fills_its_slot` (≥ 80 px; slim shapes like sand, torch and crystal sit at 86-89).
+  Icon sheet regenerated.
+
 ## Open issues
 * `--shot` writes an empty frame on macOS when the game is launched from a background shell (the surface is
   never presented). It needs a visible window, or Linux with Xvfb.
