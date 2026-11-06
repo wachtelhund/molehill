@@ -1,0 +1,29 @@
+// A stamp mill with no room at its foot holds its work. Rock stands against its right side and its drive gear
+// against its left, so it has nowhere to let crushed ore out: the ore waits in its mortar unbroken and the log says
+// its spout is walled in (before, what it crushed went back into it and was lost, a lump at a time).
+map
+##################################
+##################################
+#....jj*jjjjjjj*.................#
+#..............j.................#
+#..............j.................#
+#..............j.................#
+#..............j.................#
+#..............j.................#
+#..............j.................#
+#..............j....#............#
+#..........@...*....#............#
+##################################
+##################################
+end
+give Counterweight 2
+give StampMill 1
+place 2 -7 -8 Counterweight
+place 2 -4 -7 Counterweight
+place 3 7 -1 StampMill
+drop 10 CopperOre 6 -7
+drop 20 CopperOre 6 -7
+expect 600 log:spout_is_walled_in >= 1
+expect 1800 stampload == 2            // both lumps still there, whole
+expect 1800 items:CopperFines == 0
+expect 1800 items:Sand == 0

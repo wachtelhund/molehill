@@ -289,6 +289,8 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `stamp_mill_crushes.scn` | Two counterweights drive a stamp mill: copper and iron ore come out as concentrate and sand, stone as gravel; the weights share the work |
 | `washer_sorts.scn` | A driven washer by a pool sorts concentrate and ore out left, sand, gravel and ash out right into the pool, using its water |
 | `smelter_bellows_mould.scn` | A smelter tops out short of copper's heat with still bellows; driven, they take it past 1100 °C, concentrate melts and a mould casts a copper ingot |
+| `stamp_mill_walled_in.scn` | A stamp mill with rock at both feet holds its ore unbroken and logs that its spout is walled in |
+| `smelter_iron_slag.scn` | Raw iron ore waits until the smelter passes 1250 °C, then casts an iron ingot and lets out a lump of slag |
 | `shaker_sorts.scn` | Gravel drops through a 1-in-4 shaker screen; ore lies on it until current shakes it, then walks off the end into its own pit |
 | `rail_needs_support.scn` | A rail span over a drop breaks and falls; its ends on rock hold |
 | `blast_moves_sand.scn` | A charge by a sand bed throws a third of it into the air at once; the near end is scoured, and it all lands (none lost) |
