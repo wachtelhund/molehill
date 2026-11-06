@@ -83,6 +83,10 @@ impl Kind {
 pub const MINE_RAIL: i64 = (CPM / 2) as i64;
 /// Metres between the mine's timber sets (post and cap), so no stretch of its roof spans further.
 pub const MINE_BAY: i64 = 4;
+/// Ribs on the fossil beast, from 8.5 m in, one every 2 m.
+const FOSSIL_RIBS: i64 = 7;
+/// The pumpworks' landing on the viewing window's sill, in metres below the box top.
+pub const PUMP_LANDING: usize = 12;
 /// The mine's worked face (ore) at its far end, in half metres from the end wall.
 pub const MINE_FACE: i64 = 5;
 
@@ -325,6 +329,24 @@ impl Site {
     /// chord meets both mouths, so the nave is one walk from either way in.
     fn oval_nav(w: i64, h: i64) -> (f32, f32, f32, f32) {
         (w as f32 * 0.5, h as f32 * 0.66, w as f32 * 0.50, h as f32 * 0.50)
+    }
+    /// The fossil beast's spine (box row of its middle) at column `dx`: lying on the floor, highest at the ends.
+    fn fossil_spine(dx: i64, w: i64, h: i64, c: i64) -> i64 { h - c - ((dx - w / 2).abs() * c) / (w / 2).max(1) }
+    /// The top of the rock mound the fossil's ribs are bedded in (box row), from 7 m to 22 m in; None
+    /// outside it. It runs through each rib's tip a quarter metre down, so the ribs stand just proud of it.
+    pub(crate) fn fossil_mound_top(dx: i64, w: i64, h: i64, c: i64) -> Option<i64> {
+        if dx < 7 * c || dx >= 22 * c { return None; }
+        let tips: Vec<(i64, i64)> = (0..FOSSIL_RIBS).map(|k| {
+            let rise = 5 * c - (k as i64 - 3).abs() * c / 2;
+            let x = 8 * c + k * 2 * c + c / 2 + rise / 4;
+            (x, Self::fossil_spine(x, w, h, c) - rise + c / 4)
+        }).collect();
+        let (first, last) = (tips[0], tips[tips.len() - 1]);
+        if dx <= first.0 { return Some(first.1); }
+        if dx >= last.0 { return Some(last.1); }
+        let k = tips.windows(2).position(|p| dx < p[1].0).unwrap();
+        let ((x0, y0), (x1, y1)) = (tips[k], tips[k + 1]);
+        Some(y0 + (y1 - y0) * (dx - x0) / (x1 - x0).max(1))
     }
     /// A 3 m doorway through the shell under a 1 m iron lintel and a 2 m limestone
     /// cap, keyed into the ring so the mouth does not sag onto a mole standing in it.
@@ -577,6 +599,10 @@ impl Site {
                 return Some(if shell { IronBeam } else { Empty });
             }
         }
+        // a timber landing on the viewing window's sill, keyed into the wheel's rim: a mole that comes
+        // over the wheel from the east door steps down onto it and takes the rope at its west end to the
+        // dry hall floor, instead of dropping 7 m beside the wheel
+        if dy >= PUMP_LANDING as i64 * c && dy < PUMP_LANDING as i64 * c + c / 2 && dx >= pump_wall - c && dx < pump_wall + 3 * c { return Some(WoodBeam); }
         Some(Empty)
     }
     /// A tall split in the host rock that widens mid-drop, with broken bridges, hanging ropes,
@@ -590,7 +616,8 @@ impl Site {
         let right = w - 2 * c + (wave * 0.45) as i64 + extra;
         let floor = h - c;
         let west_mouth = dy >= 5 * c && dy < 8 * c;
-        let east_mouth = dy >= 21 * c && dy < 24 * c;
+        // the east mouth's floor is the 24 m deck's top, so walking in from it is level
+        let east_mouth = dy >= 21 * c && dy < 24 * c - c / 2;
         if west_mouth && dx < left + 3 * c { return Some(Empty); }
         if east_mouth && dx >= right - 3 * c { return Some(Empty); }
         if dx < left || dx >= right { return None; }
@@ -598,52 +625,51 @@ impl Site {
         let span = |gap: i64| (dx - (left + right) / 2).abs() > gap;
         let west_rope = left + 2 * c;
         let east_rope = right - 2 * c;
-        let mid_rope = (left + right) / 2;
-        // decks stop half a metre short of the wall so a climber can pass the lip
-        let inset = dx >= left + c / 2 && dx < right - c / 2;
-        if inset && ledge(8 * c) { return Some(if dx < left + 5 * c { WoodBeam } else if dx >= right - 4 * c { IronBeam } else if span(c) { WoodBeam } else { Empty }); }
+        // every deck is keyed into both walls, so each half holds as a cantilever off its wall (one that
+        // stopped short of the rock floated and came down); the broken middles stay open
+        let inset = dx >= left && dx < right;
+        // each half of a deck is one material: a mixed span is only as strong as its wood and as heavy as its iron
+        let mid = (left + right) / 2;
+        if inset && ledge(8 * c) { return Some(if !span(c) { Empty } else if dx < mid { WoodBeam } else { IronBeam }); }
         if inset && ledge(16 * c) { return Some(if span(2 * c) { WoodBeam } else { Empty }); }
-        if inset && ledge(24 * c) { return Some(if dx < left + 6 * c { WoodBeam } else if dx >= right - 3 * c { IronBeam } else if span(c) { IronBeam } else { Empty }); }
+        if inset && ledge(24 * c) { return Some(if !span(c) { Empty } else if dx < mid { WoodBeam } else { IronBeam }); }
         if inset && ledge(32 * c) { return Some(if dx >= (left + right) / 2 { WoodBeam } else { Empty }); }
         // small rubble against the wall, leaving a walkway along the deck
         if dy >= 8 * c - c / 2 && dy < 8 * c && dx > left + c && dx < left + 2 * c { return Some(Gravel); }
         if dy >= 24 * c - c / 2 && dy < 24 * c && dx > right - 2 * c && dx < right - c { return Some(Rock); }
-        // rope segments hang in the voids and stop 2 m above the next deck, so a mole
+        // rope segments hang under each deck (not from the rock ceiling, where the open span's load would
+        // crush them) and stop 2 m above the next deck, so a mole
         // can walk each deck past them and drop through the designed gaps
         let rope_at = |x: i64| (dx - x).abs() < c / 3;
         let hanging = |from: i64, to: i64| dy >= from + c / 2 && dy < to - 2 * c;
-        if (rope_at(west_rope) || rope_at(east_rope) || rope_at(mid_rope))
-            && (hanging(0, 8 * c) || hanging(8 * c, 16 * c) || hanging(16 * c, 24 * c)
-                || hanging(24 * c, 32 * c) || hanging(32 * c, floor))
+        // (none in the broken middles: a cord there hangs from nothing)
+        if (rope_at(west_rope) || rope_at(east_rope))
+            && (hanging(8 * c, 16 * c) || hanging(16 * c, 24 * c)
+                || hanging(24 * c, 32 * c) || (hanging(32 * c, floor) && rope_at(east_rope)))
         {
-            return Some(if rope_at(west_rope) { WoodBeam } else { Roots });
+            // old timber cords (root cords couldn't carry their own hang)
+            return Some(WoodBeam);
         }
-        if dy < 6 * c && (dx / c) % 5 == 2 { return Some(Roots); }
         if dy >= floor { return Some(if dx % c < c / 2 { Gravel } else { Rock }); }
         if dy >= floor - c && (dx + dy) % (3 * c) < c * 2 { return Some(Water); }
         Some(Empty)
     }
-    /// Oval excavation around a readable mineralised skeleton, wooden scaffold and tools, two
-    /// mouths. Limestone follows the oval as a shell; the bounding-box corners stay host rock.
+    /// Oval excavation around a beast lying on its floor: the body's bones (spine, ribs, limbs) bedded in
+    /// a mound of the rock that grew round them, each rib standing proud of it, and the skull resting
+    /// against the east wall over the way in. Two mouths. Nothing hangs: the mound stands on the floor, a
+    /// mole climbs over the ribs and takes the rope off the mound's west end down to the chest.
+    /// Limestone follows the oval as a shell; the bounding-box corners stay host rock.
     fn carve_fossil(&self, _k: &Knobs, dx: i64, dy: i64, w: i64, h: i64, c: i64) -> Option<Mat> {
         use Mat::*;
         let (cx, cy, rx, ry) = Self::oval_nav(w, h);
         let nx = (dx as f32 - cx) / rx; let ny = (dy as f32 - cy) / ry;
         let floor = h - c;
         let r2 = nx * nx + ny * ny;
-        // scaffold posts stop 3 m above the floor so a mole can walk through each bay
-        let post = |x: i64, y0: i64, y1: i64| dx >= x && dx < x + c / 2 && dy >= y0 && dy < y1.min(floor - 3 * c);
-        let bone_gap = (dx - 15 * c).abs() < c || (dx - 25 * c).abs() < c;
-        if post(3 * c, 2 * c, floor) || post(8 * c, 3 * c, floor) || post(12 * c, 4 * c, 9 * c) { return Some(WoodBeam); }
         if let Some(m) = Self::oval_mouth(dx, dy, w, h, c, cx, cy, rx, ry, r2) { return Some(m); }
         if r2 > 1. {
             if r2 < 1.72 { return Some(Limestone); }
             return None;
         }
-        let walk = (dy >= 5 * c && dy < 5 * c + c / 2 && dx >= 3 * c && dx < 14 * c)
-            || (dy >= 8 * c && dy < 8 * c + c / 2 && dx >= 3 * c && dx < 12 * c);
-        let hatch = (dx - 3 * c).abs() < c || (dx - 8 * c).abs() < c || (dx - 12 * c).abs() < c;
-        if walk && !hatch { return Some(Planks); }
         // profile skull facing left (toward the ribs), so it reads as a lying beast, not a face
         let (sx, sy) = (w - 8 * c, h - 7 * c);
         let skx = (dx - sx) as f32 / (4.2 * c as f32);
@@ -652,33 +678,33 @@ impl Site {
         let in_snout = dx < sx && dx > sx - 5 * c
             && dy >= sy - c && dy < sy + 2 * c
             && (sx - dx) < 5 * c - (dy - (sy - c)) * 2;
-        if !bone_gap && (in_cranium || in_snout) && dy < floor - 3 * c {
+        if (in_cranium || in_snout) && dy < floor - 3 * c {
             let exn = (dx - (sx - c)) as f32 / (1.3 * c as f32);
             let eyn = (dy - (sy - c / 2)) as f32 / (1.0 * c as f32);
             if exn * exn + eyn * eyn < 1. { return Some(Empty); }
             return Some(Carved);
         }
-        if !bone_gap && dy < floor - 3 * c && dx >= sx - 5 * c && dx < sx + c && dy >= sy + c && dy < sy + 2 * c + c / 3 {
+        if dy < floor - 3 * c && dx >= sx - 5 * c && dx < sx + c && dy >= sy + c && dy < sy + 2 * c + c / 3 {
             let tooth = ((sx - dx) / (c / 2).max(1)) % 2 == 0;
             if tooth && dy >= sy + 2 * c - c / 4 { return Some(Empty); }
             return Some(Carved);
         }
-        let spine_y = h - 4 * c - ((dx - w / 2).abs() * c) / (w / 2).max(1);
-        if !bone_gap && dy < floor - 3 * c && dx > 7 * c && dx < sx - 3 * c && (dy - spine_y).abs() < c { return Some(Carved); }
-        let rib = (0..8).any(|k| {
+        // the body lies on the floor
+        let spine_y = Self::fossil_spine(dx, w, h, c);
+        if dy < floor && dx > 7 * c && dx < sx - 3 * c && (dy - spine_y).abs() < c { return Some(Carved); }
+        // seven ribs, all bedded in the mound (an eighth would stand past its end, under the snout)
+        let rib = (0..FOSSIL_RIBS).any(|k| {
             let px = 8 * c + k * 2 * c + c / 2;
-            if px >= sx - 4 * c { return false; }
             let rise = 5 * c - (k as i64 - 3).abs() * c / 2;
             let yo = spine_y - dy;
             yo > 0 && yo < rise && (dx - px - yo / 4).abs() < c / 2
         });
-        if !bone_gap && rib && dy < floor - 3 * c { return Some(Carved); }
+        if rib && dy < floor { return Some(Carved); }
         let limb = (dx > 9 * c && dx < 16 * c && (dy - (spine_y + (dx - 9 * c) / 2)).abs() < c && dy > spine_y)
             || (dx > 17 * c && dx < 24 * c && (dy - (spine_y + (dx - 17 * c) / 3)).abs() < c && dy > spine_y);
-        if !bone_gap && limb && dy < floor - 3 * c { return Some(Carved); }
-        if dy < 3 * c && (dx / c) % 3 == 1 { return Some(Roots); }
-        // tools away from the shelf (5 c) and table (8 c) footprints
-        if dx >= 20 * c && dx < 21 * c && dy >= floor - c && dy < floor { return Some(IronBeam); }
+        if limb && dy < floor { return Some(Carved); }
+        // the rock the bones lie in, up to just under the rib tips
+        if let Some(top) = Self::fossil_mound_top(dx, w, h, c) { if dy >= top && dy < floor { return Some(Rock); } }
         if dy >= floor { return Some(Rock); }
         Some(Empty)
     }
@@ -899,6 +925,8 @@ impl Site {
                 v.push(Thing::SwitchOn { at: [lx, ly] });
                 v.push(Thing::Device { dev: Dev::Pump, at: [x0 + 37 * c, y0 + s.h - 3 * c] });
                 v.push(Thing::Ladder { at: [x0 + 28 * c, y0 + 8 * c], anchor: [x0 + 27 * c, (y0 + 8 * c).saturating_sub(1)] });
+                // the rope off the landing's west end, tied to the landing, down to the dry hall floor
+                v.push(Thing::Ladder { at: [x0 + 33 * c - c / 2, y0 + PUMP_LANDING * c], anchor: [x0 + 33 * c, y0 + PUMP_LANDING * c] });
                 v.push(Thing::Torch { at: [x0 + 10 * c, y0 + s.h - 6 * c] });
                 v.push(Thing::Torch { at: [x0 + 24 * c, y0 + s.h - 4 * c] });
                 v.push(Thing::Torch { at: [x0 + 42 * c, y0 + s.h - 8 * c] });
@@ -930,14 +958,15 @@ impl Site {
                 v.push(Thing::Furn { item: Item::Stool, at: [x0 + 53 * c, y0 + s.h - 2 * c] });
             }
             Kind::Fossil => {
-                v.push(Thing::Torch { at: [x0 + s.w / 2, y0 + s.h - 4 * c] });
+                let (wi, hi, ci) = (s.w as i64, s.h as i64, c as i64);
+                let top = |x: usize| Site::fossil_mound_top(x as i64, wi, hi, ci).unwrap_or(hi - ci) as usize;
+                v.push(Thing::Torch { at: [x0 + s.w / 2, y0 + top(s.w / 2) - c] }); // over the mound
                 v.push(Thing::Torch { at: [x0 + 6 * c, y0 + s.h - 5 * c] });
                 v.push(Thing::Torch { at: [x0 + s.w - 10 * c, y0 + s.h - 5 * c] });
                 v.push(Thing::Furn { item: Item::Shelf, at: [x0 + 5 * c, y0 + s.h - 2 * c] });
-                v.push(Thing::Furn { item: Item::Table, at: [x0 + 8 * c, y0 + s.h - 2 * c] });
-                // through the walk hatches at 12 m so the scaffold is a climb from the floor
-                v.push(Thing::Ladder { at: [x0 + 12 * c, y0 + 5 * c], anchor: [x0 + 11 * c, (y0 + 5 * c).saturating_sub(1)] });
-                v.push(Thing::Ladder { at: [x0 + 12 * c, y0 + 8 * c], anchor: [x0 + 11 * c, (y0 + 8 * c).saturating_sub(1)] });
+                v.push(Thing::Furn { item: Item::Table, at: [x0 + 3 * c, y0 + s.h - 2 * c] });
+                // the rope off the mound's west end, tied at its top, down to the floor by the chest
+                v.push(Thing::Ladder { at: [x0 + 7 * c - c / 2, y0 + top(7 * c)], anchor: [x0 + 7 * c, y0 + top(7 * c)] });
             }
             Kind::Crystal => {
                 v.push(Thing::Torch { at: [x0 + s.w / 2, y0 + s.h - 4 * c] });
