@@ -1,0 +1,24 @@
+// Drowning you can hear and read: a mole held under water (a flooded pocket, no air) gasps and the log
+// says to surface when its breath first runs short (BREATH_LOW, 35), and again when it's gone and the
+// hurt begins. Once per crossing: the 35 line is said once, not every tick below it.
+map
+##############
+#wwwwwwwwwwww#
+#wwwwwwwwwwww#
+#wwwwwwwwwwww#
+#wwwwwwwwwwww#
+#wwwwwwwwwwww#
+#wwwwww@wwwww#
+##############
+end
+set 1 breath 40
+expect 1 ev:Gasp == 0
+expect 80 breath < 35
+expect 80 ev:Gasp == 1
+expect 80 log:above_the_water == 1
+set 100 breath 3
+expect 160 breath == 0
+expect 160 ev:Gasp == 2
+expect 160 log:drowning == 1
+expect 200 log:above_the_water == 1
+expect 200 hp < 100
