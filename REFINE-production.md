@@ -77,3 +77,17 @@ I playtested the machines together in headless scenarios and probed the edges:
 * Harness: `loosen T DX DY`; vars `flow:`, `bedstress:`, `cells:`; legend `z`. Scenarios `water_through_screen`,
   `sluice_sorts`, `sluice_washes_rubble`; tests `sluice.rs`. A hover line on running water gives direction and speed.
 * For p3: **Riffle bar** needs an in-world look (it draws with its table colour) and has a pack icon in `itemart.rs`.
+
+## Stage 2 polish (branch `refine/production-sluice-polish`, after PR #33)
+
+I playtested sluicing in context and probed the edges:
+* **A blast destroyed the ore it broke (fixed).** A 0.5 kg charge in a 26-tile iron-ore seam left no loose ore at all:
+  ores and coal had `crumbles_to: Gravel`, so sluicing after a blast had nothing to recover. Ores and coal now crumble into
+  loose cells of themselves; the same charge leaves about 14 tiles of loose iron ore. Scenario `blast_ore_leaves_ore`.
+  Progression note for p7: loose iron ore still needs a drill to dig by hand, but an ore hopper takes poured rubble, so
+  blasting plus a hopper is an alternative to drilling iron. That's legitimate mining, kept on purpose.
+* **Washing and world settling (no change needed):** `wakediag` over 1200 ticks with washing on vs off: seed 11
+  5.4 vs 7.8 awake chunks, seeds 42 and 4242 0 vs 0. Washing doesn't keep generated worlds awake.
+* **Fungus under running water (no change needed):** it's lighter than water, so p2's CA floats it up, and floating
+  debris drifts with the current. That's correct.
+* `site/` is rebuilt on main after #33.
