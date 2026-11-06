@@ -21,8 +21,10 @@ shaker; 2 sluicing; 3 mechanical power; 4 coal power; 5 refinement; 6 non-electr
 * Scenarios: `chute_slides`, `cart_tips_at_bumper`, `ore_hopper_feeds_cart`, `shaker_sorts`.
 
 ### For p3 (art): new kinds needing a unique icon and in-world sprite
+* Pack icons: one each for Chute, Shaker screen, Bumper and Ore hopper in `itemart.rs`, after the unique-art merge, so
+  `every_item_has_its_own_icon` holds. Please restyle them as you like.
 * Blocks: **Chute** (timber trough), **Shaker screen** (iron grating on a timber frame; a shaking state is nice to have),
-  **Bumper** (timber buffer stop). Today they draw with their table colour.
+  **Bumper** (timber buffer stop). In the world they draw with their table colour.
 * Machine: **Ore hopper**: bin, two legs, spout and gate (open or shut), with its heap filling by `load()/BIN_LOAD`.
   Today it draws as plain boxes.
 * Cart: `Cart::tip > 0` while tipping (tilt toward `dir`).
