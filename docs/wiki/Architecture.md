@@ -47,6 +47,7 @@ The rule is simple: **gameplay goes in the sim.** If it changes what happens in 
 | `blast.rs` | explosions as a pressure wave: Kinney-Graham overpressure over the volume the wave has filled, gas pressure in closed spaces, diffraction shadows, rock cracked or shattered by blast strength, loose ground, water and items thrown, moles and devices hit by overpressure |
 | `transport.rs` | rails and mine carts: track as a built block, carts rolling by slope and friction, pushed, ridden and loaded, and powered rails driven by copperline current |
 | `production.rs` | a mine's output as real loose items: chutes, shaker screens, bumpers that tip carts, ore hoppers that fill them (see [Production](Production.md)) |
+| `sluice.rs` | sluicing: the current read from the water surface's slope, which washes light loose items and grains downstream and leaves heavy lumps behind riffle bars (see [Production](Production.md)) |
 | `lifts.rs` | rope ladders and counterweighted lifts, balanced with stone or wound up by current |
 | `ropes.rs` | the rope gun: a thrown hook that bites solid rock or a block, and its 16 m verlet rope to climb and swing on (the way up, since there is no wall climbing) |
 | `tubes.rs` | pressure tubes: hoppers whose current-driven blowers send capsules of items or the mole along the pipe; a breach stops and spills them |
@@ -64,6 +65,7 @@ The rule is simple: **gameplay goes in the sim.** If it changes what happens in 
 | `craft.rs` | items, stations, recipes, tool tiers, quests. Items are one registry, `ITEM_DEFS` (one `ItemDef` row per item: name, tooltip, colour, lump material, density, burning, block/pigment/furniture/wall role, what it can do, its controls line); a new item is an `Item` variant plus one row |
 | `disasters.rs` | floods, lava surges, quakes |
 | `band.rs` | the endless world off-window: 64-row bands holding cells, devices, air and things; the unit of saving |
+| `stream.rs` | fresh ground without a hitch: never-visited bands built and shored ahead of the window (`BandJob`, `BandCache`; a worker thread natively, slices on the web; never saved), and the seam a slide leaves, solved a box a tick |
 | `save.rs` | save/load: a manifest plus band blobs, split into parts (only changed bands are rewritten) or one blob |
 | `view.rs` | zoom rules shared by the settings menu, keys and wheel; `Wheel` turns wheel and trackpad scroll into notches (idle is still, one flick is one notch); `wheel_use` picks what a notch does (Shift/sprint never changes it) |
 

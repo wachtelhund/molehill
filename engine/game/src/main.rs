@@ -839,6 +839,7 @@ fn simulate(mut commands: Commands, mut g: ResMut<Game>, time: Res<Time>, mut ca
             gg.pops.extend(pm.into_iter().chain(m).map(|(k, x, y, r)| (k, x, y, r, now))); g.acc -= 1.; n += 1;
             if g.jump_tap { g.jump_tap = false; g.w.input.jump = g.jump_key; } } // the tap was seen: back to the key's state
         g.pops.retain(|p| now - p.4 < 0.25);
+        g.w.prefetch_step(); // fresh ground ahead of the window: a worker thread natively, a few-ms slice on the web
         g.autosave += time.delta_secs();
         if g.autosave > 30. { g.autosave = 0.; save_auto(&mut g); }
         if g.acc > 4. { g.acc = 0.; }
