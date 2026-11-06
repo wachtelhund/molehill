@@ -330,11 +330,9 @@ Zoom limits and brush ranges also have unit tests in `sim/tests/sim.rs` (`zoom_i
 
 Blast tests in `sim.rs`: `blast_overpressure_curve` (Kinney-Graham values, monotone, deterministic, bounded), `blast_is_heard_by_listeners`, `blast_debris_deterministic_and_conserved`. Blast sound tests in `blast_events.rs`: `one_charge_is_heard_once_*` (one charge in a generated world: one blast, no later Explode or Quake, no collapse rumble for a cell or two trickling off the crater). Transport tests in `transport.rs`: `transport_is_reachable_in_survival`, `creative_has_transport_freely`, `transport_hover_tips_say_what_to_do` (each machine's hover tip names its action). `--example blastbench` times one charge.
 
-<<<<<<< HEAD
 Settled ground tests in `sim/tests/settled_ground.rs`: `loose_lenses_are_rare_round_the_burrow_but_not_beyond` (lenses under 1.2 % of the ground within 40 m of the burrow and none soaked; over 3 % beyond 80 m at the same depths and over 2 % at 15-35 m down, 24 seeds), `a_new_holt_starts_on_settled_ground` (under 2 % of the ground within 30 m of a fresh holt's burrow is loose, and hardly any sand faces open cave, 5 seeds).
-=======
+
 Site templates (`tests/templates.rs`): `templates_match_the_procedural_sites` is the golden check that the found-place data in `assets/sites/` stamps exactly what the procedural reference in `sites.rs` does, cell for cell, for every variant (var 0–95 plus large values, both halt sides): materials, linings, chest and things. After a layout change in `sites.rs`, run `cargo run --release -p molehill-sim --example export_sites` (`-- --check` only reports SAME/STALE per file). `site_chest_comes_from_the_template`, `template_files_round_trip_and_explain_errors`. See `docs/wiki/Site-Templates.md`.
->>>>>>> origin/main
 
 Worldgen tests in `sim.rs`: `ore_sits_in_its_depth_bands` (copper just below the holt, iron in the mid granite, basalt below 90 m), `grottos_follow_the_layers` (frequency by depth band over 6 seeds, none in the deep, deterministic), `generated_grottos_hold` (fresh holts' grottos stay open with their trees up), `slides_leave_nothing_failing`, `glowmites_drift_glow_and_get_caught`.
 
