@@ -65,6 +65,7 @@ The rule is simple: **gameplay goes in the sim.** If it changes what happens in 
 | `craft.rs` | items, stations, recipes, tool tiers, quests. Items are one registry, `ITEM_DEFS` (one `ItemDef` row per item: name, tooltip, colour, lump material, density, burning, block/pigment/furniture/wall role, what it can do, its controls line); a new item is an `Item` variant plus one row |
 | `disasters.rs` | floods, lava surges, quakes |
 | `band.rs` | the endless world off-window: 64-row bands holding cells, devices, air and things; the unit of saving |
+| `stream.rs` | fresh ground without a hitch: never-visited bands built and shored ahead of the window (`BandJob`, `BandCache`; a worker thread natively, slices on the web; never saved), and the seam a slide leaves, solved a box a tick |
 | `save.rs` | save/load: a manifest plus band blobs, split into parts (only changed bands are rewritten) or one blob |
 | `view.rs` | zoom rules shared by the settings menu, keys and wheel; `Wheel` turns wheel and trackpad scroll into notches (idle is still, one flick is one notch); `wheel_use` picks what a notch does (Shift/sprint never changes it) |
 
