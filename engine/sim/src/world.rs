@@ -1115,7 +1115,7 @@ impl World {
         if climbing {
             // hands on the rungs: W/S climb at the ladder's pace, and it hangs still otherwise (no slide)
             self.pl.vy = if inp.up { -crate::lifts::LADDER_UP } else if inp.down { crate::lifts::LADDER_DOWN } else { 0. };
-            self.pl.vx = self.pl.vx.clamp(-4. * SF, 4. * SF);
+            self.pl.vx = self.pl.vx.clamp(-8. * SF, 8. * SF); // sideways on the rope (with W/S held): 2 m/s
             if let Some(k) = self.ladder_on(self.pl.px, self.pl.py) {
                 // no sideways key: pulled onto the rope (clear of the rock it hangs over) at once
                 if dir == 0 { self.pl.vx = ((self.ladder_hang_x(k) - self.pl.px) / dt).clamp(-8. * SF, 8. * SF); }
