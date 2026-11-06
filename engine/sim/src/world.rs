@@ -196,6 +196,8 @@ impl Furniture {
 #[derive(Clone)]
 pub struct Building { pub kind: Station, pub x: usize, pub y: usize, pub built: bool, pub claimed: bool }
 
+/// How far (m) a new holt can see from inside its burrow at the start: rays from the chamber stop at the first rock.
+pub const SPAWN_SIGHT_M: usize = 6;
 pub struct World {
     pub g: Grid, pub st: Stress, pub light: Light, pub info: GenInfo, pub tick: u64,
     pub inv: [u32; NITEM], dig_acc: [u16; NMAT], place_acc: [u16; 12], pub desig: Vec<u8>,
@@ -285,7 +287,13 @@ impl World {
         wd.stockpile = (sx + 6 * S, fy - 2 * S, sx + 16 * S, fy);
         for k in 0..1 { wd.moles.push(Mole { name: NAMES[k], x: sx, y: fy, hp: 100., breath: 100., path: VecDeque::new(), job: None, work: 0, work_cell: None, carry: None, hunger: 80. + k as f32 * 4., sleep: 70. + k as f32 * 7., facing: 1, fall: 0, idle: 0, anim: k as u32 * 7, alive: true }); }
         wd.pl.spawn = (sx, wd.oy + fy as i64); wd.pl.fall_from = fy;
-        light::reveal_box(&mut wd.g, sx - 60 * S, fy.saturating_sub(42 * S), sx + 60 * S, (fy + 52 * S).min(h - 1)); // the colony knows its neighbourhood
+        // the colony knows its own burrow, not the rock around it: what a mole sees from inside the chamber
+        // (rays stop at the first rock) and a 1 m skin of its walls. Everything else waits to be found.
+        for (dx, up) in [(-3i64, 1i64), (0, 2), (3, 1)] {
+            let x = (sx as i64 + dx * CPM as i64).clamp(0, w as i64 - 1) as usize;
+            light::reveal(&mut wd.g, x, fy.saturating_sub(up as usize * CPM), SPAWN_SIGHT_M * CPM);
+        }
+        light::reveal_skin(&mut wd.g, sx.saturating_sub((SPAWN_SIGHT_M + 1) * CPM), fy.saturating_sub((SPAWN_SIGHT_M + 1) * CPM), sx + (SPAWN_SIGHT_M + 1) * CPM, (fy + 2 * CPM).min(h - 1), CPM);
         { let b = wd.logic.block_of(sx, fy - 5 * S); let gg = &mut wd.g; wd.logic.place(gg, Dev::Vent, b); } // the burrow's air shaft
         wd.torches.push((sx - 12 * S, fy - 2 * S)); wd.torches.push((sx + 12 * S, fy - 2 * S));
         for (it, n) in [(Item::Wood, 8), (Item::Torch, 6), (Item::WoodPillar, 12), (Item::Grub, 12), (Item::CopperWire, 40), (Item::Gate, 6), (Item::Thrummer, 3), (Item::Spore, 6), (Item::Vent, 1)] { wd.inv[it as usize] = n; }
