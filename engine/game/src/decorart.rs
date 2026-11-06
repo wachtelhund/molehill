@@ -55,32 +55,16 @@ pub fn finish(p: Px) -> Image { p.finish(LINE).image() }
 /// The cloth layer: outlined like the rest, kept grey so a tint colours it.
 pub fn cloth(p: Px) -> Image { p.finish([60, 60, 60]).image() }
 
-/// 16×16 pack icons for the furnishing items.
-pub fn icon(it: Item) -> Image {
-    let mut p = Px::new(16, 16); let col = it.color();
-    if it.block().is_some() { // a block swatch showing its pattern
-        p.rect(2, 2, 13, 13, col);
-        match it {
-            Item::Planks => { for y in [5, 9] { p.rect(2, y, 13, y, sh(col, 0.7)); } p.set(8, 3, sh(col, 0.75)); p.set(5, 7, sh(col, 0.75)); p.set(10, 11, sh(col, 0.75)); }
-            Item::PolishedStone => { p.rect(3, 3, 6, 3, sh(col, 1.25)); p.set(10, 9, sh(col, 1.15)); p.set(11, 10, sh(col, 1.15)); }
-            Item::Tiles => { for v in [7] { p.rect(2, v, 13, v, [236, 222, 200]); p.rect(v, 2, v, 13, [236, 222, 200]); } }
-            _ => { for x in [4, 7, 10] { p.rect(x, 2, x, 13, sh(col, 0.75)); } p.rect(2, 2, 13, 3, sh(col, 1.2)); p.rect(2, 12, 13, 13, sh(col, 1.2)); }
-        }
-        return p.finish(LINE).image();
-    }
-    if it.pigment().is_some() { // a little clay pot heaped with the pigment
-        p.rect(4, 8, 11, 13, [150, 98, 70]); p.rect(3, 8, 12, 8, [178, 120, 86]); p.rect(5, 14, 10, 14, [120, 76, 54]);
-        p.oval(7.5, 7.5, 4.2, 2.6, col); p.set(6, 6, sh(col, 1.3));
-        return p.finish(LINE).image();
-    }
-    // furniture: the sprite scaled to fit, its cloth in the undyed colour
+/// A furniture item's 16×16 pack icon pixels: the sprite scaled to fit, its cloth in the undyed colour.
+pub fn icon_px(it: Item) -> Px {
+    let mut p = Px::new(16, 16);
     let (b, c) = furniture(it); let (w, h) = (b.w, b.h); let s = (14. / w.max(h) as f32).min(1.);
     let (ow, oh) = ((w as f32 * s) as i32, (h as f32 * s) as i32); let (ox, oy) = ((16 - ow) / 2, (16 - oh) / 2 + (16 - oh) / 4);
     let u = undyed(it);
     for y in 0..oh { for x in 0..ow { let (sx, sy) = ((x as f32 / s) as i32, (y as f32 / s) as i32);
         let bc = b.get(sx, sy); if bc[3] != 0 { p.set(ox + x, oy + y, [bc[0], bc[1], bc[2]]); }
         if let Some(c) = &c { let cc = c.get(sx, sy); if cc[3] != 0 { let k = cc[0] as f32 / 255.; p.set(ox + x, oy + y, sh(u, k)); } } } }
-    p.finish(LINE).image()
+    p
 }
 
 /// Lid clues: index 0-1 carvings, 2 a note, 3-8 odd finds (leaf, feather, blue glass, seed, pebble, bone).

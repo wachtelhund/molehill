@@ -99,19 +99,6 @@ impl Canvas {
 fn rgb(c: [u8; 3], a: f32) -> [f32; 4] { [c[0] as f32, c[1] as f32, c[2] as f32, a] }
 fn shade(c: [u8; 3], k: f32) -> [u8; 3] { [(c[0] as f32 * k).min(255.) as u8, (c[1] as f32 * k).min(255.) as u8, (c[2] as f32 * k).min(255.) as u8] }
 const ICON_LINE: [u8; 3] = [28, 20, 26];
-/// 16×16 outlined pixel-art item icon: 0 lump/ore, 1 ingot/brick/beam, 2 gem, 3 torch/lamp, 4 blasting charge.
-pub fn icon(col: [u8; 3], kind: u8) -> Image {
-    let mut p = Px::new(16, 16);
-    match kind {
-        0 => { p.oval(8., 9., 5.6, 4.6, shade(col, 0.8)); p.oval(7.5, 8.5, 4.4, 3.6, col); p.oval(9.5, 10.5, 1.2, 1., shade(col, 0.6)); p.rect(5, 6, 6, 6, shade(col, 1.45)); }
-        1 => { p.rect(2, 7, 13, 11, shade(col, 0.85)); p.rect(3, 5, 12, 7, col); p.rect(4, 5, 8, 5, shade(col, 1.4)); }
-        2 => { for y in 0..16 { for x in 0..16 { let d = (x as f32 - 7.5).abs() * 0.9 + (y as f32 - 8.).abs() * 0.7; if d < 5.4 { p.set(x, y, if x < 8 && y < 8 { shade(col, 1.3) } else if x >= 8 && y >= 8 { shade(col, 0.75) } else { col }); } } } p.set(6, 5, [255, 255, 255]); }
-        4 => { for (k, x) in [3, 6, 9].into_iter().enumerate() { p.rect(x, 6, x + 2, 14, if k == 1 { shade(col, 1.15) } else { col }); p.rect(x, 6, x + 2, 6, shade(col, 1.4)); } // three bound charges
-               p.rect(3, 10, 11, 10, [90, 70, 50]); for k in 0..4 { p.set(7 + k / 2, 5 - k, [200, 180, 140]); } p.set(9, 1, [255, 200, 80]); } // cord, fuse, spark
-        _ => { p.rect(7, 7, 8, 14, [124, 84, 48]); p.rect(6, 9, 9, 9, [70, 70, 80]); p.oval(7.5, 5., 2.6, 3.2, col); p.oval(7.5, 5.6, 1.4, 1.8, shade(col, 1.3)); }
-    }
-    p.finish(ICON_LINE).image()
-}
 pub fn chest(open: bool) -> Image {
     let mut c = Canvas::new(32, 26);
     c.ellipse(16., 24., 14., 2., [0., 0., 0., 0.35]);
@@ -132,7 +119,9 @@ pub fn station(kind: u8, built: bool) -> Image {
     if built { c.pixel() } else { c.image() } // the unbuilt ghost stays translucent
 }
 /// Hotbar icons for the dig tools, 16×16 pixel art: 1 pickaxe, 2 drill (copperline-driven), 3 bore (heavy heat-bore).
-pub fn tool_icon(tier: u8) -> Image {
+pub fn tool_icon(tier: u8) -> Image { tool_px(tier).finish(ICON_LINE).image() }
+/// The dig tool's icon pixels before outlining.
+pub fn tool_px(tier: u8) -> Px {
     let mut p = Px::new(16, 16); let wood = [150, 105, 60];
     match tier {
         1 => { for k in 0..10 { p.set(4 + k, 14 - k, wood); p.set(5 + k, 14 - k, shade(wood, 0.8)); } // haft
@@ -142,6 +131,15 @@ pub fn tool_icon(tier: u8) -> Image {
         _ => { p.rect(0, 4, 6, 12, [84, 86, 98]); p.rect(2, 6, 4, 10, [255, 120, 40]); p.rect(3, 7, 3, 9, [255, 220, 140]); // housing, heat coil
                for x in 7..16 { let hw = ((15 - x) as f32 * 0.6) as i32; p.rect(x, 8 - hw, x, 8 + hw, if x % 2 == 0 { [120, 124, 140] } else { [96, 100, 116] }); } }
     }
+    p
+}
+/// A mine cart in the world (20×10, 1 px = 1 world unit): a plank tub with a bronze rim and iron bands,
+/// on two spoked iron wheels.
+pub fn cart() -> Image {
+    let mut p = Px::new(20, 10); let wood = [132, 94, 58];
+    p.rect(1, 1, 18, 7, wood); p.rect(0, 0, 19, 1, [205, 150, 70]); for y in [4] { p.rect(1, y, 18, y, shade(wood, 0.78)); }
+    for x in [5, 14] { p.rect(x, 2, x, 7, [92, 94, 106]); } p.set(2, 2, shade(wood, 1.25)); p.set(10, 6, shade(wood, 0.7));
+    for cx in [4.5f32, 15.5] { p.oval(cx, 7.5, 2.6, 2.6, [64, 62, 66]); p.set(cx as i32, 7, [170, 160, 140]); }
     p.finish(ICON_LINE).image()
 }
 /// A soft ring used to preview the mining brush.
