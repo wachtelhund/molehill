@@ -132,6 +132,12 @@ pub fn transport_tip(w: &World, x: usize, y: usize) -> Option<Tip> {
         if !c.on_rail { l.push("Off the rails: it won't roll until it's back on track.".into()); }
         return tip("Mine cart", l);
     }
+    if let Some(k) = w.borer_at(x, y) {
+        let b = &w.tr.borers[k];
+        let on = w.tr.borer_ride == Some(k);
+        return tip("Steam borer", vec![format!("Fuel {} lumps{} · water {:.0} of {:.0} · steam {:.0} kJ.", b.lumps(), if b.burning.is_some() { " (lit)" } else { "" }, b.water, crate::borer::TANK, b.steam),
+            if b.jammed { "Jammed: no room behind it for its spoil. Clear the tunnel behind it.".into() } else if on { "A/D: drive and bore (it bores the way it faces) · Space: get off.".into() } else { "Coal in paw + right mouse: feed it · empty paw: get on · E: rake out its fuel, then pick it up.".into() }]);
+    }
     if let Some(k) = w.gate_at(x, y) {
         let g = &w.tr.links.gates[k];
         return tip("Sluice gate", vec![format!("{} · it {} when its pull-rod is pulled.", if g.open { "Lifted" } else { "Down" }, if g.invert { "shuts" } else { "lifts" }), "Right mouse: turn it round · E: take it up.".into()]);

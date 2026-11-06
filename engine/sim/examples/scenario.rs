@@ -87,6 +87,10 @@ impl Run {
             "boilers" => self.w.tr.boilers.len() as f64,
             // refinement: works; the first stamp mill's / washer's load waiting; the first smelter's heat (°C), air (0..1) and molten metal (ingots); casts setting
             // linkages: gates and scales; the first gate lifted, the first scale tipped; pulled:DX,DY whether the tile's linkage is pulled
+            // steam borers: how many; the first one's middle (tiles from the map's left), steam (kJ), water (cells), fuel (lumps); whether the mole rides one
+            "borers" => self.w.tr.borers.len() as f64, "borerx" => self.w.tr.borers.first().map_or(-1., |b| (b.x - self.ox as f32) as f64 / kf),
+            "borersteam" => self.w.tr.borers.first().map_or(0., |b| b.steam as f64), "borerwater" => self.w.tr.borers.first().map_or(0., |b| b.water as f64),
+            "borerfuel" => self.w.tr.borers.first().map_or(0., |b| b.lumps() as f64), "onborer" => self.w.tr.borer_ride.is_some() as u8 as f64,
             "gates" => self.w.tr.links.gates.len() as f64, "scales" => self.w.tr.links.scales.len() as f64,
             "gateopen" => self.w.tr.links.gates.first().map_or(0., |g| g.open as u8 as f64), "tipped" => self.w.tr.links.scales.first().map_or(0., |s| s.tipped as u8 as f64),
             _ if v.starts_with("pulled:") => { let a: Vec<&str> = v[7..].split(',').collect(); let (x, y) = self.at(a.get(0)?.parse().ok()?, a.get(1)?.parse().ok()?); self.w.pulled(y * self.w.g.w + x) as u8 as f64 }

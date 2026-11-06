@@ -1,0 +1,54 @@
+// The steam borer bores a tunnel. A borer is set down in a chamber facing a granite face, a puddle poured round its
+// wheels. The mole puts two lumps of coal into its firebox (coal in paw, right mouse), gets on (empty paw) and drives
+// right: the borer fills its tank from the puddle, raises steam, and grinds into the granite a column at a time; every
+// cell it cuts comes out behind it, along its spoil belt, as loose gravel in the chamber (as much as it cut), and it
+// moves on into the hole. Space gets off; the borer is saved.
+map
+########################################
+########################################
+########################################
+########################################
+########################################
+########################################
+#............###########################
+#............###########################
+#............###########################
+#............###########################
+#..@.........###########################
+########################################
+########################################
+########################################
+end
+give SteamBorer 1
+give Coal 3
+hold 1-1 right                        // face right: the borer's head faces the way the mole does
+place 2 5 0 SteamBorer
+expect 3 borers == 1
+pour 4 -1 0 Water
+pour 4 0 0 Water
+pour 4 1 0 Water
+pour 4 2 0 Water
+pour 4 3 0 Water
+pour 4 4 0 Water
+pour 4 5 0 Water
+pour 4 6 0 Water
+wield 10 Coal
+use 11 5 -1                           // two lumps into its firebox
+use 12 5 -1
+wield 13 none
+use 14 5 -1                           // get on
+expect 15 onborer == 1
+expect 15 borerfuel == 2
+expect 15 inv:Coal == 1
+expect 200 borerwater > 5             // its tank filled from the puddle
+expect 200 borersteam > 5             // steam up
+hold 300-1800 right                   // drive into the face
+expect 1800 borerx > 12               // bored into the granite (its front was at the face at 10)
+expect 1800 static:Granite <= 490     // the rock it cut...
+expect 1800 cells:Gravel,-3,12,-5,0 >= 10 // ...came out behind it as gravel
+expect 1800 log:jammed == 0
+hold 1805-1807 jump                   // Space: off
+expect 1810 onborer == 0
+saveload 1812
+expect 1813 borers == 1
+expect 1813 borerx > 12
