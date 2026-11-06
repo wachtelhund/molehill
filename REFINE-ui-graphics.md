@@ -188,6 +188,25 @@ Polish only: no new systems, lore names kept. Each entry lists what changed and 
 * Not seen in a live window: everything was checked through dump stills. The gun in the paws isn't in any still
   (the scenes hand the mole a pickaxe); its loaded/empty sprites were checked in the sprite dump and by test.
 
+## Mechanical power art (branch `refine/power-art`, on #45)
+* The five kinds from #45 (iron shaft, gear, water wheel, belt, counterweight) had drawn, unique pack icons
+  already, kept. In the world they drew flat table colour, and the counterweight was a 1-px rope and a grey box.
+* The cells move: `Game::turn` keeps, per drive train, how far it has run (sim ticks since the last frame × speed
+  × `BELT_V`), and `art::mat_color` takes that `turn` (plus `horiz` for shafts). The renderer redraws every visible
+  cell each frame, so nothing else was needed. Shaft: a twist band slides along (it lies the way its run is
+  longer, so a 2-wide vertical shaft isn't read as horizontal). Gear: half-metre cogs turning, neighbours
+  opposite ways. Wheel: metre wheels, spokes and paddles turning. Belt: chevrons pointing and sliding its way,
+  rollers under. Drum: windings ticking.
+* Counterweight: a fibre rope (the rope gun's rope sprite turned upright) to a cast-iron weight on its eye (`art::weight`).
+* Stills: `--scene=power` (counterweight, shaft, gears, belt; a water wheel standing by, with no stream). Belt
+  rows changed between frames 20 and 35 (22 of 60 px a row); frames 20 and 50 were identical there, exactly one
+  4-cell chevron period apart at 1 m/s. The rope pays out by frame 400. The wheel read as a black lattice at first
+  (open interior near-black), so the disc is now boarded in darker timber. `--dump-art` writes unlit swatches of
+  every production and machinery cell (`cells-<Mat>-0/1.bmp`), since scene light hides cell art.
+* Not seen: a water wheel actually turning in a stream (the still has none, so it was checked by swatch and test
+  only), and anything in a live window.
+* Test `machinery_moves_when_its_train_turns`.
+
 ## Open issues
 * `--shot` writes an empty frame on macOS when the game is launched from a background shell (the surface is
   never presented). It needs a visible window, or Linux with Xvfb.
