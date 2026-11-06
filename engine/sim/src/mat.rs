@@ -24,8 +24,10 @@ pub enum Mat {
     Shaft, Gear, Wheel, Belt, BeltL, Drum,
     // coal power (steam.rs): a steam engine (machinery) and the pipe that brings it steam
     Engine, SteamPipe, Boiler,
+    // refinement (refine.rs): the works' shells, bellows, and foundry moulds (empty and setting)
+    StampMill, Washer, Smelter, Bellows, Mould, MouldHot,
 }
-pub const NMAT: usize = 51;
+pub const NMAT: usize = 57;
 
 /// Everything the simulation knows about a material, in one row. Rules read these fields instead of
 /// naming materials, so a new material (or a retuned one) is a single table edit.
@@ -152,6 +154,12 @@ pub static PROPS: [Props; NMAT] = [
     Props { name: "Steam engine", desc: "Iron cylinder and crank. A boiler's steam drives it, and it turns the drive train it's part of.", kind: Solid, density: 7000., tensile: 20000., compressive: 60000., dig: 16, tier: 2, blast: 9, opacity: 200, color: [96, 92, 98], crumbles_to: X::Engine, flags: BUILT | MECH | HUB | STEAMLINE, bounce: 0.4, friction: 0.4, ..BASE },
     Props { name: "Steam pipe", desc: "Copper pipe that carries a boiler's steam to an engine.", kind: Solid, density: 4000., tensile: 6000., compressive: 12000., dig: 6, tier: 1, blast: 5, opacity: 180, color: [176, 108, 66], crumbles_to: X::SteamPipe, flags: BUILT | STEAMLINE, bounce: 0.4, friction: 0.35, ..BASE },
     Props { name: "Boiler", desc: "Brick firebox under an iron drum. Feed coal in at the top; it boils water from beside it.", kind: Solid, density: 3000., tensile: 8000., compressive: 30000., dig: 14, tier: 1, blast: 9, opacity: 220, color: [120, 84, 70], crumbles_to: X::Gravel, flags: BUILT, bounce: 0.3, friction: 0.6, ..BASE },
+    Props { name: "Stamp mill", desc: "Iron stamps a cam lifts and drops on what lies in its mortar. Crushes ore.", kind: Solid, density: 4000., tensile: 9000., compressive: 40000., dig: 14, tier: 1, blast: 9, opacity: 220, color: [112, 100, 92], crumbles_to: X::Gravel, flags: BUILT | MECH | HUB, bounce: 0.3, friction: 0.6, ..BASE },
+    Props { name: "Washer", desc: "A rocking tub of water. Sorts what's dropped in by weight: heavy left, light right.", kind: Solid, density: 1200., tensile: 3000., compressive: 8000., dig: 5, blast: 4, opacity: 200, color: [104, 112, 120], crumbles_to: X::Gravel, ignite: 1, flags: BUILT | MECH | HUB, bounce: 0.2, friction: 0.6, ..BASE },
+    Props { name: "Smelter", desc: "A clay-lined brick stack. Fuel and ore go in at the top; bellows make it hot enough.", kind: Solid, density: 2400., tensile: 6000., compressive: 25000., dig: 12, tier: 1, blast: 8, opacity: 230, color: [136, 70, 54], crumbles_to: X::Gravel, flags: BUILT, bounce: 0.3, friction: 0.6, ..BASE },
+    Props { name: "Bellows", desc: "Leaf-and-board bellows on a crank. Turned by a drive train, they blow a smelter's fire.", kind: Solid, density: 700., tensile: 2000., compressive: 5000., dig: 4, blast: 3, opacity: 170, color: [140, 108, 72], crumbles_to: X::Bellows, repose: 0.3, ignite: 1, flags: BUILT | MECH | HUB, bounce: 0.3, friction: 0.55, ..BASE },
+    Props { name: "Ingot mould", desc: "A sand-and-clay mould. Built against a smelter, it's filled when an ingot's worth is molten.", kind: Solid, density: 1800., tensile: 300., compressive: 4000., dig: 3, blast: 3, opacity: 160, color: [150, 128, 96], crumbles_to: X::Sand, flags: BUILT, bounce: 0.1, friction: 0.8, ..BASE },
+    Props { name: "Setting mould", desc: "A mould full of molten metal, glowing as it sets. An ingot pops out when it's cool.", kind: Solid, density: 4000., tensile: 300., compressive: 4000., dig: 3, blast: 3, emit: [200, 90, 30], opacity: 160, color: [220, 110, 50], crumbles_to: X::Sand, heat: 1, flags: BUILT, bounce: 0.1, friction: 0.8, ..BASE },
 ];
 impl Mat {
     #[inline] pub fn from_u8(v: u8) -> Mat { if (v as usize) < NMAT { unsafe { std::mem::transmute(v) } } else { Mat::Empty } }

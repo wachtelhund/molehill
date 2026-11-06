@@ -34,13 +34,13 @@ pub const D_RAIL: u8 = 9; pub const D_TUBE: u8 = 10;
 /// The build code for a block item (structural or decorative).
 /// Block items and the cells they build, in build-code order from `D_WOOD` (code = index + 2; codes 2..=10 are
 /// fixed: saves keep designations by code). A new block item is a new row here.
-pub const BUILDS: [(Item, Mat); 19] = [
+pub const BUILDS: [(Item, Mat); 21] = [
     (Item::WoodPillar, Mat::WoodBeam), (Item::Brick, Mat::StoneBrick), (Item::IronBeam, Mat::IronBeam), (Item::Planks, Mat::Planks),
     (Item::PolishedStone, Mat::Polished), (Item::Tiles, Mat::Tiles), (Item::CarvedPillar, Mat::Carved), (Item::Rail, Mat::Rail), (Item::Tube, Mat::Tube),
     // production (production.rs, sluice.rs, power.rs)
     (Item::Chute, Mat::Chute), (Item::Screen, Mat::Screen), (Item::Bumper, Mat::Bumper), (Item::Riffle, Mat::Riffle),
     (Item::Shaft, Mat::Shaft), (Item::Gear, Mat::Gear), (Item::WaterWheel, Mat::Wheel), (Item::Belt, Mat::Belt),
-    (Item::Engine, Mat::Engine), (Item::SteamPipe, Mat::SteamPipe),
+    (Item::Engine, Mat::Engine), (Item::SteamPipe, Mat::SteamPipe), (Item::Bellows, Mat::Bellows), (Item::Mould, Mat::Mould),
 ];
 /// Number of build codes (`place_acc` slots).
 pub const NBUILD: usize = BUILDS.len() + 2;

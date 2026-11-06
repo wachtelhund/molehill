@@ -55,6 +55,7 @@ pub fn default_char(m: Mat) -> char {
         Planks => 'p', Polished => 'q', Tiles => 'x', Carved => 'C', Rail => '=', Tube => '%',
         Chute => 'h', Screen => 'H', Bumper => '|', Riffle => 'z',
         Shaft => 'j', Gear => '*', Wheel => 'O', Belt => '>', BeltL => '<', Drum => 'U', Engine => 'E', SteamPipe => 'P', Boiler => 'K',
+        StampMill => 'M', Washer => 'W', Smelter => 'S', Bellows => 'Y', Mould => 'V', MouldHot => 'X',
     }
 }
 pub fn mat_named(s: &str) -> Option<Mat> { (0..NMAT as u8).map(Mat::from_u8).find(|m| format!("{m:?}") == s) }

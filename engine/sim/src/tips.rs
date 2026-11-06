@@ -129,6 +129,18 @@ pub fn transport_tip(w: &World, x: usize, y: usize) -> Option<Tip> {
         if !c.on_rail { l.push("Off the rails: it won't roll until it's back on track.".into()); }
         return tip("Mine cart", l);
     }
+    if let Some(k) = w.works_at(x, y) {
+        use crate::refine::WorkKind; let wk = &w.tr.works[k];
+        let names = |v: &[(crate::craft::Item, u32)]| v.iter().map(|(it, n)| format!("{n} {}", it.name().to_lowercase())).collect::<Vec<_>>().join(", ");
+        let held = if wk.input.is_empty() { "Empty".to_string() } else { format!("Holding {}", names(&wk.input)) };
+        return match wk.kind {
+            WorkKind::Stamp => tip("Stamp mill", vec![format!("{held}: drop ore, stone or slag on it to crush."), "Needs a turning drive train against it; crushed ore comes out as concentrate and sand.".into()]),
+            WorkKind::Washer => tip("Washer", vec![format!("{held}: drop crushed ore in to wash it."), "Needs water against it and a turning train: heavy out left, light out right.".into()]),
+            WorkKind::Smelter => tip("Smelter", vec![format!("{held} · {:.0} °C, air {:.0}%.", wk.temp, 100. * wk.air),
+                if wk.burning.is_some() { "Lit: bellows against it on a turning train make it hot enough (copper and tin 1100 °C, iron 1250 °C).".into() } else { "Cold: drop coal or charcoal in with the ore.".into() },
+                format!("Molten: {:.1} copper, {:.1} tin, {:.1} iron (an ingot mould against it is filled at 1).", wk.molten[0], wk.molten[1], wk.molten[2])]),
+        };
+    }
     if let Some(k) = w.boiler_at(x, y) {
         let b = &w.tr.boilers[k];
         let fire = if b.choked { "Ash door choked: haul the ash and slag away.".to_string() } else if let Some(it) = b.burning { format!("Burning {} ({} more lumps waiting).", it.name().to_lowercase(), b.lumps() - 1) } else { "Cold: drop coal, charcoal or wood on its top.".into() };
