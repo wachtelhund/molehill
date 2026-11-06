@@ -1,0 +1,22 @@
+// A charge going off in an unlit drift lights it for a moment: a short warm flash at the blast (light
+// kinds::BLAST_FLASH, 10 m, fading out over 0.35 s) that stops at walls like any light. Before the blast
+// the far end of the drift is dark; just after, it's lit; half a second on it's dark again. The mole's
+// headlamp is out and it stands round a corner, so only the flash lights the drift, and the corridor behind
+// the wall stays dark (the flash casts shadows).
+map
+######################################################
+#....................................................#
+#....................................................#
+#....................................................#
+#....................................................#
+#####################################################.#
+#@...................................................#
+######################################################
+end
+lamp 1 off
+expect 2 light:30,-3 < 0.05
+explode 5 10 -2 0.5
+expect 7 light:30,-3 > 0.1
+expect 7 light:40,0 < 0.05
+expect 50 light:30,-3 < 0.05
+expect 50 light:-1,0 < 0.15

@@ -4,6 +4,8 @@
 //! * **Glow** from glowing materials (lava, crystal, fungus, fire): seeded in the cells themselves and
 //!   spread by a two-sweep 8-neighbour chamfer pass, L(i) = max(L(i), L(n)·t(i)), with t the cell's
 //!   transmittance (open air 0.90 per legacy tile, rock about 0.3, so light just licks a wall face).
+//! * **Surface sources** (`surface_sources`): a glowing face that touches open air casts rays too: hard and
+//!   bright for lava and fire, soft and a little further-reaching for glowing rock and growth (mood light).
 //! * **Sources** (`Source`): torches, lamps, kilns, the mole's headlamp, a torch in its paw. Each casts
 //!   rays out to its radius. A ray stops at the first solid cell (lighting that face), dims in liquid,
 //!   and fades smoothly, (1 − d/R)² for a point light (a bright core and a soft pool) and (1 − (d/R)²)²
@@ -49,10 +51,24 @@ pub mod kinds {
     /// A glowmite drifting in a grotto: a small cold green-gold glow. A jar of one carried in the paw.
     pub const GLOWMITE: ([f32; 3], f32) = ([0.42, 0.62, 0.3], 2.5);
     pub const GLOWMITE_JAR: ([f32; 3], f32) = ([0.6, 0.85, 0.42], 4.);
+    /// A charge going off: a short warm flash at the blast (peak colour, reach in metres), so a blast in an
+    /// unlit drift shows the room and what it throws for a moment. It fades out as (1 − t/T)² over
+    /// BLAST_FLASH_S and casts the same shadows as any light (it stops at the first wall).
+    pub const BLAST_FLASH: ([f32; 3], f32) = ([1.5, 1.1, 0.7], 10.);
+    pub const BLAST_FLASH_S: f32 = 0.35;
 }
 
 /// Seed of the local glow flood per unit of emission (the rays carry the real light).
 const GLOW: f32 = 0.45 / 170.;
+/// Glowing rock and growth as a source: brightness per unit of emission (lava and fire: 0.8) and extra reach (m).
+/// A hall studded with crystal glows cold and even instead of blowing out.
+pub const SOFT_GLOW: f32 = 0.32; pub const SOFT_REACH_M: f32 = 1.5;
+
+/// Is the glowing cell that lights (x, y) lava or fire (it hardly matters which neighbour: a pool's air)?
+fn near_fluid_glow(g: &Grid, x: usize, y: usize) -> bool {
+    let i = y * g.w + x; [i + g.w, i.wrapping_sub(1), i + 1, i.wrapping_sub(g.w)].into_iter().filter(|&j| j < g.mat.len())
+        .any(|j| { let m = g.m(j); m.p().emit != [0; 3] && matches!(m.kind(), Kind::Liquid | Kind::Gas) })
+}
 
 /// Glowing surfaces as ray-cast sources: every 2 m square (in `r`, grown by `margin` cells) holding a
 /// glowing cell (lava, crystal, fungus, fire) that touches open air gets one point source in that
@@ -69,7 +85,12 @@ pub fn surface_sources(g: &Grid, r: (usize, usize, usize, usize), margin: usize)
         let Some(o) = [i - g.w, i - 1, i + 1, i + g.w].into_iter().find(|&j| open(j)) else { continue };
         let k = (x / b, y / b); if best.get(&k).is_none_or(|v| v.0 < sum) { best.insert(k, (sum, o % g.w, o / g.w, e)); }
     } }
-    best.into_values().map(|(sum, x, y, e)| { let k = 0.8 / 170.; Source::point(x as f32 + 0.5, y as f32 + 0.5, [e[0] as f32 * k, e[1] as f32 * k, e[2] as f32 * k], (sum as f32 / 100.).clamp(2., 5.)) }).collect()
+    best.into_values().map(|(sum, x, y, e)| {
+        // molten and burning things (lava, fire) throw a hard bright light; glowing rock and growth (crystal,
+        // mycelium, fungus) a softer one that carries a little further: mood light, not a lamp
+        let soft = !matches!(g.m(y * g.w + x).kind(), Kind::Liquid | Kind::Gas) && !near_fluid_glow(g, x, y);
+        let (k, r) = if soft { (SOFT_GLOW / 170., (sum as f32 / 100.).clamp(2., 5.) + SOFT_REACH_M) } else { (0.8 / 170., (sum as f32 / 100.).clamp(2., 5.)) };
+        Source::point(x as f32 + 0.5, y as f32 + 0.5, [e[0] as f32 * k, e[1] as f32 * k, e[2] as f32 * k], r) }).collect()
 }
 
 pub struct Light {
@@ -204,6 +225,16 @@ pub fn reveal_cone(g: &mut Grid, cx: f32, cy: f32, c: Cone, r: usize) -> usize {
         }
     }
     n
+}
+/// Seen rock `r` cells deep around every seen open cell in the box: the skin of a chamber you stand in.
+pub fn reveal_skin(g: &mut Grid, x0: usize, y0: usize, x1: usize, y1: usize, r: usize) {
+    let (x1, y1) = (x1.min(g.w - 1), y1.min(g.h - 1)); let mut mark = vec![];
+    for y in y0..=y1 { for x in x0..=x1 { let i = y * g.w + x;
+        if g.flags[i] & F_SEEN == 0 || matches!(g.m(i).kind(), Kind::Solid | Kind::Powder) { continue; }
+        for yy in y.saturating_sub(r)..=(y + r).min(g.h - 1) { for xx in x.saturating_sub(r)..=(x + r).min(g.w - 1) {
+            let (dx, dy) = (xx as i64 - x as i64, yy as i64 - y as i64); if dx * dx + dy * dy <= (r * r) as i64 { mark.push(yy * g.w + xx); } } }
+    } }
+    for i in mark { g.flags[i] |= F_SEEN; }
 }
 pub fn reveal_box(g: &mut Grid, x0: usize, y0: usize, x1: usize, y1: usize) {
     for y in y0..=y1.min(g.h - 1) { for x in x0..=x1.min(g.w - 1) { let i = y * g.w + x; g.flags[i] |= F_SEEN; } }

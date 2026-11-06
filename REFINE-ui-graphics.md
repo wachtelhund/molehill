@@ -101,6 +101,56 @@ Polish only: no new systems, lore names kept. Each entry lists what changed and 
 * Scenarios `light_torch`, `headlamp`, `headlamp_wall`, `held_torch` (directives `lamp`, `aim`, `wield`, `torch`;
   variable `light:`); composer unit tests.
 
+## Unique item art and furnished found places (branch `refine/unique-item-art`)
+
+* **One icon per item** (`game/src/itemart.rs`). The old icons were five shapes (lump, ingot, gem, torch, charge)
+  tinted per item; blocks shared a striped square and pigments a pot. Now each of the 69 items has its own 16×16
+  drawing (a cone of sand, three pebbles of gravel, a pig of tin, a coil of copperline, a scallop of verdigris,
+  boards standing on end for a timber wall…). Furniture keeps its scaled sprite. The hotbar shows each device as
+  its own sprite instead of one shared placeholder; the floodgate now differs from the door (iron, a brace while
+  shut, a hand-wheel). Mine carts are a sprite (plank tub, bronze rim, iron wheels) instead of four rectangles.
+* **Found-place furnishings** (`game/src/props.rs`): 19 drawn props placed per family from the site box and
+  fitted against the real cells (standing on both feet, or leaning on a post; hanging under a roof; never in rock,
+  furniture, a chest, a farm or a ladder). Winch, scaffold, dig tools, crates, mine sign,
+  cold lamps, pipes, sluice gate, bridge stubs, ropes, crystal clusters, railcar, bench, station
+  sign, kitchen, bedroll, pantry, barrels. Drawn behind furniture, lit like it, shown once seen. sites.rs is
+  unchanged. After env-rework v2 built a headframe, ore chute, pump wheel and fossil scaffold in cells, the
+  drawn versions of those were dropped rather than doubled.
+* **`--dump-art`**: `view.bmp` now composites every visible world sprite over the cells (it was cells only;
+  the sprite composite was `view_wire.bmp` and included hidden pool sprites). `view_cells.bmp` keeps the cells
+  alone. A dump renders the whole window, so a site crop wider than the screen is no longer half unrendered.
+  env-rework v2 had added a separate CPU re-blit of furniture, chests, torches, carts and
+  ladders; it was replaced by compositing the real visible sprites (which also covers props and lighting).
+  The seven site stills in the wiki were regenerated with their furnishings.
+* Tests: `every_item_has_its_own_icon` (no two icons within 20 px of pattern or 8 px of silhouette, judged on
+  brightness bands, so a tint scores 0), `every_device_has_its_own_sprite`, `every_prop_has_its_own_sprite`,
+  `found_places_are_furnished`. Wiki: new page Item and Place Art (full catalogue and icon/prop sheets).
+* Not seen in a live window: the props' scale against the mole in play, and whether the cold lamps read as
+  lamps at play zoom. The holt is crowded, so its kitchen stands on the table and its pantry hangs.
+
+## Unique item art: polish (branch `refine/unique-item-art-polish`)
+
+* Measured slot coverage of every shipped icon from a `--dump-art` run: the nest (69 px of 256, its 9 × 3-tile
+  sprite scaled), the fuse (64) and the pressure plate (74) were floor-level slivers against a median of 135.
+  The nest gets its own icon (a basket bed with blanket and pillow). The fuse and plate keep their in-world
+  sprites but get hotbar icons (`devart::hotbar_icon`): a coil of cord with a lit end, the plate from above.
+* Test `every_slot_icon_fills_its_slot` (≥ 80 px; slim shapes like sand, torch and crystal sit at 86-89).
+  Icon sheet regenerated.
+## Spawn fog stays local (branch `refine/spawn-fog-local`, playtest bug)
+
+* Cause confirmed: `World::new` marked a 30 × 23.5 m box around the burrow seen with `light::reveal_box`, which
+  ignores rock, so the whole start chunk opened on the first frame and every material in it counted as
+  discovered.
+* Now: `light::reveal` raycasts from three spots inside the chamber (6 m, stopping at the first rock), then
+  `light::reveal_skin` marks a 1 m skin around the open cells that saw. The rest stays dark until vision,
+  digging or the headlamp finds it. The discovered-materials loop runs on that, so it only counts what's in
+  sight. Seen at spawn: 712 m² before (the box), 36 m² after (five seeds, 2319 cells each); 5-8 materials
+  start discovered.
+* Test `spawn_reveals_only_burrow_neighbourhood` (five seeds). Wiki World and Generation, TESTING.md.
+* Polish run: a fresh seed 4242 dumped at frame 150 shows the burrow as a small torch-lit dome in dark rock,
+  nothing beyond its walls. Found on the way: `--dump-art` without `--scene` cropped to the last found place in
+  the window (off-window, so it panicked); only a stamped scene crops to its site now.
+
 ## Open issues
 * `--shot` writes an empty frame on macOS when the game is launched from a background shell (the surface is
   never presented). It needs a visible window, or Linux with Xvfb.

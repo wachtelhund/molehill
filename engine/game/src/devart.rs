@@ -15,7 +15,7 @@ const COPPER: [u8; 3] = [176, 104, 58];
 const STONE: [u8; 3] = [120, 116, 112];
 fn sh(c: [u8; 3], k: f32) -> [u8; 3] { [(c[0] as f32 * k).min(255.) as u8, (c[1] as f32 * k).min(255.) as u8, (c[2] as f32 * k).min(255.) as u8] }
 /// A line of pixels from (x0,y0) to (x1,y1), `w` thick.
-fn line(p: &mut Px, x0: f32, y0: f32, x1: f32, y1: f32, w: i32, c: [u8; 3]) {
+pub fn line(p: &mut Px, x0: f32, y0: f32, x1: f32, y1: f32, w: i32, c: [u8; 3]) {
     let n = ((x1 - x0).abs().max((y1 - y0).abs()) * 2.).ceil().max(1.) as i32;
     for k in 0..=n { let t = k as f32 / n as f32; let (x, y) = (x0 + (x1 - x0) * t, y0 + (y1 - y0) * t);
         for dy in 0..w { for dx in 0..w { p.set(x.floor() as i32 + dx - w / 2, y.floor() as i32 + dy - w / 2, c); } } }
@@ -47,6 +47,19 @@ pub fn wire(mask: u8, lit: bool, f: u8) -> Image {
 }
 
 /// A device in a 1 m block. `on`: its powered / lit / pressed state; `f`: animation frame (0..3).
+/// The hotbar icon for a device: its sprite, except where the in-world sprite is a sliver along the floor
+/// of its block (fuse, pressure plate) and would read as nothing in a slot.
+pub fn hotbar_icon(d: Dev) -> Image {
+    match d {
+        Dev::Fuse => { let mut p = Px::new(16, 16); // a coil of fuse cord with a free end
+            for k in 0..3 { let r = 5.5 - k as f32 * 1.8; for a in 0..30 { let t = a as f32 / 30. * std::f32::consts::TAU; p.set((7. + t.cos() * r).round() as i32, (9. + t.sin() * r * 0.75).round() as i32, if k == 1 { [110, 86, 60] } else { [150, 118, 82] }); } }
+            line(&mut p, 12., 8., 15., 2., 1, [150, 118, 82]); p.set(15, 1, [255, 200, 90]); p.finish(LINE).image() }
+        Dev::Plate => { let mut p = Px::new(16, 16); // the plate seen from above at an angle, on its frame
+            for y in 5..12 { let o = (11 - y) / 2; p.rect(1 + o, y, 14 - o, y, if y == 5 { sh(IRON, 1.3) } else { IRON }); }
+            p.rect(1, 12, 14, 13, IRON_D); for (x, y) in [(4, 7), (11, 7), (3, 10), (12, 10)] { p.set(x, y, BRASS); } p.finish(LINE).image() }
+        _ => device(d, false, 0),
+    }
+}
 pub fn device(d: Dev, on: bool, f: u8) -> Image {
     let mut p = Px::new(16, 16);
     let glow = [255, 230, 120];
@@ -63,7 +76,8 @@ pub fn device(d: Dev, on: bool, f: u8) -> Image {
         Dev::Door | Dev::Floodgate => { let (c, d2) = if d == Dev::Door { (WOOD, WOOD_D) } else { (IRON, IRON_D) };
             p.rect(0, 0, 1, 15, c); p.rect(14, 0, 15, 15, c); p.rect(0, 0, 15, 1, c); p.rect(0, 1, 15, 1, d2);
             for y in [3, 12] { p.set(1, y, if d == Dev::Door { IRON } else { BRASS }); p.set(14, y, if d == Dev::Door { IRON } else { BRASS }); }
-            if d == Dev::Floodgate { p.set(7, 0, BRASS); p.set(8, 0, BRASS); } }
+            // a floodgate is iron, braced across while shut, with the hand-wheel that winds it on top
+            if d == Dev::Floodgate { if !on { p.rect(2, 7, 13, 8, IRON_D); } p.oval(8., 3.5, 2.6, 2.6, BRASS); p.oval(8., 3.5, 1.2, 1.2, [0, 0, 0]); for y in 0..16 { for x in 0..16 { if p.get(x, y) == [0, 0, 0, 255] { p.c[(y * 16 + x) as usize] = [0; 4]; } } } } }
         Dev::Pump => { p.oval(7., 9., 5.2, 5.2, IRON); p.oval(7., 9., 3.4, 3.4, IRON_D);
             let spokes = if on && f % 2 == 1 { [(1., 1.), (-1., 1.)] } else { [(1., 0.), (0., 1.)] };
             for (dx, dy) in spokes { line(&mut p, 7. - dx * 3., 9. - dy * 3., 7. + dx * 3., 9. + dy * 3., 1, BRASS); }
@@ -158,3 +172,19 @@ pub fn s_device(d: Dev) -> Image {
 }
 /// A small arrow pointing right (6×6), rotated at draw time.
 pub fn s_arrow() -> Image { let mut p = Px::new(6, 6); for x in 0..6 { let h = (5 - x) as f32 * 0.5; for y in 0..6 { if (y as f32 - 2.5).abs() <= h { p.set(x, y, [255, 255, 255]); } } } p.image() }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use molehill_sim::logic::DEVS;
+    /// Every device has its own sprite (the hotbar shows it too): not one shape tinted another colour.
+    #[test] fn every_device_has_its_own_sprite() {
+        let sig = |d: Dev| { let im = device(d, false, 0); let px = im.data.unwrap(); let lum: Vec<f32> = px.chunks(4).map(|c| if c[3] == 0 { -1. } else { 0.2126 * c[0] as f32 + 0.7152 * c[1] as f32 + 0.0722 * c[2] as f32 }).collect();
+            let (lo, hi) = lum.iter().filter(|&&l| l >= 0.).fold((f32::MAX, f32::MIN), |(a, b), &l| (a.min(l), b.max(l)));
+            lum.iter().map(|&l| if l < 0. { 0u8 } else { 1 + ((l - lo) / (hi - lo).max(1.) * 3.99) as u8 }).collect::<Vec<u8>>() };
+        let s: Vec<Vec<u8>> = DEVS.iter().map(|&d| sig(d)).collect();
+        let mut bad = vec![];
+        for a in 0..s.len() { for b in a + 1..s.len() { let d = s[a].iter().zip(&s[b]).filter(|(x, y)| x != y).count(); if d < 10 { bad.push(format!("{:?}/{:?} ({d})", DEVS[a], DEVS[b])); } } }
+        assert!(bad.is_empty(), "devices that share art: {}", bad.join(", "));
+    }
+}

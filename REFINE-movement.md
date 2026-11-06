@@ -105,6 +105,62 @@ Polish only: no new features or concepts. Each entry is one commit.
     `dig_down_shallow`, `dig_down_water`; test `tests/first_hour.rs` (fails without the rule: seed 9 burns).
     Message wording sits beside `dig_refusal` in `world.rs` (`HOLLOW`, `HOT`) for bugs-logic's message table.
 
+16. **Falling sand isn't a wall (Hampus's playtest, 2026-11-06).** The mole's collision box, wall-cling and
+    ledge checks treated every powder cell as solid, grains in mid-air included: a stream of sand pouring from
+    a slot could be clung to and climbed like a wall (the mole climbed it 3 m and hung there for good), stood on
+    in mid-air, and walked into as a wall (the mole stopped dead at the stream). Now `World::in_flight` (sand,
+    gravel or soil that moved in the last two CA steps, from the grid's `moved` stamps, with air or another
+    grain in flight under it) is ignored by `box_hits`, `side_wall_at` and `ledge` (`body_blocked`), and by the
+    burial check, so the mole passes and drops through a pour unhurt. Grains rolling down a pile have the pile
+    under them and still carry the mole, as do settled heaps. No shared flag: the grid already stamps each move.
+    Scenarios `falling_loose_no_climb` and `falling_loose_walk_under` (both fail with the rule off).
+    Polish run (headless playtest): digging up through a dirt ceiling into sand, the pour comes down past the
+    mole unhurt and it shoves through the settled heap (about 0.5 s) and on; standing still under a pour, it
+    rides up on the growing pile (at most 1 hp from a grain settling in it, regained). No change needed.
+
+17. **Rope ladders feel snappy; found places walked (found-place climb).** Ladder fixes, each seen in a
+    scenario first:
+    * holding only `W` at a ledge's ladder climbed past the lip to the knot and bobbed there for good
+      (on and off the rope's end every few ticks), never stepping onto the ledge: `W` now climbs off onto the
+      ledge like a wall's mantle (`World::ladder_top_out`), and where there's nowhere to step the mole hangs
+      at the rope's top end;
+    * `A`/`D` on a ladder edged along it at 1 m/s for a quarter second before dropping off: alone (no
+      `W`/`S`) they now let go at once, so the mole runs or drops off at its own speed;
+    * climbing down never reset the fall: a 7.5 m ladder cost 30 hp at its foot. Climbing now counts as
+      footing (`fall_from` follows the mole while it's on the rope);
+    * in the game, a fresh `W` at a ladder also fired a jump (one tick off the rope); `S` standing at a
+      ladder's head dug the ledge it's tied to (and so dropped the ladder). `World::ladder_takes_up` /
+      `ladder_takes_down` tell the game when `W` / `S` belong to the rope; `S` at a ledge ladder's head steps
+      onto it, pulled clear of the rock face (`ladder_hang_x`);
+    * 2 m/s up was slower than a bare wall (2.6 m/s): now 3 m/s up, 3.5 m/s down (`LADDER_UP`/`DOWN`).
+    Scenarios `rope_ladder_top_out`, `rope_ladder_down` (fails without the fall fix: hp 70), `rope_ladder_let_go`;
+    harness vars `ladder_up`, `ladder_down`, `chests`.
+
+    Found places. New `World::body_regions` flood-fills where the body box fits (gravity ignored: walls and
+    ropes are climbable); `examples/sitewalk.rs` maps it per site and `tests/found_places.rs` asserts it. Scenarios
+    `site_<kind>_traverse` walk each family from a way in as far as its layout allows. The movement code had no
+    blocker of its own: every site blocker is in the stamped layout (`sites.rs`, env-rework's lane), so none were
+    changed here. Evidence over the layout rounds (env-rework v2 7a86dc5, then PR #8 4322396):
+    * v2 sealed five of seven chests (holt pocket, pump machinery, fossil and salt-hall mouths, halt bays) and
+      its mine's upper floor fell in within 5 s, burying a mole under it. PR #8 opened every site (`GOAL_SEALED`
+      and `CUT` are empty now) and the mine floor stands.
+    * Walk-throughs on PR #8: holt, salt hall, halt and mine walk to the chest and open it unhurt (`chests`).
+    * Still layout evidence for Hampus (not redesigned here): **fossil cave**: walking west along the bone hall,
+      about 11 m from the west wall the timber scaffold and gravel come down on the mole ~6 s in and kill it
+      (breath full: crushed, which is collapse, not the falling-sand rule). **Fissure**: the east mouth steps
+      into a 0.5 m slot before the bridge (0.75 m up), which swallows a running mole (3 m down; ~21 hp if it
+      runs on), and the ropes hang under the bridges, so from above the way down is a drop. **Pumpworks**:
+      from the east door, up over the machinery onto the gallery is fine, but the gallery ends ~35 m in with a
+      7.5-10 m drop (16-43 hp) before its rope at 28 m. The flood fill ignores gravity, so it counts these
+      reachable; the scenarios stop short of each and say so.
+    The mine (72 m) and halt (80 m) don't fit beside the start in the harness's 128 m world, so their scenarios
+    start inside.
+
+18. **Climb polish (after #6).** Headless playtest of ropes: a rope hung from a shaft's ceiling grabs at once at
+    its foot, climbs at 3 m/s and stops under the ceiling with no bob; the one sluggish bit was stepping off it
+    sideways (`W`+`D` at the top toward a side passage) at 1 m/s, now 2 m/s (`A`/`D` alone still lets go at
+    once). Scenario `rope_ladder_shaft`.
+
 ## Open issues
 * Walking off a ledge you dug open is still a free choice: a dug-open cave shows itself, and run/stop is
   instant, so I left ledge drops alone. Fissure sites (26 m, ledges every 6-7 m) still hurt at each ledge.
