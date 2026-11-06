@@ -65,6 +65,7 @@ impl World {
         let xf = x as f32 + 0.5;
         let floor = (y..(y + 2 * CPM).min(self.g.h - 1)).find(|&r| self.borer_grounded(xf, r as f32)).ok_or("needs a floor under it")? as f32;
         if self.borer_hits(xf, floor) { return Err("needs 1.5 m by 1 m of room"); }
+        if self.tr.wagons.iter().any(|w| (w.x - xf).abs() < (BORER_W + crate::wagon::WAGON_W) / 2. && (w.y - floor).abs() < BORER_H) { return Err("there's a wagon there"); }
         let dir = self.moles.first().map_or(1, |m| m.facing);
         self.tr.borers.push(Borer { x: xf, y: floor, px: xf, py: floor, vx: 0., vy: 0., dir, fuel: vec![], burning: None, burn: 0, water: 0., steam: 0., grind: 0., jammed: false });
         self.events.push(Event::Place); Ok(())

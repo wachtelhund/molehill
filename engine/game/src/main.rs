@@ -1503,7 +1503,8 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
             WagonKind::Store | WagonKind::Coal => { let h = (0.5 + 2.5 * full).min(3.); // heaped above the rim, taller as it fills
                 want.push((132, k, cell_to_world(x, top + 2. - h / 2.), 4.21, sp.wload[(wg.kind == WagonKind::Coal) as usize].clone(), Vec2::new(14., h * CPX), false, lit)); }
             _ => {} } }
-        if wg.coupled { want.push((133, k, cell_to_world(x + if w.tr.borers.first().map_or(1, |b| b.dir) > 0 { WAGON_W / 2. + GAP / 2. } else { -WAGON_W / 2. - GAP / 2. }, y - 2.5), 4.19, sp.coupling.clone(), Vec2::new(GAP * CPX + 2., 3.), false, lit)); }
+        // (the bar points at what pulls it: toward the borer that hauls it)
+        if let Some(d) = w.hauled_by(k).map(|b| w.tr.borers[b].dir as f32) { want.push((133, k, cell_to_world(x + d * (WAGON_W / 2. + GAP / 2.), y - 2.5), 4.19, sp.coupling.clone(), Vec2::new(GAP * CPX + 2., 3.), false, lit)); }
     }
     // sluice gates: lifted, the leaf is drawn raised out of the opening (its cells are open then); its lever on the head
     // shows which way round it is (up: lifts when pulled; down: shuts when pulled)
