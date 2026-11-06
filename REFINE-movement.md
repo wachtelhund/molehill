@@ -156,6 +156,11 @@ Polish only: no new features or concepts. Each entry is one commit.
     The mine (72 m) and halt (80 m) don't fit beside the start in the harness's 128 m world, so their scenarios
     start inside.
 
+18. **Climb polish (after #6).** Headless playtest of ropes: a rope hung from a shaft's ceiling grabs at once at
+    its foot, climbs at 3 m/s and stops under the ceiling with no bob; the one sluggish bit was stepping off it
+    sideways (`W`+`D` at the top toward a side passage) at 1 m/s, now 2 m/s (`A`/`D` alone still lets go at
+    once). Scenario `rope_ladder_shaft`.
+
 ## Open issues
 * Walking off a ledge you dug open is still a free choice: a dug-open cave shows itself, and run/stop is
   instant, so I left ledge drops alone. Fissure sites (26 m, ledges every 6-7 m) still hurt at each ledge.
