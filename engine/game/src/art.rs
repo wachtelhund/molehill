@@ -382,8 +382,8 @@ pub fn mat_color(m: molehill_sim::mat::Mat, cx: u32, cy: u32, above: u32, turn: 
                 ((lx - ax - t * dx).powi(2) + (ly - ay - t * dy).powi(2)).sqrt() < 0.6 };
             let r = ((lx - 5.5).powi(2) + (ly - 4.).powi(2)).sqrt();
             Some(if ((lx - px).powi(2) + (ly - py).powi(2)).sqrt() < 0.75 { [222., 186., 96.] } else if rod { [176., 150., 90.] }
-                else if lx < 4. { if ly < 1. || ly > 7. { [60., 58., 64.] } else if (lx - 1.5).abs() < 0.5 { [184., 146., 70.] } else if ly < 2. { [140., 136., 146.] } else { [96., 92., 98.] } }
-                else if r < 2.6 { if r > 1.9 { [126., 124., 134.] } else { [70., 68., 76.] } } else { [52., 50., 56.] }) }
+                else if lx < 4. { if ly < 1. || ly > 7. { [84., 82., 90.] } else if (lx - 1.5).abs() < 0.5 { [206., 166., 84.] } else if ly < 2. { [176., 172., 184.] } else { [132., 128., 138.] } }
+                else if r < 2.6 { if r > 1.9 { [168., 166., 178.] } else { [98., 96., 106.] } } else { [74., 72., 80.] }) }
         // steam pipe: copper with a highlight along its run and a brass flange every half metre (it lies the way its run is longer)
         M::SteamPipe => { let (a, b) = if horiz { (cx, cy) } else { (cy, cx) };
             Some(if a % (c / 2) == 0 { [204., 164., 84.] } else { match b % 4 { 1 => [226., 156., 106.], 3 => [124., 72., 46.], _ => [176., 108., 66.] } }) }
@@ -397,6 +397,7 @@ pub fn boiler(lit: bool) -> Image {
     use molehill_sim::steam::{BOILER_W, BOILER_H};
     let (w, h) = (BOILER_W as i32 * 2, BOILER_H as i32 * 2); let iron = [104, 104, 114]; let brick = [150, 74, 56];
     let mut p = Px::new(w, h); let split = h / 2;
+    for y in 0..split { for x in 0..w { p.set(x, y, if (x + y) % 4 == 0 { [70, 40, 34] } else { [96, 54, 44] }); } } // the setting's back wall behind the drum, so no shell cell shows round it
     for y in split..h { for x in 0..w { let course = (y - split) / 2; let joint = (y - split) % 2 == 1 || (x + course * 2) % 5 == 0; p.set(x, y, if joint { [96, 50, 40] } else { brick }); } } // brickwork
     p.oval(w as f32 / 2., split as f32 - 0.5, w as f32 / 2. - 0.5, split as f32 / 2. + 1.5, iron); // the drum
     p.rect(1, split - 4, w - 2, split - 4, shade(iron, 1.3)); for x in (2..w - 1).step_by(3) { p.set(x, split - 2, [70, 70, 80]); }
