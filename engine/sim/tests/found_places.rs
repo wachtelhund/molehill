@@ -9,9 +9,9 @@
 use molehill_sim::{world::World, mat::{Mat, CPM}, sites::Kind};
 
 /// Sites whose goal no way in reaches (stamped layouts as of 2026-11-06, env-rework v2).
-const GOAL_SEALED: &[&str] = &["holt", "pump", "fossil", "crystal", "halt"];
+const GOAL_SEALED: &[&str] = &[];
 /// Sites with a big room (4 m² of body positions or more) cut off from the main way in.
-const CUT: &[&str] = &["holt", "mine", "pump", "fissure", "fossil", "crystal", "halt"];
+const CUT: &[&str] = &[];
 const KINDS: [&str; 7] = ["holt", "mine", "pump", "fissure", "fossil", "crystal", "halt"];
 
 struct Walk { goal: bool, cut: Vec<usize> }

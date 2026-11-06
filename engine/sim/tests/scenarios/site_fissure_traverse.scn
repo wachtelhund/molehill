@@ -1,7 +1,8 @@
-// Into a fissure from its east mouth (24 m down): in off the mouth, up over the stub and down onto the bridge
-// across the drop, at no cost. The layout (sites.rs, env-rework v2) opens the floor to a way in, which
-// tests/found_places.rs checks; the bridges still overhang the walls, so from the east mouth there's no
-// climbing up to the west one (see REFINE-movement.md).
+// Into a fissure by its east mouth (24 m down), to the mouth's inner edge, at no cost. The layout (sites.rs,
+// PR #8) joins every part of the fissure to a way in (tests/found_places.rs; floor and bridges, with ropes).
+// Not walked on from here: a running mole steps off the mouth into a 0.5 m slot before the bridge (which sits
+// 0.75 m up) and falls (in about 1 s it's 3 m down; carrying on left, 5 m more for ~21 hp). The ropes hang under
+// the bridges, so from above the way down is a drop. Movement polish item (see REFINE-movement.md).
 map
 ########################################################################################
 ########################################################################################
@@ -173,8 +174,8 @@ map
 ########################################################################################
 end
 site 1 fissure -75 -95
-hold 2-158 left
-expect 60 px < 70                 // in off the mouth
-expect 180 grounded == 1          // down on the bridge
-expect 180 px < 53
-expect 180 hp == 100
+hold 2-14 left
+expect 20 px > 79                  // at the mouth's inner edge
+expect 40 py > 99.9
+expect 40 grounded == 1
+expect 40 hp == 100
