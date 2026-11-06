@@ -109,15 +109,18 @@ Polish only: no new systems, lore names kept. Each entry lists what changed and 
   boards standing on end for a timber wall…). Furniture keeps its scaled sprite. The hotbar shows each device as
   its own sprite instead of one shared placeholder; the floodgate now differs from the door (iron, a brace while
   shut, a hand-wheel). Mine carts are a sprite (plank tub, bronze rim, iron wheels) instead of four rectangles.
-* **Found-place furnishings** (`game/src/props.rs`): 22 drawn props placed per family from the site box and
+* **Found-place furnishings** (`game/src/props.rs`): 19 drawn props placed per family from the site box and
   fitted against the real cells (standing on both feet, or leaning on a post; hanging under a roof; never in rock,
-  furniture, a chest, a farm or a ladder). Headframe, winch, ore chute, scaffold, dig tools, crates, mine sign,
-  cold lamps, pump wheel, pipes, sluice gate, bridge stubs, ropes, crystal clusters, railcar, bench, station
+  furniture, a chest, a farm or a ladder). Winch, scaffold, dig tools, crates, mine sign,
+  cold lamps, pipes, sluice gate, bridge stubs, ropes, crystal clusters, railcar, bench, station
   sign, kitchen, bedroll, pantry, barrels. Drawn behind furniture, lit like it, shown once seen. sites.rs is
-  unchanged.
+  unchanged. After env-rework v2 built a headframe, ore chute, pump wheel and fossil scaffold in cells, the
+  drawn versions of those were dropped rather than doubled.
 * **`--dump-art`**: `view.bmp` now composites every visible world sprite over the cells (it was cells only;
   the sprite composite was `view_wire.bmp` and included hidden pool sprites). `view_cells.bmp` keeps the cells
   alone. A dump renders the whole window, so a site crop wider than the screen is no longer half unrendered.
+  env-rework v2 had added a separate CPU re-blit of furniture, chests, torches, carts and
+  ladders; it was replaced by compositing the real visible sprites (which also covers props and lighting).
   The seven site stills in the wiki were regenerated with their furnishings.
 * Tests: `every_item_has_its_own_icon` (no two icons within 20 px of pattern or 8 px of silhouette, judged on
   brightness bands, so a tint scores 0), `every_device_has_its_own_sprite`, `every_prop_has_its_own_sprite`,

@@ -92,7 +92,7 @@ The pack, the hotbar, the item in the mole's paws and anything lying loose all u
 
 ![The furnishings of the found places, at 2×](images/furnishings.png)
 
-Found places are furnished with props, which are drawn only: they are not cells, have no weight and can't be dug or picked up (`props.rs`). Each family has a list of what goes where, in metres from the site's corner. Each prop is then fitted against the cells actually there:
+Found places are furnished with props (19 kinds), which are drawn only: they are not cells, have no weight and can't be dug or picked up (`props.rs`). The set-pieces a layout already builds in cells (the mine's headframe and ore chute, the pumpworks' wheel, the fossil dig's scaffold) are not drawn again. Each family has a list of what goes where, in metres from the site's corner. Each prop is then fitted against the cells actually there:
 
 * a standing prop needs both feet on something solid, or one foot down and the other against a post or wall;
 * a hanging one needs a roof over most of its width;
@@ -102,11 +102,11 @@ A prop that finds no room within its slide distance is left out. Lamps are cold:
 
 | place | furnishings |
 |---|---|
-| Abandoned mine | a timber headframe over the shaft (feet on the post corbels, sheave and rope down the shaft), a rope winch beside it, an ore chute hung under the heading near the upper ore, scaffolding at the worked face, dig tools (pick, shovel, bucket), stacked crates, a mine sign with crossed picks, four cold lamps |
+| Abandoned mine | a rope winch on the heading by the shaft, scaffolding at the worked face, dig tools (pick, shovel, bucket), stacked crates, a mine sign with crossed picks, four cold lamps. Its headframe, sheave and ore chute are built in cells by the layout |
 | Abandoned holt | a kitchen on the table (clay stove and pot, bowls, a jar, a pestle), a bedroll on the bedding, a hanging pantry (jars on a board, sacks, dried mushrooms on a string), three cold lamps. Its nests, rugs, table, stools, shelf, banner and planters are furniture |
-| Flooded pumpworks | a pump wheel in the pump room, two runs of copper pipe under the gallery, a sluice gate with its screw and hand-wheel over the intake, barrels, two cold lamps |
+| Flooded pumpworks | two runs of copper pipe under the roof, a sluice gate with its screw and hand-wheel over the intake, barrels, two cold lamps. Its pump wheel is built in cells |
 | Fissure | three broken bridge stubs hanging off the ledges, two knotted ropes from the top |
-| Fossil cave | dig tools, crates, two cold lamps (one under the walkway) |
+| Fossil cave | dig tools on the floor by the bones, crates by a mouth, two cold lamps. Its scaffold is built in cells |
 | Salt / crystal hall | three standing crystal clusters, three hanging ones |
 | Buried cargo halt | a flatbed railcar under canvas on the rails, a waiting bench, a hanging station sign (a cart and arrows, no words), barrels and crates in the warehouse, two cold lamps |
 

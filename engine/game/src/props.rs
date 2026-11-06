@@ -1,4 +1,4 @@
-//! Furnishings of the found places: the headframe over a mine shaft, a pump wheel, sluice gates, a
+//! Furnishings of the found places: a winch and scaffolding in a mine, pipes and a sluice gate, a
 //! broken bridge in a fissure, a cargo halt's railcar and bench, a holt's hearth, beds and stores.
 //! They're drawn only (no cells, no physics), placed from each site's box and checked against the cells
 //! actually there, so they stand on a floor or hang from a roof and never sit inside rock. The layouts
@@ -29,15 +29,15 @@ fn sh(c: [u8; 3], k: f32) -> [u8; 3] { [(c[0] as f32 * k).min(255.) as u8, (c[1]
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
 pub enum Prop {
-    Headframe, Winch, OreChute, DigTools, Crates, MineSign, HangLamp,
-    PumpWheel, Pipes, SluiceGate,
+    Winch, DigTools, Crates, MineSign, HangLamp,
+    Pipes, SluiceGate,
     Bridge, Rope, Scaffold,
     CrystalFloor, CrystalHang,
     Railcar, Bench, StationSign,
     Hearth, Bedroll, Pantry, Barrels,
 }
-pub const PROPS: [Prop; 22] = [Prop::Headframe, Prop::Winch, Prop::OreChute, Prop::DigTools, Prop::Crates, Prop::MineSign, Prop::HangLamp,
-    Prop::PumpWheel, Prop::Pipes, Prop::SluiceGate, Prop::Bridge, Prop::Rope, Prop::Scaffold, Prop::CrystalFloor, Prop::CrystalHang,
+pub const PROPS: [Prop; 19] = [Prop::Winch, Prop::DigTools, Prop::Crates, Prop::MineSign, Prop::HangLamp,
+    Prop::Pipes, Prop::SluiceGate, Prop::Bridge, Prop::Rope, Prop::Scaffold, Prop::CrystalFloor, Prop::CrystalHang,
     Prop::Railcar, Prop::Bench, Prop::StationSign, Prop::Hearth, Prop::Bedroll, Prop::Pantry, Prop::Barrels];
 
 /// How a prop is held up: standing on the floor (both feet on something solid), or hanging from the roof.
@@ -47,18 +47,18 @@ impl Prop {
     pub fn size(self) -> (i32, i32) {
         use Prop::*;
         match self {
-            Headframe => (56, 60), Winch => (28, 18), OreChute => (20, 36), DigTools => (22, 18), Crates => (30, 24), MineSign => (24, 16), HangLamp => (8, 18),
-            PumpWheel => (44, 44), Pipes => (72, 12), SluiceGate => (24, 64), Bridge => (40, 44), Rope => (6, 88), Scaffold => (30, 52),
+            Winch => (28, 18), DigTools => (22, 18), Crates => (30, 24), MineSign => (24, 16), HangLamp => (8, 18),
+            Pipes => (72, 12), SluiceGate => (24, 64), Bridge => (40, 44), Rope => (6, 88), Scaffold => (30, 52),
             CrystalFloor => (20, 18), CrystalHang => (18, 16), Railcar => (60, 34), Bench => (34, 14), StationSign => (36, 16),
             Hearth => (32, 16), Bedroll => (20, 8), Pantry => (20, 28), Barrels => (24, 20),
         }
     }
-    pub fn anchor(self) -> Anchor { use Prop::*; match self { OreChute | MineSign | HangLamp | Pantry | Pipes | SluiceGate | Bridge | Rope | CrystalHang | StationSign => Anchor::Hang, _ => Anchor::Floor } }
+    pub fn anchor(self) -> Anchor { use Prop::*; match self { MineSign | HangLamp | Pantry | Pipes | SluiceGate | Bridge | Rope | CrystalHang | StationSign => Anchor::Hang, _ => Anchor::Floor } }
     pub fn name(self) -> &'static str {
         use Prop::*;
         match self {
-            Headframe => "headframe", Winch => "winch", OreChute => "ore chute", DigTools => "dig tools", Crates => "crates", MineSign => "mine sign", HangLamp => "hanging lamp (cold)",
-            PumpWheel => "pump wheel", Pipes => "pipes", SluiceGate => "sluice gate", Bridge => "broken bridge", Rope => "hanging rope", Scaffold => "scaffolding",
+            Winch => "winch", DigTools => "dig tools", Crates => "crates", MineSign => "mine sign", HangLamp => "hanging lamp (cold)",
+            Pipes => "pipes", SluiceGate => "sluice gate", Bridge => "broken bridge", Rope => "hanging rope", Scaffold => "scaffolding",
             CrystalFloor => "crystal cluster", CrystalHang => "hanging crystals", Railcar => "railcar", Bench => "station bench", StationSign => "station sign",
             Hearth => "kitchen stove and pots", Bedroll => "bedroll", Pantry => "pantry rack", Barrels => "barrels",
         }
@@ -74,15 +74,18 @@ impl Prop {
 pub fn plan(kind: Kind) -> &'static [(Prop, f32, f32, f32)] {
     use Prop::*;
     match kind {
-        Kind::Mine => &[(Headframe, 49.75, 9., 2.), (Winch, 54., 9., 3.), (OreChute, 31.5, 10., 3.), (Scaffold, 7., 21., 3.), (DigTools, 12.5, 21., 4.), (Crates, 58., 21., 6.),
+        // the mine builds its own headframe and ore chute in cells (sites.rs); these stand around them
+        Kind::Mine => &[(Winch, 54., 9., 3.), (Scaffold, 7., 21., 3.), (DigTools, 12.5, 21., 4.), (Crates, 58., 21., 6.),
             (MineSign, 45.5, 10., 4.), (HangLamp, 21.5, 0.5, 3.), (HangLamp, 41.5, 0.5, 3.), (HangLamp, 13.5, 10., 3.), (HangLamp, 61.5, 10., 3.)],
         // the holt is full of furniture already: the stove and pots stand on its table, a bedroll on the bedding
         Kind::Holt => &[(Hearth, 12., 12., 2.), (Bedroll, 6.8, 12., 2.), (Pantry, 10.5, 2.5, 3.),
             (HangLamp, 5., 3., 3.), (HangLamp, 15., 1.5, 3.), (HangLamp, 23., 3., 3.)],
-        Kind::Pumpworks => &[(PumpWheel, 44.5, 19., 2.), (Pipes, 24.5, 8.5, 2.), (Pipes, 31., 8.5, 2.), (SluiceGate, 13., 8.5, 2.), (Barrels, 26., 19., 3.),
+        // the pumpworks builds its own wheel in cells; pipes and the sluice gate hang from the roof
+        Kind::Pumpworks => &[(Pipes, 23.5, 2.5, 2.), (Pipes, 32., 2.5, 3.), (SluiceGate, 14., 3.5, 3.), (Barrels, 26., 19., 3.),
             (HangLamp, 38., 2., 3.), (HangLamp, 26., 2., 3.)],
         Kind::Fissure => &[(Bridge, 6.5, 8.5, 2.5), (Bridge, 10., 16.5, 2.5), (Bridge, 7., 24.5, 2.5), (Rope, 7., 0., 3.), (Rope, 11., 0., 3.)],
-        Kind::Fossil => &[(Scaffold, 6., 15., 3.), (DigTools, 12., 15., 4.), (Crates, 24., 15., 5.), (HangLamp, 9., 6.5, 3.), (HangLamp, 18., 4.5, 4.)],
+        // the dig has its own timber scaffold in cells; tools lie on the floor by the bones, crates by a mouth
+        Kind::Fossil => &[(DigTools, 20., 15., 4.), (Crates, 33.5, 14.5, 3.), (HangLamp, 9., 6.5, 3.), (HangLamp, 18., 4.5, 4.)],
         Kind::Crystal => &[(CrystalFloor, 5., 15., 3.), (CrystalFloor, 14., 15., 3.), (CrystalFloor, 23., 15., 3.), (CrystalHang, 14., 4.5, 4.), (CrystalHang, 7., 7., 4.), (CrystalHang, 21., 7., 4.)],
         Kind::Halt => &[(Railcar, 33., 17., 2.), (Bench, 52., 17., 2.), (StationSign, 45., 2., 2.), (HangLamp, 39., 2., 2.), (HangLamp, 27.5, 2., 2.),
             (Barrels, 4., 17., 3.), (Crates, 23., 17., 3.)],
@@ -150,20 +153,10 @@ pub fn art_px(p: Prop) -> Px {
     use Prop::*;
     let (w, h) = p.size(); let mut c = Px::new(w, h);
     match p {
-        Headframe => { // two splayed timber legs, braces, a sheave at the head and the rope down the middle
-            line(&mut c, 3., h as f32 - 1., 17., 6., 3, WOOD); line(&mut c, w as f32 - 4., h as f32 - 1., w as f32 - 18., 6., 3, WOOD);
-            for y in [22, 40] { let k = (h - y) as f32 / h as f32; let (a, b) = (3. + 14. * (1. - k) + 1., w as f32 - 4. - 14. * (1. - k) - 1.); line(&mut c, a, y as f32, b, y as f32, 2, WOOD_D); }
-            line(&mut c, 8., 40., w as f32 - 9., 22., 1, WOOD_D); c.rect(14, 4, w - 15, 7, WOOD_L);
-            c.oval(w as f32 / 2., 5., 6., 6., IRON); c.oval(w as f32 / 2., 5., 4., 4., [0, 0, 0]); for k in 0..4 { let a = k as f32 * 0.785; line(&mut c, w as f32 / 2. - a.cos() * 4., 5. - a.sin() * 4., w as f32 / 2. + a.cos() * 4., 5. + a.sin() * 4., 1, IRON_D); }
-            c.oval(w as f32 / 2., 5., 1.3, 1.3, BRASS); c.rect(w / 2 + 5, 6, w / 2 + 5, h - 6, ROPE); c.rect(w / 2 + 3, h - 6, w / 2 + 7, h - 4, IRON_D); }
         Winch => { // a rope drum between two cheeks, a crank on the side
             c.rect(2, 4, 5, h - 1, WOOD); c.rect(w - 6, 4, w - 3, h - 1, WOOD); c.rect(0, h - 2, w - 1, h - 1, WOOD_D);
             c.oval(w as f32 / 2., 8., 8., 4.5, ROPE); for x in (7..w - 6).step_by(3) { c.rect(x, 4, x, 12, ROPE_D); } c.oval(w as f32 / 2., 8., 1.5, 1.5, IRON);
             line(&mut c, w as f32 - 3., 8., w as f32 - 1., 2., 1, IRON); c.rect(w - 2, 0, w - 1, 2, WOOD_L); }
-        OreChute => { // a plank trough on two chains, tipped toward the rails, iron-banded
-            c.rect(3, 0, 3, 10, IRON_D); c.rect(w - 4, 0, w - 4, 20, IRON_D);
-            for k in 0..12 { let y0 = 10 + k * 2; let x = 1 + k / 2; c.rect(x, y0 - (k / 3), (x + 12).min(w - 1), y0 + 2 - (k / 3), if k % 4 == 0 { IRON } else { WOOD }); }
-            c.rect(6, h - 4, 12, h - 1, [120, 100, 84]); c.set(8, h - 2, COPPER); c.set(10, h - 3, VERD); }
         DigTools => { // a pick and a shovel leaning crossed over a bucket
             line(&mut c, 3., h as f32 - 1., 15., 1., 1, WOOD); line(&mut c, 10., 0., 19., 4., 2, IRON);
             line(&mut c, 19., h as f32 - 1., 7., 2., 1, WOOD); c.rect(4, 0, 8, 3, IRON); c.rect(5, 3, 7, 3, IRON_D);
@@ -178,12 +171,6 @@ pub fn art_px(p: Prop) -> Px {
         HangLamp => { // a chain and a hooded lantern, cold: nobody has filled it
             c.rect(3, 0, 4, 6, IRON_D); for y in [1, 4] { c.set(2, y, IRON); c.set(5, y, IRON); } c.rect(1, 7, 6, 8, IRON); c.rect(1, 9, 6, 14, GLASS_COLD);
             c.rect(3, 10, 4, 12, sh(GLASS_COLD, 1.25)); c.rect(0, 15, 7, 16, IRON); c.rect(2, 17, 5, 17, IRON_D); }
-        PumpWheel => { // a big spoked wheel with paddle buckets, on an A-stand
-            let (cx, cy, r) = (w as f32 / 2., 20., 18.); line(&mut c, cx - 14., h as f32 - 1., cx, cy, 2, WOOD_D); line(&mut c, cx + 14., h as f32 - 1., cx, cy, 2, WOOD_D);
-            for a in 0..64 { let t = a as f32 / 64. * std::f32::consts::TAU; for dr in [0., 1.] { c.set((cx + t.cos() * (r - dr)).round() as i32, (cy + t.sin() * (r - dr)).round() as i32, IRON); } }
-            for k in 0..8 { let t = k as f32 / 8. * std::f32::consts::TAU; line(&mut c, cx, cy, cx + t.cos() * (r - 1.), cy + t.sin() * (r - 1.), 1, WOOD);
-                let (bx, by) = (cx + t.cos() * r, cy + t.sin() * r); c.rect(bx as i32 - 2, by as i32 - 1, bx as i32 + 1, by as i32 + 1, WOOD_L); }
-            c.oval(cx, cy, 3., 3., IRON_D); c.oval(cx, cy, 1.4, 1.4, BRASS); c.rect(0, h - 2, w - 1, h - 1, STONE); }
         Pipes => { // two copper pipes on hangers, a flanged joint and a valve
             for x in [6, w / 2, w - 7] { c.rect(x, 0, x, 3, IRON_D); }
             for (y, col) in [(3, COPPER), (8, sh(COPPER, 0.85))] { c.rect(0, y, w - 1, y + 2, col); c.rect(0, y, w - 1, y, sh(col, 1.3)); }
@@ -265,9 +252,9 @@ mod tests {
     /// Each found place, stamped into rock, gets its furnishings, all standing in open space inside it.
     #[test] fn found_places_are_furnished() {
         let want: [(Kind, &[Prop]); 7] = [
-            (Kind::Mine, &[Prop::Headframe, Prop::Winch, Prop::OreChute, Prop::Scaffold, Prop::DigTools, Prop::Crates, Prop::MineSign, Prop::HangLamp]),
+            (Kind::Mine, &[Prop::Winch, Prop::Scaffold, Prop::DigTools, Prop::Crates, Prop::MineSign, Prop::HangLamp]),
             (Kind::Holt, &[Prop::Hearth, Prop::Bedroll, Prop::Pantry, Prop::HangLamp]),
-            (Kind::Pumpworks, &[Prop::PumpWheel, Prop::Pipes, Prop::SluiceGate, Prop::HangLamp]),
+            (Kind::Pumpworks, &[Prop::Pipes, Prop::SluiceGate, Prop::HangLamp]),
             (Kind::Fissure, &[Prop::Bridge, Prop::Rope]),
             (Kind::Fossil, &[Prop::DigTools, Prop::Crates, Prop::HangLamp]),
             (Kind::Crystal, &[Prop::CrystalFloor, Prop::CrystalHang]),
