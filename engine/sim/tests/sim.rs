@@ -1771,3 +1771,30 @@ fn found_places_entrances_reach_every_room_and_the_chest() {
 
 
 
+
+/// A new holt sees its own burrow and a skin of its walls, not a 30 m box of rock: caves and ore beyond stay
+/// dark until vision, digging or the headlamp finds them (the start used to reveal ±15 m straight through rock).
+#[test]
+fn spawn_reveals_only_burrow_neighbourhood() {
+    use molehill_sim::grid::F_SEEN;
+    use molehill_sim::mat::{Mat, CPM};
+    use molehill_sim::world::SPAWN_SIGHT_M;
+    for seed in [1u32, 7, 42, 4242, 90210] {
+        let w = World::new(512 * S, 256 * S, seed); let (gw, gh) = (w.g.w, w.g.h);
+        let (mx, my) = (w.moles[0].x, w.moles[0].y);
+        let seen = |x: usize, y: usize| w.g.flags[y * gw + x] & F_SEEN != 0;
+        // inside: where the mole stands, and the chamber's air a metre up on both sides
+        assert!(seen(mx, my - 1) && seen(mx - 2 * CPM, my - CPM) && seen(mx + 2 * CPM, my - CPM), "seed {seed}: the burrow itself is dark");
+        // nothing far out is seen, open or not: 10 m and more from the mole in any direction
+        let far = (SPAWN_SIGHT_M + 4) * CPM; let mut n_seen = 0;
+        for y in 0..gh { for x in 0..gw {
+            if !seen(x, y) { continue; } n_seen += 1;
+            let (dx, dy) = (x as i64 - mx as i64, y as i64 - my as i64);
+            assert!(dx * dx + dy * dy < (far * far) as i64, "seed {seed}: {:?} seen {:.1} m, {:.1} m from the mole", w.g.get(x, y), dx as f32 / CPM as f32, dy as f32 / CPM as f32);
+        } }
+        // the old box was 30 × 23.5 m (~45 000 cells); the burrow and its skin are a small fraction of that
+        assert!(n_seen < 12_000, "seed {seed}: {n_seen} cells seen at the start");
+        // materials only count as discovered if they're in sight: no far ore in the journal of materials
+        for m in [Mat::IronOre, Mat::Granite, Mat::Basalt, Mat::Lava] { assert!(!w.discovered[m as usize] || w.g.mat.iter().zip(&w.g.flags).any(|(&c, &f)| c == m as u8 && f & F_SEEN != 0), "seed {seed}: {m:?} discovered unseen"); }
+    }
+}
