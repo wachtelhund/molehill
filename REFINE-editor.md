@@ -29,3 +29,11 @@ External cave/site editor (dev-only, never shipped) plus data-driven found-place
 ## Site traps polish (`refine/site-traps-polish`)
 * #22 merged at 0fc643d. Suite green there: sim tests, 189/189 scenarios, export SAME, game builds. Rebuilt `site/` so the web build has the new pumpworks, fissure and fossil layouts.
 * Not done: the wiki's site screenshots (images/site-*.png) still show the old fossil and fissure.
+
+## Stage 2: editor UI (`refine/cave-editor-ui`)
+* Crate `engine/tools/cave-editor` (`molehill-cave-editor`), a workspace member but not in `default-members`; neither the game nor the sim depends on it; `build-web.sh` is untouched (`-p molehill`). `tests/packaging.rs` checks all three and that `site/` holds nothing of it.
+* `src/lib.rs` (headless): `Doc` opens a family's file, paints materials and linings with a round brush (palette and one-wall lining mixes grow and shrink with use), sets things down (ropes tie to the nearest solid cell), moves the chest, undo/redo per stroke, saves canonically. Checks on the real sim: `reach` (the found-places body flood fill), `stress` (full solve, cells over capacity), `simulate` (10 s with a mole at the chest). `draw` makes the canvas pixels. `tests/model.rs`: 6 tests.
+* `src/main.rs` (Bevy, the game's exact feature set, so it reuses the game's compiled Bevy): canvas sprite, clickable text panel, keys as in the wiki page.
+* Sim: `SiteFile::source` (`export` is left out of files, so the exported JSON didn't change; `editor` after an editor save); `World::stamp_template` in templates.rs (no sites.rs change), checked against the game stamp by `stamp_template_matches_the_game_stamp`. `export_sites` prints KEPT for editor-owned files (`--force` overwrites); the golden test skips them.
+* The window opens and runs (10 s, no errors in the log), but this shell can't capture the screen (`screencapture`: could not create image from display), so the layout isn't visually checked; Hampus needs to look at it once.
+* Wiki: new Cave-Editor page (how to run; not shipped; keys; ownership); README, Architecture, Site-Templates, Testing; TESTING.md; AGENTS.md.
