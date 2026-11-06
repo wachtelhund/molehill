@@ -1,0 +1,24 @@
+// A mole standing on a turning belt is carried along with it, like a moving floor. A counterweight drives the
+// belt; the mole stands still on it and rides to the right at the belt's 1 m/s (4 tiles/s), staying on its feet.
+// (Before, the belt ran under the mole and it stood where it was.)
+map
+################################
+################################
+#....jjjjjjjjjj*...............#
+#..............j...............#
+#..............j...............#
+#..............j...............#
+#..............j...............#
+#..............j...............#
+#..............j...............#
+#..............j..@............#
+#..............*>>>>>>>>>>>....#
+################################
+end
+give Counterweight 1
+place 2 -14 -7 Counterweight
+expect 30 turning:1,1 == 1
+expect 30 px > 19.5
+expect 90 px > 23.5                // 4 tiles a second along the belt
+expect 90 px < 24.5
+expect 90 grounded == 1
