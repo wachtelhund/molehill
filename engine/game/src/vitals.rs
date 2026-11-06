@@ -87,11 +87,12 @@ mod tests {
     }
 
     #[test] fn the_quest_line_shows_how_far_along_it_is() {
-        let mut w = survival(); w.quest = 1; // "Gather 6 wood"; the kit has 6
-        assert_eq!(quest_progress(&w), "  (done)");
-        w.inv[Item::Wood as usize] = 2; assert_eq!(quest_progress(&w), "  (2/6)");
-        w.quest = 0; w.max_depth = 3.4; assert_eq!(quest_progress(&w), "  (3/5 m)");
-        w.quest = 2; assert_eq!(quest_progress(&w), "", "a build has no count");
+        let find = |f: fn(&Goal) -> bool| QUESTS.iter().position(|q| f(&q.goal)).unwrap();
+        let mut w = survival();
+        w.quest = find(|g| matches!(g, Goal::Have(Item::Wood, 6))); w.inv[Item::Wood as usize] = 2; assert_eq!(quest_progress(&w), "  (2/6)");
+        w.inv[Item::Wood as usize] = 6; assert_eq!(quest_progress(&w), "  (done)");
+        w.quest = find(|g| matches!(g, Goal::Depth(d) if *d == 5.)); w.max_depth = 3.4; assert_eq!(quest_progress(&w), "  (3/5 m)");
+        w.quest = find(|g| matches!(g, Goal::Built(_))); assert_eq!(quest_progress(&w), "", "a build has no count");
         // every tip is plain words: no modern tech, no magic
         for r in 0..ROWS { let (a, b) = tip(&w, r); let t = format!("{a} {b}").to_lowercase(); for bad in ["magic", "battery", "electric", "sky"] { assert!(!t.contains(bad)); } }
     }

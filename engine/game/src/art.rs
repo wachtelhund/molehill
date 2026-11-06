@@ -305,8 +305,8 @@ pub fn mat_tex(m: molehill_sim::mat::Mat, x: u32, y: u32, t: u64) -> f32 {
 /// face). None keeps the material's own colour.
 /// * Rail: a copper strap along the top two rows (old ones flecked with verdigris), and under it dark
 ///   timber sleepers every half metre with sooty ballast between, so track never reads as a plank floor.
-/// * Ores: rounded half-metre nuggets of the ore's own colour (copper, rust-red iron, pale tin, glossy
-///   coal) in a darker matrix, so a pocket stands out from the rock without glowing.
+/// * Ores: rounded half-metre nuggets of the ore's own colour (copper flecked green with verdigris, as the
+///   quest line describes it; rust-red iron, pale tin, glossy coal) in a darker matrix, so a pocket stands out from the rock without glowing.
 pub fn mat_color(m: molehill_sim::mat::Mat, cx: u32, cy: u32, above: u32) -> Option<[f32; 3]> {
     use molehill_sim::grid::hash3;
     use molehill_sim::mat::{Mat as M, CPM};
@@ -325,7 +325,7 @@ pub fn mat_color(m: molehill_sim::mat::Mat, cx: u32, cy: u32, above: u32) -> Opt
             let nug = !corner && h(bx, row, 87 + m as u32) > 0.45;
             let v = h(cx, cy, 89);
             Some(match (m, nug) {
-                (M::CopperOre, true) => if v > 0.88 { [104., 168., 136.] } else if ly == 0 { [236., 150., 88.] } else { [196., 110., 60.] },
+                (M::CopperOre, true) => if v > 0.6 { [92., 172., 128.] } else if ly == 0 { [236., 150., 88.] } else { [196., 110., 60.] },
                 (M::IronOre, true) => if ly == 0 { [200., 104., 72.] } else { [164., 72., 50.] },
                 (M::TinOre, true) => if ly == 0 { [222., 224., 234.] } else { [178., 182., 196.] },
                 (M::Coal, true) => if ly == 0 && v > 0.5 { [128., 128., 142.] } else { [22., 20., 24.] },
@@ -385,6 +385,7 @@ mod tests {
             let far = cells.iter().filter(|&&c| dist(c, rock) > 60.).count() as f32 / cells.len() as f32;
             assert!(far > 0.25, "{m:?}: only {far:.2} of the pocket stands apart from rock");
             assert!(cells.iter().all(|&c| lum(c) < 235.), "{m:?}: nothing near-white");
+            if m == Mat::CopperOre { let green = cells.iter().filter(|c| c[1] > c[0] + 40.).count(); assert!(green * 10 > cells.len(), "copper ore reads green-flecked"); }
         }
     }
 }

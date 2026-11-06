@@ -2,7 +2,7 @@
 //! own, food drains and must be found (grubs, roots, fungus, mushrooms), the headlamp and torches burn
 //! fungus oil, and dying leaves your whole pack where you fell. **Creative** has everything in the pack
 //! and nothing hurts. **Plain** is the bare simulation with none of these rules (tests and scenarios).
-use crate::craft::{Item, ITEMS, NITEM};
+use crate::craft::{Item, ITEMS, NITEM, QUESTS};
 use crate::items::ITEM_HW;
 use crate::mat::SF;
 use crate::world::{Drop, Event, World, BODY_H};
@@ -55,7 +55,11 @@ impl World {
     pub fn set_mode(&mut self, mode: Mode) {
         self.mode = mode; self.rules = mode.rules();
         match mode {
-            Mode::Survival => { self.inv = [0; NITEM]; for &(it, n) in KIT { self.inv[it as usize] = n; } self.lamp_oil = OIL_SECS; self.known = [false; NITEM]; }
+            Mode::Survival => { self.inv = [0; NITEM]; for &(it, n) in KIT { self.inv[it as usize] = n; } self.lamp_oil = OIL_SECS; self.known = [false; NITEM];
+                // the start, in two lines: what you carry, and the first thing to do (the quest line takes it from there)
+                let kit: Vec<String> = KIT.iter().map(|&(it, n)| if n == 1 { format!("a {}", it.name().to_lowercase()) } else { format!("{} x{n}", it.name().to_lowercase()) }).collect();
+                self.say(format!("Your pack: {}.", kit.join(", ")));
+                if self.quest < QUESTS.len() { self.say(format!("Next: {}.", QUESTS[self.quest].text)); } }
             Mode::Creative => { for v in self.inv.iter_mut() { *v = (*v).max(999); } self.lamp_oil = OIL_SECS; }
             Mode::Plain => {}
         }
@@ -76,7 +80,7 @@ impl World {
             self.say(format!("Pressed {FUNGUS_PER_OIL} fungus into a measure of oil ({} fungus left).", self.inv[Item::Fungus as usize]));
         } else { return false; }
         // that was the last measure the pack could give: say so while there's still light to gather by
-        if self.oil_measures() == 0 { self.say("The last measure of oil. Gather fungus to press more.".into()); self.events.push(Event::Warning); }
+        if self.oil_measures() == 0 { self.say(format!("The last measure of oil: about {:.0} minutes of light. Gather fungus to press more, or turn back.", OIL_SECS / 60.)); self.events.push(Event::Warning); }
         true
     }
     /// Measures of oil the pack can still give: oil, and fungus to press.
