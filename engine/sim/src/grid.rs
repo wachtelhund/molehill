@@ -2,7 +2,7 @@
 //! Chunks are updated in 4 checkerboard phases; chunks within a phase are ≥64 cells apart,
 //! and no cell moves more than 6·S cells per tick, so a phase can run in parallel (rayon) safely
 //! and deterministically (RNG is a hash of position+tick, not a shared stream).
-use crate::mat::{Kind, Mat, PROPS, S};
+use crate::mat::{Kind, Mat, PROPS, S, SCREEN};
 use std::sync::atomic::{AtomicU8, Ordering::Relaxed};
 
 pub const CHUNK: usize = 64;
@@ -231,6 +231,13 @@ impl Grid {
         if y + 1 < self.h {
             let d = i + w;
             if matches!(self.kind_at(d), Kind::Empty | Kind::Gas) { return Some(self.fall_to(x, y)); }
+            // a grating (shaker screen) lets a liquid through its mesh: past up to a tile of it into the open under it
+            if PROPS[self.mat[d] as usize].flags & SCREEN != 0 {
+                let mut j = d;
+                for _ in 0..2 * S { j += w; if j >= self.mat.len() { break; }
+                    if matches!(self.kind_at(j), Kind::Empty | Kind::Gas) { return Some(j); }
+                    if PROPS[self.mat[j] as usize].flags & SCREEN == 0 { break; } }
+            }
             let dir: i32 = if self.rnd(x, y, 6) & 1 == 0 { -1 } else { 1 };
             for s in [dir, -dir] { let nx = x as i32 + s; if nx >= 0 && (nx as usize) < w { let j = (d as i32 + s) as usize; if self.mat[j] == 0 { return Some(j); } } }
         }

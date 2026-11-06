@@ -1,0 +1,26 @@
+// A grating lets water through. A pool held on a shaker screen (spanning a gap between two walls) drains
+// through its mesh into the basin under it and nothing is left on top; the copper ore lump that sank in it
+// lies on the screen, the sand dropped in it fell through with the water.
+map
+############################
+#..........................#
+#..#wwwwwwwwwwwwww#........#
+#..#wwwwwwwwwwwwww#........#
+#..#HHHHHHHHHHHHHH#........#
+#..#..............#........#
+#..#..............#........#
+#..#..............#........#
+#..#..............#........#
+#..#..............#........#
+#.@################........#
+############################
+end
+drop 2 CopperOre 8 -7
+drop 2 Sand 12 -7
+expect 300 count:Water > 25            // all the water...
+expect 300 is:6,-6,Water == 0          // ...left the top of the screen
+expect 300 is:11,-6,Water == 0
+expect 300 is:6,-1,Water == 1          // and lies in the basin
+expect 300 static:Screen == 14
+expect 300 zone:CopperOre,6,10,-7,-7 == 1   // the ore on the screen
+expect 300 zone:Sand,2,16,-5,0 == 1         // the sand under it

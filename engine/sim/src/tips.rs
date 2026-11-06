@@ -98,6 +98,8 @@ pub fn describe(w: &World, x: usize, y: usize) -> Option<Tip> {
     // production: what moves things along it
     if m.has(crate::mat::SCREEN) && !loose { l.push(if w.shaking(x, y) { "Shaking: lumps walk down it and off the end.".into() } else { "Lumps lie on it unless it's steep; copperline current along it shakes it.".into() }); }
     else if m.has(crate::mat::CHUTE) && !loose { l.push("Loose things slide down it where it slopes.".into()); }
+    if m == Mat::Water { if let Some((v, _)) = crate::sluice::current(w, x as f32 + 0.5, y as f32 + 0.5) {
+        l.push(format!("Running {}, {:.1} m/s: it carries sand, dirt, gravel and coal; ore and stone stay.", if v > 0. { "right" } else { "left" }, v.abs())); } }
     if m.has(crate::mat::BUMPER) && !loose { l.push("A loaded cart that runs into it tips its load out over it.".into()); }
     tip(if loose { format!("Loose {}", m.p().name.to_lowercase()) } else { m.p().name.to_string() }, l)
 }

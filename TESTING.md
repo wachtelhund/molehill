@@ -69,7 +69,7 @@ wire 4 1 -1 13 -1       // lay copperline from (dx,dy) to (dx2,dy2), one per 1 m
 saveload 60             // save the world to bytes and load it back (checks persistence mid-scenario)
 hand 1 Pickaxe          // the brush item in hand (Pickaxe, Drill, Bore or a block); sizekey 2 ] / sizewheel 3 alt 1 resize it; brush = its radius in tiles
 switch 5 creative       // change mode mid-run (`mode survival` at the top sets it from the start)
-craft 5 Pickaxe         // craft as at a station ("_" for spaces); station 2 DX DY Workbench builds one on that tile; pour 3 DX DY Lava sets a tile's material
+craft 5 Pickaxe         // craft as at a station ("_" for spaces); station 2 DX DY Workbench builds one on that tile; pour 3 DX DY Lava sets a tile's material; loosen 1 DX DY makes a tile's cells loose rubble, as a blast leaves it
 snap 4 on               // grid snap; line 5 DX1 DY1 DX2 DY2 Brick drags a snapped line; snapcells = the square side in tiles
 slide 60                // slide the window away until only its bottom band is left, and back (things go into bands and return)
 put 2 8 0 WoodPillar    // put exactly one block cell at (dx,dy) at tick T, no reach check (scripted building)
@@ -103,7 +103,7 @@ The map is stamped with its top-left so that `@` lands on the world spawn (the m
 
 Every material counts as already discovered in a scenario (a discovery's torch reward would otherwise depend on what the generated world happened to show).
 
-Map legend: `t` roots (a root tangle), `f` fungus, `.` empty, `#` granite, `B` bedrock, `r` rock, `d` dirt, `c` clay, `s` sand, `g` gravel, `w` water, `l` lava, `o` coal, `i` iron ore, `a` basalt, `b` wood beam, `I` iron beam, `k` stone brick, `T` root-tree, `R` root-tree roots, `m` moss, `y` mycelium, `p` planks, `q` polished stone, `x` tiles, `C` carved pillar, `=` rail, `%` pressure tube, `h` chute, `H` shaker screen, `|` bumper (`~` steam, `?` other, only in output). The generated world's own grottos are left out of a scenario (`grottos` cleared).
+Map legend: `t` roots (a root tangle), `f` fungus, `.` empty, `#` granite, `B` bedrock, `r` rock, `d` dirt, `c` clay, `s` sand, `g` gravel, `w` water, `l` lava, `o` coal, `i` iron ore, `a` basalt, `b` wood beam, `I` iron beam, `k` stone brick, `T` root-tree, `R` root-tree roots, `m` moss, `y` mycelium, `p` planks, `q` polished stone, `x` tiles, `C` carved pillar, `=` rail, `%` pressure tube, `h` chute, `H` shaker screen, `|` bumper, `z` riffle bar (`~` steam, `?` other, only in output). The generated world's own grottos are left out of a scenario (`grottos` cleared).
 
 **Assertion variables:**
 
@@ -131,6 +131,8 @@ Map legend: `t` roots (a root tangle), `f` fungus, `.` empty, `#` granite, `B` b
 | `cargoof:K` / `cargo:Item` | The K-th cart's cargo; the first cart's count of that item |
 | `zone:Item,DX0,DX1[,DY0,DY1]` | Loose items of that kind whose centre lies in those tile columns (and rows) from the `@` tile |
 | `shaking:DX,DY` | 1 if the tile is a shaker screen with current in its block |
+| `flow:DX,DY` / `bedstress:DX,DY` | The water's current at the tile's centre (m/s, + = right) and its stress on the bed (depth·slope, m); 0 in still water or out of it |
+| `cells:Mat,DX0,DX1,DY0,DY1` | Tiles' worth of that material in those tile columns and rows from `@` |
 | `ladders` / `climbing` | Rope ladders hung; whether the mole is on one |
 | `ropes` / `hook` / `onrope` / `ropex` / `ropey` | Rope-gun ropes fixed in the rock; a hook in flight (1); the mole on a rope (1); the first rope's hook (tiles from the map corner) |
 | `lifts` / `lifty` / `liftv` / `ballast` | Lifts; the first one's cage floor (tiles from the map top), speed (tiles/s, + = down) and stones of ballast |
@@ -265,6 +267,9 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `ore_hopper_feeds_cart.scn` | An ore hopper takes in dropped stones and poured sand; its gate stays shut until it's held open or a cart stands under it, then it fills the cart; its load is saved |
 | `cart_tip_resumes.scn` | A cart saved while tipping at a bumper finishes tipping after loading (a loaded cart standing against a bumper tips) |
 | `production_line.scn` | The whole line: an ore hopper fills a cart, a lever drives it off, it tips at a bumper, the load slides down a chute onto a steep shaker screen, gravel and ore end in separate pits; the mole beside the hopper picks up nothing |
+| `water_through_screen.scn` | A pool on a shaker screen drains through its mesh into the basin under it; an ore lump stays on top, sand falls through |
+| `sluice_sorts.scn` | A reservoir runs down a stepped 1-in-4 channel with riffle bars: gravel, coal and sand reach the tailings pond, ore and stone settle in the riffle traps |
+| `sluice_washes_rubble.scn` | After a blast: running water washes every grain of loose sand and gravel off two rubble heaps into the pond; the iron ore stays |
 | `shaker_sorts.scn` | Gravel drops through a 1-in-4 shaker screen; ore lies on it until current shakes it, then walks off the end into its own pit |
 | `rail_needs_support.scn` | A rail span over a drop breaks and falls; its ends on rock hold |
 | `blast_moves_sand.scn` | A charge by a sand bed throws a third of it into the air at once; the near end is scoured, and it all lands (none lost) |
@@ -349,7 +354,7 @@ Zoom limits and brush ranges also have unit tests in `sim/tests/sim.rs` (`zoom_i
 
 **Web frame time:** serve `dist/` (`python3 -m http.server`) and measure `requestAnimationFrame` intervals in Chrome after starting a holt. At 8 cells/m on an M4 with the active region: 58 fps (p95 16.8 ms) from a fresh holt's first seconds, 60 fps steady state.
 
-Blast tests in `sim.rs`: `blast_overpressure_curve` (Kinney-Graham values, monotone, deterministic, bounded), `blast_is_heard_by_listeners`, `blast_debris_deterministic_and_conserved`. Blast sound tests in `blast_events.rs`: `one_charge_is_heard_once_*` (one charge in a generated world: one blast, no later Explode or Quake, no collapse rumble for a cell or two trickling off the crater). Transport tests in `transport.rs`: `transport_is_reachable_in_survival`, `creative_has_transport_freely`, `transport_hover_tips_say_what_to_do` (each machine's hover tip names its action), `production_is_reachable_in_survival`, `production_hover_tips_say_what_to_do`. `--example blastbench` times one charge.
+Blast tests in `sim.rs`: `blast_overpressure_curve` (Kinney-Graham values, monotone, deterministic, bounded), `blast_is_heard_by_listeners`, `blast_debris_deterministic_and_conserved`. Blast sound tests in `blast_events.rs`: `one_charge_is_heard_once_*` (one charge in a generated world: one blast, no later Explode or Quake, no collapse rumble for a cell or two trickling off the crater). Transport tests in `transport.rs`: `transport_is_reachable_in_survival`, `creative_has_transport_freely`, `transport_hover_tips_say_what_to_do` (each machine's hover tip names its action), `production_is_reachable_in_survival`, `production_hover_tips_say_what_to_do`. Sluicing tests in `sluice.rs`: `fines_wash_and_lumps_stay_by_mobility`, `still_water_has_no_current`. `--example blastbench` times one charge.
 
 Settled ground tests in `sim/tests/settled_ground.rs`: `loose_lenses_are_rare_round_the_burrow_but_not_beyond` (lenses under 1.2 % of the ground within 40 m of the burrow and none soaked; over 3 % beyond 80 m at the same depths and over 2 % at 15-35 m down, 24 seeds), `a_new_holt_starts_on_settled_ground` (under 2 % of the ground within 30 m of a fresh holt's burrow is loose, and hardly any sand faces open cave, 5 seeds).
 

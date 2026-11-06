@@ -69,9 +69,9 @@ fn reachable() -> [bool; NITEM] {
 /// wood and stone), the ore hopper from the forge (copper), the shaker screen once there's iron.
 #[test] fn production_is_reachable_in_survival() {
     let have = reachable();
-    for it in [Item::Chute, Item::Bumper, Item::OreHopper, Item::Screen] { assert!(have[it as usize], "{it:?} can't be made in Survival"); }
+    for it in [Item::Chute, Item::Bumper, Item::OreHopper, Item::Screen, Item::Riffle] { assert!(have[it as usize], "{it:?} can't be made in Survival"); }
     let at = |n: &str| RECIPES.iter().find(|r| r.name == n).unwrap();
-    for n in ["Chute x8", "Bumper x2"] { assert_eq!(at(n).station, Station::Workbench, "{n}"); }
+    for n in ["Chute x8", "Bumper x2", "Riffle bar x8"] { assert_eq!(at(n).station, Station::Workbench, "{n}"); }
     assert!(at("Ore hopper").inputs.iter().all(|&(it, _)| !matches!(it, Item::IronIngot | Item::IronOre)), "the ore hopper needs no iron");
 }
 

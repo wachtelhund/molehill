@@ -1,11 +1,11 @@
 # Production
 
-A mine's output moves as **real loose items**: every lump is a loose item in the world, in a cart, or in an ore hopper's bin (drawn as its heap). Nothing teleports and nothing is stored out of sight. Lumps get from the face to where they are wanted by falling, sliding and rolling, so a line can jam, spill and pile up. The code is `engine/sim/src/production.rs`; carts are in [Transport](Transport.md).
+A mine's output moves as **real loose items**: every lump is a loose item in the world, in a cart, or in an ore hopper's bin (drawn as its heap). Nothing teleports and nothing is stored out of sight. Lumps get from the face to where they are wanted by falling, sliding and rolling, so a line can jam, spill and pile up. The code is `engine/sim/src/production.rs` and `sluice.rs`; carts are in [Transport](Transport.md).
 
 | stage | what | state |
 |---|---|---|
 | 1 | Chutes, shaker screens, bumpers (carts tip), ore hoppers that feed carts | **built** |
-| 2 | Water sluicing: channels carry silt off, riffles catch heavy ore | design |
+| 2 | Water sluicing: running water carries fines off, riffle bars catch heavy lumps, water drains through screens | **built** |
 | 3 | Mechanical power: water wheels, shafts, gears, belts | design |
 | 4 | Coal power: boiler and steam engine; ash and slag to haul away | design |
 | 5 | Refinement: stamp mill, washer, bellows smelter, foundry | design |
@@ -49,6 +49,29 @@ Scenario `production_line` runs the line end to end with nothing carried by hand
 
 The mole stands by the hopper throughout and picks up nothing, because lumps let down from a hopper or tipped from a cart can't be picked up for their first third of a second.
 
+## Sluicing
+
+Running water sorts what lies in it by how heavy it is for its size (`sluice.rs`). Nothing is moved by hand: the water's own flow from the falling-sand sim pushes loose items and loose grains downstream, and what it can't shift stays.
+
+* **The current.** The CA moves water cell by cell and keeps no velocities. So the current is read from the shape of the water, as in an open channel: water runs down the slope of its own surface. Under water, the top of the water is found up to 1 m either side (the nearest columns that hold water). Its slope `s` gives the speed, 4·√|s| m/s (`WASH_V`), so a 1-in-4 sheet runs about 2 m/s. With the depth `h` above the bed it also gives the stress on the bed, `h`·|s|. A pool, level on top, has no current (test `still_water_has_no_current`). Only a free surface counts: water capped by rock, such as a flooded passage under its roof, isn't a downhill surface (test `water_under_a_roof_is_not_a_current`). The hover tip on running water gives its direction and speed.
+* **What moves.** A lump's mobility is its weight in water over its face: (ρ/ρw − 1) × size (`mobility`, with the size from `Item::size_m`). Running water carries a lump when `h`·|s| exceeds that (`WASH_K` = 1), and holds it up off the bed at twice that.
+
+  | lump | mobility (m) | in a sluice |
+  |---|---|---|
+  | sand, dirt, clay | 0.001 to 0.016 | carried, held up |
+  | gravel, coal | about 0.03 | carried, held up |
+  | ore and stone | 0.26 to 0.34 | stay |
+
+  Test `fines_wash_and_lumps_stay_by_mobility`. Deep, fast water near a reservoir's mouth can nudge ore a tile; a sluice's thin sheet can't.
+* **Loose items** in running water are dragged toward the current's speed. On the bed they press with only their weight less buoyancy, and less again while the flow holds them up. A held-up lump the current drives into something is lifted up and over it, as the flow goes over a riffle bar.
+* **Loose grains** on the bed of running water (sand, and a blast's rubble: anything loose) are washed one cell downstream every 4 ticks (`WASH_EVERY`), as often as the current's speed says. They move along the bed or down it, or, when held up, over a lip.
+* **Riffle bar** (`Mat::Riffle`, `Item::Riffle`): a low timber bar across a sluice floor. Lumps the water rolls along the bed fetch up behind it, while fines held up in the flow go over the top. Sand washed along as grains also collects behind riffles, so a riffled sluice wants clearing now and then, as a real one does.
+* **Water through screens:** a shaker screen's mesh lets water through (`water_through_screen`), so a screen can stand under a sluice or drain a wash.
+
+A sluice is a sloping channel, rock or timber rather than a slippery chute, with riffle bars along it and water running down it from a pocket or a breach. Scenarios:
+* `sluice_sorts`: a reservoir drains down a stepped 1-in-4 channel with a riffle at the foot of each step. Gravel, coal and sand tipped in at the top are carried into the tailings pond. Copper ore, iron ore and stone settle in the riffle traps, both copper ores behind the first bar.
+* `sluice_washes_rubble`: after a blast, the same channel without riffles has heaps of loose rubble on two steps. Every grain of sand and gravel is washed into the pond, and the iron ore stays where it lay.
+
 ## How they look
 
 Chutes, screens and bumpers are cells with their own patterns (`art::mat_color`). A chute has a pale worn lip and boards along it. A screen is iron bars over a dark mesh under a timber rail. A bumper is red-painted timber with a bright head and iron bands. The ore hopper is drawn: its heap is tinted with what it holds, it shows through the open front of the bin and rises with the load, and the gate under the spout swings open when it lets a lump down. `--scene=production` stamps a small works (chute onto screen, a hopper of copper ore over track, a bumper) for stills. See [Item and Place Art](Item-and-Place-Art.md).
@@ -63,6 +86,7 @@ The chute, screen (shaking or not) and bumper say what moves things along them. 
 |---|---|---|
 | Workbench | 8 chute | 2 wood |
 | Workbench | 2 bumper | 2 wood + 1 stone |
+| Workbench | 8 riffle bar | 2 wood |
 | Forge | 4 shaker screen | 1 iron ingot + 1 wood |
 | Forge | ore hopper | 6 wood + 1 copper ingot |
 
