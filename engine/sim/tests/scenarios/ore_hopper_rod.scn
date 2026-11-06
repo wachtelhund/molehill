@@ -1,0 +1,33 @@
+// A pull-rod holds an ore hopper's gate open. A rod stands up beside a hopper's bin and runs along the floor to a tread
+// plate. The hopper holds four stones and has no cart under it, so its gate is shut. The mole steps onto the plate: the
+// rod is pulled and holds the gate open, and the stones come down onto the floor. It steps off: the gate shuts again.
+map
+####################################
+#..................................#
+#..................................#
+#..................................#
+#.......................F..........#
+#.......................F..........#
+#.......................F..........#
+#.......................F..........#
+#.......................F..........#
+#.......................F..........#
+#.......................F......@...#
+########################FFFFee######
+####################################
+end
+give OreHopper 1
+place 2 -11 -1 OreHopper
+expect 3 bins == 1
+drop 5 Stone -11 -8
+drop 10 Stone -11 -8
+drop 15 Stone -11 -8
+drop 20 Stone -11 -8
+expect 60 binload == 4                // held, gate shut
+expect 60 binopen == 0
+hold 70-74 left                       // onto the plate
+expect 100 binopen == 1               // the rod holds it open...
+expect 140 binload == 0               // ...and it empties
+expect 140 zone:Stone,-12,-10,-2,0 == 4   // onto the floor under its spout
+hold 150-160 right                    // off the plate
+expect 180 binopen == 0

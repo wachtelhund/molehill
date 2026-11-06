@@ -225,3 +225,16 @@ I playtested the trains in context and probed the edges:
 * For p7: workbench: float x2 (2 wood), sluice gate (4 wood + 1 stone); forge: pull-rod x8 (1 iron ingot), tread plate x2
   (1 iron ingot), clutch x2 (2 iron ingots), tipping scale (2 iron + 1 bronze ingot + 2 wood).
 * **Not tested live:** headless only. The ore-hopper hold has no scenario, and neither does a cart on a tread plate.
+
+## Stage 6 polish (branch `refine/production-logic-polish`, after PR #57)
+
+* **A dropping gate lost water (fixed).** In `float_valve` the gate shutting into the flow destroyed 3 cells of 48: what
+  was in its cells was pushed straight up, into the rock above the opening. It's now pushed aside through the water to
+  the nearest open cell, so the pool rises and nothing is lost. `float_valve` asserts all 48 cells.
+* **A cart couldn't press a plate under its rails (fixed).** Carts were weighed only on a plate level with their wheels,
+  so a treadle in the track bed never felt one. A cart now weighs a plate up to a tile under its wheels. Scenario
+  `cart_treadle`.
+* **The ore-hopper hold is now covered.** It needed the rod reach widened from 1.5 to 2.5 cells: a rod touching the bin's
+  side sat just outside. Scenario `ore_hopper_rod`.
+* `site/` is rebuilt on main after #57.
+* **Not tested live:** headless only.

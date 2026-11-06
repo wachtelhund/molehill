@@ -143,13 +143,13 @@ A **linkage** is pull-rod cells and the sensors and actuators touching them. Whe
 
 * **Pull-rod** (`Mat::Rod`): iron rods on guides, laid with the brush. They can run through rock, so a line can go up a wall and along a roof.
 * **Sensors:**
-  * **Tread plate** (`Mat::TreadPlate`, built into a floor): pressed by 20 kg or more on it. That's the mole (30 kg), four lumps, or a cart.
+  * **Tread plate** (`Mat::TreadPlate`, built into a floor): pressed by 20 kg or more on it. That's the mole (30 kg), four lumps, or a cart, including a cart on rails laid over the plate: a treadle in the track bed (`cart_treadle`).
   * **Tipping scale** (`Item::Scale`): a pan 1 m wide on a floor, with a counter-pan of stones (10 to start, 5 kg each). It tips when what lies on its pan outweighs them. Right mouse with a stone in the paw puts one on; with an empty paw it takes one off, back into the pack. That sets the batch it weighs out.
   * **Float** (`Mat::Float`): lifted, and so pressed, while water touches it.
 * **Actuators:**
-  * **Sluice gate** (`Item::SluiceGate`): a timber gate set into an opening, filling it top to bottom (up to 2 m). Pulled, it lifts and its cells open, so water and lumps pass. Let go, it drops again, pushing what's in its way up out of it, as a door does. Right mouse turns it round so that it *shuts* when pulled.
+  * **Sluice gate** (`Item::SluiceGate`): a timber gate set into an opening, filling it top to bottom (up to 2 m). Pulled, it lifts and its cells open, so water and lumps pass. Let go, it drops again, pushing what's in its way aside through the water it's in to the nearest open cell, so a pool rises instead of losing what the gate displaced (`float_valve` keeps every cell). Right mouse turns it round so that it *shuts* when pulled.
   * **Clutch** (`Mat::Clutch`): machinery that joins its drive train only while its rod is pulled.
-  * **Ore hopper:** a pulled rod touching one holds its gate open.
+  * **Ore hopper:** a pulled rod touching or alongside its bin holds its gate open (`ore_hopper_rod`).
 * Scenarios:
   * `tread_plate_gate`: the mole on a plate lifts a gate under a reservoir, and stepping off drops it.
   * `float_valve`: a turned-round gate fills a tank until the water reaches a float, and then shuts.
