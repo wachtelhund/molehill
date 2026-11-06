@@ -8,7 +8,7 @@ Every item has its own drawing. No two share a silhouette, and none is another i
 
 ![Every item's pack icon, then every device as the hotbar shows it](images/item-icons.png)
 
-The sheet shows all 81 items, then the 21 devices.
+The sheet shows all 86 items, then the 21 devices.
 
 The pack, the hotbar, the item in the mole's paws and anything lying loose all use the icon (a loose item is drawn at half size). Devices in the hotbar use their own in-world sprite (`devart::hotbar_icon`, switched off), so a lever, a plate and a floodgate no longer share one placeholder. The fuse and the pressure plate are the exceptions: in the world each is a thin strip along the floor of its block, so the hotbar shows a coil of fuse cord and the plate seen from above at an angle.
 
@@ -88,6 +88,11 @@ The pack, the hotbar, the item in the mole's paws and anything lying loose all u
 | Water wheel | a paddle wheel dipping into blue water | placed cells: a one-metre wheel per metre of block, a bright rim and four spokes ending in pale paddles that turn with its train over a darker boarded disc |
 | Belt | a fibre belt over two rollers, stitching along it | placed cells: woven fibre on top with stitched chevrons pointing the way it carries and sliding that way while it runs; under the fabric, wooden rollers with a turning spoke |
 | Counterweight | a rope drum over a hanging iron weight | its drum cell ticks between rope and iron as it turns; the rope pays out as twisted fibre down to a cast-iron weight hanging on its eye (`art::weight`) |
+| Boiler | a brick firebox with a glowing door under a riveted iron drum | drawn over its shell cells (`art::boiler`): a riveted drum with a steam dome and chimney over brickwork, the fire door dark when cold; lit, the fire shows through the door bars, a warm glow flickers round it and smoke puffs rise from the chimney |
+| Steam engine | an upright iron cylinder banded in brass on a timber bed, piston and connecting rods to a spoked flywheel, a puff of steam at the valve | placed cells: a metre unit per metre of block, an iron cylinder with a brass band, a crank wheel whose pin goes round as its train turns, and the connecting rod swinging from the cylinder to the pin |
+| Steam pipe | a copper pipe with a flanged joint and a wisp of steam | placed cells: copper with a highlight along its run and a brass flange every half metre (it lies the way its run is longer) |
+| Ash | a heap of fine pale ash, soft-edged, cinders and a last ember in it | lies loose as its icon |
+| Slag | a frothy glassy clinker, rust-streaked, its broken face shining blue and violet, a drip set on it | lies loose as its icon |
 | Ore hopper | a timber bin heaped with ore, tapering to a spout, on splayed legs | ore hopper sprite: back boards, the heap tinted with what it holds, the front frame open over the heap, a boarded taper to an iron spout whose gate shows shut or swung open, two legs down to the floor (`art::ore_bin`) |
 | Rock wall | a rough slab of scraped host rock with tool marks | background lining |
 | Timber wall | boards standing on end, uneven tops, gaps between | background lining |
@@ -137,6 +142,7 @@ Game-crate tests (`cargo test --release -p molehill`):
 * `production_blocks_have_their_own_look`: the chute, shaker screen, bumper and riffle patterns differ from each other by at least 30 in mean colour, and riffle slats have dark gaps between them. The screen is at least 40% dark mesh with bright bars, the chute's top is a pale lip, and the bumper's head is red.
 * `rope_gun_art_is_drawn`: the loaded gun shows its hook (at least 5 more pixels than the empty one), the rope length is solid fibre whose twist spans a wide brightness range, and the hook has a point and two barbs.
 * `machinery_moves_when_its_train_turns`: the shaft, gear, water wheel, belt and drum each differ from every other in over 64 of 256 cells; each changes at least 12 cells over 1.5 cells of travel; a right belt's stitches run right and a left belt's run left; a vertical shaft is the horizontal one turned.
+* `boiler_and_pipe_are_drawn`: the lit boiler shows at least 12 bright fire pixels through its door and the cold one none; a steam pipe has brass flanges on copper; a vertical pipe is the horizontal one turned. The steam engine is one of the kinds in `machinery_moves_when_its_train_turns`.
 * `ore_hopper_is_a_drawn_bin`: the bin's back boards fill it, the front leaves the upper part open (so the heap shows), the taper is boarded down to a spout, the open gate differs from the shut one, and the heap sprite is pale so its tint gives the ore colour.
 * `found_places_are_furnished`: each family is stamped into rock and must get its listed furnishings, all inside the site and none in rock. Every prop kind is placed somewhere.
 

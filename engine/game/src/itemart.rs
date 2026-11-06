@@ -235,14 +235,27 @@ pub fn icon_px(it: Item) -> Px {
         Boiler => { // a brick firebox with a glowing door under a riveted iron drum
             p.rect(1, 8, 14, 15, [150, 74, 56]); for (x, y) in [(3, 10), (8, 12), (12, 10), (5, 14)] { p.rect(x, y, x + 2, y, [118, 56, 44]); }
             p.rect(5, 11, 9, 14, [40, 30, 28]); p.rect(6, 12, 8, 13, FLAME); p.oval(8., 5., 7., 3.5, IRON); p.rect(2, 4, 13, 4, sh(IRON, 1.25)); for x in [3, 8, 13] { p.set(x, 6, IRON_D); } p.rect(11, 0, 12, 2, IRON_D); }
-        Engine => { // an iron cylinder and a crank wheel
-            p.rect(1, 3, 8, 11, col); p.rect(1, 3, 8, 4, sh(col, 1.3)); p.rect(8, 6, 11, 7, IRON); p.oval(12., 9., 3.5, 3.5, IRON_D); p.oval(12., 9., 1.2, 1.2, BRASS); line(&mut p, 11., 7., 13., 10., 1, BRASS); p.rect(2, 12, 9, 13, WOOD_D); }
+        Engine => { // a steam engine side on: an upright iron cylinder banded in brass on a timber bed, its piston rod
+            // up to a crosshead, the connecting rod down to a big spoked flywheel's crank pin, a valve letting off a puff
+            p.rect(0, 13, 15, 15, WOOD_D); p.rect(0, 13, 15, 13, WOOD);
+            p.rect(1, 5, 5, 12, col); p.rect(1, 5, 1, 12, sh(col, 1.35)); for y in [6, 10] { p.rect(1, y, 5, y, BRASS); } p.rect(0, 4, 6, 4, IRON_D);
+            p.rect(3, 1, 3, 3, IRON); p.rect(2, 1, 4, 1, BRASS_D); // piston rod and crosshead
+            p.oval(11., 8.5, 4.6, 4.6, IRON_D); p.oval(11., 8.5, 3.4, 3.4, [0, 0, 0]); p.c.iter_mut().for_each(|c| if c[0] == 0 && c[1] == 0 && c[2] == 0 { c[3] = 0; });
+            line(&mut p, 11., 4.5, 11., 12.5, 1, IRON); line(&mut p, 7., 8.5, 15., 8.5, 1, IRON); p.oval(11., 8.5, 1.2, 1.2, BRASS);
+            line(&mut p, 4., 1.5, 13., 6.5, 1, BRASS); p.set(13, 6, [240, 210, 120]); // connecting rod to the crank pin
+            p.set(6, 2, [226, 230, 236]); p.set(7, 1, [210, 214, 222]); p.set(8, 0, [196, 200, 210]); } // a puff of steam
         SteamPipe => { // a copper pipe with a flanged joint and a wisp of steam
             p.rect(0, 7, 15, 10, col); p.rect(0, 7, 15, 7, sh(col, 1.3)); p.rect(7, 5, 8, 12, BRASS_D); p.set(3, 4, [220, 224, 230]); p.set(4, 3, [220, 224, 230]); p.set(12, 4, [200, 206, 214]); }
-        Ash => { // a soft grey heap with paler flecks
-            p.oval(8., 12., 7., 3.5, col); p.oval(7., 10., 4., 2.5, sh(col, 1.1)); fleck(&mut p, 1, 8, 15, 15, 3, 21, sh(col, 1.25)); p.set(9, 8, sh(col, 0.8)); }
-        Slag => { // a dark glassy clinker with bubbles
-            poly(&mut p, &[(2., 12.), (4., 5.), (9., 3.), (14., 7.), (13., 13.), (6., 14.)], col); for (x, y) in [(5, 8), (9, 6), (10, 10), (6, 11)] { p.set(x, y, [24, 22, 28]); } p.set(8, 5, [150, 150, 170]); p.set(11, 8, [120, 120, 140]); }
+        Ash => { // a heap of fine pale ash spilling from a shovel's worth, soft-edged, a few cinders and a last ember in it
+            p.oval(8., 12.5, 7., 3., sh(col, 0.9)); p.oval(8., 11., 5., 3.2, col); p.oval(7.5, 9.5, 2.8, 2., sh(col, 1.18)); p.set(7, 8, sh(col, 1.3));
+            for (x, y) in [(3, 13), (12, 12), (9, 14)] { p.set(x, y, [70, 66, 66]); } p.set(10, 10, [255, 140, 50]); p.set(5, 12, [210, 90, 40]);
+            for (x, y) in [(1, 11), (14, 10), (2, 9)] { p.set(x, y, sh(col, 1.1)); } } // drifting flakes
+        Slag => { // a frothy glassy clinker, rust-streaked, its broken face shining blue and violet, a drip run off it
+            poly(&mut p, &[(1., 11.), (3., 5.), (7., 3.), (12., 4.), (15., 8.), (13., 12.), (8., 13.)], col);
+            for (x, y) in [(4, 8), (8, 6), (11, 9), (6, 11), (12, 6)] { p.set(x, y, [20, 18, 24]); } // bubbles
+            line(&mut p, 9., 4., 13., 9., 1, [96, 120, 190]); p.set(10, 5, [170, 150, 230]); p.set(12, 7, [140, 190, 230]); // the glassy face
+            line(&mut p, 2., 9., 6., 12., 1, [140, 70, 40]); // a rust streak
+            p.rect(8, 13, 8, 15, sh(col, 0.85)); p.set(8, 15, [60, 54, 66]); } // a drip that ran and set
         StampMill => { // a timber frame with two iron stamps over a mortar, a cam shaft across the top
             p.rect(1, 1, 2, 15, WOOD_D); p.rect(13, 1, 14, 15, WOOD_D); p.rect(1, 2, 14, 3, WOOD); p.oval(8., 2.5, 1.6, 1.6, IRON_D);
             for x in [5, 9] { p.rect(x, 4, x + 1, 9, IRON); p.rect(x - 1, 9, x + 2, 11, IRON_D); } p.rect(2, 12, 13, 15, col); p.rect(3, 13, 12, 13, sh(col, 0.7)); }

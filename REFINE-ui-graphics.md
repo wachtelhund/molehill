@@ -216,6 +216,24 @@ Polish only: no new systems, lore names kept. Each entry lists what changed and 
 * `site/` rebuilt on main 91d4943 (the power art merged without a web rebuild).
 * Not tested: a water wheel turning in a real stream, and a live window (everything via dump stills and swatches).
 
+## Steam art (branch `refine/steam-art`, on #49/#50)
+* Boiler: drawn over its shell cells (`art::boiler`), a riveted drum with a dome and chimney over brickwork. Cold,
+  the fire door is dark. Lit, the fire shows through its bars, a flickering glow sits round the door and three
+  smoke puffs rise from the chimney.
+* Steam engine cells: a metre unit per metre, a cylinder with a brass band, and a crank wheel whose pin goes round
+  with the train's `turn`, the connecting rod swinging to it. Steam pipe cells: copper, a highlight along the run
+  and brass flanges every half metre, oriented like shafts.
+* Icons: the boiler and steam pipe placeholders were kept. On the sheet the engine (a small cylinder and wheel),
+  ash (read like a stone) and slag (read like coal) were weak, so they were redrawn: an upright cylinder with rods to
+  a spoked flywheel and a steam puff; a pale soft heap with cinders and an ember; a frothy clinker with a glassy
+  blue-violet face, a rust streak and a set drip. Icon sheet regenerated (86 items, 21 devices).
+* Stills: `--scene=steam` at frame 120 shows the lit boiler (fire through the door, smoke). The scene light is too
+  dim to judge the engine and pipe cells, so their unlit swatches were checked: the crank pin and rod move
+  between rest and 1.5 cells of travel. Rubble settled over the pipe in the still. That's the sim, not the art,
+  and it was left alone.
+* Not tested: a live window, and the engine actually turning under steam in a still (checked by swatch and test).
+* Test `boiler_and_pipe_are_drawn`; the engine joins `machinery_moves_when_its_train_turns`.
+
 ## Open issues
 * `--shot` writes an empty frame on macOS when the game is launched from a background shell (the surface is
   never presented). It needs a visible window, or Linux with Xvfb.

@@ -141,6 +141,8 @@ Chutes, screens and bumpers are cells with their own patterns (`art::mat_color`)
 
 Machinery moves with its drive train. Each train keeps how far it has run (cells of belt travel, advanced by its speed every frame), and the cells draw from that. An iron shaft's twist band slides along it, a gear's teeth turn round its hub, and a water wheel's spokes and paddles turn. A belt's stitched chevrons point the way it carries and slide that way, and the weight drum's windings creep. A still train shows them at rest. The counterweight hangs as a cast-iron weight on a fibre rope that pays out as it falls. `--scene=power` stamps a counterweight driving a shaft, gears and a belt, with a water wheel standing by. `--dump-art` also writes each production and machinery cell's art as an unlit swatch, at rest and 1.5 cells in (`cells-<Mat>-0/1.bmp`).
 
+A boiler is drawn over its shell cells: a riveted drum with a steam dome and chimney over a brick firebox. While it burns, the fire shows through the door, a warm glow flickers round it and smoke puffs from the chimney. A steam engine's crank pin goes round with its train and the connecting rod swings to it. Steam pipes are copper with brass flanges. `--scene=steam` stamps a lit boiler piping steam to an engine that drives a belt.
+
 ## Hover tips
 
 The chute, screen (shaking or not) and bumper say what moves things along them. The ore hopper's tip gives its load and capacity, and says whether the gate is held open or opens for a cart (test `production_hover_tips_say_what_to_do`).

@@ -135,7 +135,7 @@ const BG_BASE: [f32; 3] = [44., 34., 30.];
 #[inline] fn srgb(l: f32) -> f32 { l.max(0.).powf(1. / 2.2) * 255. }
 #[derive(Component)] pub struct WorldSprite;
 #[derive(Component)] struct Pooled(u8, usize);
-#[derive(Resource)] pub struct Sprites { pub rope: [Handle<Image>; 2], pub weight: Handle<Image>, pub props: Vec<Handle<Image>>, pub cart: Handle<Image>, pub bin: Vec<Handle<Image>>, pub clue: Vec<Handle<Image>>, pub furn: Vec<Option<(Handle<Image>, Option<Handle<Image>>)>>, pub tools: [Handle<Image>; 3], pub dev: Vec<Handle<Image>>, pub ring: Handle<Image>, pub mole: Vec<Handle<Image>>, pub mole_out: Vec<Handle<Image>>, pub held: Vec<Handle<Image>>, pub icons: Vec<Handle<Image>>, pub chest: [Handle<Image>; 2], pub station: Vec<[Handle<Image>; 2]>, pub torch: Handle<Image>, pub torch_f: Vec<Handle<Image>>, pub glow: Handle<Image>, pub shroom: [Handle<Image>; 3], pub px: Handle<Image> }
+#[derive(Resource)] pub struct Sprites { pub rope: [Handle<Image>; 2], pub weight: Handle<Image>, pub boiler: [Handle<Image>; 2], pub props: Vec<Handle<Image>>, pub cart: Handle<Image>, pub bin: Vec<Handle<Image>>, pub clue: Vec<Handle<Image>>, pub furn: Vec<Option<(Handle<Image>, Option<Handle<Image>>)>>, pub tools: [Handle<Image>; 3], pub dev: Vec<Handle<Image>>, pub ring: Handle<Image>, pub mole: Vec<Handle<Image>>, pub mole_out: Vec<Handle<Image>>, pub held: Vec<Handle<Image>>, pub icons: Vec<Handle<Image>>, pub chest: [Handle<Image>; 2], pub station: Vec<[Handle<Image>; 2]>, pub torch: Handle<Image>, pub torch_f: Vec<Handle<Image>>, pub glow: Handle<Image>, pub shroom: [Handle<Image>; 3], pub px: Handle<Image> }
 
 /// `?seed=N` (web) / `--seed=N` (native) was given: the game opens straight into that holt.
 fn seed_pinned() -> bool {
@@ -305,7 +305,7 @@ fn dev_dump(n: Local<u32>, g: Res<Game>, sp: Res<Sprites>, images: Res<Assets<Im
         for (k, h) in sp.held.iter().enumerate() { list.push((format!("held{k}"), h.clone())); }
         for (k, f) in sp.furn.iter().enumerate() { if let Some((b, c)) = f { list.push((format!("furn-{:?}", ITEMS[k]), b.clone())); if let Some(c) = c { list.push((format!("cloth-{:?}", ITEMS[k]), c.clone())); } } }
         for (k, h) in sp.tools.iter().enumerate() { list.push((format!("tool{k}"), h.clone())); }
-        list.push(("cart".into(), sp.cart.clone())); list.push(("rope".into(), sp.rope[0].clone())); list.push(("hook".into(), sp.rope[1].clone())); list.push(("weight".into(), sp.weight.clone()));
+        list.push(("cart".into(), sp.cart.clone())); list.push(("rope".into(), sp.rope[0].clone())); list.push(("hook".into(), sp.rope[1].clone())); list.push(("weight".into(), sp.weight.clone())); list.push(("boiler0".into(), sp.boiler[0].clone())); list.push(("boiler1".into(), sp.boiler[1].clone()));
         for (k, h) in sp.bin.iter().enumerate() { list.push((format!("orebin{k}"), h.clone())); }
         for (k, h) in sp.props.iter().enumerate() { list.push((format!("prop-{:?}", props::PROPS[k]), h.clone())); }
         for (k, h) in sp.icons.iter().enumerate() { list.push((format!("icon-{:?}", ITEMS[k]), h.clone())); }
@@ -314,7 +314,7 @@ fn dev_dump(n: Local<u32>, g: Res<Game>, sp: Res<Sprites>, images: Res<Assets<Im
         for (k, h) in sp.chest.iter().enumerate() { list.push((format!("chest{k}"), h.clone())); }
         for (name, h) in list { if let Some(im) = images.get(&h) { if let Some(d) = im.data.as_ref() { bmp(&format!("{dir}/sprite-{name}.bmp"), im.width() as usize, im.height() as usize, d, false, 8); } } }
         // the production and machinery cells' own art, unlit, at rest and 1.5 cells of travel in
-        for m in [Mat::Shaft, Mat::Gear, Mat::Wheel, Mat::Belt, Mat::BeltL, Mat::Drum, Mat::Chute, Mat::Screen, Mat::Bumper, Mat::Riffle] { for (j, t) in [0f32, 1.5].into_iter().enumerate() {
+        for m in [Mat::Engine, Mat::SteamPipe, Mat::Shaft, Mat::Gear, Mat::Wheel, Mat::Belt, Mat::BeltL, Mat::Drum, Mat::Chute, Mat::Screen, Mat::Bumper, Mat::Riffle] { for (j, t) in [0f32, 1.5].into_iter().enumerate() {
             let im = art::swatch(m, t); if let Some(d) = im.data.as_ref() { bmp(&format!("{dir}/cells-{m:?}-{j}.bmp"), im.width() as usize, im.height() as usize, d, false, 8); } } }
         info!("dumped art to {dir}");
     }
@@ -382,6 +382,22 @@ fn stage_scene(w: &mut World) {
                 for k in 0..6u8 { put(w, ClueKind::Relic, x0 + 14 * S + k as usize * 4 * S, my, k); }
                 put(w, ClueKind::Draft, x0 + 45 * S, my, 0);
                 for k in 0..3 { w.torches.push((x0 + (6 + k * 20) * S, my - 4 * S)); }
+            }
+            "steam" => { // a sealed boiler house east of the burrow: a boiler stoked with coal and full of water, a steam pipe
+                // from its side to a steam engine, and the engine driving a belt along the floor
+                use molehill_sim::{mat::CPM, steam::{Boiler, BOILER_W, BOILER_H, TANK}};
+                let (x0, x1, y0) = (mx + 4 * S, mx + 64 * S, my - 22 * S);
+                for x in x0 - 2 * S..x1 + 2 * S { for y in y0 - 4 * S..my + 1 + 2 * S { set(w, x, y, Mat::Limestone); } }
+                for x in x0..x1 { for y in y0..=my { set(w, x, y, Mat::Empty); } }
+                let (bx, floor) = (x0 + 12 * S, my + 1); let h = BOILER_W / 2;
+                for r in floor - BOILER_H..floor { for c in bx - h..bx + h { set(w, c, r, Mat::Boiler); } }
+                w.tr.boilers.push(Boiler { x: bx, y: floor, fuel: vec![(Item::Coal, 6)], burning: Some(Item::Coal), burn: 2000, water: TANK, steam: 0., burnt: 0, choked: false, puff: 0., engines: vec![] });
+                let ex = bx + h + 2 * CPM; let py = floor - BOILER_H / 2;
+                for x in bx + h..ex { for y in py - 1..=py { set(w, x, y, Mat::SteamPipe); } }
+                for x in ex..ex + CPM { for y in floor - CPM..floor { set(w, x, y, Mat::Engine); } }
+                for x in ex + CPM..ex + 4 * CPM { for y in floor - 2..floor { set(w, x, y, Mat::Belt); } }
+                molehill_sim::light::reveal_box(&mut w.g, mx, y0 - 10 * S, x1 + 10 * S, my + 10 * S);
+                for k in 0..4 { w.torches.push((x0 + (6 + k * 16) * S, y0 + 4 * S)); }
             }
             "power" => { // a sealed works east of the burrow: a counterweight under the roof drives an iron shaft, a gear
                 // round the corner, a shaft down and a gear onto a belt along the floor running right; a water
@@ -635,7 +651,7 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, mut fonts: R
         mole_out: art::mole_sheet(false).into_iter().map(|i| images.add(i)).collect(),
         held: [art::Held::Pick, art::Held::Drill, art::Held::Bore, art::Held::Charge, art::Held::Block(Item::WoodPillar.color()), art::Held::Block(Item::Brick.color()), art::Held::Block(Item::IronBeam.color()), art::Held::RopeGun(true), art::Held::RopeGun(false)]
             .into_iter().map(|h| images.add(art::held_sprite(h))).collect(),
-        clue: (0..9).map(|k| images.add(decorart::clue(k))).collect(), props: props::PROPS.iter().map(|&p| images.add(props::image(p))).collect(), cart: images.add(art::cart()), rope: [images.add(art::rope_seg()), images.add(art::rope_hook())], weight: images.add(art::weight()), bin: (0..5).map(|k| images.add(art::ore_bin(k))).collect(),
+        clue: (0..9).map(|k| images.add(decorart::clue(k))).collect(), props: props::PROPS.iter().map(|&p| images.add(props::image(p))).collect(), cart: images.add(art::cart()), rope: [images.add(art::rope_seg()), images.add(art::rope_hook())], weight: images.add(art::weight()), boiler: [images.add(art::boiler(false)), images.add(art::boiler(true))], bin: (0..5).map(|k| images.add(art::ore_bin(k))).collect(),
         furn: ITEMS.iter().map(|&it| it.furn().map(|_| { let (b, c) = decorart::furniture(it); (images.add(decorart::finish(b)), c.map(|c| images.add(decorart::cloth(c)))) })).collect(),
         icons: ITEMS.iter().map(|&it| images.add(itemart::icon(it))).collect(),
         chest: [images.add(art::chest(false)), images.add(art::chest(true))],
@@ -996,8 +1012,8 @@ fn render_world(mut gm: ResMut<Game>, bg: Res<Bg>, mut images: ResMut<Assets<Ima
                     let pn = gr.paint(i); let base = if pn > 0 && p.kind == Kind::Solid { let pc = craft::PIGMENTS[pn as usize]; [0usize, 1, 2].map(|j| p.color[j] as f32 * 0.25 + pc[j] as f32 * 0.75) } else {
                         // rails and ore pockets draw their own two-tone pixel art (`art::mat_color`)
                         let above = (1..=2).take_while(|&d| y >= d && gr.m(i - d * W) == m).count() as u32;
-                        // machinery moves with its drive train (`Game::turn`); a shaft runs the way its run is longer
-                        let (turn, horiz) = if p.flags & molehill_sim::mat::MECH != 0 { (wd.tr.power.train.get(&i).and_then(|&t| g.turn.get(t as usize)).copied().unwrap_or(0.),
+                        // machinery moves with its drive train (`Game::turn`); a shaft or steam pipe runs the way its run is longer
+                        let (turn, horiz) = if p.flags & molehill_sim::mat::MECH != 0 || m == Mat::SteamPipe { (wd.tr.power.train.get(&i).and_then(|&t| g.turn.get(t as usize)).copied().unwrap_or(0.),
                             { let run = |dx: i64, dy: i64| (1..=3i64).take_while(|&k| { let (xx, yy) = (x as i64 + dx * k, y as i64 + dy * k); xx >= 0 && yy >= 0 && (xx as usize) < W && (yy as usize) < H && gr.m(yy as usize * W + xx as usize) == m }).count();
                               run(-1, 0) + run(1, 0) >= run(0, -1) + run(0, 1) }) } else { (0., true) };
                         art::mat_color(m, x as u32, wy, above, turn, horiz).unwrap_or(p.color.map(|v| v as f32)) };
@@ -1296,6 +1312,21 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
         let len = (y - top).max(0.) * CPX; if len > 0.1 { rot.insert((80, k), std::f32::consts::FRAC_PI_2);
             want.push((80, k, cell_to_world(xc, (top + y) / 2.), 3.9, sp.rope[0].clone(), Vec2::new(len, 1.6), false, lit)); }
         want.push((81, k, cell_to_world(xc, y + 0.3125 * CPM as f32), 4.1, sp.weight.clone(), Vec2::new(0.5 * CPM as f32 * CPX, 0.625 * CPM as f32 * CPX), false, lit));
+    }
+    // boilers: drawn over their shell cells, the fire showing through the door while it burns, a warm glow round the
+    // door and smoke puffing up from the chimney
+    for (k, b) in w.tr.boilers.iter().enumerate() {
+        if w.g.flags[b.y.saturating_sub(2).min(H - 1) * W + b.x.min(W - 1)] & F_SEEN == 0 { continue; }
+        let (x0, y0, x1, y1) = b.rect(); let lit_on = b.burning.is_some();
+        let lt = lightf(b.x, b.y.saturating_sub(2)).to_srgba(); let lit = if lit_on { Color::WHITE } else { Color::srgb(lt.red, lt.green, lt.blue) };
+        want.push((82, k, cell_to_world((x0 + x1) / 2., (y0 + y1) / 2.), 3.9, sp.boiler[lit_on as usize].clone(), Vec2::new((x1 - x0) * CPX, (y1 - y0) * CPX), false, lit));
+        if lit_on {
+            let fl = 0.85 + 0.1 * (now * 11.).sin() + 0.05 * (now * 23.).sin();
+            want.push((83, k, cell_to_world((x0 + x1) / 2., y1 - (y1 - y0) * 0.3), 4.4, sp.glow.clone(), Vec2::splat(22. * fl), false, Color::srgba(1., 0.6, 0.25, 0.4 * fl)));
+            let (cx, cy) = (x1 - 2.5, y0); // the chimney's mouth
+            for j in 0..3 { let f = ((now * 0.6 + j as f32 / 3.) % 1.) as f32; let h = hash3(k as u32, j, 31) as f32 / u32::MAX as f32;
+                want.push((84, k * 3 + j as usize, cell_to_world(cx + f * 3. + h, cy - f * 2.5 * CPM as f32), 4.45, sp.glow.clone(), Vec2::splat(5. + 9. * f), false, Color::srgba(0.42, 0.4, 0.4, 0.45 * (1. - f)))); }
+        }
     }
     // ore hoppers: the bin's back boards, the heap of what it holds tinted with that item's colour, the front
     // frame (its gate shut or swung open under the spout) and two legs stretched down to the floor
