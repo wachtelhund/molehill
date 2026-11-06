@@ -94,6 +94,11 @@ pub const HOLLOW_FLOOR: usize = CPM;
 pub const HOLLOW: &str = "The floor rings hollow: a deadly drop below. Dig beside it to look first.";
 /// Said when a bite under the feet is held back over lava.
 pub const HOT: &str = "The floor is hot under your claws: lava below. Dig beside it to look first.";
+/// The log line for a grotto first come near, `depth` metres below the burrow's level (negative: above it).
+pub fn grotto_notice(depth: f32) -> String {
+    let at = if depth >= 0.5 { format!("{depth:.0} m down") } else if depth <= -0.5 { format!("{:.0} m up", -depth) } else { "level with the burrow".into() };
+    format!("A grotto, {at}: water seeps through the rock here, root-trees drink it, and glowmites drift in the hollow. Cut root-trees for wood.")
+}
 /// What hurt the player's mole last: said as the cause when it dies.
 #[derive(Clone, Copy, Default, Debug, PartialEq, Eq)]
 pub enum Harm { #[default] None, Drowned, Choked, Starved, Burned, Buried, Fell, Blast }
@@ -801,8 +806,10 @@ impl World {
             }
         }
         if self.rules.harmless { self.moles[k].hp = self.moles[k].hp.max(1.); }
-        if self.moles[k].hp <= 0. { if k == 0 && self.rules.drop_pack { self.drop_pack(); } self.moles[k].alive = false; self.pl.dead_t = 0; self.pl.deaths += 1; let nm = self.moles[k].name; self.events.push(Event::Death);
-            let line = if k == 0 { self.pl.harm.death_line(nm) } else { Harm::None.death_line(nm) }; self.say(line); }
+        // the cause first, then where the pack lies
+        if self.moles[k].hp <= 0. { self.moles[k].alive = false; self.pl.dead_t = 0; self.pl.deaths += 1; let nm = self.moles[k].name; self.events.push(Event::Death);
+            let line = if k == 0 { self.pl.harm.death_line(nm) } else { Harm::None.death_line(nm) }; self.say(line);
+            if k == 0 && self.rules.drop_pack { self.drop_pack(); } }
     }
     fn drop_item(&mut self, x: usize, y: usize, item: Item, n: u32) {
         if let Some(d) = self.drops.iter_mut().find(|d| d.item == item && d.asleep() && d.fuse == 0 && d.x.abs_diff(x) <= 3 * S && d.y.abs_diff(y) <= 3 * S && d.n < 20) { d.n += n; return; }
@@ -1403,7 +1410,7 @@ impl World {
             && (mx - g.cx as i64).abs() <= g.rx as i64 + reach && (my - g.cy).abs() <= g.ry as i64 + reach).map(|g| (g.id, g.cy)).collect();
         for (id, cy) in near {
             self.grottos_seen.insert(id); self.events.push(Event::Discover);
-            self.say(format!("A grotto, {:.0} m down: water seeps through the rock here, root-trees drink it, and glowmites drift in the hollow. Cut root-trees for wood.", (cy as f32 * CELL_M).max(0.)));
+            self.say(grotto_notice(cy as f32 * CELL_M));
         }
     }
     /// Old saves (before grottos were remembered): a grotto whose hollow centre has been seen counts as visited.
