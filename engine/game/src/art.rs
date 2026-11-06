@@ -179,9 +179,11 @@ impl Px {
 
 /// Mole animation poses. Frames are indexed by `mole_frame`.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum Pose { Idle, Run, Jump, Fall, Climb, Dig }
+pub enum Pose { Idle, Run, Jump, Fall, Climb, Dig, /** on a rope or ladder, still */ Hang, /** sliding down fast */ Slide, /** taking hold at the foot, or stepping off */ Grab }
 /// Frame index into the mole sheet for a pose and a phase counter.
-pub fn mole_frame(p: Pose, ph: u32) -> usize { match p { Pose::Idle => (ph % 2) as usize, Pose::Run => 2 + (ph % 4) as usize, Pose::Jump => 6, Pose::Fall => 7, Pose::Climb => 8 + (ph % 2) as usize, Pose::Dig => 10 + (ph % 3) as usize } }
+/// Climbing on a rope or ladder is drawn from behind (20×26, nose up the rope): `Climb` a four-frame hand-over-hand
+/// cycle, `Hang` two breathing frames, `Slide` one, `Grab` one. (Frames 8 and 9 are the old side-on wall-cling turn.)
+pub fn mole_frame(p: Pose, ph: u32) -> usize { match p { Pose::Idle => (ph % 2) as usize, Pose::Run => 2 + (ph % 4) as usize, Pose::Jump => 6, Pose::Fall => 7, Pose::Climb => 13 + (ph % 4) as usize, Pose::Dig => 10 + (ph % 3) as usize, Pose::Hang => 17 + (ph % 2) as usize, Pose::Slide => 19, Pose::Grab => 20 } }
 /// The Delver, 26×20 pixels facing right (1 pixel = 1 world unit; 4 pixels = 1 tile). Climb frames are
 /// turned nose-up (20×26). Velvet plum fur, pale spade claws, pink star of a nose, a tiny eye, and a
 /// brass delving hat with a fungus-oil lamp on its brow. `lamp` = the lamp is lit (a bright lens) or out.
@@ -230,6 +232,31 @@ pub fn mole_sheet(lamp: bool) -> Vec<Image> {
     v.push(pose(0., (4., -5.), (0., 0.), (0., 0.), None));            // dig 0: wind up
     v.push(pose(0.5, (5., -1.), (0., 0.), (0.3, -0.2), Some((2., -3.)))); // dig 1: strike
     v.push(pose(0., (2., 1.), (0., 0.), (0., 0.), Some((4., -2.))));  // dig 2: scoop
+    // on a rope or ladder, seen from behind (20×26): the hat's crown and its strap, the back of the head, the body, both
+    // fore-paws up the rope (claws hooked on it) and the hind feet below, each frame placing the four paws
+    // (left paw y, right paw y, left foot y, right foot y, body drop)
+    let back = |lp: f32, rp: f32, lf: f32, rf: f32, drop: f32, spread: f32| -> Px {
+        let mut p = Px::new(20, 26); let by = 14. + drop;
+        p.oval(10., by + 9., 1.2, 1.4, FUR); // tail stub
+        for (x, fy) in [(6.5 - spread, lf), (13.5 + spread, rf)] { p.oval(x, fy, 2.0, 1.4, HIND); } // hind feet
+        p.oval(10., by, 6.4, 7.6, FUR); p.oval(10., by + 1.5, 4.2, 5.2, shade(FUR, 1.08)); // body, the back's sheen
+        let hy = by - 7.5; p.oval(10., hy, 4.4, 3.6, FUR); // head from behind
+        for y in 0..26 { for x in 0..20 { let (dx, dy) = ((x as f32 + 0.5 - 10.) / 4.8, (y as f32 + 0.5 - (hy - 0.5)) / 3.6); if dx * dx + dy * dy <= 1. && (y as f32) < hy - 0.5 { p.set(x, y, HAT); } } } // hat crown
+        p.rect(5, (hy - 0.5) as i32, 15, (hy - 0.5) as i32, BRIM); p.set(9, (hy - 3.) as i32, shade(HAT, 1.35)); p.rect(10, (hy - 0.5) as i32 + 1, 10, (hy + 2.) as i32, LAMP_CASE); // brim, shine, the lamp's strap
+        // the arms run up beside the head (outside the hat) to the paws gripping above it: drawn last so they read
+        for (sx, py) in [(-1f32, lp), (1., rp)] { let (x0, y0, x1) = (10. + sx * 6., by - 3., 10. + sx * 5.5);
+            let n = ((y0 - py).abs() as i32).max(1); for k in 0..=n { let t = k as f32 / n as f32; p.oval(x0 + (x1 - x0) * t, y0 + (py - y0) * t, 1.5, 1.0, shade(FUR, 0.92)); }
+            p.oval(x1, py, 2.1, 1.5, CLAW); p.set((x1 - 1.) as i32, (py - 1.5) as i32, NAIL); p.set(x1 as i32, (py - 1.5) as i32, NAIL); }
+        p.finish(LINE)
+    };
+    v.push(back(1.5, 7.5, 24.5, 21.5, 0., 0.));   // climb 0: left paw reaching up, right foot stepped up
+    v.push(back(4., 4.5, 23., 23., -0.6, 0.));    // climb 1: pulling through, body up
+    v.push(back(7.5, 1.5, 21.5, 24.5, 0., 0.));   // climb 2: right paw reaching up, left foot stepped up
+    v.push(back(4.5, 4., 23., 23., -0.6, 0.));    // climb 3: pulling through
+    v.push(back(2., 2., 24.5, 24.5, 0.5, -0.5));  // hang 0: both paws up, feet together
+    v.push(back(2., 2., 25., 25., 1., -0.5));     // hang 1: a breath lower
+    v.push(back(2.5, 2.5, 25., 25., 1.2, -1.));   // slide: paws clamped together on the rope, feet tucked
+    v.push(back(3., 6., 25., 25., 0.5, 1.5));     // grab: taking hold (or letting go), feet spread on the floor
     v.into_iter().map(|p| p.image()).collect()
 }
 
@@ -559,6 +586,17 @@ pub fn tube_hopper() -> Image {
     p.finish(ICON_LINE).image()
 }
 
+/// Where a hook bit the rock (10×8, 1 px = 1 world unit): a chipped scar in the stone, dark cracks running out of it
+/// and pale chips round its lip, drawn behind the hook so it reads as driven into the face.
+pub fn hook_bite() -> Image {
+    let mut p = Px::new(10, 8); p.oval(5., 4., 2.6, 2.2, [40, 36, 38]); p.oval(5., 4., 1.4, 1.2, [24, 20, 22]);
+    for (x0, y0, x1, y1) in [(5., 4., 0., 1.), (5., 4., 9., 2.), (5., 4., 2., 7.), (5., 4., 8., 7.)] { crate::devart::line(&mut p, x0, y0, x1, y1, 1, [52, 46, 48]); }
+    for (x, y) in [(2, 3), (8, 4), (4, 1), (6, 6)] { p.set(x, y, [176, 170, 160]); }
+    p.image()
+}
+/// A rope-ladder rung (8×3): a round timber rung, lashed to the side ropes at each end.
+pub fn rung() -> Image { let mut p = Px::new(8, 3); p.rect(1, 1, 6, 1, [150, 108, 64]); p.rect(1, 0, 6, 0, [186, 140, 86]); for x in [0, 7] { p.rect(x, 0, x, 2, [176, 146, 96]); } p.finish(ICON_LINE).image() }
+
 /// The boiler over its shell cells (1 px = 1 world unit, `BOILER_W`×`BOILER_H` cells): a riveted iron drum with a
 /// steam dome and a stub chimney over a brick firebox, the fire door in its middle; lit, the fire shows through the door.
 pub fn boiler(lit: bool) -> Image {
@@ -842,6 +880,20 @@ mod tests {
         let row = |y: usize| (0..w).filter(|&x| d[(y * w + x) * 4 + 3] > 0).count();
         assert!(row(1) > row(8) && row(8) > row(14), "a funnel narrowing to a tube stub: {} / {} / {}", row(1), row(8), row(14));
         let tube = d.chunks(4).filter(|c| c[3] > 0 && c[1] > 180 && c[2] > 170).count(); assert!(tube >= 10, "the pressure-tube stub shows");
+    }
+
+    /// Climbing has its own frames, seen from behind: the four climb frames each differ (hand over hand), alternate
+    /// paws (frame 0's high paw is left, frame 2's right), and the hang, slide and grab frames differ from them.
+    #[test] fn climbing_frames_go_hand_over_hand() {
+        use super::{mole_sheet, mole_frame, Pose};
+        let sheet = mole_sheet(true); let px = |k: usize| sheet[k].data.clone().unwrap();
+        let frames: Vec<usize> = (0..4).map(|ph| mole_frame(Pose::Climb, ph)).collect();
+        for i in 0..4 { for j in i + 1..4 { assert_ne!(px(frames[i]), px(frames[j]), "climb frames {i} and {j} are the same"); } }
+        assert!(sheet[frames[0]].width() == 20 && sheet[frames[0]].height() == 26);
+        // the highest claw pixel (pale) is on the left half in frame 0 and the right half in frame 2
+        let top_claw_x = |k: usize| { let d = px(k); (0..26).flat_map(|y| (0..20).map(move |x| (x, y))).find(|&(x, y)| { let c = &d[(y * 20 + x) * 4..]; c[3] > 0 && c[0] > 220 && c[1] > 190 }).map(|(x, _)| x).unwrap() };
+        assert!(top_claw_x(frames[0]) < 10 && top_claw_x(frames[2]) >= 10, "paws alternate: {} / {}", top_claw_x(frames[0]), top_claw_x(frames[2]));
+        for p in [Pose::Hang, Pose::Slide, Pose::Grab] { let k = mole_frame(p, 0); assert!(frames.iter().all(|&f| px(f) != px(k)), "{p:?} has its own frame"); }
     }
 
     #[test] fn ore_pockets_stand_out_without_glowing() {
