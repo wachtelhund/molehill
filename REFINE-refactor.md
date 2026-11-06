@@ -11,6 +11,9 @@ Behaviour-preserving refactors for scalability. Every slice: sim tests, scenario
 * Rebased on a8a9a30: 89+ sim tests, 160/160 scenarios, 16 game tests green. PR opened, not merged: waiting on p7 (uncommitted craft.rs work) to land or rebase onto `ItemDef`.
 * Hold (watchdog 09:37): no gen.rs/walls.rs (p6 owns them on refine/biomes-v1) and no further craft.rs edits until p6/p7 land.
 
+* Merged as PR #5 (5d356c0) after #7 landed: main merged in, equivalence re-checked against main's old matches (all 69 items identical), 97 sim tests, 180/180 scenarios, 22 game tests green.
+* Polish (PR after #5): `sim/tests/items.rs` guards the rules the old matches derived (place for blocks/pigments/furniture/walls, pick-up for furniture, pigment swatch = paint, order, unique names, density, controls line). Number style (`dens(7300.0)`) left alone: production (#9) is rewriting craft.rs onto `ItemDef` and a cosmetic edit would only conflict.
+
 ## Candidates next
 * Worldgen layering in gen.rs (p6) — gen.rs is busy on refine/first-hour-explore-finds; coordinate first.
 * Game crate: split main.rs systems into Bevy plugins — main.rs is open in 4 worktrees; wait.
