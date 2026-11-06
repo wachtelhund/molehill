@@ -69,7 +69,8 @@ pub fn band_cells(gen: &Gen, w: usize, wy0: i64) -> Band { let mut j = BandJob::
 
 /// Fresh bands built ahead of the window. Never saved: each is a pure function of the seed, rebuilt
 /// after a load. Bands already visited live in `World::bands`, and are never built here. Natively a
-/// worker thread builds them; on the web (or with `sliced` set) `step` builds a slice at a time. Either way a band's cells are the same, so where and when it was built never shows.
+/// worker thread builds them; on the web (or with `sliced` set) `step` builds a slice at a time. Either
+/// way a band's cells are the same, so where and when it was built never shows.
 #[derive(Default)]
 pub struct BandCache { pub ready: BTreeMap<i64, Band>, job: Option<BandJob>, seam: Option<Seam>,
     /// build in slices on this thread even where threads exist (what the web does; for benches and tests)
@@ -221,10 +222,12 @@ impl crate::world::World {
         if rows_queued > h { boxes = split((0, 0, w as usize - 1, h as usize - 1)).map(|b| (b, true)).collect(); }
         let tries = vec![1; boxes.len()]; self.stream.seam = Some(Seam { boxes, k: 0, tries, reach: false });
     }
-    /// One box of the seam; true while more remain (the regular stress pass waits for them). At the seam,
-    /// fresh bands were shored against generated rock and the old rows against the window's edge, so what
-    /// fails there is put right as the generator's shoring does: rock left with no load path is cleared,
-    /// an overloaded cell becomes limestone (weak ground, the start zone) or granite. The far edge cracks.
+    /// One step of the seam (the reach pass, then a box a tick); true while more remain (the regular stress
+    /// pass waits for them). At the seam, fresh bands were shored against generated rock and the old rows
+    /// against the window's edge, so what fails there is put right as the generator's shoring does: rock
+    /// left with no load path is cleared, an overloaded cell becomes limestone (weak ground, the start zone)
+    /// or granite, and a box still failing is solved again with the voids round its failures filled. The
+    /// far edge cracks, as does a seam box still failing after `SEAM_TRIES`.
     pub(crate) fn seam_step(&mut self) -> bool {
         let Some(sm) = self.stream.seam.as_mut() else { return false };
         // first, which rock has a load path over the whole window: rows the old edge held up may hang free
@@ -263,7 +266,7 @@ impl crate::world::World {
 /// Which cells have a load path, over the whole window, by the stress solver's rules (`Stress::solve_rect`,
 /// step 2): from bedrock and the static cells of the window's top and bottom rows, static rock carries
 /// static rock beside it, and anything solid or loose carries what rests on top of it. One pass, no
-/// strength sums: a few ms where a full solve takes tens.
+/// strength sums: 10-30 ms on the game window where a full solve takes 60 or more.
 pub fn reach_all(g: &Grid) -> Vec<bool> {
     use crate::mat::Kind;
     let (w, n) = (g.w, g.mat.len()); let mut reach = vec![false; n]; let mut q: Vec<u32> = Vec::with_capacity(n / 2);
