@@ -250,6 +250,25 @@ Polish only: no new systems, lore names kept. Each entry lists what changed and 
   it was left alone.
 * Not tested: a live window.
 
+## Refinement art (branch `refine/refine-art`, on #52)
+* Works drawn over their shell cells (whose own colour is now a dark backing):
+  * Stamp mill (`art::stamp_mill`): frame with back boards, cam shaft, guide beam and mortar box. Its two stamps
+    follow `Works::stroke` half a stroke apart, a slow lift and a fast drop, the head resting in the mortar's mouth.
+  * Washer (`art::washer_tub`): a hooped tub, with water while it has some. It rocks with its train's `turn`.
+  * Smelter (`art::smelter`): its fire mouth shows four heat steps from `Works::temp`, with a glow from dull red
+    upward and smoke while it burns.
+* Cells: bellows' pleats breathe with the train, and moulds have an ingot hollow per half-metre tile that glows
+  when setting.
+* Icons: the machine placeholders were kept. The three concentrates read as sand, gravel or ash, and rust, so they
+  were redrawn as washed grains in a shallow pan (copper), a deep clay bowl (tin) and a scoop (iron). One shared pan
+  failed the silhouette check, so each got its own vessel. Icon sheet: 94 items, 21 devices.
+* `--scene=refine`: in the dump at frames 90 and 100 the stamps moved (18 px) and the tub rocked (10 px). The smelter
+  shows white-hot; the empty and setting moulds both read. The stamp mill's open frame showed the dark shell
+  backing as a black box, so back boards were added. The bellows (a half-metre block, dim) barely change in the
+  still (2 px); their motion is checked by swatch and test.
+* Not tested: a live window; the smelter's real heat curve over a firing (the still starts it hot).
+* Test `refinement_works_are_drawn`; the bellows join `machinery_moves_when_its_train_turns`.
+
 ## Open issues
 * `--shot` writes an empty frame on macOS when the game is launched from a background shell (the surface is
   never presented). It needs a visible window, or Linux with Xvfb.

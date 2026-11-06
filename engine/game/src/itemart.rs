@@ -270,9 +270,17 @@ pub fn icon_px(it: Item) -> Px {
             p.rect(13, 7, 15, 9, BRASS_D); p.rect(0, 6, 1, 10, WOOD_D); }
         Mould => { // a sand-and-clay block with an ingot-shaped hollow
             p.rect(1, 4, 14, 13, col); p.rect(1, 4, 14, 5, sh(col, 1.2)); p.rect(4, 7, 11, 10, sh(col, 0.6)); p.rect(5, 8, 10, 9, sh(col, 0.5)); fleck(&mut p, 1, 4, 14, 13, 5, 31, sh(col, 0.9)); }
-        CopperFines | TinFines | IronFines => { // a heap of dark, glittering fine grains: each metal its own heap shape
-            let k = match it { CopperFines => 0., TinFines => 1., _ => 2. };
-            poly(&mut p, &[(1., 14.), (5. + k, 7. - k), (9., 8.), (12. - k, 6. + k), (15., 14.)], col); fleck(&mut p, 1, 5, 15, 14, 3, 41 + k as u32, sh(col, 1.35)); fleck(&mut p, 1, 5, 15, 14, 4, 43 + k as u32, sh(col, 0.65)); }
+        CopperFines | TinFines | IronFines => { // washed concentrate heaped in what it was washed in, glinting with its metal, each
+            // in its own vessel: copper in a shallow wooden pan (brown grains, green flecks, copper glints), tin in a deep
+            // clay bowl (near-black grains, silver glints), iron in a wooden scoop with a handle (red-black grains, grey shine)
+            let (grain, speck, glint) = match it { CopperFines => ([150, 92, 56], [92, 168, 124], [240, 160, 96]), TinFines => ([52, 50, 58], [96, 96, 108], [226, 230, 240]), _ => ([96, 44, 36], [60, 40, 40], [176, 176, 188]) };
+            let top = match it {
+                CopperFines => { poly(&mut p, &[(0., 10.), (16., 10.), (13., 14.), (3., 14.)], WOOD); p.rect(3, 13, 12, 13, WOOD_D); p.oval(8., 10., 6., 3., grain); p.rect(0, 10, 15, 10, sh(WOOD, 1.25)); 7 }
+                TinFines => { p.oval(8., 10.5, 5.5, 5., [168, 110, 76]); p.rect(2, 4, 13, 9, [0, 0, 0]); p.c.iter_mut().for_each(|c| if c[0] == 0 && c[1] == 0 && c[2] == 0 { c[3] = 0; });
+                    p.oval(8., 9., 4.5, 3., grain); p.rect(2, 9, 13, 9, sh([168, 110, 76], 1.2)); p.rect(6, 15, 9, 15, sh([168, 110, 76], 0.7)); 6 }
+                _ => { line(&mut p, 0., 6., 5., 9., 2, WOOD_D); poly(&mut p, &[(5., 8.), (15., 8.), (15., 13.), (6., 13.)], WOOD); p.rect(6, 12, 15, 12, WOOD_D); p.oval(10.5, 8., 4.5, 2.6, grain); p.rect(5, 8, 15, 8, sh(WOOD, 1.25)); 6 }
+            };
+            fleck(&mut p, 4, top, 13, 9, 4, 47, speck); fleck(&mut p, 4, top, 13, 9, 3, 53, glint); }
         // ---- background linings: a piece of each, darker, as it sits behind
         RockWall => { // a rough slab of scraped host rock with tool marks
             poly(&mut p, &[(1., 3.), (6., 1.), (14., 2.), (15., 9.), (13., 15.), (3., 14.), (1., 9.)], sh(col, 0.85)); for y in [5, 9, 12] { line(&mut p, 3., y as f32, 11., y as f32 - 2., 1, sh(col, 0.6)); } }

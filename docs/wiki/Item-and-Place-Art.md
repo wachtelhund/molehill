@@ -8,7 +8,7 @@ Every item has its own drawing. No two share a silhouette, and none is another i
 
 ![Every item's pack icon, then every device as the hotbar shows it](images/item-icons.png)
 
-The sheet shows all 86 items, then the 21 devices.
+The sheet shows all 94 items, then the 21 devices.
 
 The pack, the hotbar, the item in the mole's paws and anything lying loose all use the icon (a loose item is drawn at half size). Devices in the hotbar use their own in-world sprite (`devart::hotbar_icon`, switched off), so a lever, a plate and a floodgate no longer share one placeholder. The fuse and the pressure plate are the exceptions: in the world each is a thin strip along the floor of its block, so the hotbar shows a coil of fuse cord and the plate seen from above at an angle.
 
@@ -93,6 +93,14 @@ The pack, the hotbar, the item in the mole's paws and anything lying loose all u
 | Steam pipe | a copper pipe with a flanged joint and a wisp of steam | placed cells: copper with a highlight along its run and a brass flange every half metre (it lies the way its run is longer) |
 | Ash | a heap of fine pale ash, soft-edged, cinders and a last ember in it | lies loose as its icon |
 | Slag | a frothy glassy clinker, rust-streaked, its broken face shining blue and violet, a drip set on it | lies loose as its icon |
+| Stamp mill | a timber frame with two iron stamps over a mortar, a cam shaft across the top | drawn over its shell cells (`art::stamp_mill`): back boards, two posts, the cam shaft and a guide beam, an iron mortar box at the foot; its two stamps rise slowly on the cam and drop fast, half a stroke apart (`Works::stroke`) |
+| Washer | a rocking tub with water in it and two spouts | drawn over its shell cells (`art::washer_tub`): a hooped timber tub on a rounded bottom, a spout at each end, water in it while it has some; it rocks while its train turns |
+| Smelter | a tapering brick stack with a glowing hearth and a tap hole | drawn over its shell cells (`art::smelter`): a tapering brick stack with a tuyere for the bellows and a tap hole; its fire mouth goes from dark to dull red, orange and white-hot with `Works::temp`, with a glow round it, and smoke rises from its throat while it burns |
+| Bellows | two leaf-shaped boards with a pleated side and a nozzle | placed cells: boards top and bottom, pleated leather between that squeezes and opens as the train turns |
+| Ingot mould | a sand-and-clay block with an ingot-shaped hollow | placed cells: sand and clay with an ingot-shaped hollow in each half-metre tile; setting (`Mat::MouldHot`) the hollow is full of glowing metal and the sim lights it |
+| Copper concentrate | washed brown grains with green flecks and copper glints, heaped in a shallow wooden pan | lies loose as its icon |
+| Tin concentrate | near-black grains with silver glints in a deep clay bowl | lies loose as its icon |
+| Iron concentrate | red-black grains with a grey shine in a wooden scoop with a handle | lies loose as its icon |
 | Ore hopper | a timber bin heaped with ore, tapering to a spout, on splayed legs | ore hopper sprite: back boards, the heap tinted with what it holds, the front frame open over the heap, a boarded taper to an iron spout whose gate shows shut or swung open, two legs down to the floor (`art::ore_bin`) |
 | Rock wall | a rough slab of scraped host rock with tool marks | background lining |
 | Timber wall | boards standing on end, uneven tops, gaps between | background lining |
@@ -143,6 +151,7 @@ Game-crate tests (`cargo test --release -p molehill`):
 * `rope_gun_art_is_drawn`: the loaded gun shows its hook (at least 5 more pixels than the empty one), the rope length is solid fibre whose twist spans a wide brightness range, and the hook has a point and two barbs.
 * `machinery_moves_when_its_train_turns`: the shaft, gear, water wheel, belt and drum each differ from every other in over 64 of 256 cells; each changes at least 12 cells over 1.5 cells of travel; a right belt's stitches run right and a left belt's run left; a vertical shaft is the horizontal one turned.
 * `boiler_and_pipe_are_drawn`: the lit boiler shows at least 12 bright fire pixels through its door and the cold one none; a steam pipe has brass flanges on copper; a vertical pipe is the horizontal one turned. The steam engine is one of the kinds in `machinery_moves_when_its_train_turns`.
+* `refinement_works_are_drawn`: the smelter's fire mouth brightens with each heat step (none cold), water shows in the washer's tub only when it has some, the stamp mill has its frame and stamp, and a setting mould glows where an empty one's hollow is dark. The bellows are one of the kinds in `machinery_moves_when_its_train_turns`.
 * `ore_hopper_is_a_drawn_bin`: the bin's back boards fill it, the front leaves the upper part open (so the heap shows), the taper is boarded down to a spout, the open gate differs from the shut one, and the heap sprite is pale so its tint gives the ore colour.
 * `found_places_are_furnished`: each family is stamped into rock and must get its listed furnishings, all inside the site and none in rock. Every prop kind is placed somewhere.
 

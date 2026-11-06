@@ -387,8 +387,59 @@ pub fn mat_color(m: molehill_sim::mat::Mat, cx: u32, cy: u32, above: u32, turn: 
         // steam pipe: copper with a highlight along its run and a brass flange every half metre (it lies the way its run is longer)
         M::SteamPipe => { let (a, b) = if horiz { (cx, cy) } else { (cy, cx) };
             Some(if a % (c / 2) == 0 { [204., 164., 84.] } else { match b % 4 { 1 => [226., 156., 106.], 3 => [124., 72., 46.], _ => [176., 108., 66.] } }) }
+        // ---- refinement (refine.rs)
+        // the works' shell cells sit under their drawn sprites: a dark backing, so a rocking tub's corners show shadow
+        M::StampMill | M::Washer | M::Smelter => Some([40., 36., 34.]),
+        // bellows: boards top and bottom and pleated leather between, the pleats squeezing and opening as the train turns
+        M::Bellows => { let k = 1. + 0.35 * (turn * 1.2).sin(); let row = cy % c;
+            Some(if row == 0 || row == c - 1 { [156., 116., 72.] } else if ((row as f32 / (1.5 * k)).floor() as i32) % 2 == 0 { [126., 88., 58.] } else { [86., 60., 40.] }) }
+        // ingot moulds: sand and clay, an ingot-shaped hollow in each half-metre tile; setting, the hollow is full of glowing metal
+        M::Mould | M::MouldHot => { let q = c / 2; let (lx, ly) = (cx % q, cy % q); let hollow = (1..=2).contains(&lx) && (1..=2).contains(&ly);
+            let fleck = h(cx, cy, 99) > 0.85;
+            Some(match (m, hollow) { (M::MouldHot, true) => if ly == 1 { [255., 214., 120.] } else { [255., 150., 60.] }, (M::MouldHot, false) => [196., 120., 80.],
+                (_, true) => [96., 80., 60.], _ => if fleck { [132., 112., 84.] } else { [156., 134., 100.] } }) }
         _ => None,
     }
+}
+
+/// The stamp mill's parts (1 px = 1 world unit; its body is a metre wide and 1.5 m tall): 0 the frame (back boards, two timber
+/// posts, the cam shaft across the top, the iron mortar box at the foot), 1 a stamp (stem, tappet collar and a heavy
+/// head) that the game lifts and drops through its stroke.
+pub fn stamp_mill(part: u8) -> Image {
+    let wood = [140, 100, 60]; let iron = [112, 114, 126];
+    let p = if part == 0 {
+        let mut p = Px::new(16, 24);
+        for y in 0..24 { for x in 2..14 { p.set(x, y, if x % 4 == 1 { [80, 58, 38] } else { [104, 76, 48] }); } } // back boards, so the open frame isn't a dark hole
+        p.rect(0, 0, 1, 23, wood); p.rect(14, 0, 15, 23, wood); p.rect(0, 0, 15, 2, shade(wood, 1.15)); // posts and head beam
+        p.oval(8., 4., 2.2, 2.2, shade(iron, 0.7)); p.set(8, 4, [200, 160, 80]); for (x, y) in [(5, 4), (11, 4)] { p.set(x, y, iron); } // the cam shaft and its cams
+        p.rect(2, 9, 13, 9, shade(wood, 0.8)); // guide beam the stems run through
+        p.rect(1, 19, 14, 23, shade(iron, 0.8)); p.rect(2, 19, 13, 20, [40, 36, 38]); p.rect(1, 19, 14, 19, iron); // the mortar box, its dark mouth
+        p
+    } else { let mut p = Px::new(3, 12); p.rect(1, 0, 1, 8, iron); p.rect(0, 3, 2, 3, [196, 156, 72]); p.rect(0, 9, 2, 11, shade(iron, 0.85)); p.rect(0, 9, 2, 9, shade(iron, 1.25)); p };
+    p.finish(ICON_LINE).image()
+}
+/// The washer's tub (1.5 m by 0.75 m; the game rocks it while its train turns): timber staves on a rounded bottom with
+/// two iron hoops, water in it when it has some, a spout at each end.
+pub fn washer_tub(water: bool) -> Image {
+    let mut p = Px::new(24, 12); let wood = [146, 104, 62];
+    for y in 1..12 { let inset = if y < 7 { 0 } else { (y - 6) * 2 - 1 }; for x in inset.max(0)..24 - inset.max(0) { p.set(x, y, if x % 4 == 0 { shade(wood, 0.8) } else { wood }); } } // staves, the bottom rounded
+    for y in [3, 8] { let inset = if y < 7 { 0 } else { (y - 6) * 2 - 1 }; p.rect(inset.max(0), y, 23 - inset.max(0), y, [96, 98, 110]); } // hoops
+    p.rect(0, 0, 23, 0, shade(wood, 1.25)); // rim
+    if water { p.rect(2, 1, 21, 2, [72, 128, 200]); p.rect(2, 1, 21, 1, [150, 196, 236]); } else { p.rect(2, 1, 21, 2, [70, 50, 34]); }
+    p.rect(0, 5, 1, 6, [96, 98, 110]); p.rect(22, 5, 23, 6, [96, 98, 110]); // spouts
+    p.finish(ICON_LINE).image()
+}
+/// The smelter (a metre wide, 1.5 m tall): a tapering clay-lined brick stack with a tuyere for the bellows, a tap hole
+/// at its foot, the fire's mouth coloured by its heat (0 cold, 1 dull red, 2 orange, 3 white-hot).
+pub fn smelter(heat: u8) -> Image {
+    let mut p = Px::new(16, 24); let brick = [146, 74, 56];
+    for y in 0..24 { let inset = (23 - y) / 6; for x in inset..16 - inset { let course = y / 2; let joint = y % 2 == 1 || (x + course * 2) % 5 == 0; p.set(x, y, if joint { [100, 52, 42] } else { brick }); } }
+    p.rect(4, 0, 11, 1, [70, 60, 58]); // the throat
+    let fire = [[30, 24, 24], [150, 50, 30], [240, 120, 40], [255, 226, 150]][heat.min(3) as usize];
+    p.rect(5, 14, 10, 19, [56, 48, 48]); p.rect(6, 15, 9, 18, fire); if heat >= 2 { p.rect(7, 16, 8, 17, [255, 236, 180]); } // the fire's mouth
+    p.rect(0, 12, 2, 13, [176, 108, 66]); // tuyere (the bellows' nozzle goes in here)
+    p.rect(11, 21, 15, 21, [60, 54, 56]); if heat >= 2 { p.set(15, 21, fire); } // tap hole and its channel
+    p.finish(ICON_LINE).image()
 }
 
 /// The boiler over its shell cells (1 px = 1 world unit, `BOILER_W`×`BOILER_H` cells): a riveted iron drum with a
@@ -592,7 +643,7 @@ mod tests {
     #[test] fn machinery_moves_when_its_train_turns() {
         let at = |m: Mat, t: f32| -> Vec<[f32; 3]> { (0..16u32).flat_map(|y| (0..16u32).map(move |x| (x, y))).map(|(x, y)| mat_color(m, x, y, if m == Mat::Belt || m == Mat::BeltL { y % 3 } else { 3 }, t, true).unwrap()).collect() };
         let mean = |v: &[[f32; 3]]| { let n = v.len() as f32; [0, 1, 2].map(|j| v.iter().map(|c| c[j]).sum::<f32>() / n) };
-        let kinds = [Mat::Shaft, Mat::Gear, Mat::Wheel, Mat::Belt, Mat::Drum, Mat::Engine];
+        let kinds = [Mat::Shaft, Mat::Gear, Mat::Wheel, Mat::Belt, Mat::Drum, Mat::Engine, Mat::Bellows];
         for (i, &a) in kinds.iter().enumerate() { for &b in &kinds[i + 1..] { let (pa, pb) = (at(a, 0.), at(b, 0.)); let diff = pa.iter().zip(&pb).filter(|(x, y)| dist(**x, **y) > 30.).count();
             assert!(diff > 64, "{a:?} and {b:?} look alike ({diff} of 256 cells differ)"); } }
         for &m in &kinds { let moved = at(m, 0.).iter().zip(&at(m, 1.5)).filter(|(x, y)| dist(**x, **y) > 20.).count(); assert!(moved >= 12, "{m:?} barely moves ({moved})"); }
@@ -617,7 +668,22 @@ mod tests {
         assert_eq!(h, v, "a vertical pipe is the horizontal one turned");
     }
 
-        #[test] fn ore_pockets_stand_out_without_glowing() {
+        /// The refinement works are drawn and show their state: the smelter's fire mouth brightens with heat, the washer's
+    /// tub shows water when it has some, the stamp mill has a frame and a stamp, and a setting mould's hollow glows
+    /// where an empty one's is a dark hollow.
+    #[test] fn refinement_works_are_drawn() {
+        use super::{smelter, washer_tub, stamp_mill};
+        let glow = |d: &[u8]| d.chunks(4).filter(|c| c[3] > 0 && c[0] > 230 && c[1] > 110).count();
+        let heats: Vec<usize> = (0..4).map(|k| glow(&smelter(k).data.unwrap())).collect();
+        assert!(heats[0] == 0 && heats[1] < heats[2] && heats[2] <= heats[3], "the fire mouth brightens with heat: {heats:?}");
+        let blue = |d: &[u8]| d.chunks(4).filter(|c| c[3] > 0 && c[2] > 180 && c[0] < 160).count();
+        assert!(blue(&washer_tub(true).data.unwrap()) >= 20 && blue(&washer_tub(false).data.unwrap()) == 0, "water shows in the tub");
+        let (frame, stamp) = (stamp_mill(0), stamp_mill(1)); assert_eq!((frame.width(), frame.height(), stamp.width(), stamp.height()), (16, 24, 3, 12));
+        let (cold, hot) = (mat_color(Mat::Mould, 1, 1, 3, 0., true).unwrap(), mat_color(Mat::MouldHot, 1, 1, 3, 0., true).unwrap());
+        assert!(lum(hot) > 2. * lum(cold) && lum(cold) < lum(mat_color(Mat::Mould, 0, 0, 3, 0., true).unwrap()), "a setting mould glows; an empty one's hollow is dark");
+    }
+
+    #[test] fn ore_pockets_stand_out_without_glowing() {
         let rock = col(Mat::Rock);
         for m in [Mat::CopperOre, Mat::IronOre, Mat::TinOre, Mat::Coal] {
             let cells: Vec<[f32; 3]> = (0..32u32).flat_map(|y| (0..32u32).map(move |x| (x, y))).map(|(x, y)| mat_color(m, x, y, 1, 0., true).unwrap()).collect();
