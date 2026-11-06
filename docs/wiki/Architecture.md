@@ -85,7 +85,9 @@ The rule is simple: **gameplay goes in the sim.** If it changes what happens in 
 | `devart.rs` | pixel art for copperline tiles (one per neighbour mask, lit with a travelling glint), every device (off/on, animation frames) and the wiring view's schematic glyphs |
 | `hotbar.rs` | Survival's hotbar order: what you hold first, then free things, then faint slots for what you have none of; a newly gained thing fills the first faint slot (Creative keeps its fixed layout) |
 | `journal.rs` | the journal (`J`): the Lid fragments and Ancient ruin carvings found, newest first, as a plain list |
-| `decorart.rs` | pixel art for furniture (a base and a pale cloth layer the pigment tints) and the furnishing icons |
+| `decorart.rs` | pixel art for furniture (a base and a pale cloth layer the pigment tints), their icons and the Lid clues |
+| `itemart.rs` | one hand-drawn pack icon per item, each its own silhouette (see [Item and Place Art](Item-and-Place-Art.md)) |
+| `props.rs` | found-place furnishings: their art, where each family puts them, and fitting them against the cells |
 | `wiring.rs` | draws copperline and devices as sprites over the world (one per 1 m block, cached by block), and the wiring view (`V`) |
 | `audio.rs` | procedural sound and the music synth (web only) |
 | `music.rs` | the generative music composer: pure Rust, unit-tested natively, writes timed notes for `audio.rs` |
