@@ -109,3 +109,4 @@ expect 4 walls:soot > 0
 expect 4 sites >= 1
 expect 4 count:CopperOre > 120
 expect 4 count:Gravel > 50
+expect 4 count:IronBeam > 0

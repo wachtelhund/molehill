@@ -172,4 +172,4 @@ end
 site 2 fissure -81 -81
 expect 4 ladders >= 1
 expect 4 count:IronBeam > 0
-expect 4 walls:rock > 0
+expect 4 walls:basalt > 0
