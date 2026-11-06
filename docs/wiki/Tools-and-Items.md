@@ -59,7 +59,7 @@ Digging drops items: one per 6 tiles dug, or one per 3 for gems. **Wood** comes 
 
 ## What each item does
 
-One table (`Item::uses` in `craft.rs`) says whether an item is **set down**, **thrown**, or **picked back up**, and `Item::controls` turns it into the line of inputs shown in the slot tooltip and under the item name over the hotbar.
+One row per item in the item registry (`ITEM_DEFS` in `craft.rs`, read through `Item::uses`) says whether an item is **set down**, **thrown**, or **picked back up**, and `Item::controls` turns it into the line of inputs shown in the slot tooltip and under the item name over the hotbar.
 
 | Item | Set down | Throw (`Q`) | Pick up (`E`) |
 |---|---|---|---|
