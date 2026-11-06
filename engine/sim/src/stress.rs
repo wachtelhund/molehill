@@ -257,10 +257,12 @@ impl Stress {
         // once; overloaded ones creak for CRACK_TICKS first so there's time to react
         // a mass of at least a square metre cut free at once is wedged for a moment (WEDGED_TICKS) and creaks
         // before it drops, so the big falls are telegraphed too; slivers drop at once
-        // (wedged means jammed against supported rock: a chunk adrift in water or air just drops)
+        // (wedged means it still bears on something: supported rock at a corner, or rubble or sand under it; a
+        // chunk adrift in water or air just drops)
         let hang = fail.iter().filter(|&&i| self.reach.get(i as usize) == Some(&false)).count();
         let jammed = hang >= CPM * CPM && fail.iter().any(|&i| { let i = i as i64; let w = g.w as i64;
-            self.reach.get(i as usize) == Some(&false) && [-1, 1, -w, w].iter().any(|&d| { let j = i + d; j >= 0 && (j as usize) < g.mat.len() && g.is_static(j as usize) && self.reach.get(j as usize) == Some(&true) }) });
+            self.reach.get(i as usize) == Some(&false) && [-w - 1, -w, -w + 1, -1, 1, w - 1, w, w + 1].iter().any(|&d| { let j = i + d; if j < 0 || j as usize >= g.mat.len() { return false; } let j = j as usize;
+                (g.is_static(j) && self.reach.get(j) == Some(&true)) || g.m(j).kind() == Kind::Powder || (g.m(j).kind() == Kind::Solid && g.loose(j)) }) });
         let loose = if jammed { WEDGED_TICKS } else { LOOSE_TICKS };
         for &i in fail { let i = i as usize; if self.pending[i] == 0 { self.pending[i] = if self.reach.get(i) == Some(&false) { loose } else { CRACK_TICKS }; self.cracking.push(i as u32); } }
     }
