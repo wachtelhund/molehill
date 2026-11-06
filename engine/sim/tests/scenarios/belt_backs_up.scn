@@ -1,0 +1,49 @@
+// Lumps on a belt queue and back up. A 3 m belt, driven by a counterweight, runs right into its own drive gear,
+// which stops whatever reaches it. Fourteen stones dropped onto it one by one ride up to the gear and queue
+// there, one to a tile, none passing the one ahead of it: the belt holds twelve, and the last two are pushed off
+// its open back end onto the floor behind it.
+map
+##################################
+##################################
+#....jjjjjjjjjjjjjjjjjjj*........#
+#.......................j........#
+#.......................j........#
+#.......................j........#
+#.......................j........#
+#.......................j........#
+#.......................j........#
+#.......................j........#
+#.@.........>>>>>>>>>>>>*........#
+##################################
+end
+give Counterweight 1
+place 2 2 -8 Counterweight
+drop 10 Stone 18 -1
+drop 25 Stone 18 -1
+drop 40 Stone 18 -1
+drop 55 Stone 18 -1
+drop 70 Stone 18 -1
+drop 85 Stone 18 -1
+drop 100 Stone 18 -1
+drop 115 Stone 18 -1
+drop 130 Stone 18 -1
+drop 145 Stone 18 -1
+drop 160 Stone 18 -1
+drop 175 Stone 18 -1
+drop 190 Stone 18 -1
+drop 205 Stone 18 -1
+expect 30 turning:15,0 == 1
+expect 400 zone:Stone,10,10,-3,0 == 1
+expect 400 zone:Stone,11,11,-3,0 == 1
+expect 400 zone:Stone,12,12,-3,0 == 1
+expect 400 zone:Stone,13,13,-3,0 == 1
+expect 400 zone:Stone,14,14,-3,0 == 1
+expect 400 zone:Stone,15,15,-3,0 == 1
+expect 400 zone:Stone,16,16,-3,0 == 1
+expect 400 zone:Stone,17,17,-3,0 == 1
+expect 400 zone:Stone,18,18,-3,0 == 1
+expect 400 zone:Stone,19,19,-3,0 == 1
+expect 400 zone:Stone,20,20,-3,0 == 1
+expect 400 zone:Stone,21,21,-3,0 == 1
+expect 400 zone:Stone,7,9,-3,0 == 2         // the two that didn't fit, off the back
+expect 400 items:Stone == 14

@@ -1,12 +1,12 @@
 # Production
 
-A mine's output moves as **real loose items**: every lump is a loose item in the world, in a cart, or in an ore hopper's bin (drawn as its heap). Nothing teleports and nothing is stored out of sight. Lumps get from the face to where they are wanted by falling, sliding and rolling, so a line can jam, spill and pile up. The code is `engine/sim/src/production.rs` and `sluice.rs`; carts are in [Transport](Transport.md).
+A mine's output moves as **real loose items**: every lump is a loose item in the world, in a cart, or in an ore hopper's bin (drawn as its heap). Nothing teleports and nothing is stored out of sight. Lumps get from the face to where they are wanted by falling, sliding and rolling, so a line can jam, spill and pile up. The code is `engine/sim/src/production.rs`, `sluice.rs` and `power.rs`; carts are in [Transport](Transport.md).
 
 | stage | what | state |
 |---|---|---|
 | 1 | Chutes, shaker screens, bumpers (carts tip), ore hoppers that feed carts | **built** |
 | 2 | Water sluicing: running water carries fines off, riffle bars catch heavy lumps, water drains through screens | **built** |
-| 3 | Mechanical power: water wheels, shafts, gears, belts | design |
+| 3 | Mechanical power: water wheels, shafts, gears, belts that carry and queue real lumps, counterweights | **built** |
 | 4 | Coal power: boiler and steam engine; ash and slag to haul away | design |
 | 5 | Refinement: stamp mill, washer, bellows smelter, foundry | design |
 | 6 | Non-electric logic: plates, tipping scales, float valves, gates | design |
@@ -74,6 +74,26 @@ A sluice is a sloping channel, rock or timber rather than a slippery chute, with
 * `sluice_sorts`: a reservoir drains down a stepped 1-in-4 channel with a riffle at the foot of each step. Gravel, coal and sand tipped in at the top are carried into the tailings pond. Copper ore, iron ore and stone settle in the riffle traps, both copper ores behind the first bar.
 * `sluice_washes_rubble`: after a blast, the same channel without riffles has heaps of loose rubble on two steps. Every grain of sand and gravel is washed into the pond, and the iron ore stays where it lay.
 
+## Mechanical power
+
+Drive trains of iron and timber carry a stream's push to belts and machines (`power.rs`). Nothing here is current. The lore's water wheels are the source, and a hanging weight stores what they give.
+
+* **Trains.** Machinery cells that touch make one drive train, with one rule. A plain **iron shaft** passes turning only along its own line, left-right or up-down, so turning a corner or branching needs a **gear**. Gears, water wheels, belts and weight drums join on all four sides. Trains are found again every 6 ticks over the active region (test `a_straight_shaft_needs_a_gear_to_turn_a_corner`).
+* **Power** is balanced per train, in watts. The train turns at the share of its demand it can meet, at most full; a belt then runs at 1 m/s times that.
+  * **Water wheel:** undershot. Its bottom paddles reach a quarter metre down into a stream running under it. The current, read just beside the wheel where the water's surface is free (see [Sluicing](#sluicing)), pushes them with ½·ρ·A·v³·η: about 150 W per paddle cell in a 2 m/s stream.
+  * **Belt:** costs 2 W a cell to keep rolling, and 5 W for each lump riding on it.
+  * **Shaker screen:** a turning train within a tile of one shakes it, as copperline current does, for 3 W a cell.
+  * **Counterweight:** a drum under a roof and a 200 kg iron weight on up to 8 m of rope. When the train is short, the weight falls (m·g·v, up to 0.25 m/s) and makes up the difference. Spare power winds it back up. A metre of fall is about 2 kJ.
+* **Belts** (`Mat::Belt`, which runs right, and `Mat::BeltL`, which runs left): a woven fungus-fibre belt over wooden rollers. A belt runs the way the mole faces as it is laid, and right mouse turns a whole run round (test `right_mouse_turns_a_belt_run_round`).
+  * A loose item lying on a turning belt is gripped by it and carried at the belt's speed. A still belt holds it like any floor.
+  * **Lumps queue:** one can't pass the lump ahead of it on the same belt. So a blocked end backs the line up, one lump to a tile, and a full belt pushes its tail off the back. If there's no room behind, the lump stays wedged: a jam. An open end drops them off.
+* Scenarios:
+  * `belt_counterweight`: a falling weight drives a belt through a shaft, gears and a corner. Stones ride at 1 m/s and drop off the end. With the weight taken down, the belt is still.
+  * `belt_backs_up`: fourteen stones on a 3 m belt that runs into its drive gear. Twelve queue one to a tile, and two are pushed off the back.
+  * `water_wheel`: a stream under a wheel gives several hundred watts, shakes a screen and winds a counterweight up. When the reservoir runs dry, the weight falls and carries on.
+
+**Every block item can be built.** The brush now builds any block item from one table (`world::BUILDS`). Chutes, screens, bumpers and riffle bars had been missing from it, so in the game they couldn't be placed at all (test `every_block_item_can_be_built`).
+
 ## How they look
 
 Chutes, screens and bumpers are cells with their own patterns (`art::mat_color`). A chute has a pale worn lip and boards along it. A screen is iron bars over a dark mesh under a timber rail. A bumper is red-painted timber with a bright head and iron bands. The ore hopper is drawn: its heap is tinted with what it holds, it shows through the open front of the bin and rises with the load, and the gate under the spout swings open when it lets a lump down. `--scene=production` stamps a small works (chute onto screen, a hopper of copper ore over track, a bumper) for stills. See [Item and Place Art](Item-and-Place-Art.md).
@@ -89,6 +109,11 @@ The chute, screen (shaking or not) and bumper say what moves things along them. 
 | Workbench | 8 chute | 2 wood |
 | Workbench | 2 bumper | 2 wood + 1 stone |
 | Workbench | 8 riffle bar | 2 wood |
+| Workbench | 2 gear | 2 wood |
+| Workbench | 8 water wheel | 4 wood |
+| Workbench | 8 belt | 2 wood + 2 fungus |
+| Forge | 8 iron shaft | 1 iron ingot |
+| Forge | counterweight | 4 iron ingots + 2 wood |
 | Forge | 4 shaker screen | 1 iron ingot + 1 wood |
 | Forge | ore hopper | 6 wood + 1 copper ingot |
 

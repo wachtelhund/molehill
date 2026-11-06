@@ -1,0 +1,51 @@
+// A water wheel stores power in a counterweight. A reservoir drains through a slot down a stepped channel; an
+// undershot wheel stands a tile over the third step, its bottom paddles in the stream. Its gear shakes a shaker
+// screen beside it and, by a shaft up to the roof and a gear there, turns a counterweight's drum. The weight
+// starts low. Before the water arrives, the falling weight alone shakes the screen. While the stream runs the
+// wheel gives several hundred watts: the screen shakes and the spare power winds the weight up. When the
+// reservoir has run dry the wheel stops, and the weight falls again and keeps the screen shaking.
+map
+############################################################
+############################################################
+#............#.............*...............................#
+#............#.............j...............................#
+#wwwwwwwwwwww#.............j..............@................#
+#wwwwwwwwwwww#.............j..........######################
+#wwwwwwwwwwww#.............j..........######################
+#wwwwwwwwwwww#.............j...............................#
+#wwwwwwwwwwww#.............j...............................#
+#wwwwwwwwwwww#.............j...............................#
+#wwwwwwwwwwww..............j...............................#
+#wwwwwwwwwwww..............j...............................#
+#wwwwwwwwwwww..............j...............................#
+##############.............**H.............................#
+####################.......OO..............................#
+##########################.................................#
+################################...........................#
+######################################.....................#
+######################################.....................#
+######################################.....................#
+######################################.....................#
+######################################.....................#
+######################################.....................#
+############################################################
+end
+give Counterweight 1
+place 2 -16 -2 Counterweight           // its drum under the roof, beside the gear there
+expect 3 weights == 1
+set 4 weight 8                         // let it down 2 m on its rope
+expect 5 weighty > 10.9
+expect 300 turning:-15,9 == 1          // no water yet: the falling weight turns the train...
+expect 300 shaking:-13,9 == 1          // ...and shakes the screen
+expect 300 supply:-15,9 < 20
+expect 300 weighty > 11
+expect 600 supply:-15,9 > 300          // the stream reaches the wheel: hundreds of watts
+expect 600 weighty < 9                 // winding the weight up
+expect 900 weighty < 5
+expect 1200 supply:-15,9 < 20          // the reservoir has run dry: the wheel is still...
+expect 1200 turning:-15,9 == 1         // ...and the weight carries the train
+expect 1200 shaking:-13,9 == 1
+expect 1200 weighty > 4.28             // falling again
+saveload 1210
+expect 1211 weights == 1
+expect 1211 weighty > 4.28

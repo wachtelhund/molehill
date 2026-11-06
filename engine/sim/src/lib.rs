@@ -21,6 +21,7 @@ pub mod ropes;
 pub mod tubes;
 pub mod production;
 pub mod sluice;
+pub mod power;
 pub mod survival;
 pub mod ruins;
 pub mod walls;

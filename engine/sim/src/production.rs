@@ -73,7 +73,7 @@ impl World {
         self.passable(x, y) || self.g.get(x, y).has(SCREEN) && it.size_m() < MESH_M
     }
     /// Is the cell a screen with current in its block (its knocker shaking it)?
-    pub fn shaking(&self, x: usize, y: usize) -> bool { self.g.get(x, y).has(SCREEN) && self.logic.net_lit(self.logic.block_of(x, y)) }
+    pub fn shaking(&self, x: usize, y: usize) -> bool { self.g.get(x, y).has(SCREEN) && (self.logic.net_lit(self.logic.block_of(x, y)) || self.mech_shakes(x, y)) }
     /// The chute cell an item lying at (px, py) rests on, if any (the cells under its box, middle first).
     pub(crate) fn chute_under(&self, px: f32, py: f32, it: Item) -> Option<(usize, usize)> {
         let r = (py + ITEM_HW + 0.05).floor() as i32; let (x0, x1) = ((px - ITEM_HW).floor() as i32, (px + ITEM_HW - 1e-3).floor() as i32);
@@ -134,6 +134,7 @@ impl World {
         if c.tip == TIP_EVERY { self.events.push(Event::Click); }
         true
     }
+    pub(crate) fn item_box_hits_pub(&self, px: f32, py: f32, it: Item) -> bool { self.item_box_hits(px, py, it) }
     fn item_box_hits(&self, px: f32, py: f32, it: Item) -> bool {
         let (x0, x1) = ((px - ITEM_HW).floor() as i32, (px + ITEM_HW - 1e-3).floor() as i32);
         let (y0, y1) = ((py - ITEM_HW).floor() as i32, (py + ITEM_HW - 1e-3).floor() as i32);

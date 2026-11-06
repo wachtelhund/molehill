@@ -1,0 +1,35 @@
+// A counterweight drives a belt. Its drum hangs under the roof, joined by an iron shaft, a gear round the corner,
+// a shaft down and a gear to a belt along the floor. As the weight falls it turns the train, the belt runs right
+// at 1 m/s, and stones dropped on it ride to its end and fall off onto the floor past it. Take the counterweight
+// down (E) and nothing drives the train: the belt stops, and a stone dropped on it lies where it lands.
+map
+################################
+################################
+#....jjjjjjjjjj*...............#
+#..............j...............#
+#..............j...............#
+#..............j...............#
+#..............j...............#
+#..............j...............#
+#..............j...............#
+#..............j...............#
+#.@............*>>>>>>>>>>>....#
+################################
+end
+give Counterweight 1
+place 2 2 -8 Counterweight          // its drum under the roof, beside the shaft
+expect 3 weights == 1
+drop 10 Stone 15 -1
+expect 30 turning:20,0 == 1         // the train turns at full speed...
+expect 30 supply:20,0 > 0           // ...on the weight's fall
+expect 90 ivx:Stone > 3.5           // the belt carries it at ~4 tiles/s (1 m/s)
+expect 90 ivx:Stone < 4.5
+expect 180 zone:Stone,25,28,-1,0 == 1   // off the end, on the floor past it
+expect 180 weighty > 3.3            // the weight has come down a little
+saveload 185
+expect 186 weights == 1
+pickup 190 2 -7                     // take the counterweight down
+expect 191 inv:Counterweight == 1
+drop 200 Stone 17 -1
+expect 300 turning:20,0 == 0        // nothing drives it now
+expect 300 zone:Stone,16,18,-2,-1 == 1  // the new stone lies where it landed

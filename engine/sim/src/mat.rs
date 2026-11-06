@@ -20,8 +20,10 @@ pub enum Mat {
     Chute, Screen, Bumper,
     // sluicing (production.rs): a riffle bar across a sluice floor
     Riffle,
+    // mechanical power (power.rs): shafts, gears, water wheels, belts (one for each way they run), a weight's drum
+    Shaft, Gear, Wheel, Belt, BeltL, Drum,
 }
-pub const NMAT: usize = 42;
+pub const NMAT: usize = 48;
 
 /// Everything the simulation knows about a material, in one row. Rules read these fields instead of
 /// naming materials, so a new material (or a retuned one) is a single table edit.
@@ -81,6 +83,12 @@ pub const CHUTE: u16 = 256;
 pub const SCREEN: u16 = 512;
 /// Bumper: a loaded cart that runs into it tips its load out over it.
 pub const BUMPER: u16 = 1024;
+/// Turning machinery (power.rs): it joins a drive train with the machinery next to it.
+pub const MECH: u16 = 2048;
+/// Joins a drive train on all four sides (a gear, wheel, belt or drum). A plain shaft only passes turning along its own line.
+pub const HUB: u16 = 4096;
+/// A belt: what lies on it is carried while its train turns (`Belt` to the right, `BeltL` to the left).
+pub const BELT: u16 = 8192;
 const BASE: Props = Props { name: "", desc: "", kind: Kind::Solid, density: 0., tensile: 0., compressive: 0., dig: 0, tier: 0, blast: 0,
     emit: [0, 0, 0], opacity: 0, color: [0, 0, 0], crumbles_to: Mat::Empty, repose: 0., heat: 0, ignite: 0, cools_to: Mat::Empty, life: 0,
     spread: 0, flow_in_10: 10, bounce: 0.35, friction: 0.5, flags: 0 };
@@ -131,6 +139,12 @@ pub static PROPS: [Props; NMAT] = [
     Props { name: "Shaker screen", desc: "Iron grating on a timber frame. Fines drop through, lumps ride over; current shakes it.", kind: Solid, density: 1500., tensile: 4000., compressive: 8000., dig: 5, blast: 4, opacity: 90, color: [120, 116, 112], crumbles_to: X::Screen, repose: 0.3, flags: BUILT | CHUTE | SCREEN, bounce: 0.15, friction: 0.45, ..BASE },
     Props { name: "Bumper", desc: "Timber buffer at the end of the track. A loaded cart that hits it tips out.", kind: Solid, density: 700., tensile: 3000., compressive: 8000., dig: 4, blast: 3, opacity: 150, color: [150, 70, 48], crumbles_to: X::Bumper, repose: 0.3, ignite: 1, flags: BUILT | BUMPER, bounce: 0.3, friction: 0.55, ..BASE },
     Props { name: "Riffle bar", desc: "A low timber bar across a sluice floor. Heavy lumps settle behind it.", kind: Solid, density: 700., tensile: 3000., compressive: 8000., dig: 4, blast: 3, opacity: 150, color: [122, 88, 54], crumbles_to: X::Riffle, repose: 0.3, ignite: 1, flags: BUILT, bounce: 0.2, friction: 0.6, ..BASE },
+    Props { name: "Iron shaft", desc: "An iron rod on bearings. Carries turning along its line; a gear takes it round a corner.", kind: Solid, density: 7800., tensile: 30000., compressive: 90000., dig: 18, tier: 2, blast: 10, opacity: 200, color: [140, 144, 156], crumbles_to: X::Shaft, flags: BUILT | MECH, bounce: 0.45, friction: 0.35, ..BASE },
+    Props { name: "Gear", desc: "A toothed wooden wheel. Joins shafts, belts and wheels on all sides.", kind: Solid, density: 700., tensile: 3000., compressive: 8000., dig: 4, blast: 3, opacity: 170, color: [160, 120, 72], crumbles_to: X::Gear, repose: 0.3, ignite: 1, flags: BUILT | MECH | HUB, bounce: 0.3, friction: 0.55, ..BASE },
+    Props { name: "Water wheel", desc: "Timber paddles on an axle. A stream running under it turns what it's geared to.", kind: Solid, density: 650., tensile: 2500., compressive: 6000., dig: 4, blast: 3, opacity: 140, color: [128, 96, 60], crumbles_to: X::Wheel, repose: 0.3, ignite: 1, flags: BUILT | MECH | HUB, bounce: 0.3, friction: 0.55, ..BASE },
+    Props { name: "Belt", desc: "Woven fibre belt over wooden rollers. While it turns, what lies on it is carried right.", kind: Solid, density: 900., tensile: 2000., compressive: 5000., dig: 3, blast: 3, opacity: 160, color: [92, 64, 44], crumbles_to: X::Belt, repose: 0.3, ignite: 1, flags: BUILT | MECH | HUB | BELT, bounce: 0.1, friction: 0.9, ..BASE },
+    Props { name: "Belt (left)", desc: "Woven fibre belt over wooden rollers. While it turns, what lies on it is carried left.", kind: Solid, density: 900., tensile: 2000., compressive: 5000., dig: 3, blast: 3, opacity: 160, color: [92, 64, 44], crumbles_to: X::BeltL, repose: 0.3, ignite: 1, flags: BUILT | MECH | HUB | BELT, bounce: 0.1, friction: 0.9, ..BASE },
+    Props { name: "Weight drum", desc: "A rope drum with a hanging weight. The weight falls to drive the line; spare power winds it up.", kind: Solid, density: 1500., tensile: 4000., compressive: 9000., dig: 6, blast: 4, opacity: 190, color: [118, 112, 108], crumbles_to: X::Drum, flags: BUILT | MECH | HUB, bounce: 0.3, friction: 0.5, ..BASE },
 ];
 impl Mat {
     #[inline] pub fn from_u8(v: u8) -> Mat { if (v as usize) < NMAT { unsafe { std::mem::transmute(v) } } else { Mat::Empty } }

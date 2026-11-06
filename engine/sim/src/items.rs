@@ -77,7 +77,7 @@ impl World {
             }
             let supported = self.item_hits(d.px, d.py + 0.05, d.item);
             // asleep until something gives way under it, or the screen it lies on starts shaking
-            if d.asleep() { if supported && wet == 0. && !self.chute_under(d.px, d.py, d.item).is_some_and(|(x, y)| self.shaking(x, y)) { self.drops[k] = d; continue; } d.rest = 0; }
+            if d.asleep() { if supported && wet == 0. && !self.chute_under(d.px, d.py, d.item).is_some_and(|(x, y)| self.shaking(x, y)) && self.belt_under(d.px, d.py).map_or(true, |v| v == 0.) { self.drops[k] = d; continue; } d.rest = 0; }
             // gravity less buoyancy (by the share of the box under liquid), and drag in a liquid (thicker in lava)
             let rho = d.item.density();
             let lift = if wet > 0. { wet * liq.p().density / rho } else { 0. };
@@ -100,8 +100,8 @@ impl World {
                     hy = true; let s = self.mat_at(d.px, ny + my.signum() * ITEM_HW).p(); let v0 = d.vy;
                     let fy = if my > 0. { (ny + ITEM_HW).floor() - ITEM_HW - 1e-3 } else { (ny - ITEM_HW).ceil() + ITEM_HW }; if !self.item_hits(d.px, fy, d.item) { d.py = fy; } // flush against it
                     let b = -v0 * s.bounce; d.vy = if b.abs() < 6. * SF { 0. } else { b };
-                    // (lying on a chute, the tick's own settling isn't a knock: the slide below takes its friction)
-                    let settling = my > 0. && v0 <= 1.5 * t.gravity * dt && self.chute_under(d.px, d.py, d.item).is_some();
+                    // (lying on a chute or belt, the tick's own settling isn't a knock: the slide or the belt's grip below takes its friction)
+                    let settling = my > 0. && v0 <= 1.5 * t.gravity * dt && (self.chute_under(d.px, d.py, d.item).is_some() || self.belt_under(d.px, d.py).is_some());
                     let f = if settling { 0. } else { s.friction * (v0 - d.vy).abs() }; d.vx = if d.vx.abs() <= f { 0. } else { d.vx - d.vx.signum() * f }; } }
             }
             // the flow goes up and over what it meets (a riffle bar): it lifts a lump it holds up with it
@@ -110,11 +110,15 @@ impl World {
             let floor = self.mat_at(d.px, d.py + ITEM_HW + 0.05);
             if self.item_hits(d.px, d.py + 0.05, d.item) && d.vy >= 0. {
                 // on a chute or screen it slides down the slope (production.rs); elsewhere it skids to a stop
-                if let Some((cx, cy)) = self.chute_under(d.px, d.py, d.item) { self.chute_slide(&mut d, cx, cy, dt); }
+                if let Some(vb) = self.belt_under(d.px, d.py) {
+                    // on a belt: its grip pulls it toward the belt's speed (a still belt holds it like any floor) (power.rs)
+                    let f = floor.p().friction * t.gravity * dt; d.vx = if (vb - d.vx).abs() <= f { vb } else { d.vx + (vb - d.vx).signum() * f };
+                }
+                else if let Some((cx, cy)) = self.chute_under(d.px, d.py, d.item) { self.chute_slide(&mut d, cx, cy, dt); }
                 // (in running water it presses on the bed with only its weight less buoyancy, less still while the flow holds it up)
                 else { let sub = if vw != 0. { (1. - lift).max(0.) * if kept { 0.2 } else { 1. } } else { 1. };
                     let f = floor.p().friction * t.gravity * sub * dt; d.vx = if d.vx.abs() <= f { 0. } else { d.vx - d.vx.signum() * f }; }
-                if d.vx.abs() < 0.3 * SF && d.vy.abs() < 0.3 * SF && wet == 0. { d.rest = d.rest.saturating_add(1); if d.asleep() { d.vx = 0.; d.vy = 0.; } } else { d.rest = 0; }
+                if d.vx.abs() < 0.3 * SF && d.vy.abs() < 0.3 * SF && wet == 0. && self.belt_under(d.px, d.py).map_or(true, |v| v == 0.) { d.rest = d.rest.saturating_add(1); if d.asleep() { d.vx = 0.; d.vy = 0.; } } else { d.rest = 0; }
             } else { d.rest = 0; }
             d.px = d.px.clamp(1., self.g.w as f32 - 2.); d.py = d.py.clamp(1., self.g.h as f32 - 2.);
             d.x = d.px as usize; d.y = d.py as usize;
