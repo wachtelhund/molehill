@@ -148,10 +148,10 @@ One still of each family, stamped with `--scene=<family>` on seed 4242 and lit b
 ![Flooded pumpworks: wet-stone chambers, hanging pipes, a sluice and a large iron pump wheel](images/site-pump.png)
 *Flooded pumpworks* (`--scene=pump`)
 
-![Fissure: a tall basalt chasm with broken bridges and hanging ropes](images/site-fissure.png)
+![Fissure: a tall basalt chasm with timber decks and ladders between its levels, broken bridge stubs and hanging ropes](images/site-fissure.png)
 *Fissure* (`--scene=fissure`)
 
-![Fossil cave: an excavation around a mineralised profile skeleton, with scaffold](images/site-fossil.png)
+![Fossil cave: an excavation where a mineralised skeleton lies on the dig floor, its ribs bedded in the rock](images/site-fossil.png)
 *Fossil cave* (`--scene=fossil`)
 
 ![Salt / crystal hall: towering crystal spires and glow-pools](images/site-crystal.png)

@@ -547,6 +547,18 @@ pub fn wagon_load(coal: bool) -> Image {
 /// The coupling bar between a wagon and what pulls it: an iron bar with a link at each end (stretched to the gap).
 pub fn coupling() -> Image { let mut p = Px::new(6, 3); p.rect(0, 1, 5, 1, [104, 104, 116]); p.rect(0, 0, 0, 2, [70, 70, 80]); p.rect(5, 0, 5, 2, [70, 70, 80]); p.finish(ICON_LINE).image() }
 
+/// A tube hopper in the world (16×16, its metre-square mouth; 1 px = 1 world unit): a brass funnel with a riveted rim
+/// and a dark mouth, tapering into a flanged stub of pressure tube, as its pack icon shows it, so it can't be taken for
+/// an ore hopper's timber bin.
+pub fn tube_hopper() -> Image {
+    let mut p = Px::new(16, 16); let (brass, brass_d) = ([196, 156, 72], [140, 104, 44]);
+    for y in 0..10 { let inset = y * 5 / 10; p.rect(inset, y, 15 - inset, y, if y < 2 { shade(brass, 1.2) } else if (y as i32) % 3 == 0 { brass_d } else { brass }); } // the funnel
+    p.oval(8., 1.5, 6.2, 1.2, [40, 30, 24]); // the mouth
+    for x in [1, 5, 10, 14] { p.set(x, 2, brass_d); } // rim rivets
+    p.rect(5, 10, 10, 15, [150, 190, 186]); p.rect(5, 10, 5, 15, [190, 222, 218]); p.rect(4, 12, 11, 12, brass_d); // the tube stub and its flange
+    p.finish(ICON_LINE).image()
+}
+
 /// The boiler over its shell cells (1 px = 1 world unit, `BOILER_W`×`BOILER_H` cells): a riveted iron drum with a
 /// steam dome and a stub chimney over a brick firebox, the fire door in its middle; lit, the fire shows through the door.
 pub fn boiler(lit: bool) -> Image {
@@ -821,6 +833,15 @@ mod tests {
         for a in 0..5u8 { for b in a + 1..5 { let d = mask(a).iter().zip(&mask(b)).filter(|(x, y)| x != y).count(); assert!(d >= 12, "wagons {a} and {b} share a silhouette ({d})"); } }
         let water = wagon(3).data.unwrap(); assert!(water.chunks(4).filter(|c| c[3] > 0 && c[0] < 40 && c[2] > 35).count() >= 6, "the water wagon has its gauge glass");
         assert_ne!(wagon_load(true).data, wagon_load(false).data);
+    }
+
+    /// The tube hopper is drawn (a funnel narrowing to a tube stub, its mouth dark), not three boxes, and doesn't share the
+    /// ore hopper's look (brass and tube colours, not timber).
+    #[test] fn tube_hopper_is_a_drawn_funnel() {
+        use super::tube_hopper; let d = tube_hopper().data.unwrap(); let w = 16;
+        let row = |y: usize| (0..w).filter(|&x| d[(y * w + x) * 4 + 3] > 0).count();
+        assert!(row(1) > row(8) && row(8) > row(14), "a funnel narrowing to a tube stub: {} / {} / {}", row(1), row(8), row(14));
+        let tube = d.chunks(4).filter(|c| c[3] > 0 && c[1] > 180 && c[2] > 170).count(); assert!(tube >= 10, "the pressure-tube stub shows");
     }
 
     #[test] fn ore_pockets_stand_out_without_glowing() {
