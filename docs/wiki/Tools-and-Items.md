@@ -87,6 +87,7 @@ One row per item in the item registry (`ITEM_DEFS` in `craft.rs`, read through `
 | Sluice gate | left mouse in an opening up to 2 m tall, joined to pull-rods; right mouse turns it round (pulled shuts instead of opens) | no | yes (`E` takes it up) |
 | Tipping scale | left mouse on a floor; right mouse puts a stone on its counter-pan (stone in paw) or takes one off | no | yes (`E` takes it up) |
 | Steam borer | left mouse: set it down facing your way; right mouse with coal, charcoal or wood in paw feeds it, with an empty paw gets on; `A`/`D` drive and bore, `Space` gets off | no | `E` rakes out its fuel, then picks it up |
+| Store, workshop, bunk, water or coal wagon | left mouse: set it down (behind a borer it couples on); right mouse climbs in or out; walk into a loose one to shove it; see [Production](Production.md#wagons) for what each does | no | `E` unloads it, then uncouples it, then picks it up |
 | Ore hopper | left mouse over the track: both legs need a floor | no | `E` empties its load into the pack, then picks up the empty hopper |
 | Tube hopper | left mouse on a tube (drop items in to send; right mouse: ride, or pick where it sends) | no | yes |
 | Lift | left mouse in a shaft: the head hangs under its ceiling (right mouse on head or cage: stone ballast on or off) | no | yes, with its ballast |
@@ -210,6 +211,8 @@ Chains are short: nothing is more than two steps from the ground (ore → ingot 
 | | 8 chute | 2 wood |
 | | 2 bumper | 2 wood + 1 stone |
 | | 8 riffle bar | 2 wood |
+| | store wagon / bunk wagon | 6 wood + 2 iron ingots / 6 wood + 4 fungus + 2 iron ingots |
+| | workshop wagon | 8 wood + 4 stone + 2 iron ingots |
 | | 2 gear / 8 water wheel | 2 wood / 4 wood |
 | | 8 belt | 2 wood + 2 fungus |
 | | washer | 6 wood + 2 clay |
@@ -239,6 +242,7 @@ Chains are short: nothing is more than two steps from the ground (ore → ingot 
 | | boiler | 4 iron ingots + 6 brick |
 | | 4 steam engine | 3 iron ingots + 1 copper ingot |
 | | 8 steam pipe | 1 copper ingot |
+| | water wagon / coal wagon | 5 iron ingots + 2 wood / 4 iron ingots + 2 wood |
 | | stamp mill | 4 iron ingots + 4 wood |
 | | smelter | 10 brick + 4 clay |
 | | 8 pull-rod / 2 tread plate | 1 iron ingot / 1 iron ingot |
