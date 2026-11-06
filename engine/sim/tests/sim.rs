@@ -1872,3 +1872,17 @@ fn staged_new_holt_matches_and_climbs() {
     for l in ["Laying down the rock", "Hollowing the burrow", "Shoring up the caves", "Letting the water find its level"] { assert!(labels.contains(&l), "no '{l}' stage in {labels:?}"); }
     assert_eq!(molehill_sim::save::save(&b.take()), molehill_sim::save::save(&whole), "a staged build must give the same holt");
 }
+
+/// The loading line's last stage: after a new holt (and after a load), `prefetch_step` runs until the
+/// ground ahead is built; it ends, and `stream_progress` then says 1 (only climbing on the way).
+#[test]
+fn loading_prefetch_finishes_the_ground_ahead() {
+    let w = World::new(512 * S, 256 * S, 4242);
+    let w2 = molehill_sim::save::load(&molehill_sim::save::save(&w)).unwrap();
+    for mut w in [w, w2] {
+        let mut last = w.stream_progress(); let t = std::time::Instant::now();
+        while w.prefetch_step() { let p = w.stream_progress(); assert!(p >= last, "progress went {last} -> {p}"); last = p;
+            assert!(t.elapsed().as_secs() < 120, "prefetch never finished"); std::thread::yield_now(); }
+        assert_eq!(w.stream_progress(), 1., "prefetch stopped before the ground ahead was built");
+    }
+}

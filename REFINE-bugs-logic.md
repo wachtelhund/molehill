@@ -116,6 +116,10 @@ Measured on native release, with other agents loading the machine:
 * A failed Continue or Load from a menu said nothing: its message went to the in-game line, which is hidden behind the menu. It now shows above the menu's hint until the screen changes (`Menu.note`).
 * site/ rebuilt on main after #30.
 
+## Loading: the ground ahead (after p8's PR #37)
+* Following Hampus 15:05 (a longer load, then smooth play): a last stage on the loading line, "Shoring up the deeper rock", calls p8's `World::prefetch_step` until `stream_progress()` is 1, after a new holt and after a load. Natively, seed 4242: holt 5.0 s, then the ground ahead 5.4 s. Test `loading_prefetch_finishes_the_ground_ahead` (new holt and reloaded save).
+* Not tested: the web build, where prefetch runs on the main thread in slices of a few ms inside the 20 ms budget, so this stage will be longer there.
+
 ## Open
 * The design's emberiron for the Bore doesn't exist, so the Bore takes iron, copper and crystal.
 * localStorage holds about 5 MB. A band is 10–40 KB, so a holt explored over a few hundred metres of depth could fill it. Bands the player never changed could be dropped and regenerated (not done: the falling-sand settling after generation would differ).

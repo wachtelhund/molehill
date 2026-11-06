@@ -24,7 +24,7 @@ python3 -m http.server -d site 8080
 
 To rebuild the web version, run `cd engine && ./build-web.sh` (needs wasm-bindgen-cli 0.2.130 and the wasm32-unknown-unknown target), then `rm -rf site && cp -r dist site`.
 
-The game opens on a main menu: Continue (if there is a save), New Holt (with an optional seed), Settings (volume, music volume or off, default zoom, and fullscreen on native), Controls, and Quit (native). It opens at once, without building a holt first. A new holt is built behind one loading line that says what it is doing and how far along it is ("Shoring up the caves…  31 %"), and Continue and Load show "Opening the save…" while the save is read. `?seed=N` / `--seed=N` opens straight into that holt.
+The game opens on a main menu: Continue (if there is a save), New Holt (with an optional seed), Settings (volume, music volume or off, default zoom, and fullscreen on native), Controls, and Quit (native). It opens at once, without building a holt first. A new holt is built behind one loading line that says what it is doing and how far along it is ("Shoring up the caves…  31 %"), and Continue and Load show "Opening the save…" while the save is read. Both then build the ground ahead of the window ("Shoring up the deeper rock…") before play starts. `?seed=N` / `--seed=N` opens straight into that holt.
 
 Tests: `cd engine && cargo test --release -p molehill-sim`. Headless scenarios: `cargo run --release -p molehill-sim --example scenario -- sim/tests/scenarios/*.scn` (see [TESTING.md](TESTING.md)). For agents, see [AGENTS.md](AGENTS.md). Collapse check: `cargo run --release -p molehill-sim --example settle`.
 

@@ -1,6 +1,7 @@
 //! The loading line: a new holt is generated a slice per frame (`sim::world::NewHolt`) and a save is
-//! read on the frame after the line is shown, so neither looks like a frozen window. One centred line
-//! of text over a dark veil (what it is doing and how far along), nothing else.
+//! read on the frame after the line is shown, so neither looks like a frozen window. Then the ground a few
+//! slides above and below is built ahead (`World::prefetch_step`) before play starts: a longer load, smooth
+//! play. One centred line of text over a dark veil (what it is doing and how far along), nothing else.
 use bevy::prelude::*;
 use bevy::platform::time::Instant;
 use molehill_sim::{survival::Mode, world::NewHolt};
@@ -15,7 +16,12 @@ pub enum Job {
     New { b: Box<NewHolt>, seed: u32, mode: Mode, hunger_off: bool, t0: Instant },
     /// The manual save (or the autosave): read once the line has been drawn.
     Load { shown: bool, t0: Instant },
+    /// After either: the ground within a few slides above and below the window is built ahead
+    /// (`World::prefetch_step`), so the first slides in play find it ready instead of hitching.
+    Prefetch { t0: Instant },
 }
+/// The pre-built ground's stage on the loading line.
+pub const PREFETCH_LABEL: &str = "Shoring up the deeper rock";
 #[derive(Resource, Default)] pub struct Loading { pub job: Option<Job> }
 impl Loading {
     pub fn busy(&self) -> bool { self.job.is_some() }
@@ -51,6 +57,13 @@ pub fn update(mut ld: ResMut<Loading>, mut g: ResMut<Game>, mut m: ResMut<Menu>,
             line(b.label(), b.progress())
         }
         Job::Load { shown, .. } => { if *shown { done = true; } *shown = true; "Opening the save…".to_string() }
+        // natively a worker thread builds the bands and a call only hands them over and collects; on the
+        // web each call builds a slice of a few ms, so it runs to the frame budget
+        Job::Prefetch { .. } => {
+            let t = Instant::now();
+            loop { if !g.w.prefetch_step() || g.w.stream_progress() >= 1. { done = true; break; } if t.elapsed().as_secs_f32() * 1e3 >= BUDGET_MS { break; } }
+            line(PREFETCH_LABEL, g.w.stream_progress())
+        }
     };
     for mut t in &mut text { t.0 = shown.clone(); }
     if !done { return; }
@@ -58,11 +71,16 @@ pub fn update(mut ld: ResMut<Loading>, mut g: ResMut<Game>, mut m: ResMut<Menu>,
         Some(Job::New { b, seed, mode, hunger_off, t0 }) => {
             crate::install(&mut g, &mut commands, b.take(), seed, mode); if hunger_off { g.w.set_hunger(false); }
             info!("new holt {seed} in {:.0} ms", t0.elapsed().as_secs_f32() * 1e3);
-            m.go(Screen::Off);
+            ld.job = Some(Job::Prefetch { t0: Instant::now() }); return;
         }
         Some(Job::Load { t0, .. }) => {
-            if crate::load_saved(&mut g, &mut commands) { m.go(Screen::Off); } else if m.open() { m.note = g.msg.clone(); }
+            let ok = crate::load_saved(&mut g, &mut commands);
             info!("save read in {:.0} ms", t0.elapsed().as_secs_f32() * 1e3);
+            if ok { ld.job = Some(Job::Prefetch { t0: Instant::now() }); return; } else if m.open() { m.note = g.msg.clone(); }
+        }
+        Some(Job::Prefetch { t0 }) => {
+            info!("ground ahead built in {:.0} ms", t0.elapsed().as_secs_f32() * 1e3);
+            m.go(Screen::Off);
         }
         None => {}
     }
