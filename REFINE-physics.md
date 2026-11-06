@@ -220,3 +220,6 @@ cells from its own torches and glowing rock, one charge in the mine / pumpworks 
 * Breath: the game had a Gasp sound the sim never sent, so drowning was silent until the hurt. Now the mole gasps
   and the log says to surface when breath first drops below 35 (BREATH_LOW, ~4.5 s left under water) and again
   at 0; once per crossing. Scenario breath_gasp_underwater.
+* Blast flash: a charge going off in an unlit bay added no light at all. Now its wave record drives a short warm
+  light (kinds::BLAST_FLASH, 10 m, (1 − t/T)² over 0.35 s) that casts ordinary shadows. No rule change: the blast
+  is the same. Scenario blast_flash_lights_a_dark_drift.

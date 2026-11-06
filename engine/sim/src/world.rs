@@ -663,6 +663,10 @@ impl World {
         for b in &self.buildings { if b.built && b.kind == Station::Forge { let (x, y) = c(b.x + Station::W / 2, b.y - S); v.push(Source::point(x, y, KILN.0, KILN.1)); } }
         for &b in &self.logic.dev_list { if self.logic.dev[b] == Dev::Lamp as u8 && self.logic.dev_s[b] != 0 { let (x, y) = self.logic.centre(b); let (x, y) = c(x, y); v.push(Source::point(x, y, LAMP.0, LAMP.1)); } }
         for (x, y, _, _) in self.glowmites() { v.push(Source::point(x, y, GLOWMITE.0, GLOWMITE.1)); }
+        // a blast's flash, from its (render-only) wave record
+        for wv in &self.waves { let t = (self.tick.saturating_sub(wv.tick)) as f32 / 60. / BLAST_FLASH_S; if t >= 1. { continue; }
+            let f = (1. - t) * (1. - t); let (x, y) = c(wv.cx, wv.cy);
+            v.push(Source::point(x, y, BLAST_FLASH.0.map(|k| k * f), BLAST_FLASH.1)); }
         if self.gear.held == Some(Item::Glowmite) { v.push(Source::point(self.pl.px + self.moles.first().map_or(0., |m| m.facing as f32) * 1.6 * SF, self.pl.py - 1.4 * SF, GLOWMITE_JAR.0, GLOWMITE_JAR.1)); }
         for (k, m) in self.moles.iter().enumerate() { if !m.alive { continue; }
             if k == 0 {

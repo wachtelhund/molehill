@@ -49,6 +49,11 @@ pub mod kinds {
     /// A glowmite drifting in a grotto: a small cold green-gold glow. A jar of one carried in the paw.
     pub const GLOWMITE: ([f32; 3], f32) = ([0.42, 0.62, 0.3], 2.5);
     pub const GLOWMITE_JAR: ([f32; 3], f32) = ([0.6, 0.85, 0.42], 4.);
+    /// A charge going off: a short warm flash at the blast (peak colour, reach in metres), so a blast in an
+    /// unlit drift shows the room and what it throws for a moment. It fades out as (1 − t/T)² over
+    /// BLAST_FLASH_S and casts the same shadows as any light (it stops at the first wall).
+    pub const BLAST_FLASH: ([f32; 3], f32) = ([1.5, 1.1, 0.7], 10.);
+    pub const BLAST_FLASH_S: f32 = 0.35;
 }
 
 /// Seed of the local glow flood per unit of emission (the rays carry the real light).
