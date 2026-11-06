@@ -1,7 +1,7 @@
 {
   "name": "Molehill",
   "short_name": "Molehill",
-  "description": "A falling-sand holt in the endless Deepholt. In development; downloads come later.",
+  "description": "A falling-sand colony sim written in Rust and Bevy. In development; downloads come later.",
   "start_url": "/",
   "display": "browser",
   "background_color": "#120e0b",
