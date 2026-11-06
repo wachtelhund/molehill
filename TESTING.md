@@ -305,6 +305,7 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `borer_left_step_fall.scn` | A borer bores left into granite, climbs a tile-high step onto a ledge, then tips off the ledge's end into a pit, the mole on it |
 | `wagon_train.scn` | A coal wagon and a water wagon set down behind a borer couple on, stoke it and top up its tank, and follow it into the face; the spoil lies behind the tail; saved coupled |
 | `wagon_couple.scn` | A borer backing up couples a loose store wagon; E uncouples it and the borer drives off without it; backed up to again it couples; at the tunnel's end the wagon stops the train; E twice takes it up |
+| `wagon_stoker_waits.scn` | A coal wagon coupled to a parked borer stokes one lump into the cold firebox, then holds its chute shut once steam is over half full: two minutes on, nothing more has burnt |
 | `wagon_kinds.scn` | A store wagon catches dropped stone and stows the paw's stack; a workshop wagon is a workbench to craft at; a bunk wagon moves the wake point, so after a death the mole wakes by it |
 | `shaker_sorts.scn` | Gravel drops through a 1-in-4 shaker screen; ore lies on it until current shakes it, then walks off the end into its own pit |
 | `rail_needs_support.scn` | A rail span over a drop breaks and falls; its ends on rock hold |

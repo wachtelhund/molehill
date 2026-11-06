@@ -6,7 +6,9 @@
 //! * **Store wagon:** a box on wheels. Loose items that fall into it ride along; inside it, right mouse with an item in
 //!   paw stows that stack. `E` takes everything out into the pack.
 //! * **Coal wagon:** a fuel bunker. Coal, charcoal and wood thrown or dropped in ride along, or shovelled in by hand
-//!   (fuel in paw + right mouse). Coupled, its stoking chute feeds the borer's firebox a lump at a time.
+//!   (fuel in paw + right mouse). Coupled, its stoking chute feeds the borer's firebox a lump at a time, while the
+//!   borer's steam is below `STOKE_BELOW` of full: with steam up, a catch on the chute holds it shut, so a parked borer
+//!   doesn't burn the bunker away.
 //! * **Water wagon:** a tank. It draws water touching it (as the borer does) and, coupled, tops up the borer's tank.
 //! * **Bunk wagon:** climbing in is going to sleep: you wake there after a death, and the game saves.
 //! * **Workshop wagon:** a saw bench under a roof. Inside it, you work as at a workbench.
@@ -26,6 +28,8 @@ pub const WAGON_H: f32 = (3 * CPM / 4) as f32;
 pub const GAP: f32 = S as f32; pub const COUPLE_D: f32 = (3 * S) as f32 / 2. + 1.;
 /// What hauling a wagon costs the borer (W); what the stores hold (items, lumps, water cells).
 pub const WAGON_DRIVE_W: f32 = 100.;
+/// The coal wagon stokes only while the borer's steam is below this share of full.
+pub const STOKE_BELOW: f32 = 0.5;
 pub const STORE_CAP: u32 = 200; pub const COAL_CAP: u32 = 40; pub const WATER_CAP: f32 = 48.;
 /// How fast the mole can shove a wagon along by hand (cells/s).
 pub const PUSH_V: f32 = 1.5 * CPM as f32;
@@ -95,6 +99,7 @@ impl World {
         let floor = (y..(y + 2 * CPM).min(self.g.h - 1)).find(|&r| self.wagon_grounded(xf, r as f32)).ok_or("needs a floor under it")? as f32;
         if self.wagon_hits(xf, floor) { return Err("needs 1 m by 0.75 m of room"); }
         if self.tr.wagons.iter().any(|w| (w.x - xf).abs() < WAGON_W && (w.y - floor).abs() < WAGON_H) { return Err("there's a wagon there"); }
+        if self.tr.borers.iter().any(|b| (b.x - xf).abs() < (BORER_W + WAGON_W) / 2. && (b.y - floor).abs() < crate::borer::BORER_H) { return Err("there's a borer there"); }
         self.tr.wagons.push(Wagon { kind, x: xf, y: floor, px: xf, py: floor, vy: 0., coupled: false, parted: false, cargo: vec![], water: 0. });
         self.events.push(Event::Place); Ok(())
     }
@@ -129,7 +134,9 @@ impl World {
         Some(out)
     }
     /// Is wagon `j` in any borer's train?
-    pub fn in_train(&self, j: usize) -> bool { (0..self.tr.borers.len()).any(|k| self.train(k).contains(&j)) }
+    pub fn in_train(&self, j: usize) -> bool { self.hauled_by(j).is_some() }
+    /// The borer whose train wagon `j` is in, if any.
+    pub fn hauled_by(&self, j: usize) -> Option<usize> { (0..self.tr.borers.len()).find(|&k| self.train(k).contains(&j)) }
 
     /// Right mouse on a wagon: climb in or out (empty paw); fuel in paw shovels it into a coal wagon; inside the store
     /// wagon, the stack in paw is stowed.
@@ -243,7 +250,7 @@ impl World {
         // the coal and water wagons feed the borer they're coupled to
         for (k, t) in trains.iter().enumerate() { for &j in t {
             match self.tr.wagons[j].kind {
-                WagonKind::Coal => if self.tr.borers[k].fuel.is_empty() { let w = &mut self.tr.wagons[j];
+                WagonKind::Coal => if self.tr.borers[k].fuel.is_empty() && self.tr.borers[k].burning.is_none() && self.tr.borers[k].steam < STOKE_BELOW * crate::borer::STEAM_MAX { let w = &mut self.tr.wagons[j];
                     if let Some(c) = w.cargo.first_mut() { let it = c.0; c.1 -= 1; if c.1 == 0 { w.cargo.remove(0); } self.tr.borers[k].fuel.push((it, 1)); } },
                 WagonKind::Water => if self.tick % 6 == 3 && self.tr.wagons[j].water >= 1. && self.tr.borers[k].water + 1. <= crate::borer::TANK { self.tr.wagons[j].water -= 1.; self.tr.borers[k].water += 1.; },
                 _ => {}
