@@ -105,6 +105,49 @@ Polish only: no new features or concepts. Each entry is one commit.
     `dig_down_shallow`, `dig_down_water`; test `tests/first_hour.rs` (fails without the rule: seed 9 burns).
     Message wording sits beside `dig_refusal` in `world.rs` (`HOLLOW`, `HOT`) for bugs-logic's message table.
 
+16. **Rope ladders feel snappy; found places walked (found-place climb).** Ladder fixes, each seen in a
+    scenario first:
+    * holding only `W` at a ledge's ladder climbed past the lip to the knot and bobbed there for good
+      (on and off the rope's end every few ticks), never stepping onto the ledge: `W` now climbs off onto the
+      ledge like a wall's mantle (`World::ladder_top_out`), and where there's nowhere to step the mole hangs
+      at the rope's top end;
+    * `A`/`D` on a ladder edged along it at 1 m/s for a quarter second before dropping off: alone (no
+      `W`/`S`) they now let go at once, so the mole runs or drops off at its own speed;
+    * climbing down never reset the fall: a 7.5 m ladder cost 30 hp at its foot. Climbing now counts as
+      footing (`fall_from` follows the mole while it's on the rope);
+    * in the game, a fresh `W` at a ladder also fired a jump (one tick off the rope); `S` standing at a
+      ladder's head dug the ledge it's tied to (and so dropped the ladder). `World::ladder_takes_up` /
+      `ladder_takes_down` tell the game when `W` / `S` belong to the rope; `S` at a ledge ladder's head steps
+      onto it, pulled clear of the rock face (`ladder_hang_x`);
+    * 2 m/s up was slower than a bare wall (2.6 m/s): now 3 m/s up, 3.5 m/s down (`LADDER_UP`/`DOWN`).
+    Scenarios `rope_ladder_top_out`, `rope_ladder_down` (fails without the fall fix: hp 70), `rope_ladder_let_go`;
+    harness vars `ladder_up`, `ladder_down`, `chests`.
+
+    Found places. New `World::body_regions` flood-fills where the body box fits (gravity ignored: walls and
+    ropes are climbable); `examples/sitewalk.rs` maps it per site and `tests/found_places.rs` asserts it. Scenarios
+    `site_<kind>_traverse` walk each family from a way in as far as its layout allows. The movement code had no
+    blocker of its own: every site blocker is in the stamped layout (`sites.rs`, env-rework's lane), so none were
+    changed here. As stamped on 2026-11-06:
+    * **holt**: the chest is stamped inside the hall table's plank top (`is_solidish`), so it never opens; a 3 m
+      bookcase stands against the garden partition's doorway, cutting the garden and east door off the hall.
+    * **mine**: timber posts every 4 m (`MINE_BAY`) run floor to roof on both levels, so every bay is sealed and
+      no mouth reaches the chest; the shaft's rope (8 m from the upper floor) stops 4 m above the lower floor, beside
+      the west post (climbable via the post, as `site_mine_traverse` does), with the only floor at its top east of
+      the hole.
+    * **pumpworks**: iron columns floor to roof every 8 m split the halls into strips; the east door does reach the
+      chest (the one site whose chest a mole can get to and open).
+    * **fissure**: the rubble on the 24 m iron stub leaves the gap past the bridges about a cell narrower than the
+      mole, sealing the lower 16 m; the upper rope hangs under the 8 m bridge it's tied to, out of reach from the
+      west mouth; the bridges overhang the walls, so the west mouth can't be climbed to from below (the flood fill
+      ignores overhangs: it still counts that as one region).
+    * **fossil cave** and **salt hall**: the oval wall closes off the inner end of both mouths, so the halls (and
+      chests) are sealed; the salt hall's four quartz columns run floor to roof; its east mouth's lintel and the
+      limestone over it sag within ~2 s of stamping and bury a mole standing there (100 to 27 hp in 2 s).
+    * **cargo halt**: iron columns floor to roof every 6 m in the hall (from 30 m) seal its bays and the cart; the
+      chest is stamped inside a crate stack, so it never opens.
+    The mine (72 m) and halt (80 m) don't fit beside the start in the harness's 128 m world, so their scenarios
+    start inside.
+
 ## Open issues
 * Walking off a ledge you dug open is still a free choice: a dug-open cave shows itself, and run/stop is
   instant, so I left ledge drops alone. Fissure sites (26 m, ledges every 6-7 m) still hurt at each ledge.
