@@ -20,6 +20,9 @@ use crate::world::{Farm, Furniture, World};
 /// At most one site per 96 m × 48 m cell. Wider than a grotto cell, tighter than a ruin cell.
 pub const SITE_W: usize = 96 * CPM;
 pub const SITE_H: usize = 48 * CPM;
+/// The first-hour find (`Gen::find_near_site`): its nearest cell lies NEAR_FIND.0 to .1 metres from the burrow,
+/// and the whole site within NEAR_FIND.2 metres above or below it (inside the starting window).
+pub const NEAR_FIND: (f32, f32, f32) = (35., 90., 56.);
 /// Small test windows (the arena, most scenarios) stay site-free so existing holts don't change shape.
 pub const SITE_MIN_W: usize = 160 * CPM;
 
@@ -113,13 +116,14 @@ impl Gen {
     /// `fill_rows` asks this once per cell; the answer depends only on the site cell, so the last
     /// `(seed, gx, gy)` is memoised and a 2 M-cell window does the expensive overlap work a handful of times.
     pub fn site_at(&self, gx: i64, gy: i64) -> Option<Site> {
-        thread_local! { static LAST: std::cell::RefCell<Option<(u32, i64, i64, Option<Site>)>> = std::cell::RefCell::new(None); }
+        if let Some((nx, ny, s)) = self.near_site { if (nx, ny) == (gx, gy) { return Some(s); } }
+        thread_local! { static LAST: std::cell::RefCell<Option<(u32, usize, i64, i64, Option<Site>)>> = std::cell::RefCell::new(None); }
         LAST.with(|slot| {
-            if let Some((seed, x, y, s)) = *slot.borrow() {
-                if seed == self.seed && x == gx && y == gy { return s; }
+            if let Some((seed, w, x, y, s)) = *slot.borrow() {
+                if seed == self.seed && w == self.biome.len() && x == gx && y == gy { return s; }
             }
             let s = self.site_at_fresh(gx, gy);
-            *slot.borrow_mut() = Some((self.seed, gx, gy, s));
+            *slot.borrow_mut() = Some((self.seed, self.biome.len(), gx, gy, s));
             s
         })
     }
@@ -127,13 +131,50 @@ impl Gen {
         let w = self.biome.len(); if w < SITE_MIN_W { return None; }
         if gx < 0 || (gx as usize + 1) * SITE_W > w { return None; }
         let h = hash3(gx as u32, gy as u32, self.seed ^ 0x51FE);
-        let (sw, sh) = (SITE_W as i64, SITE_H as i64); let mid = gy * sh + sh / 2;
+        let sh = SITE_H as i64; let mid = gy * sh + sh / 2;
         let d = mid as f32 * CELL_M;
         if (h & 0xFFFF) as f32 / 65536. >= site_chance(d) { return None; }
         let mut ks = [Kind::Mine; 7]; let mut n = 0usize;
         for k in 0..7 { let kd = Kind::from_u8(k); if kd.at_depth(d) { ks[n] = kd; n += 1; } }
         if n == 0 { return None; }
         let kind = ks[(h as usize >> 16) % n];
+        self.site_build(gx, gy, h, kind)
+    }
+    /// How far (m) a Delver at the burrow has to go to reach this site: from the burrow (the window's middle
+    /// column, depth 0) to the nearest cell of its box.
+    pub fn site_trek(&self, s: &Site) -> f32 {
+        let (bx, c) = ((self.biome.len() / 2) as i64, CPM as f32);
+        let dx = (s.x0 as i64 - bx).max(bx - (s.x0 + s.w) as i64).max(0) as f32 / c;
+        let dy = s.y0.max(-(s.y0 + s.h as i64)).max(0) as f32 / c;
+        (dx * dx + dy * dy).sqrt()
+    }
+    /// The first-hour find (see NEAR_FIND): a found place with a chest whose nearest cell is a real trek from
+    /// the burrow but not a half-day march, inside the starting window's rows. If the seed already put one
+    /// there it is left alone (None); otherwise an abandoned mine (else an abandoned holt) goes into an empty
+    /// site cell by the same placement rules as any site: clear of the start, of grottos and of ruins.
+    pub(crate) fn find_near_site(&self) -> Option<(i64, i64, Site)> {
+        let w = self.biome.len(); if w < SITE_MIN_W { return None; }
+        let ncx = (w / SITE_W) as i64; let c = CPM as i64;
+        let fits = |s: &Site| { let t = self.site_trek(s); s.chest.is_some() && t >= NEAR_FIND.0 && t <= NEAR_FIND.1
+            && s.y0 >= -NEAR_FIND.2 as i64 * c && s.y0 + s.h as i64 <= NEAR_FIND.2 as i64 * c };
+        for gy in -2..=2 { for gx in 0..ncx { if self.site_at_fresh(gx, gy).is_some_and(|s| fits(&s)) { return None; } } }
+        for kind in [Kind::Mine, Kind::Holt] {
+            for k in 0..96u32 {
+                let h = hash3(k, 0xF17D, self.seed ^ 0x51FE);
+                let (gx, gy) = ((h % ncx as u32) as i64, ((h >> 8) % 3) as i64 - 1);
+                if self.site_at_fresh(gx, gy).is_some() { continue; } // never replace a site the seed placed
+                let Some(s) = self.site_build(gx, gy, h, kind) else { continue };
+                let d = s.centre().1 as f32 / CPM as f32;
+                if kind.at_depth(d) && fits(&s) { return Some((gx, gy, s)); }
+            }
+        }
+        None
+    }
+    /// Place a site of `kind` in site cell (gx, gy) from hash `h`: None where it would come near the start
+    /// burrow or overlap a grotto or a ruin.
+    fn site_build(&self, gx: i64, gy: i64, h: u32, kind: Kind) -> Option<Site> {
+        let w = self.biome.len();
+        let (sw, sh) = (SITE_W as i64, SITE_H as i64);
         let c = CPM as i64; let r = |k: u32, n: i64| (hash3(h, k, self.seed) as i64).rem_euclid(n.max(1));
         let (bw, bh) = (kind.size().0 as i64, kind.size().1 as i64);
         let m = 5 * c;

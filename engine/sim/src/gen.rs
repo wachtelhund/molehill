@@ -195,13 +195,15 @@ pub fn biome_at(n: &Noise, x: usize) -> Biome {
 /// deeper). Pure per-cell function of (x, wy, seed): the same seed always yields the same Deepholt.
 pub struct Gen { pub seed: u32, n0: Noise, n1: Noise, n2: Noise, n3: Noise, pub biome: Vec<Biome>,
     /// the grotto placed near the start (its grotto cell and shape), fixed by the seed
-    pub near_grotto: Option<(i64, i64, Grotto)> }
+    pub near_grotto: Option<(i64, i64, Grotto)>,
+    /// the first-hour found place placed in reach of the start (its site cell and site), fixed by the seed
+    pub near_site: Option<(i64, i64, crate::sites::Site)> }
 impl Gen {
     pub fn new(seed: u32, w: usize) -> Gen {
         let n3 = Noise::new(seed ^ 0x3C3C);
         let biome = (0..w).map(|x| biome_at(&n3, x)).collect();
-        let mut g = Gen { seed, n0: Noise::new(seed), n1: Noise::new(seed ^ 0x51ED), n2: Noise::new(seed ^ 0xA77A), n3, biome, near_grotto: None };
-        g.near_grotto = g.find_near_grotto(); g
+        let mut g = Gen { seed, n0: Noise::new(seed), n1: Noise::new(seed ^ 0x51ED), n2: Noise::new(seed ^ 0xA77A), n3, biome, near_grotto: None, near_site: None };
+        g.near_grotto = g.find_near_grotto(); g.near_site = g.find_near_site(); g
     }
     /// Open cave cell? Blobby caverns + thin winding tunnels.
     pub fn open(&self, x: usize, wy: i64) -> bool {

@@ -1517,3 +1517,24 @@ fn found_places_differ_in_size_lining_and_stay_clear_of_the_spawn() {
     }
 }
 
+/// First hour, exploring: a new holt has a found place with a chest (an abandoned mine, by preference) whose
+/// nearest cell is a real trek from the burrow, 35-90 m (`sites::NEAR_FIND`), inside the starting window.
+/// The seed's own site when it placed one there, else one put in an empty site cell by the usual rules (clear
+/// of the start, grottos and ruins: see `sites_are_rare_deterministic_and_clear_of_start_ruins_and_each_other`).
+/// Guarded on at least 80 % of 300 seeds (and on the survey's seeds 1-50); deterministic per seed.
+#[test]
+fn a_rewarding_find_is_a_first_hour_trek_from_the_burrow() {
+    use molehill_sim::sites::NEAR_FIND; use molehill_sim::gen::Gen;
+    use molehill_sim::mat::CPM;
+    let (w, c) = (1024 * S, CPM as i64);
+    let ok = |seed: u32| { let gen = Gen::new(seed, w);
+        gen.sites_in_rows(-(NEAR_FIND.2 as i64) * c, NEAR_FIND.2 as i64 * c).iter()
+            .any(|s| s.chest.is_some() && (NEAR_FIND.0..=NEAR_FIND.1).contains(&gen.site_trek(s))) };
+    let hits = (0..300u32).filter(|&s| ok(s)).count();
+    assert!(hits * 10 >= 300 * 8, "a first-hour find on only {hits} of 300 seeds");
+    let survey = (1..=50u32).filter(|&s| ok(s * 7919)).count();
+    assert!(survey * 10 >= 50 * 8, "a first-hour find on only {survey} of the survey's 50 seeds");
+    let (a, b) = (Gen::new(77, w), Gen::new(77, w));
+    assert_eq!(a.near_site.map(|n| (n.0, n.1, n.2.id)), b.near_site.map(|n| (n.0, n.1, n.2.id)));
+    assert!(Gen::new(77, 96 * S).near_site.is_none(), "small test windows keep their shape");
+}
