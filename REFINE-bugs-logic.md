@@ -90,6 +90,13 @@ Evidence, not features. `examples/progression.rs` (new): per seed, routes from t
 * **Seed 42 (physics note):** verified: 11 granite cells in a 1.2 m strip 34 m above and 116 m left of the burrow fail the stress solve after generation; in play they crumble in the first 10 s and nothing more falls by 30 s. Out of reach of a new player, one-off: no collapse risk, not changed.
 * **Not tested:** nothing here was played in a window or the web build. The bot doesn't craft, build a workbench, use carts or furniture, so the holt quest, cart unload and "come back with a drill" return trip are covered only by their scenarios (`holt_home`, `explore_clues`), not by a long run.
 
+## Death recovery, death causes, grotto discovery (refine/first-hour-death-recover, from 5575d4b)
+Hampus took three of the e2e findings (not "empty stretches").
+* **Recoverable death (Survival):** the pack drops on the last dry ground the mole stood on (grounded, out of water, lava and stale air) if within 16 m (`survival::PACK_DRY_M`), else where it fell, so a drowned pack waits at the water's edge; the log says "on dry ground near where you fell". Waking in the burrow, its stores give a meal and fill the headlamp (no items: the pack, tools and all, is still lost until fetched). Scenario `death_pack_dry_ground`.
+* **Cause of death:** `world::Harm` records what last hurt the player's mole (drowned, choked on stale air, starved, burned, buried, long fall, blast) and the death line names it ("Mossy drowned: its breath ran out under water."). Scenario `death_cause` (starved, blast; drowned in `death_pack_dry_ground`).
+* **Grotto discovery:** first time within 8 m of a grotto's hollow, one log line like ruins and sites; `grottos_seen` saved (format 11; older saves count grottos whose centre was seen as visited, untested). Scenario `grotto_discovery`, test `grottos_seen_survive_a_save`.
+* Not played in a window or the web build.
+
 ## Open
 * The design's emberiron for the Bore doesn't exist, so the Bore takes iron, copper and crystal.
 * localStorage holds about 5 MB. A band is 10–40 KB, so a holt explored over a few hundred metres of depth could fill it. Bands the player never changed could be dropped and regenerated (not done: the falling-sand settling after generation would differ).

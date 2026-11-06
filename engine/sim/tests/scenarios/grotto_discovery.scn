@@ -1,0 +1,28 @@
+// A grotto announces itself like ruins and found places: the first time the mole comes within 8 m of the
+// hollow, one line goes in the log ("A grotto, N m down: water seeps through the rock here, root-trees
+// drink it, and glowmites drift in the hollow. Cut root-trees for wood."). Once only, and remembered by a save.
+// (bedrock roof: a wide room would cave in otherwise)
+map
+BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+#..............................................................................................#
+#..............................................................................................#
+#..............................................................................................#
+#..............................................................................................#
+#..............................................................................................#
+#...@..........................................................................................#
+################################################################################################
+end
+grotto 1 66 -3 6 3                  // a grotto's hollow (and its glowmites) 16 m to the right
+expect 30 log:a_grotto == 0         // too far yet
+hold 40-200 right
+expect 230 log:a_grotto == 1
+expect 230 log:root-trees_drink_it == 1
+// away and back: said once
+hold 240-330 left
+hold 340-480 right
+expect 500 log:a_grotto == 1
+// a save and load remembers it
+saveload 510
+hold 520-560 left
+hold 570-620 right
+expect 660 log:a_grotto == 1
