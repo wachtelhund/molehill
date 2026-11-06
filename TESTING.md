@@ -286,7 +286,7 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `wall_saveload.scn` | Lining and a scrape survive save/load and a window slide |
 | `wall_no_support.scn` | A 20-wide clay roof still falls when the back is timbered |
 | `wall_walk.scn` | The mole walks through a timber-lined corridor, unhurt |
-| `site_mine.scn` (with the copper face and the ballast) / `site_holt.scn` / `site_pumpworks.scn` / `site_fissure.scn` / `site_fossil.scn` / `site_crystal.scn` / `site_halt.scn` | Each found-place family stamps with its materials, lining and interaction (rails, furniture, a held sump, a rope, carved bone, quartz pools, a wrecked cart and no waygate) |
+| `site_mine.scn` (with the copper face and the ballast; soot lining) / `site_holt.scn` (table and stools on the open floor) / `site_pumpworks.scn` / `site_fissure.scn` / `site_fossil.scn` / `site_crystal.scn` / `site_halt.scn` | Each found-place family stamps with its materials, lining and interaction (rails, furniture, a held sump, a rope, carved bone, quartz pools, a wrecked cart and no waygate). Each map is solid rock sized to its reworked site (up to 80 × 22 m, or 18 × 40 m for the fissure), with a pocket for the mole under it or beside it; the site carves itself out |
 
 ### Writing a new scenario (for agents)
 

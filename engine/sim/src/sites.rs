@@ -80,6 +80,8 @@ impl Kind {
 
 /// Abandoned mine track: the strap is this many cells thick (half a metre), on sleepers in ballast.
 pub const MINE_RAIL: i64 = (CPM / 2) as i64;
+/// Metres between the mine's timber sets (post and cap), so no stretch of its roof spans further.
+pub const MINE_BAY: i64 = 4;
 /// The mine's worked face (ore) at its far end, in half metres from the end wall.
 pub const MINE_FACE: i64 = 5;
 
@@ -326,12 +328,13 @@ impl Site {
         if dx >= 40 * c && dx < 43 * c && dy >= floor - 2 * c && dy < floor {
             return Some(if dy >= floor - c / 2 { IronBeam } else { WoodBeam });
         }
-        let q = (dx - face - c).rem_euclid(8 * c);
+        // posts (with caps) every 4 m: an 8 m span of the 1 m roof can't stand over weak host rock
+        let q = (dx - face - c).rem_euclid(MINE_BAY * c);
         let on_lower = dy >= uf + c && dy < floor;
         let on_upper = dy >= c / 2 && dy < uf;
         if dx >= face && q < post && (on_lower || on_upper) { return Some(WoodBeam); }
-        if dx >= face - c / 2 && dy < c / 2 + 2 && (q < post + c / 2 || q >= 8 * c - c / 2) { return Some(WoodBeam); }
-        if dx >= face && dy >= uf - 2 && dy < uf && (q < post + c / 2 || q >= 8 * c - c / 2) && !in_shaft {
+        if dx >= face - c / 2 && dy < c / 2 + 2 && (q < post + c / 2 || q >= MINE_BAY * c - c / 2) { return Some(WoodBeam); }
+        if dx >= face && dy >= uf - 2 && dy < uf && (q < post + c / 2 || q >= MINE_BAY * c - c / 2) && !in_shaft {
             return Some(WoodBeam);
         }
         Some(Empty)
@@ -646,10 +649,12 @@ impl World {
                 self.try_furn(Item::Nest, x0 + 3 * c, y0 + s.h - 2 * c);
                 self.try_furn(Item::Nest, x0 + 5 * c, y0 + s.h - 2 * c);
                 self.try_furn(Item::Rug, x0 + 3 * c, y0 + s.h - 2 * c);
-                self.try_furn(Item::Table, x0 + 11 * c, y0 + s.h - 2 * c);
-                self.try_furn(Item::Stool, x0 + 10 * c, y0 + s.h - 2 * c);
-                self.try_furn(Item::Stool, x0 + 13 * c, y0 + s.h - 2 * c);
-                self.try_furn(Item::Rug, x0 + 11 * c, y0 + s.h - 2 * c);
+                // the table and stools stand on the open floor between the nest niche and the plank loft
+                // (under the loft there's only half a metre of headroom)
+                self.try_furn(Item::Table, x0 + 8 * c + c / 2, y0 + s.h - 2 * c);
+                self.try_furn(Item::Stool, x0 + 7 * c + c / 2, y0 + s.h - 2 * c);
+                self.try_furn(Item::Stool, x0 + 9 * c + c / 2, y0 + s.h - 2 * c);
+                self.try_furn(Item::Rug, x0 + 8 * c + c / 2, y0 + s.h - 2 * c);
                 self.try_furn(Item::Shelf, x0 + 16 * c, y0 + s.h - 2 * c);
                 self.try_furn(Item::Banner, x0 + 13 * c, y0 + 4 * c);
                 self.try_farm(x0 + s.w - 7 * c, y0 + s.h - 2 * c);

@@ -16,7 +16,8 @@ enum Act { Load(u64, u32, String), Ruin(u64, String, i32, i32, bool), Clue(u64, 
 fn wall_code(s: &str) -> Option<u8> {
     Some(match s.to_ascii_lowercase().as_str() {
         "none" => 0, "rock" => 1, "timber" => 2, "masonry" => 3, "beams" | "beam" => 4, "pipes" | "pipe" => 5,
-        "carving" | "carved" => 6, "damp" => 7, "crack" => 8, "root" => 9, "gap" => 10, "salt" => 11, "crystal" => 12, "fossil" => 13, _ => return None,
+        "carving" | "carved" => 6, "damp" => 7, "crack" => 8, "root" => 9, "gap" => 10, "salt" => 11, "crystal" => 12, "fossil" => 13,
+        "soot" => 14, "wetstone" | "wet_stone" => 15, "basalt" => 16, "ashlar" => 17, "ironclad" => 18, _ => return None,
     })
 }
 
