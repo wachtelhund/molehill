@@ -1115,7 +1115,7 @@ impl World {
             else { self.say("You crawl back into the burrow.".into()); }
             return;
         }
-        if self.ride_step() { return; }
+        if self.ride_step() { self.tr.on_rope = None; return; } // in a cart, borer or wagon: the rope is let go
         let inp = self.input.clone();
         let t = TUNE;
         self.pl.flash = (self.pl.flash - dt).max(0.);
