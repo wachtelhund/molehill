@@ -148,7 +148,7 @@ In **Survival** (see [Progression](Progression.md#survival-mode-today)) crafting
 
 In Survival a dig tool you don't own sits faint in the hotbar (see [The pack](#the-pack)), and holding a better tool's slot doesn't help: digging uses the best tool in the pack (`World::tool`, scenario `tool_tiers_survival`). Without any tool, claws still take soft stone, slowly.
 
-**Dig tempo.** A bite takes the slowest cell in it: `dig × 4 / (1 + tier) + 1` ticks, at least 4 (`World::mine_time`; `dig` is the material table's), and takes the whole round bite at once. Soft soil goes at once, and stone is work, so a dug room is earned. Clearing a 4 × 3 m room with the default bite (`examples/digtempo.rs` prints every material):
+**Dig tempo.** A bite takes the slowest cell in it: `dig × 4 / (1 + tier) + 1` ticks, at least 4 (`World::mine_time`; `dig` is the material table's), and takes the whole round bite at once. The time doesn't depend on the bite's size: a bigger brush clears more in the same time (a design decision), so widening it is how to clear a room faster. Soft soil goes at once, and stone is work, so a dug room is earned. Clearing a 4 × 3 m room with the default bite (`examples/digtempo.rs` prints every material):
 
 | material | claws | Pickaxe | Drill | Bore |
 |---|---|---|---|---|
