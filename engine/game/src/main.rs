@@ -394,7 +394,11 @@ fn stage_scene(w: &mut World) {
                 let bx = (x0 + 16 * S) as f32;
                 w.tr.borers.push(Borer { x: bx, y: (my + 1) as f32, px: bx, py: (my + 1) as f32, vx: 0., vy: 0., dir: 1, fuel: vec![(Item::Coal, 6)], burning: Some(Item::Coal), burn: 2000, water: TANK, steam: STEAM_MAX, grind: 0., jammed: false });
                 w.tr.borer_ride = Some(w.tr.borers.len() - 1);
+                // a second one parked behind it, lit and facing back west, nobody riding: its flip and stack smoke show
+                let bx2 = (x0 + 9 * S) as f32; // clear of the burrow's own torch
+                w.tr.borers.push(Borer { x: bx2, y: (my + 1) as f32, px: bx2, py: (my + 1) as f32, vx: 0., vy: 0., dir: -1, fuel: vec![(Item::Coal, 6)], burning: Some(Item::Coal), burn: 2000, water: TANK, steam: STEAM_MAX, grind: 0., jammed: false });
                 molehill_sim::light::reveal_box(&mut w.g, mx, y0 - 10 * S, x1 + 10 * S, my + 10 * S);
+                w.torches.retain(|t| t.0 < x0 || t.0 >= x1); // the burrow's own torch would stand in the cut tunnel, over a borer
                 for k in 0..3 { w.torches.push((x0 + (4 + k * 10) * S, y0 + 2 * S)); }
                 let _ = CPM;
             }

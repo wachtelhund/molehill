@@ -340,6 +340,16 @@ Polish only: no new systems, lore names kept. Each entry lists what changed and 
   facing left (drawn by flipping, not seen).
 * Test `borer_is_drawn`.
 
+## Steam borer art: polish (branch `refine/borer-art-polish`)
+* Evidence: #65 had never shown a borer facing left, and the stack's smoke was hidden under the riding mole.
+  `--scene=borer` now also parks a lit, unridden borer facing west behind the ridden one. At frame 60 the flip
+  mirrors everything: the head points west, the firebox and its glowing door sit at the east end, and the stack and
+  wheels are in place. Faint smoke puffs show above both stacks. No art change was needed.
+* The first try parked it over the burrow's own torch (the scene cuts the tunnel's cells but kept world torches
+  inside it). The scene now drops torches inside the tunnel and parks the borer clear.
+* Stills only, no live window. Stills plus `borer_is_drawn` cover both facings, the lit door, the turning head and
+  driving (with `--shot-walk`).
+
 ## Open issues
 * `--shot` writes an empty frame on macOS when the game is launched from a background shell (the surface is
   never presented). It needs a visible window, or Linux with Xvfb.
