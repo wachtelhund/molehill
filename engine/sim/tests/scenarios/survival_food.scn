@@ -35,6 +35,7 @@ expect 645 inv:Root == 1
 expect 645 log:ate_a_root_(1_left) == 1
 set 650 hunger 39
 expect 655 inv:Root == 0
+expect 655 log:last_food_in_the_pack == 1   // said with the last meal, while there's time to turn back
 // nothing left: said once, not every tick
 set 660 hunger 39
 expect 670 log:nothing_to_eat == 1

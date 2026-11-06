@@ -923,6 +923,44 @@ mod progression {
         assert!(said("Ate a grub") >= 1, "the meal is said: {:?}", w.log);
         assert_eq!((said("nothing to eat"), said("out of oil")), (0, 0), "{:?}", w.log);
     }
+    /// A new Survival holt says what is in the pack and what to do first, no early quest is already done by
+    /// the kit (so the quest line always points somewhere new), and finishing one names the next.
+    #[test] fn survival_start_says_what_next() {
+        use molehill_sim::{survival::{Mode, KIT}, craft::{QUESTS, Goal}};
+        let mut w = World::new(256 * molehill_sim::mat::S, 128 * molehill_sim::mat::S, 3); w.set_mode(Mode::Survival);
+        let said = |w: &World, k: &str| w.log.iter().any(|(_, l)| l.contains(k));
+        assert!(said(&w, "Your pack: a pickaxe, wood x6") && said(&w, &format!("Next: {}.", QUESTS[0].text)), "{:?}", w.log);
+        // the first hour's quests, in order: workbench, then wood, then copper ore, a forge and copperline
+        let pos = |f: &dyn Fn(&Goal) -> bool| QUESTS.iter().position(|q| f(&q.goal)).unwrap();
+        let bench = pos(&|g| matches!(g, Goal::Built(Station::Workbench))); let wood = pos(&|g| matches!(g, Goal::Have(Item::Wood, _)));
+        let ore = pos(&|g| matches!(g, Goal::Have(Item::CopperOre, _))); let forge = pos(&|g| matches!(g, Goal::Built(Station::Forge)));
+        let line = pos(&|g| matches!(g, Goal::Have(Item::CopperWire, _)));
+        assert!(bench < wood && wood < ore && ore < forge && forge < line && line <= 6, "the first hour leads wood -> bench -> copper -> copperline");
+        // none of them is done by the kit alone (the bench spends 4 of the kit's 6 wood before the wood quest)
+        let mut inv = [0u32; NITEM]; for &(it, n) in KIT { inv[it as usize] = n; }
+        for (k, q) in QUESTS.iter().enumerate().take(line + 1) {
+            if k > bench { inv[Item::Wood as usize] = 2; }
+            if let Goal::Have(it, n) = q.goal { assert!(inv[it as usize] < n, "'{}' is done on arrival", q.text); }
+        }
+        assert!(!w.quest_done(0) && w.quest == 0);
+        // finishing one names the next
+        w.max_depth = 6.; for _ in 0..31 { w.step(); }
+        assert_eq!(w.quest, 1); assert!(said(&w, &format!("Next: {}.", QUESTS[1].text)), "{:?}", w.log);
+    }
+    /// The first hour isn't walled off by hunger or oil: around the burrow (several seeds) copper ore, fungus
+    /// (food, and oil when pressed) and a root tangle (wood and roots) all lie well within what the kit's
+    /// ~9 minutes of light and ~12 of food reach and come back from (see `examples/survey.rs`).
+    #[test] fn first_hour_finds_are_near_spawn() {
+        use molehill_sim::mat::{Mat, CPM, S};
+        for seed in [1u32, 2, 3] {
+            let w = World::new(512 * S, 256 * S, seed * 7919);
+            let (mx, my) = (w.moles[0].x as i64, w.moles[0].y as i64);
+            let near = |want: &dyn Fn(Mat) -> bool| { let mut d = f32::MAX;
+                for y in 0..w.g.h { for x in 0..w.g.w { if want(w.g.get(x, y)) { d = d.min((((x as i64 - mx).pow(2) + (y as i64 - my).pow(2)) as f32).sqrt() / CPM as f32); } } } d };
+            let (cu, fu, rt) = (near(&|m| m == Mat::CopperOre), near(&|m| m == Mat::Fungus), near(&|m| m == Mat::Roots));
+            assert!(cu <= 15. && fu <= 20. && rt <= 30., "seed {seed}: copper {cu:.0} m, fungus {fu:.0} m, root tangle {rt:.0} m");
+        }
+    }
     #[test] fn survival_starts_bare_and_learns() {
         use molehill_sim::survival::Mode;
         let mut w = World::new(256 * molehill_sim::mat::S, 128 * molehill_sim::mat::S, 3); w.set_mode(Mode::Survival); w.step();

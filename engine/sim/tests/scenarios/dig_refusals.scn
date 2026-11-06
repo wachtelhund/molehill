@@ -1,0 +1,35 @@
+// A dig that can't happen says why at once, never a silent no: rock too hard for the tools owned (see
+// feel_feedback), a spot out of reach ("Too far to dig: step closer."), and water ("Water can't be dug: it
+// flows."). Each is said once per press, and the same words wait 5 s before they are said again however
+// often you click.
+map
+BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+#..............................................#
+#..............................................#
+#..............................................#
+#..............................................#
+#.....@........................................#
+##########wwwwwwww##############################
+##########wwwwwwww##############################
+##########wwwwwwww##############################
+##########wwwwwwww##############################
+##########wwwwwwww##############################
+##########wwwwwwww##############################
+################################################
+end
+mode survival
+tool 1 1
+// out of reach (8 m away): said once, held or not
+mine 10-40 34 0
+expect 41 log:too_far_to_dig == 1
+expect 41 ev:Crack == 0               // nothing was struck, so no clink
+// a second press at once: the same words wait
+mine 50-80 34 0
+expect 81 log:too_far_to_dig == 1
+// into the middle of the pool: nothing solid to dig
+mine 100-130 8 3
+expect 131 log:water_can't_be_dug == 1
+expect 131 inv:Stone == 0
+// granite with the kit's pickaxe: the material, the tool and what it needs
+mine 150-160 0 1
+expect 161 log:granite_is_too_hard_for_your_pickaxe:_it_needs_a_drill == 1

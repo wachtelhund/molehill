@@ -39,9 +39,9 @@ placetorch 60 2 0
 placetorch 62 3 0
 placetorch 64 4 0
 placetorch 66 5 0
-expect 67 log:fungus_oil == 1
+expect 67 log:needs_fungus_oil == 1
 placetorch 68 5 0
-expect 69 log:fungus_oil == 1
+expect 69 log:needs_fungus_oil == 1
 place 420 4 -6 Brick
 expect 421 log:needs_something_to_rest_on == 2
 place 422 4 -6 Brick

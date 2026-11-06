@@ -4,6 +4,7 @@ use molehill_sim::{world::World, mat::{Mat, CPM, S}, craft::{drop_of, Item, CELL
 fn main() {
     let n: u32 = std::env::args().nth(1).and_then(|s| s.parse().ok()).unwrap_or(6);
     let want = [Item::Wood, Item::Stone, Item::Clay, Item::Coal, Item::CopperOre, Item::TinOre, Item::IronOre, Item::Quartz, Item::Crystal, Item::Fungus, Item::Sand];
+    print!("{:>7} {:>7} ", "roots m", "grotto");
     println!("{:>5} {:>8} {}", "seed", "lava m", want.iter().map(|i| format!("{:>12}", format!("{:?}", i))).collect::<String>());
     for seed in 1..=n {
         let w = World::new(1024 * S, 512 * S, seed * 7919);
@@ -16,6 +17,11 @@ fn main() {
                 near[k] = near[k].min(d); if d <= 20. { cnt[k][0] += 1; } if d <= 40. { cnt[k][1] += 1; } } }
         } }
         let c = CELLS_PER_ITEM as u32;
+        // the first-hour finds that aren't items: root tangles (food) and grottos (glowmites, fungus)
+        let mut roots = f32::MAX; for y in 0..w.g.h { for x in 0..w.g.w { if w.g.get(x, y) == Mat::Roots {
+            roots = roots.min((((x as i64 - mx).pow(2) + (y as i64 - my).pow(2)) as f32).sqrt() / CPM as f32); } } }
+        let grotto = w.grottos.iter().map(|g| (((g.cx as i64 - mx).pow(2) + (g.cy - w.oy - my).pow(2)) as f32).sqrt() / CPM as f32).fold(f32::MAX, f32::min);
+        print!("{:>7.0} {:>7.0} ", roots.min(999.), grotto.min(999.));
         println!("{seed:>5} {lava:>8.0} {}", (0..want.len()).map(|k| format!("{:>12}", format!("{}/{}@{:.0}", cnt[k][0] / c, cnt[k][1] / c, near[k].min(999.)))).collect::<String>());
     }
     println!("(items within 20 m / 40 m @ nearest metres)");
