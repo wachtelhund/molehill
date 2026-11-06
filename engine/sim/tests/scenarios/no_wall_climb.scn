@@ -1,0 +1,46 @@
+// No wall climbing (Hampus 2026-11-06): at the foot of a 6 m chimney 2 m wide (bare rock both sides), pressing
+// into the right wall with W and Space held only rises as high as a jump (1.5 m: 6 tiles), with no cling, and
+// the mole slides straight back down. Jumping from wall to wall gets no higher either: no wall jump.
+// Ropes and ladders are the way up (rope_gun_climb).
+map
+####################
+######........######
+######........######
+######........######
+######........######
+######........######
+######........######
+######........######
+######........######
+######........######
+######........######
+######........######
+######........######
+######........######
+######........######
+######........######
+######........######
+######........######
+######........######
+######........######
+######........######
+######........######
+######........######
+######........######
+######.@......######
+####################
+end
+hold 1-120 right up jump
+expect 30 cling == 0
+expect 60 cling == 0
+expect 120 rise < 6.5          // highest the feet got (tiles above the start)
+expect 120 grounded == 1
+hold 121-150 left jump
+hold 151-180 right jump
+hold 181-210 left jump
+hold 211-240 right jump
+expect 240 rise < 6.5
+hold 241-300
+expect 300 grounded == 1
+expect 300 dy == 0
+expect 300 hp == 100

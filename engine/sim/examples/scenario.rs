@@ -12,7 +12,7 @@ fn mat_by_name(s: &str) -> Option<Mat> { (0..NMAT as u8).map(Mat::from_u8).find(
 fn mat_char(c: char) -> Option<Mat> { Some(match c { '.' | '@' => Mat::Empty, 't' => Mat::Roots, 'f' => Mat::Fungus, '#' => Mat::Granite, 'B' => Mat::Bedrock, 'r' => Mat::Rock, 'd' => Mat::Dirt, 'c' => Mat::Clay, 's' => Mat::Sand, 'g' => Mat::Gravel, 'w' => Mat::Water, 'l' => Mat::Lava, 'o' => Mat::Coal, 'i' => Mat::IronOre, 'b' => Mat::WoodBeam, 'k' => Mat::StoneBrick, 'I' => Mat::IronBeam, 'a' => Mat::Basalt, 'T' => Mat::RootTree, 'R' => Mat::TreeRoot, 'm' => Mat::Moss, 'y' => Mat::Mycelium, '=' => Mat::Rail, '%' => Mat::Tube, 'p' => Mat::Planks, 'q' => Mat::Polished, 'x' => Mat::Tiles, 'C' => Mat::Carved, 'h' => Mat::Chute, 'H' => Mat::Screen, '|' => Mat::Bumper, _ => return None }) }
 fn ch_of(m: Mat) -> char { match m { Mat::Empty => '.', Mat::Roots => 't', Mat::Fungus => 'f', Mat::Granite => '#', Mat::Bedrock => 'B', Mat::Rock => 'r', Mat::Dirt => 'd', Mat::Clay => 'c', Mat::Sand => 's', Mat::Gravel => 'g', Mat::Water => 'w', Mat::Lava => 'l', Mat::Coal => 'o', Mat::IronOre => 'i', Mat::WoodBeam => 'b', Mat::StoneBrick => 'k', Mat::IronBeam => 'I', Mat::Basalt => 'a', Mat::Steam => '~', Mat::RootTree => 'T', Mat::TreeRoot => 'R', Mat::Moss => 'm', Mat::Mycelium => 'y', Mat::Rail => '=', Mat::Tube => '%', Mat::Planks => 'p', Mat::Polished => 'q', Mat::Tiles => 'x', Mat::Carved => 'C', Mat::Chute => 'h', Mat::Screen => 'H', Mat::Bumper => '|', _ => '?' } }
 
-enum Act { Load(u64, u32, String), Ruin(u64, String, i32, i32, bool), Clue(u64, String, i32, i32), Furnish(u64, String, i32, i32), Paint(u64, String, i32, i32), Set(u64, String, f32), PlaceTorch(u64, i32, i32), Grotto(u64, i32, i32, f32, f32), Catch(u64, i32, i32), Throw(u64, String, f32, f32, f32), Loose(u64, String, i32, i32, f32, f32), Brush(u64, f32), Place(u64, i32, i32, String), Put(u64, i32, i32, String), Hold(u64, u64, Vec<String>), Mine(u64, u64, i32, i32), Dig(u64, u64, i32, i32), Tool(u64, u8), Explode(u64, i32, i32, f32), Dump(u64), Ascii(u64), Device(u64, i32, i32, String), Use(u64, i32, i32), Pickup(u64, i32, i32), Wire(u64, i32, i32, i32, i32), SaveLoad(u64), Lamp(u64, bool), Aim(u64, Option<(i32, i32)>), Wield(u64, String), Torch(u64, i32, i32), Slide(u64), SizeKey(u64, String), SizeWheel(u64, String, i32), Hand(u64, String), Snap(u64, bool), Line(u64, i32, i32, i32, i32, String), Mode(u64, bool), Pour(u64, i32, i32, String), Craft(u64, String), Station(u64, i32, i32, String), Scrape(u64, i32, i32), SetWall(u64, i32, i32, String), Site(u64, String, i32, i32), Expect(u64, String, String, f64, usize) }
+enum Act { Load(u64, u32, String), Ruin(u64, String, i32, i32, bool), Clue(u64, String, i32, i32), Furnish(u64, String, i32, i32), Paint(u64, String, i32, i32), Set(u64, String, f32), PlaceTorch(u64, i32, i32), Grotto(u64, i32, i32, f32, f32), Catch(u64, i32, i32), Throw(u64, String, f32, f32, f32), Loose(u64, String, i32, i32, f32, f32), Brush(u64, f32), Place(u64, i32, i32, String), Put(u64, i32, i32, String), Hold(u64, u64, Vec<String>), Mine(u64, u64, i32, i32), Dig(u64, u64, i32, i32), Tool(u64, u8), Explode(u64, i32, i32, f32), Dump(u64), Ascii(u64), Look(u64), Device(u64, i32, i32, String), Use(u64, i32, i32), Fire(u64, i32, i32), FireBy(u64, i32, i32), Pickup(u64, i32, i32), Wire(u64, i32, i32, i32, i32), SaveLoad(u64), Lamp(u64, bool), Aim(u64, Option<(i32, i32)>), Wield(u64, String), Torch(u64, i32, i32), Slide(u64), SizeKey(u64, String), SizeWheel(u64, String, i32), Hand(u64, String), Snap(u64, bool), Line(u64, i32, i32, i32, i32, String), Mode(u64, bool), Pour(u64, i32, i32, String), Craft(u64, String), Station(u64, i32, i32, String), Scrape(u64, i32, i32), SetWall(u64, i32, i32, String), Site(u64, String, i32, i32), Expect(u64, String, String, f64, usize) }
 fn wall_code(s: &str) -> Option<u8> {
     Some(match s.to_ascii_lowercase().as_str() {
         "none" => 0, "rock" => 1, "timber" => 2, "masonry" => 3, "beams" | "beam" => 4, "pipes" | "pipe" => 5,
@@ -47,7 +47,11 @@ impl Run {
             "cartpow" => self.w.tr.carts.first().map_or(0., |c| self.w.rail_powered(c.x.max(0.) as usize, c.y.max(0.) as usize) as u8 as f64),
             // ladders and lifts: how many; whether the mole is on a ladder; the first lift's cage floor (tiles from
             // the map top), its speed (tiles/s, + = down) and its counterweight's ballast (stones)
-            "ladders" => self.w.tr.ladders.len() as f64, "climbing" => self.w.tr.climbing as u8 as f64, "lifts" => self.w.tr.lifts.len() as f64,
+            "ladders" => self.w.tr.ladders.len() as f64,
+            // rope gun: ropes fixed in the rock, a hook in flight, on a rope (1), and the first rope's hook (tiles
+            // from the map's corner, like px/py)
+            "ropes" => self.w.tr.ropes.len() as f64, "hook" => self.w.tr.hook.is_some() as u8 as f64, "onrope" => self.w.tr.on_rope.is_some() as u8 as f64,
+            "ropex" => self.w.tr.ropes.first().map_or(-1., |r| (r.pts[0].0 - self.ox as f32) as f64 / kf), "ropey" => self.w.tr.ropes.first().map_or(-1., |r| (r.pts[0].1 - self.oy as f32) as f64 / kf), "climbing" => self.w.tr.climbing as u8 as f64, "lifts" => self.w.tr.lifts.len() as f64,
             // what the game's W / S would do here: 1 = grab or climb down the rope ladder (not jump / dig)
             "ladder_up" => self.w.ladder_takes_up() as u8 as f64, "ladder_down" => self.w.ladder_takes_down() as u8 as f64,
             "chests" => self.w.chests_opened as f64, // chests opened (walked up to)
@@ -186,6 +190,22 @@ impl Run {
             let m = (0..NMAT).max_by_key(|&k| (n[k], std::cmp::Reverse(k))).unwrap(); s.push(ch_of(Mat::from_u8(m as u8)));
         } s.push('\n'); } s
     }
+    /// `look T`: 80 x 56 tiles round the mole (its tile column 'M', rope points '*', ladders '|', chests 'C'),
+    /// whatever the map: for finding a way through a site.
+    fn look(&self) -> String {
+        let p = &self.w.pl; let (mx, my) = ((p.px / K as f32) as i64, (p.py / K as f32) as i64); let mut s = format!("mole at tile {:.1},{:.1} from the map corner\n", (p.px - self.ox as f32) / K as f32, (p.py - self.oy as f32) / K as f32);
+        let w = &self.w;
+        for ty in my - 50..my + 6 { for tx in mx - 40..mx + 40 {
+            if tx < 0 || ty < 0 || (tx as usize + 1) * K >= w.g.w || (ty as usize + 1) * K >= w.g.h { s.push(' '); continue; }
+            let (x0, y0) = (tx as usize * K, ty as usize * K);
+            let ch = if tx == mx && ty < my && ty >= my - 3 { 'M' }
+                else if w.tr.ropes.iter().any(|r| r.pts.iter().any(|q| q.0 as usize / K == tx as usize && q.1 as usize / K == ty as usize)) { '*' }
+                else if w.chests.iter().any(|c| c.x / K == tx as usize && c.y / K == ty as usize) { 'C' }
+                else if w.tr.ladders.iter().any(|l| l.x / K == tx as usize && y0 + K > l.top && y0 <= l.top + l.len) { '|' }
+                else { let mut n = [0u16; NMAT]; for j in 0..K * K { n[w.g.get(x0 + j % K, y0 + j / K) as usize] += 1; }
+                    let m = (0..NMAT).max_by_key(|&k| (n[k], std::cmp::Reverse(k))).unwrap(); let c = ch_of(Mat::from_u8(m as u8)); if c == '?' { '+' } else { c } };
+            s.push(ch); } s.push('\n'); } s
+    }
 }
 
 fn run_file(path: &str, json: bool) -> bool {
@@ -239,6 +259,9 @@ fn run_file(path: &str, json: bool) -> bool {
             "place" => acts.push(Act::Place(t[1].parse().unwrap(), t[2].parse().unwrap(), t[3].parse().unwrap(), t[4].into())),
             "device" => acts.push(Act::Device(t[1].parse().unwrap(), t[2].parse().unwrap(), t[3].parse().unwrap(), t[4].into())),
             "use" => acts.push(Act::Use(t[1].parse().unwrap(), t[2].parse().unwrap(), t[3].parse().unwrap())),
+            // fire T DX DY: throw the rope gun's hook at tile (DX, DY) from '@'; fireby T DX DY: at (DX, DY) tiles from the mole's hand
+            "fire" => acts.push(Act::Fire(t[1].parse().unwrap(), t[2].parse().unwrap(), t[3].parse().unwrap())),
+            "fireby" => acts.push(Act::FireBy(t[1].parse().unwrap(), t[2].parse().unwrap(), t[3].parse().unwrap())),
             "pickup" => acts.push(Act::Pickup(t[1].parse().unwrap(), t[2].parse().unwrap(), t[3].parse().unwrap())),
             "wire" => { let a: Vec<i32> = t[2..].iter().map(|v| v.parse().unwrap()).collect(); let (x1, y1) = if a.len() >= 4 { (a[2], a[3]) } else { (a[0], a[1]) }; acts.push(Act::Wire(t[1].parse().unwrap(), a[0], a[1], x1, y1)); }
             "saveload" => acts.push(Act::SaveLoad(t[1].parse().unwrap())),
@@ -265,11 +288,12 @@ fn run_file(path: &str, json: bool) -> bool {
             "dump" => acts.push(Act::Dump(t[1].parse().unwrap())),
             "load" => acts.push(Act::Load(t[1].parse().unwrap(), t[2].parse().unwrap(), t[3].into())),
             "ascii" => acts.push(Act::Ascii(t[1].parse().unwrap())),
+            "look" => acts.push(Act::Look(t[1].parse().unwrap())),
             "expect" => acts.push(Act::Expect(t[1].parse().unwrap(), t[2].into(), t[3].into(), t[4].parse().unwrap(), ln + 1)),
             o => panic!("{path}:{}: unknown directive {o}", ln + 1),
         }
     }
-    for a in &acts { ticks = ticks.max(match a { Act::Hold(_, b, _) | Act::Mine(_, b, _, _) | Act::Dig(_, b, _, _) => *b, Act::Load(t, ..) | Act::Grotto(t, ..) | Act::Catch(t, ..) | Act::Tool(t, _) | Act::Ruin(t, ..) | Act::Clue(t, ..) | Act::Furnish(t, ..) | Act::Paint(t, ..) | Act::Set(t, ..) | Act::PlaceTorch(t, ..) | Act::Throw(t, ..) | Act::Loose(t, ..) | Act::Brush(t, _) | Act::Place(t, ..) | Act::Put(t, ..) | Act::Explode(t, ..) | Act::Device(t, ..) | Act::Use(t, ..) | Act::Pickup(t, ..) | Act::Wire(t, ..) | Act::SaveLoad(t) | Act::Lamp(t, _) | Act::Aim(t, _) | Act::Wield(t, _) | Act::Torch(t, ..) | Act::Slide(t) | Act::SizeKey(t, ..) | Act::SizeWheel(t, ..) | Act::Hand(t, ..) | Act::Snap(t, ..) | Act::Line(t, ..) | Act::Dump(t) | Act::Ascii(t) | Act::Mode(t, _) | Act::Pour(t, ..) | Act::Craft(t, _) | Act::Station(t, ..) | Act::Scrape(t, ..) | Act::SetWall(t, ..) | Act::Site(t, ..) | Act::Expect(t, ..) => *t }); }
+    for a in &acts { ticks = ticks.max(match a { Act::Hold(_, b, _) | Act::Mine(_, b, _, _) | Act::Dig(_, b, _, _) => *b, Act::Load(t, ..) | Act::Grotto(t, ..) | Act::Catch(t, ..) | Act::Tool(t, _) | Act::Ruin(t, ..) | Act::Clue(t, ..) | Act::Furnish(t, ..) | Act::Paint(t, ..) | Act::Set(t, ..) | Act::PlaceTorch(t, ..) | Act::Throw(t, ..) | Act::Loose(t, ..) | Act::Brush(t, _) | Act::Place(t, ..) | Act::Put(t, ..) | Act::Explode(t, ..) | Act::Device(t, ..) | Act::Use(t, ..) | Act::Fire(t, ..) | Act::FireBy(t, ..) | Act::Pickup(t, ..) | Act::Wire(t, ..) | Act::SaveLoad(t) | Act::Lamp(t, _) | Act::Aim(t, _) | Act::Wield(t, _) | Act::Torch(t, ..) | Act::Slide(t) | Act::SizeKey(t, ..) | Act::SizeWheel(t, ..) | Act::Hand(t, ..) | Act::Snap(t, ..) | Act::Line(t, ..) | Act::Dump(t) | Act::Ascii(t) | Act::Look(t) | Act::Mode(t, _) | Act::Pour(t, ..) | Act::Craft(t, _) | Act::Station(t, ..) | Act::Scrape(t, ..) | Act::SetWall(t, ..) | Act::Site(t, ..) | Act::Expect(t, ..) => *t }); }
     let mut w = World::new(512 * K, 256 * K, seed); w.disasters.enabled = false; w.drops.clear(); w.torches.clear(); w.farms.clear(); w.grottos.clear(); w.keep_blast_field = true; // (the generated world's own grottos aren't part of the scenario)
     // every material counts as already discovered: a discovery's reward would depend on what the generated world showed
     w.discovered = [true; NMAT]; w.ruins.clear();
@@ -357,6 +381,8 @@ fn run_file(path: &str, json: bool) -> bool {
                 Act::Device(t, dx, dy, n) if *t == tick => { let (x, y) = r.at(*dx, *dy);
                     let d = molehill_sim::logic::DEVS.iter().copied().find(|d| format!("{d:?}").eq_ignore_ascii_case(n)).unwrap_or_else(|| panic!("unknown device {n}"));
                     if let Err(e) = r.w.place_device(d, x, y) { println!("  NOTE {path} tick {tick}: device {n} at {dx},{dy}: {e}"); r.w.refuse_place(d.name(), e); } }
+                Act::Fire(t, dx, dy) if *t == tick => { let (x, y) = r.at(*dx, *dy); if let Err(e) = r.w.fire_rope_gun((x as f32 + 0.5, y as f32 + 0.5)) { println!("  NOTE {path} tick {tick}: can't fire: {e}"); } }
+                Act::FireBy(t, dx, dy) if *t == tick => { let (hx, hy) = molehill_sim::ropes::hand(r.w.pl.px, r.w.pl.py); if let Err(e) = r.w.fire_rope_gun((hx + (*dx * K as i32) as f32, hy + (*dy * K as i32) as f32)) { println!("  NOTE {path} tick {tick}: can't fire: {e}"); } }
                 Act::Use(t, dx, dy) if *t == tick => { let (x, y) = r.at(*dx, *dy); if !r.w.use_device(x, y) { println!("  NOTE {path} tick {tick}: nothing to use at {dx},{dy}"); } }
                 Act::Grotto(t, dx, dy, rx, ry) if *t == tick => { // a glowmite swarm of a grotto centred on that tile (radii in tiles)
                     let (x, y) = r.at(*dx, *dy); let (rx, ry) = ((*rx * K as f32) as usize, (*ry * K as f32) as usize);
@@ -408,6 +434,7 @@ fn run_file(path: &str, json: bool) -> bool {
         for a in &acts { match a {
             Act::Dump(t) if *t == tick => println!("DUMP {path} {}", r.json()),
             Act::Ascii(t) if *t == tick => println!("ASCII {path} tick {tick}\n{}", r.ascii()),
+            Act::Look(t) if *t == tick => println!("LOOK {path} tick {tick}: {}", r.look()),
             Act::Expect(t, v, op, n, ln) if *t == tick => {
                 let val = r.var(v).unwrap_or_else(|| panic!("{path}:{ln}: unknown variable {v}"));
                 let pass = match op.as_str() { "<" => val < *n, "<=" => val <= *n, ">" => val > *n, ">=" => val >= *n, "==" => (val - n).abs() < 1e-6, "!=" => (val - n).abs() >= 1e-6, o => panic!("bad op {o}") };

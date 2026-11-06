@@ -30,8 +30,8 @@ Molehill is a falling-sand mole platformer and colony sim in Rust and Bevy 0.20.
 * Behaviour-changing merges must update `docs/wiki/` (the wiki: plain markdown on `main`, index `docs/wiki/README.md`, relative links). Change the page that describes the rule, number, control, device or build step in the same merge. The wiki's Lore page must match `LORE.md`, which wins if they disagree.
 
 ## Controls (in game)
-* `A`/`D` run (`Shift` held: sprint); `Space` jumps (also a fresh `W` press when you're not on a wall).
-* Into a wall in the air you cling: `W`/`S` climb, `Space` wall-jumps.
+* `A`/`D` run (`Shift` held: sprint); `Space` jumps (also a fresh `W` press, except by a rope ladder or rope, where `W` grabs).
+* No wall climbing: a jump pressing toward a ledge rolls onto it if its top is within 0.75 m of the feet; higher, rope ladders and the rope gun (left mouse throws its hook into rock; by the rope `W` grabs, `W`/`S` climb, `A`/`D` swing, `Space` lets go; `E` takes a rope back).
 * `S` digs down. Left mouse uses the item in hand; right mouse interacts (or, on an empty spot, sets down the device or TNT in hand); hold `Q` to charge and release to throw a throwable item (TNT goes out lit); `E` picks up the hovered device, unlit TNT, torch or copperline segment (hold to sweep). What each item allows lives in `Item::uses` / `Item::controls` (`craft.rs`). `1`-`0` or the wheel pick a hotbar slot; `I` opens the pack.
 * Dig tools and blocks use a round brush: `[`/`]` (read by the character typed, so Option+8/9 on a Swedish Mac works) or `Alt`/`Option`+wheel resize it within the item's range (`brush_range` in `world.rs`, `view::BrushSizes`); the size is written beside the outline. `X` toggles grid snap for blocks (`World::place_line`). `+`/`-` or `Ctrl`/`Cmd`+wheel zoom. `Shift` never changes the wheel: it is sprint (`view::wheel_use`).
 * `G` lights or puts out the headlamp; `V` toggles the wiring view; `J` opens the journal. `Esc` opens the pause menu; `K`/`L` quick save and load; `F3` shows dev info.

@@ -623,10 +623,9 @@ fn input(mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<Button
     g.w.input.right = keys.pressed(KeyCode::KeyD) || keys.pressed(KeyCode::ArrowRight) || g.demo_right;
     let upk = keys.pressed(KeyCode::KeyW) || keys.pressed(KeyCode::ArrowUp);
     g.w.input.up = upk; g.w.input.down = keys.pressed(KeyCode::KeyS) || keys.pressed(KeyCode::ArrowDown);
-    // Space jumps (and wall-jumps); W also jumps when not on a wall, and climbs when clinging
-    // W jumps only from a fresh press off a wall (held through a climb and mantle it doesn't hop on arrival),
-    // and never on a rope ladder: there W grabs and climbs (`World::ladder_takes_up`)
-    let upj = (keys.just_pressed(KeyCode::KeyW) || keys.just_pressed(KeyCode::ArrowUp)) && g.w.pl.cling == 0 && !g.w.ladder_takes_up();
+    // Space jumps; W jumps too on a fresh press (held, it doesn't hop again on landing), except on a rope ladder
+    // or by a rope-gun rope: there W grabs and climbs (`World::ladder_takes_up`, `World::rope_takes_up`)
+    let upj = (keys.just_pressed(KeyCode::KeyW) || keys.just_pressed(KeyCode::ArrowUp)) && !g.w.ladder_takes_up() && !g.w.rope_takes_up();
     g.w_jump = upk && (g.w_jump || upj);
     let jk = keys.pressed(KeyCode::Space) || g.w_jump;
     if keys.just_pressed(KeyCode::Space) || upj { g.jump_tap = true; }
@@ -712,6 +711,10 @@ fn input(mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<Button
         if keys.pressed(KeyCode::KeyQ) && g.w.inv[it as usize] > 0 { g.charge = Some((g.charge.unwrap_or(0.) + time.delta_secs()).min(THROW_CHARGE)); }
         else if let Some(c) = g.charge.take() { let aim = g.throw_aim; if let Err(e) = g.w.throw_item(it, aim, c / THROW_CHARGE) { g.msg = format!("Can't throw: {e}"); } }
     } else { g.charge = None; if keys.just_pressed(KeyCode::KeyQ) { if let Some(th) = sel { g.msg = format!("{} can't be thrown", thing_name(&g, th)); } } }
+    // the rope gun throws its hook at the cursor, however far (the rope runs out at 12 m)
+    if sel == Some(Thing::Item(Item::RopeGun)) && mouse.just_pressed(MouseButton::Left) && !latched {
+        let fc = ((wp.x + W as f32 * CPX / 2.) / CPX, (H as f32 * CPX / 2. - wp.y) / CPX);
+        if let Err(e) = g.w.fire_rope_gun(fc) { g.msg = format!("Can't fire: {e}"); } }
     let blk = g.w.logic.block_of(cx, cy);
     // a dig aimed past reach still goes to the sim, which answers it at once ("Too far to dig")
     if !reach && matches!(sel, Some(Thing::Pick(_))) && mouse.pressed(MouseButton::Left) && !latched { g.w.input.mine = Some((cx, cy)); }
@@ -1001,7 +1004,7 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
             else if m.hp < 40. { Color::srgb(1., 0.6, 0.6) } else { let l = lightf(m.x, m.y - S).to_srgba(); let v = l.red.max(0.55); Color::srgb(v, v, v) };
         // pose: dig > climb > air > run > idle. Run and climb phases follow distance moved, so feet don't skate.
         let (pose, ph) = if pl.mine.is_some() { (art::Pose::Dig, (now * 14.) as u32) }
-            else if pl.cling != 0 || w.tr.climbing { (art::Pose::Climb, (pl.py / (1.2 * SF)).abs() as u32) }
+            else if w.tr.climbing || w.tr.on_rope.is_some() { (art::Pose::Climb, (pl.py / (1.2 * SF)).abs() as u32) }
             else if !pl.grounded { (if pl.vy < 2. * SF { art::Pose::Jump } else { art::Pose::Fall }, 0) }
             else if pl.vx.abs() > 0.5 * SF { (art::Pose::Run, (pl.px / (1.1 * SF)).abs() as u32) }
             else { (art::Pose::Idle, (now * 1.6) as u32) };
@@ -1142,6 +1145,18 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
         let mid = cell_to_world(xc, y0 + len / 2.);
         for (j, s) in [-1f32, 1.].into_iter().enumerate() { want.push((34, k * 2 + j, mid + Vec2::new(s * 0.9 * SF * CPX, 0.), 3.9, sp.px.clone(), Vec2::new(1., len * CPX), false, rope)); }
         for j in 0..(l.len / S) { want.push((35, k * 64 + j, cell_to_world(xc, y0 + (j * S) as f32 + 0.5 * SF), 3.95, sp.px.clone(), Vec2::new(1.8 * SF * CPX, 1.), false, rung)); }
+    }
+    // rope gun art: each rope a chain of fibre dots along its verlet points, the hook a dark knob where it bit,
+    // and the hook in flight trailing the rope paid out so far (placeholder art: see ropes.rs)
+    let rope_col = |x: f32, y: f32| { let lt = lightf((x.max(0.) as usize).min(W - 1), (y.max(0.) as usize).min(H - 1)).to_srgba(); Color::srgb(0.72 * lt.red, 0.6 * lt.green, 0.4 * lt.blue) };
+    let chains = w.tr.ropes.iter().map(|r| (&r.pts, true)).chain(w.tr.hook.iter().map(|h| (&h.pts, false)));
+    for (k, (pts, fixed)) in chains.enumerate() {
+        let (hx, hy) = pts[0]; if w.g.flags[(hy.max(0.) as usize).min(H - 1) * W + (hx.max(0.) as usize).min(W - 1)] & F_SEEN == 0 && fixed { continue; }
+        let mut n = 0;
+        for s in pts.windows(2) { let ((x0, y0), (x1, y1)) = (s[0], s[1]); let d = ((x1 - x0).powi(2) + (y1 - y0).powi(2)).sqrt(); let m = (d / 0.75).ceil().max(1.) as usize;
+            for j in 0..m { let f = j as f32 / m as f32; let (x, y) = (x0 + (x1 - x0) * f, y0 + (y1 - y0) * f);
+                want.push((43, k * 512 + n, cell_to_world(x, y), 3.92, sp.px.clone(), Vec2::splat(1.6), false, rope_col(x, y))); n += 1; } }
+        want.push((44, k, cell_to_world(hx, hy), 3.96, sp.px.clone(), Vec2::splat(0.5 * SF * CPX), false, Color::srgb(0.35, 0.33, 0.32)));
     }
     // lifts: the head frame under the ceiling, the rope down to the cage floor, the cage's rails, and the
     // counterweight on its own rope beside the shaft wall (it rises as the cage sinks)

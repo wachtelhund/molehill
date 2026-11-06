@@ -161,6 +161,29 @@ Polish only: no new features or concepts. Each entry is one commit.
     sideways (`W`+`D` at the top toward a side passage) at 1 m/s, now 2 m/s (`A`/`D` alone still lets go at
     once). Scenario `rope_ladder_shaft`.
 
+19. **No wall climbing; the rope gun (Hampus 2026-11-06).** The mole can't cling to, climb or wall-jump off
+    bare rock any more (`Player.cling` stays 0; `wall_jump`, `slide`, `climb_accel` and the wall tuning are gone).
+    A jump pressing toward a ledge rolls over it when its top comes within `TUNE.ledge` (0.75 m) of the feet, so
+    ledges up to about 2 m (a full jump rises about 1.25 m); the ground step stays 0.5 m. A ledge with rock rising
+    again just past it (a staircase) now counts, where before it was a recess you climbed on past. Above that:
+    rope ladders, and the new **rope gun** (`ropes.rs`), made at the workbench in the first hour (2 wood, 3 stone,
+    2 fungus; 2 hook ropes from 2 fungus and 1 stone; numbers checked with p7). Left mouse throws a hook at
+    20 m/s under gravity, the rope paying out behind it; it bites solid settled rock or a block and stays (saved,
+    transport v5), glances off loose ground (spent) and sinks in water, leaving the hook rope where it stopped;
+    the rope is 32 verlet segments of 0.5 m (16 m: the pumpworks hall's ceiling is 15.5 m over its floor, which a
+    12 m rope fell short of). `W` grabs (from the floor a fresh press), `W`/`S` climb 2 / 3 m/s, `A`/`D` pump a
+    pendulum swing (16 m/s², only along the swing), toward a ledge within 0.75 m steps off, `Space` lets go with a
+    hop. A rope is never a fall; its rock going drops it as an item; `E` takes it back. Rope art is a placeholder
+    (dots along the chain) for p3. Scenarios `no_wall_climb`, `mantle` (rewritten), `rope_gun_anchor_stone`,
+    `rope_gun_climb`, `first_hour_without_wallclimb`; the wall-climb ones (`wall_climb`, `wall_jump`,
+    `wall_jump_away`, `climb_smooth`, `climb_mantle`) are gone. Harness: `fire`, `fireby`, `look`, rope vars.
+    Found places without wall climbing (no layout edits): the holt, salt hall, mine and fissure walks pass as
+    they were. The halt's 4.25 m crate stacks, the fossil mound's 2.2 m east face and the pumpworks' 9 m wheel
+    need the rope gun; their walk-throughs now use it and reach the chest unhurt (`site_halt_traverse`,
+    `site_fossil_over_the_beast`, `site_pumpworks_traverse`, `site_pumpworks_rope_to_chest`). A mole arriving
+    at those three without a rope gun can't get past those faces; whether they want a ladder or steps is a
+    layout call for Hampus.
+
 ## Open issues
 * Walking off a ledge you dug open is still a free choice: a dug-open cave shows itself, and run/stop is
   instant, so I left ledge drops alone. Fissure sites (26 m, ledges every 6-7 m) still hurt at each ledge.

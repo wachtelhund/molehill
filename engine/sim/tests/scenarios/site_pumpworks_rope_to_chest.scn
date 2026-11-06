@@ -1,7 +1,6 @@
-// Into flooded pumpworks by the east service door, up over the pump wheel (W held climbs it), down onto the
-// timber landing on the viewing window's sill (keyed into the wheel's rim), S at the rope's head on its west
-// end, 7 m down the rope to the dry hall floor and the chest, unhurt. Before the landing, walking on west off
-// the wheel was a 7.5-10 m drop beside it (16-43 hp).
+// Into flooded pumpworks by the east service door and over the pump wheel by rope gun (no wall climbing: see
+// site_pumpworks_traverse.scn), down onto the timber landing on the viewing window's sill (keyed into the wheel's
+// rim), S at the rope ladder's head on its west end, 7 m down it to the dry hall floor and the chest, unhurt.
 map
 ################################################################################################################################################################################################################
 ################################################################################################################################################################################################################
@@ -101,28 +100,21 @@ map
 ################################################################################################################################################################################################################
 end
 site 1 pump -195 -75
-hold 2-500 left up
-hold 30-38 jump
-hold 70-78 jump
-hold 110-118 jump
-hold 150-158 jump
-hold 190-198 jump
-hold 230-238 jump
-hold 270-278 jump
-hold 310-318 jump
-hold 350-358 jump
-hold 390-398 jump
-hold 430-438 jump
-hold 470-478 jump
-hold 501-667 left
-hold 670-860 down
-hold 870-1000 left
-expect 500 py < 50                // up on the wheel
-expect 640 py == 56               // stepped down onto the landing...
-expect 640 hp == 100              // ...without a fall
-expect 666 ladder_down == 1       // at the rope's head: S takes the rope
-expect 700 climbing == 1
-expect 800 py == 84               // at the foot, on the dry hall floor
-expect 800 chests == 1            // the chest is opened
-expect 1000 hp == 100             // the whole way unhurt
-expect 1000 deaths == 0
+give RopeGun 1
+give HookRope 2
+hold 2-100 left                    // in by the service door, to the wheel's foot
+hold 101-140 right                 // back into the gap between the wheel and the hall's east wall
+fireby 145 0 -40                   // the hook goes straight up, 15 m, into the iron gallery under the roof
+hold 220-510 up                    // W grabs (a fresh press, once the hook has bitten) and climbs above the wheel's top
+hold 511-585 left                  // A pumps the swing west, over the wheel
+hold 586-589 left jump             // let go at the top of the swing...
+hold 590-730 left                  // ...onto the wheel's west shoulder, and on down onto the landing
+hold 735-925 down
+hold 935-1065 left
+expect 700 py == 56                // stepped down onto the landing...
+expect 700 hp == 100               // ...without a fall
+expect 732 ladder_down == 1        // at the rope ladder's head: S takes the rope
+expect 760 climbing == 1
+expect 865 py == 84                // at the foot, on the dry hall floor
+expect 865 chests == 1             // the chest is opened
+expect 1065 hp == 100

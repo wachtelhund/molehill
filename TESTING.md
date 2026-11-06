@@ -13,13 +13,13 @@ The game crate has a few headless unit tests of its own for HUD and art logic th
 
 `spawn_reveals_only_burrow_neighbourhood` checks a fresh holt starts with only its burrow and a 1 m skin seen (nothing 10 m out, through rock or not, and no unseen material counted as discovered).
 
-`sim/tests/sim.rs` covers stress and collapse, fluids, digging tiers, and movement. The movement tests check jump height, the variable short hop, coyote time, wall cling, climbing and wall jumping. Helpers: `arena()` makes a cleared granite box around spawn, and `press(&mut w, n, |input| ...)` steps n ticks with a given input.
+`sim/tests/sim.rs` covers stress and collapse, fluids, digging tiers, and movement. The movement tests check jump height, the variable short hop, coyote time, and that a bare wall can't be climbed (no cling, no climb: Hampus 2026-11-06). Helpers: `arena()` makes a cleared granite box around spawn, and `press(&mut w, n, |input| ...)` steps n ticks with a given input.
 
 ## 2. Scenario harness (`sim/examples/scenario.rs`)
 
 ```bash
 cargo run --release -p molehill-sim --example scenario -- sim/tests/scenarios/*.scn
-cargo run --release -p molehill-sim --example scenario -- sim/tests/scenarios/wall_jump.scn --json   # plus a final JSON state
+cargo run --release -p molehill-sim --example scenario -- sim/tests/scenarios/run_jump.scn --json   # plus a final JSON state
 ```
 
 Output is line-oriented and easy to grep:
@@ -91,6 +91,9 @@ place 2 6 0 Cart        // a transport machine from the pack goes down whole at 
 load 21 27 Stone        // (scripted) put that many items into the first cart's cargo
 dump 50                 // print the JSON state after tick T
 ascii 80                // print the map region after tick T
+look 80                 // print 80 x 56 tiles round the mole (rope points '*', ladders '|', chests 'C'), whatever the map: finding a way through a site
+fire 10 0 -30           // rope gun: throw the hook at tile (DX, DY) from '@' (needs RopeGun and a HookRope in the pack)
+fireby 10 -1 -40        // the same, aimed (DX, DY) tiles from the mole's hand
 expect 60 rise >= 4.5   // assertion after tick T: <var> <op> <number>, ops: < <= > >= == !=
 ```
 
@@ -116,7 +119,7 @@ Map legend: `t` roots (a root tangle), `f` fungus, `.` empty, `#` granite, `B` b
 | `px` `py` `vx` `vy` | Player body in tiles from the map's top-left (py is the feet). Velocities are in tiles/s; +y is down |
 | `dx` `dy` | Offset from the start position (dy < 0 means higher) |
 | `rise` | Highest point reached so far, measured above the start |
-| `grounded` `cling` | 0 or 1; cling is -1 (left wall), 0 or 1 (right wall) |
+| `grounded` `cling` | 0 or 1; cling is always 0 now (no wall climbing) |
 | `hp` `breath` `deaths` | Mole vitals |
 | `crumbled` | Tiles' worth of cells that have crumbled (world counter) |
 | `awake` | CA chunks overlapping the map that are still awake (0 = everything there has settled) |
@@ -129,6 +132,7 @@ Map legend: `t` roots (a root tangle), `f` fungus, `.` empty, `#` granite, `B` b
 | `zone:Item,DX0,DX1[,DY0,DY1]` | Loose items of that kind whose centre lies in those tile columns (and rows) from the `@` tile |
 | `shaking:DX,DY` | 1 if the tile is a shaker screen with current in its block |
 | `ladders` / `climbing` | Rope ladders hung; whether the mole is on one |
+| `ropes` / `hook` / `onrope` / `ropex` / `ropey` | Rope-gun ropes fixed in the rock; a hook in flight (1); the mole on a rope (1); the first rope's hook (tiles from the map corner) |
 | `lifts` / `lifty` / `liftv` / `ballast` | Lifts; the first one's cage floor (tiles from the map top), speed (tiles/s, + = down) and stones of ballast |
 | `hoppers` / `capsules` / `capat` / `intube` / `pressure` | Tube hoppers; capsules in the pipe and how far along its pipe the first is (0..1); whether the mole rides one; whether the first hopper's line holds pressure |
 | `cargo` / `cartrail` / `cartgap` / `riding` | The first cart's cargo (items), whether it is on the rails, how far it is ahead of the mole (tiles), whether the mole rides a cart |
@@ -165,12 +169,13 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `air_turn.scn` | Reversing in mid-air takes under 5 ticks; letting go in the air coasts instead of braking |
 | `fall_hurt.scn` | A 30-cell fall hurts, flashes the mole and jolts the view; a normal jump landing doesn't |
 | `step_up.scn` | Running into a 1-cell then a 2-cell step hops up them at full speed |
-| `mantle.scn` | Climb a 9-cell wall with W and roll over the top onto the ledge |
+| `mantle.scn` | A jump at a 1.75 m ledge, pressing toward it, rolls over its top onto it (a jump rises about 1.25 m; `TUNE.ledge` reaches 0.75 m above the feet) |
 | `run_jump.scn` | Top speed in under 8 ticks; full-jump height 4.5-9 cells; lands; the 11 m granite ceiling doesn't crumble |
 | `coyote.scn` / `coyote_late.scn` | A jump 4 ticks after leaving a ledge works; 12 ticks after, it doesn't |
-| `wall_climb.scn` | Cling to a wall, then climb more than 6 cells with W |
-| `wall_jump.scn` | Space while clinging launches you away from the wall |
-| `wall_jump_away.scn` | Pressing away plus Space, or Space within 0.1 s of letting go, still wall-jumps; later it doesn't |
+| `no_wall_climb.scn` | No wall climbing: in a 6 m chimney 2 m wide, W and Space held into a wall, and jumps from wall to wall, never rise above a jump (6.5 tiles), never cling; back on the floor unhurt |
+| `rope_gun_anchor_stone.scn` | The rope gun's hook glances off a heap of sand and sinks in a pool (no rope; the hook rope lies where it stopped), bites a granite ceiling 7.5 m up (the rope stays through a save and load), and when that rock is blown away the rope comes down as a hook rope |
+| `rope_gun_climb.scn` | At a bare 4.5 m cliff's foot: the hook up into the ceiling, W grabs, W climbs at 2 m/s, D at the top steps off onto the ledge; full health |
+| `first_hour_without_wallclimb.scn` | Survival, under a 4 m granite shaft: no way up by hand; from first-hour stuff a workbench, the rope gun and two hook ropes; the hook up the shaft, climb, step off onto the upper floor unhurt |
 | `no_ceiling_climb.scn` | Jumping into a low ceiling while holding sideways and `W` never clings; the mole falls back down |
 | `survival_kit.scn` | Survival's start kit; only owned tools dig (granite holds against a pickaxe); a save keeps the mode |
 | `survival_food.scn` | Hunger drains; the Delver eats grubs then roots below 40; starving hurts; root tangles give roots; the log says each meal with what's left, and an empty pack once |
@@ -187,8 +192,6 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `item_sinks_floats.scn` | Wood floats in water, an iron ingot sinks straight to the bottom, a grub sinks slowly |
 | `thrown_tnt_explodes_at_landing.scn` | A thrown lit charge flies, rolls and blows a crater where it stops, far from the thrower; one lobbed into water is doused |
 | `sprint_speed.scn` | `Shift` sprint reaches 1.6x run speed in 2 ticks, stops at once, and a sprint jump carries further |
-| `climb_smooth.scn` | Climbing a ragged wall (a notch, an outcrop overhead) holds a constant speed every tick, easing round the outcrop |
-| `climb_mantle.scn` | Climbing over the top with only `W`: never moves down, never moves more than 0.25 cell in a tick, ends on the ledge |
 | `dig_tiers.scn` | The pickaxe clears rock within 40 ticks; the bore within 10 |
 | `water_flood.scn` | Mining a dirt plug floods the room below |
 | `tnt_collapse.scn` | A blast removes rock, and the sand cap falls |
@@ -312,8 +315,8 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `wall_saveload.scn` | Lining and a scrape survive save/load and a window slide |
 | `wall_no_support.scn` | A 20-wide clay roof still falls when the back is timbered |
 | `wall_walk.scn` | The mole walks through a timber-lined corridor, unhurt |
-| `site_holt_traverse.scn` / `site_pumpworks_traverse.scn` / `site_mine_traverse.scn` / `site_fissure_traverse.scn` / `site_fossil_traverse.scn` / `site_crystal_traverse.scn` / `site_halt_traverse.scn` | Walk each found place from a way in (PR #8 layouts): holt, salt hall, halt and mine to the chest, opened (`chests`; mine and halt start inside: 72 m and 80 m don't fit the 128 m harness world beside the start); pumpworks up over the machinery onto the gallery, fossil into the bone hall, fissure to the east mouth's edge, each stopping short of a layout hazard its header describes. `tests/found_places.rs` checks every site by flood fill |
-| `site_pumpworks_rope_to_chest.scn` / `site_fissure_east_bridge.scn` / `site_fossil_over_the_beast.scn` | Site-trap fixes: from the fossil cave's east mouth under the skull, over the ribs of the beast lying on the floor, `S` at the rope off the mound's west end, down to the chest at 100 hp with nothing crumbling or falling (`crumbled` 0, no debris); from the pumpworks' east door over the wheel, down onto the window-sill landing, `S` at the rope's head, 7 m down and the chest opened at 100 hp; from the fissure's east mouth level onto the 24 m bridge to its broken middle, then 10 s standing there with nothing falling (100 hp, no debris) |
+| `site_holt_traverse.scn` / `site_pumpworks_traverse.scn` / `site_mine_traverse.scn` / `site_fissure_traverse.scn` / `site_fossil_traverse.scn` / `site_crystal_traverse.scn` / `site_halt_traverse.scn` | Walk each found place from a way in (PR #8 layouts): holt, salt hall, halt and mine to the chest, opened (`chests`; the halt's 4.25 m crate stacks by rope gun, a throw-walk-climb-jump cycle every 200 ticks, since there's no wall climbing; mine and halt start inside: 72 m and 80 m don't fit the 128 m harness world beside the start); pumpworks up over the wheel (by rope gun: the hook 15 m up into the gallery under the roof, a swing west over the wheel), fossil into the bone hall, fissure to the east mouth's edge, each stopping short of a layout hazard its header describes. `tests/found_places.rs` checks every site by flood fill |
+| `site_pumpworks_rope_to_chest.scn` / `site_fissure_east_bridge.scn` / `site_fossil_over_the_beast.scn` | Site-trap fixes: from the fossil cave's east mouth under the skull, up the mound's 2.2 m east face by rope gun, over the ribs of the beast lying on the floor, `S` at the rope off the mound's west end, down to the chest at 100 hp with nothing crumbling or falling (`crumbled` 0, no debris); from the pumpworks' east door over the wheel by rope gun, down onto the window-sill landing, `S` at the rope's head, 7 m down and the chest opened at 100 hp; from the fissure's east mouth level onto the 24 m bridge to its broken middle, then 10 s standing there with nothing falling (100 hp, no debris) |
 | `site_mine.scn` (with the copper face and the ballast; soot lining) / `site_holt.scn` (table and stools on the open floor) / `site_pumpworks.scn` / `site_fissure.scn` / `site_fossil.scn` / `site_crystal.scn` / `site_halt.scn` | Each found-place family stamps with its materials, lining and interaction (rails, furniture, a held sump, a rope, carved bone, quartz pools, a wrecked cart and no waygate). Each map is solid rock sized to its reworked site (up to 80 × 22 m, or 18 × 40 m for the fissure), with a pocket for the mole under it or beside it; the site carves itself out |
 
 ### Writing a new scenario (for agents)
