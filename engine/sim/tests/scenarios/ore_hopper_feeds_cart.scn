@@ -1,0 +1,57 @@
+// An ore hopper stood over the end of a track holds what is dropped or poured into its mouth: ten stones
+// thrown in and a shovelful of sand poured in (24 cells make one item). With no cart under it, its gate stays
+// shut and nothing comes out. Held open by hand (right mouse) it lets lumps down onto the track until it is
+// let go. A cart let go on the slope rolls to the end of the track under the spout, trips the gate, scoops up
+// what lay on the rails, and is filled, one lump at a time, until the hopper is empty. The load is saved.
+map
+############################################################
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#....@.....................................................#
+#######====................................................#
+###########====............................................#
+###############========#####################################
+############################################################
+end
+give OreHopper 1
+give Cart 1
+place 2 17 1 OreHopper
+expect 3 bins == 1
+drop 5 Stone 17 -5
+drop 9 Stone 17 -5
+drop 13 Stone 17 -5
+drop 17 Stone 17 -5
+drop 21 Stone 17 -5
+drop 25 Stone 17 -5
+drop 29 Stone 17 -5
+drop 33 Stone 17 -5
+drop 37 Stone 17 -5
+drop 41 Stone 17 -5
+pour 45 16 -3 Sand
+pour 45 17 -3 Sand
+pour 45 18 -3 Sand
+pour 45 16 -2 Sand
+pour 45 17 -2 Sand
+pour 45 18 -2 Sand
+expect 80 binload == 11           // ten stones and one sand
+expect 80 count:Sand == 0         // the poured sand was taken in
+expect 80 binopen == 0            // no cart under it: the gate stays shut
+expect 80 items:Stone == 0
+saveload 90
+expect 91 bins == 1
+expect 91 binload == 11
+use 100 17 -3                     // hold the gate open...
+expect 101 binopen == 1
+use 111 17 -3                     // ...and let it go
+expect 112 binopen == 0
+expect 115 items:Stone == 2       // two lumps came down onto the track
+expect 115 binload == 9
+place 120 4 1 Cart                // let a cart go on the slope
+expect 300 cartx > 20             // it ran to the end of the track, under the spout
+expect 300 cargo == 11            // the two off the rails and the nine let down into it
+expect 300 binload == 0
+expect 300 items:Stone == 0
+expect 300 binopen == 1           // the cart still holds the gate open (nothing left to let down)

@@ -98,7 +98,7 @@ The map is stamped with its top-left so that `@` lands on the world spawn (the m
 
 Every material counts as already discovered in a scenario (a discovery's torch reward would otherwise depend on what the generated world happened to show).
 
-Map legend: `t` roots (a root tangle), `f` fungus, `.` empty, `#` granite, `B` bedrock, `r` rock, `d` dirt, `c` clay, `s` sand, `g` gravel, `w` water, `l` lava, `o` coal, `i` iron ore, `a` basalt, `b` wood beam, `I` iron beam, `k` stone brick, `T` root-tree, `R` root-tree roots, `m` moss, `y` mycelium, `p` planks, `q` polished stone, `x` tiles, `C` carved pillar, `=` rail, `%` pressure tube (`~` steam, `?` other, only in output). The generated world's own grottos are left out of a scenario (`grottos` cleared).
+Map legend: `t` roots (a root tangle), `f` fungus, `.` empty, `#` granite, `B` bedrock, `r` rock, `d` dirt, `c` clay, `s` sand, `g` gravel, `w` water, `l` lava, `o` coal, `i` iron ore, `a` basalt, `b` wood beam, `I` iron beam, `k` stone brick, `T` root-tree, `R` root-tree roots, `m` moss, `y` mycelium, `p` planks, `q` polished stone, `x` tiles, `C` carved pillar, `=` rail, `%` pressure tube, `h` chute, `H` shaker screen, `|` bumper (`~` steam, `?` other, only in output). The generated world's own grottos are left out of a scenario (`grottos` cleared).
 
 **Assertion variables:**
 
@@ -122,6 +122,10 @@ Map legend: `t` roots (a root tangle), `f` fungus, `.` empty, `#` granite, `B` b
 | `p:DX,DY` | The last blast's peak overpressure (kPa) on that tile |
 | `carts` / `cartx` / `carty` / `cartv` | Carts in the world; the first cart's position (tiles from the map corner) and speed along the track (tiles/s) |
 | `cartpow` | Whether the track under the first cart is powered (live copperline in its block) |
+| `bins` / `binload` / `binopen` / `tips` | Ore hoppers; the first one's load (items) and whether its gate is open; how many times a cart has tipped at a bumper |
+| `cargoof:K` / `cargo:Item` | The K-th cart's cargo; the first cart's count of that item |
+| `zone:Item,DX0,DX1[,DY0,DY1]` | Loose items of that kind whose centre lies in those tile columns (and rows) from the `@` tile |
+| `shaking:DX,DY` | 1 if the tile is a shaker screen with current in its block |
 | `ladders` / `climbing` | Rope ladders hung; whether the mole is on one |
 | `lifts` / `lifty` / `liftv` / `ballast` | Lifts; the first one's cage floor (tiles from the map top), speed (tiles/s, + = down) and stones of ballast |
 | `hoppers` / `capsules` / `capat` / `intube` / `pressure` | Tube hoppers; capsules in the pipe and how far along its pipe the first is (0..1); whether the mole rides one; whether the first hopper's line holds pressure |
@@ -243,6 +247,10 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `tube_sends_items.scn` | A stone dropped in a hopper sits there until its blower gets current; then it is blown along the floor and up a 3 m riser in a capsule and comes out of the far hopper; hoppers are saved |
 | `tube_breach.scn` | Cut the riser while a capsule is in it: it stops at the cut and spills there |
 | `tube_rides_mole.scn` | Right mouse with an empty paw on a blowing hopper: the mole rides the capsule and climbs out up on the ledge, unhurt |
+| `chute_slides.scn` | A stone slides down a 1-in-2 chute and out past its foot; on bare granite steps or a level chute it stays put |
+| `cart_tips_at_bumper.scn` | A loaded cart rolls into a bumper and tips: its 20 stones come out over the front into the pit beyond; it stays on the rails |
+| `ore_hopper_feeds_cart.scn` | An ore hopper takes in dropped stones and poured sand; its gate stays shut until it's held open or a cart stands under it, then it fills the cart; its load is saved |
+| `shaker_sorts.scn` | Gravel drops through a 1-in-4 shaker screen; ore lies on it until current shakes it, then walks off the end into its own pit |
 | `rail_needs_support.scn` | A rail span over a drop breaks and falls; its ends on rock hold |
 | `blast_moves_sand.scn` | A charge by a sand bed throws a third of it into the air at once; the near end is scoured, and it all lands (none lost) |
 | `blast_wave_front.scn` | The front reaches a shaft round a corner by the tunnel (path longer than the straight line), never the rock between; the drawn front sweeps out; `dump` of its state |

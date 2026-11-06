@@ -19,8 +19,10 @@ pub enum Item {
     Rail, Cart, RopeLadder, Lift, Tube, TubeHopper,
     // decorative background walls (see walls.rs): they hold no roof
     RockWall, TimberWall, MasonryWall, BeamWall, PipeWall, CarvedWall,
+    // production (production.rs): chute and shaker screen blocks, a cart bumper, an ore hopper that feeds carts
+    Chute, Screen, Bumper, OreHopper,
 }
-pub const NITEM: usize = 69;
+pub const NITEM: usize = 73;
 /// What an item can do in the world (see `Item::uses`).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Uses { pub place: bool, pub throw: bool, pub pick_up: bool }
@@ -36,6 +38,7 @@ pub const ITEMS: [Item; NITEM] = [
     Item::AncientBit, Item::GroundLens,
     Item::Rail, Item::Cart, Item::RopeLadder, Item::Lift, Item::Tube, Item::TubeHopper,
     Item::RockWall, Item::TimberWall, Item::MasonryWall, Item::BeamWall, Item::PipeWall, Item::CarvedWall,
+    Item::Chute, Item::Screen, Item::Bumper, Item::OreHopper,
 ];
 /// Paint colours by pigment index (0 = unpainted): ochre, rust, chalk, verdigris, woad, soot.
 pub const PIGMENTS: [[u8; 3]; 7] = [[0, 0, 0], [206, 160, 70], [164, 70, 46], [232, 226, 210], [84, 162, 132], [74, 112, 190], [50, 46, 52]];
@@ -50,7 +53,7 @@ impl Item {
             Dirt => Mat::Dirt, Clay => Mat::Clay, Sand => Mat::Sand, Gravel => Mat::Gravel, Stone => Mat::Rock, Coal => Mat::Coal,
             CopperOre => Mat::CopperOre, TinOre => Mat::TinOre, IronOre => Mat::IronOre, Quartz => Mat::Quartz, Crystal => Mat::Crystal,
             Wood | WoodPillar | Torch | Table | Stool | Shelf | Planter => Mat::WoodBeam, Planks => Mat::Planks, PolishedStone => Mat::Polished, Tiles => Mat::Tiles, CarvedPillar => Mat::Carved, Fungus => Mat::Fungus, Brick => Mat::StoneBrick, Glass => Mat::Glass,
-            IronBeam | IronIngot => Mat::IronBeam, Rail => Mat::Rail, Tube => Mat::Tube,
+            IronBeam | IronIngot => Mat::IronBeam, Rail => Mat::Rail, Tube => Mat::Tube, Chute => Mat::Chute, Screen => Mat::Screen, Bumper => Mat::Bumper,
             _ => return None,
         })
     }
@@ -60,8 +63,18 @@ impl Item {
         if let Some(m) = self.mat() { return m.p().density; }
         match self {
             Charcoal => 400., CopperIngot => 8900., TinIngot => 7300., BronzeIngot => 8800., CopperWire => 3000., Thrummer | Gate | Vent => 2500.,
-            Tnt => 1500., Lamp => 2000., Pickaxe => 2500., Drill => 5000., Bore => 5500., Grub => 1050., Spore => 300., Mushroom => 600., FungusOil => 900., Root => 1100., AncientBit => 7000., GroundLens => 2600., Cart => 1200., RopeLadder => 500., Lift => 3000., TubeHopper => 3000., Rug | Banner | Nest => 300., Ochre | Rust | Chalk | Verdigris | Woad | Soot => 1800.,
+            Tnt => 1500., Lamp => 2000., Pickaxe => 2500., Drill => 5000., Bore => 5500., Grub => 1050., Spore => 300., Mushroom => 600., FungusOil => 900., Root => 1100., AncientBit => 7000., GroundLens => 2600., Cart => 1200., RopeLadder => 500., Lift => 3000., TubeHopper => 3000., OreHopper => 900., Rug | Banner | Nest => 300., Ochre | Rust | Chalk | Verdigris | Woad | Soot => 1800.,
             _ => 2000.,
+        }
+    }
+    /// Its lump size (m): the coarsest piece in it. A shaker screen lets through what is finer than its mesh
+    /// (`production::MESH_M`): sand, dirt, clay crumbs, gravel and pigment powder; ore, coal and stone ride over.
+    pub fn size_m(self) -> f32 {
+        use Item::*;
+        match self {
+            Sand => 0.002, Dirt => 0.01, Clay => 0.02, Gravel => 0.03, Spore => 0.005, Ochre | Rust | Chalk | Verdigris | Woad | Soot => 0.005, Fungus => 0.04,
+            Coal | Charcoal => 0.08, CopperOre | TinOre | IronOre => 0.12, Quartz | Crystal => 0.1, Stone => 0.2, Grub | Root | Mushroom => 0.06,
+            _ => 0.25,
         }
     }
     /// Does heat `h` burn it up (a loose item in lava or fire)? TNT doesn't burn: it lights.
@@ -73,10 +86,10 @@ impl Item {
     /// (a crafting material). Blocks, copperline, devices, torches and tools are never thrown.
     pub fn uses(self) -> Uses {
         use Item::*;
-        let place = matches!(self, WoodPillar | Brick | IronBeam | CopperWire | Torch | Tnt | Lamp | Vent | Spore) || self.block().is_some() || self.pigment().is_some() || self.furn().is_some() || self.is_wall() || matches!(self, Cart | RopeLadder | Lift | TubeHopper);
+        let place = matches!(self, WoodPillar | Brick | IronBeam | CopperWire | Torch | Tnt | Lamp | Vent | Spore) || self.block().is_some() || self.pigment().is_some() || self.furn().is_some() || self.is_wall() || matches!(self, Cart | RopeLadder | Lift | TubeHopper | OreHopper);
         let throw = matches!(self, Dirt | Clay | Sand | Gravel | Stone | Coal | CopperOre | TinOre | IronOre | Quartz | Crystal | Wood | Fungus
             | Charcoal | CopperIngot | TinIngot | BronzeIngot | IronIngot | Grub | Spore | Mushroom | Tnt | FungusOil | Root);
-        Uses { place, throw, pick_up: matches!(self, CopperWire | Torch | Tnt | Lamp | Vent | Cart | RopeLadder | Lift | TubeHopper) || self.furn().is_some() }
+        Uses { place, throw, pick_up: matches!(self, CopperWire | Torch | Tnt | Lamp | Vent | Cart | RopeLadder | Lift | TubeHopper | OreHopper) || self.furn().is_some() }
     }
     /// One line naming the inputs for the item in hand (hover tooltip and the hint over the hotbar).
     pub fn controls(self) -> &'static str {
@@ -88,6 +101,10 @@ impl Item {
             Rail => "Left mouse: lay track (X: snap to a straight line) · carts run along its top",
             Cart => "Left mouse: set on the track · right mouse: get in · walk into it: push · E: unload, then pick up",
             RopeLadder => "Left mouse in a drop: hang from the rock above or a ledge's lip · W/S: climb · E: take down",
+            Chute => "Left mouse: lay a sloping trough (hold) · loose things slide down it",
+            Screen => "Left mouse: lay a sloping grating (hold) · fines drop through · copperline current shakes it",
+            Bumper => "Left mouse: build at the end of the track · a loaded cart that runs into it tips out",
+            OreHopper => "Left mouse: stand it over the track · fill it from above · a cart under it is filled · right mouse: hold the gate open · E: empty, then pick up",
             Tube => "Left mouse: lay pipe (X: snap to a straight line) · hoppers on a line blow capsules along it",
             TubeHopper => "Left mouse: set on a tube · drop items in to send them · right mouse: ride (empty paw) or pick where it sends · E: pick up",
             Lift => "Left mouse in a shaft: the head hangs under its ceiling · right mouse on head or cage: stone on (stone in paw) or off · E: take down",
@@ -105,7 +122,7 @@ impl Item {
         }
     }
     /// A decorative block's material (built with the block brush).
-    pub fn block(self) -> Option<Mat> { use Item::*; match self { Planks => Some(Mat::Planks), PolishedStone => Some(Mat::Polished), Tiles => Some(Mat::Tiles), CarvedPillar => Some(Mat::Carved), Rail => Some(Mat::Rail), Tube => Some(Mat::Tube), _ => None } }
+    pub fn block(self) -> Option<Mat> { use Item::*; match self { Planks => Some(Mat::Planks), PolishedStone => Some(Mat::Polished), Tiles => Some(Mat::Tiles), CarvedPillar => Some(Mat::Carved), Rail => Some(Mat::Rail), Tube => Some(Mat::Tube), Chute => Some(Mat::Chute), Screen => Some(Mat::Screen), Bumper => Some(Mat::Bumper), _ => None } }
     /// A pigment's paint index (1..6), see `PIGMENTS`.
     pub fn pigment(self) -> Option<u8> { use Item::*; match self { Ochre => Some(1), Rust => Some(2), Chalk => Some(3), Verdigris => Some(4), Woad => Some(5), Soot => Some(6), _ => None } }
     /// Furniture: footprint (tiles) and how it's held up.
@@ -123,7 +140,8 @@ impl Item {
          "Planks", "Polished stone", "Tiles", "Carved pillar",
          "Ochre", "Rust", "Chalk", "Verdigris", "Woad", "Soot",
          "Table", "Stool", "Nest", "Shelf", "Rug", "Banner", "Fungus planter", "Ancient bit", "Ground lens", "Rail", "Mine cart", "Rope ladder", "Lift", "Pressure tube", "Tube hopper",
-         "Rock wall", "Timber wall", "Masonry wall", "Beam wall", "Pipe wall", "Carved wall"][self as usize]
+         "Rock wall", "Timber wall", "Masonry wall", "Beam wall", "Pipe wall", "Carved wall",
+         "Chute", "Shaker screen", "Bumper", "Ore hopper"][self as usize]
     }
     /// One plain line for the hover tooltip: what it is and what it's for.
     pub fn desc(self) -> &'static str {
@@ -161,7 +179,11 @@ impl Item {
          "Brick lining for the back of a room. Walk in front of it; it holds no roof.",
          "Decorative beams on the back. They hold no weight.",
          "Old copper pipes on the back. They carry nothing.",
-         "Carved marks on the back. They hold no roof."][self as usize]
+         "Carved marks on the back. They hold no roof.",
+         "Smooth timber trough. Lay it sloping: loose things slide down it.",
+         "Iron grating that sorts by size: sand, dirt and gravel drop through, lumps of ore ride over.",
+         "Timber buffer for the end of a track. A loaded cart that runs into it tips its load out.",
+         "A timber bin on legs over the track. Fill it from above; it lets its load down into a cart."][self as usize]
     }
     pub fn color(self) -> [u8; 3] {
         use Item::*;
@@ -176,6 +198,7 @@ impl Item {
             Ochre | Rust | Chalk | Verdigris | Woad | Soot => PIGMENTS[self.pigment().unwrap_or(0) as usize],
             Table | Stool | Shelf => [160, 112, 66], Nest => [150, 170, 110], Rug => [176, 92, 70], Banner => [200, 70, 60], Planter => [110, 200, 130], AncientBit => [150, 200, 210], GroundLens => [210, 235, 250], Rail => [104, 84, 78], Cart => [130, 96, 60], RopeLadder => [170, 140, 90], Lift => [150, 150, 160], Tube => [150, 190, 186], TubeHopper => [190, 150, 80],
             RockWall => [118, 108, 96], TimberWall => [140, 102, 66], MasonryWall => [132, 78, 62], BeamWall => [118, 84, 54], PipeWall => [148, 96, 64], CarvedWall => [124, 116, 106],
+            Chute => [168, 128, 82], Screen => [120, 116, 112], Bumper => [150, 70, 48], OreHopper => [140, 104, 66],
         }
     }
     /// A decorative background wall: it panels the back, never the rock in front, and holds no roof.
@@ -191,7 +214,7 @@ pub fn drop_of(m: Mat) -> Option<Item> {
         Dirt | Grass => Item::Dirt, Clay => Item::Clay, Sand => Item::Sand, Gravel => Item::Gravel,
         Granite | Rock | Limestone | Basalt | StoneBrick => Item::Stone, Coal => Item::Coal, CopperOre => Item::CopperOre, TinOre => Item::TinOre,
         IronOre => Item::IronOre, Quartz => Item::Quartz, Crystal => Item::Crystal, Roots | WoodBeam | Door | RootTree | TreeRoot => Item::Wood, Fungus | Mycelium => Item::Fungus, Moss => Item::Dirt,
-        IronBeam => Item::IronIngot, Glass => Item::Glass, Planks => Item::Wood, Polished | Carved => Item::Stone, Tiles => Item::Clay,
+        IronBeam => Item::IronIngot, Glass => Item::Glass, Planks | Chute | Bumper => Item::Wood, Polished | Carved => Item::Stone, Tiles => Item::Clay,
         _ => return None,
     })
 }
@@ -253,6 +276,8 @@ pub static RECIPES: &[Recipe] = &[
     Recipe { name: "Masonry wall x8", station: Station::Forge, inputs: &[(Item::Brick, 2)], out: (Item::MasonryWall, 8), ticks: 90 },
     Recipe { name: "Pipe wall x4", station: Station::Forge, inputs: &[(Item::CopperIngot, 1)], out: (Item::PipeWall, 4), ticks: 90 },
     Recipe { name: "Rope ladder", station: Station::Workbench, inputs: &[(Item::Wood, 2), (Item::Fungus, 2)], out: (Item::RopeLadder, 1), ticks: 90 },
+    Recipe { name: "Chute x8", station: Station::Workbench, inputs: &[(Item::Wood, 2)], out: (Item::Chute, 8), ticks: 60 },
+    Recipe { name: "Bumper x2", station: Station::Workbench, inputs: &[(Item::Wood, 2), (Item::Stone, 1)], out: (Item::Bumper, 2), ticks: 60 },
     Recipe { name: "TNT", station: Station::Workbench, inputs: &[(Item::Coal, 2), (Item::Sand, 2)], out: (Item::Tnt, 1), ticks: 90 },
     // forge: heat. Smelting, firing, metalwork (tier 2 copper and bronze, tier 3 iron, and the Bore)
     Recipe { name: "Brick x4", station: Station::Forge, inputs: &[(Item::Clay, 2)], out: (Item::Brick, 4), ticks: 120 },
@@ -270,6 +295,9 @@ pub static RECIPES: &[Recipe] = &[
     // transport: copper-strapped track and a cart to run on it (tier 2: copper)
     Recipe { name: "Rail x8", station: Station::Forge, inputs: &[(Item::CopperIngot, 1), (Item::Wood, 1)], out: (Item::Rail, 8), ticks: 120 },
     Recipe { name: "Mine cart", station: Station::Forge, inputs: &[(Item::CopperIngot, 2), (Item::Wood, 4)], out: (Item::Cart, 1), ticks: 200 },
+    // production: chutes, bumpers and ore hoppers are timber work; the shaker screen is an iron grating
+    Recipe { name: "Ore hopper", station: Station::Forge, inputs: &[(Item::Wood, 6), (Item::CopperIngot, 1)], out: (Item::OreHopper, 1), ticks: 200 },
+    Recipe { name: "Shaker screen x4", station: Station::Forge, inputs: &[(Item::IronIngot, 1), (Item::Wood, 1)], out: (Item::Screen, 4), ticks: 150 },
     Recipe { name: "Pressure tube x8", station: Station::Forge, inputs: &[(Item::IronIngot, 1), (Item::Glass, 2)], out: (Item::Tube, 8), ticks: 150 },
     Recipe { name: "Bore", station: Station::Forge, inputs: &[(Item::IronIngot, 6), (Item::CopperIngot, 2), (Item::Crystal, 2)], out: (Item::Bore, 1), ticks: 300 },
     // workshop: copperline and power. Machines and fine parts

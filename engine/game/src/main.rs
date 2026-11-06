@@ -1229,6 +1229,19 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
         want.push((44, k, cell_to_world(cx, cy - n * 0.15), 3.9, sp.px.clone(), Vec2::new(n * 0.8 * CPX, n * 0.3 * CPX), false, lit(0.7, 0.52, 0.26)));
         want.push((45, k, cell_to_world(cx, cy - n * 0.32), 3.95, sp.px.clone(), Vec2::new(n * 0.6 * CPX, 1.5), false, lit(0.15, 0.13, 0.12)));
     }
+    // ore hoppers (placeholder until p3's sprite): a timber bin on two legs, its heap filling it, the gate under the spout
+    for (k, b) in w.tr.bins.iter().enumerate() {
+        if w.g.flags[b.y.min(H - 1) * W + b.x.min(W - 1)] & F_SEEN == 0 { continue; }
+        let (x0, y0, x1, y1) = b.rect(); let (xc, yc) = ((x0 + x1) / 2., (y0 + y1) / 2.);
+        let lt = lightf(b.x, b.y.saturating_sub(2)).to_srgba(); let lit = |r: f32, gg: f32, bb: f32| Color::srgb(r * lt.red, gg * lt.green, bb * lt.blue);
+        want.push((47, k, cell_to_world(xc, yc), 3.9, sp.px.clone(), Vec2::new((x1 - x0) * CPX, (y1 - y0) * CPX), false, lit(0.5, 0.36, 0.22)));
+        let legs = (b.floor as f32 - y1).max(0.);
+        for (j, xl) in [x0 + 0.5, x1 - 0.5].into_iter().enumerate() { want.push((48, k * 2 + j, cell_to_world(xl, y1 + legs / 2.), 3.85, sp.px.clone(), Vec2::new(CPX, legs * CPX), false, lit(0.42, 0.3, 0.18))); }
+        let f = b.load() as f32 / molehill_sim::production::BIN_LOAD as f32;
+        if let Some(&(it, _)) = b.contents.first() { let col = it.color(); let hh = (y1 - y0 - 2.) * f;
+            want.push((49, k, cell_to_world(xc, y1 - 1. - hh / 2.), 3.95, sp.px.clone(), Vec2::new((x1 - x0 - 2.) * CPX, hh * CPX), false, lit(col[0] as f32 / 255., col[1] as f32 / 255., col[2] as f32 / 255.))); }
+        want.push((50, k, cell_to_world(xc, y1 + 0.5), 3.96, sp.px.clone(), Vec2::new(if b.open { 1. } else { 3. } * CPX, CPX), false, lit(0.25, 0.22, 0.2)));
+    }
     for (k, c) in w.tr.capsules.iter().enumerate() {
         let at = c.pat + (c.at - c.pat) * a; let i0 = c.path[(at as usize).min(c.path.len() - 1)] as usize; let i1 = c.path[(at as usize + 1).min(c.path.len() - 1)] as usize; let f = at.fract();
         let (x, y) = ((i0 % W) as f32 * (1. - f) + (i1 % W) as f32 * f + 0.5, (i0 / W) as f32 * (1. - f) + (i1 / W) as f32 * f + 0.5);

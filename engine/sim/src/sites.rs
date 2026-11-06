@@ -915,7 +915,7 @@ impl World {
         if self.tr.carts.iter().any(|c| (c.x - x).abs() < crate::transport::CART_W && (c.y - y).abs() < crate::transport::CART_H) { return; }
         self.tr.carts.push(crate::transport::Cart {
             x, y, px: x, py: y, v: 0., vy: 0., dir: 1, on_rail: self.is_rail(x as i32, y as i32),
-            cargo: vec![(Item::Stone, 6 + (x as u32) % 5)],
+            cargo: vec![(Item::Stone, 6 + (x as u32) % 5)], tip: 0,
         });
     }
     /// First visit within 8 m: a line in the log. No cards.
