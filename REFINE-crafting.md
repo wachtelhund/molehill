@@ -92,6 +92,20 @@ Tool contrast (room per second, limestone): the pickaxe clears about 3.8× what 
 of any pickaxe rock is at most 30 ticks (half a second) and of soft soil at most 6. Test
 `dig_tempo_is_earned_but_the_first_hour_is_open`.
 
+**Progression** (`progression -- 6 15`, main 4c3f8c9 against this branch, same seeds):
+* Routes, straight-line pickaxe seconds from the burrow: copper 0–3 → 1–4 s, tin 1–4 → 1–7 s, coal 0–2 → 1–3 s,
+  fungus 1–3 → 2–4 s, root tangle 3–11 → 4–15 s. The first hour's finds are all still seconds away, and none
+  is newly out of the pickaxe's reach.
+* The naive bot digs everything in its way, so its haul falls with the slowdown. The drill rung was
+  affordable on 3 of 6 seeds within 15 minutes (at 1.3, 1.5 and 4.3 min); now 0 of 6. Forge and copperline
+  was 4 of 6, now 3 of 6 (0.5, 7.3 and 12.5 min). Deaths fall from 30 to 8: the bot reaches danger later.
+  This is the "earned" pace for a digger that takes all it meets. A player who heads for the ore (the routes
+  above) loses seconds, not minutes, but Hampus should judge it in play.
+* Tests re-timed: `dig_tiers` (claws take sandstone in 49 ticks a bite, so 55 ticks), and `first_hour`'s
+  dig-down run (seed 9 now reaches its lava at about 16 s, so the run is 20 s). **Found:** seed 8 dies
+  holding S at 24 s, on main too. It's an existing hazard the old 15 s run never reached, left for the
+  dig-safety owner.
+
 ## Open
 * Waking after death: the lamp holds whatever is left, with no oil in the pack (above). Option: the burrow
   keeps a measure for whoever crawls back in (a stash, not magic), once per wake.
