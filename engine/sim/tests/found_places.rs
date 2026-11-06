@@ -55,3 +55,25 @@ fn found_places_can_be_walked() {
     }
     assert!(bad.is_empty(), "{}", bad.join("\n"));
 }
+
+/// Rope-gun gating (Hampus 2026-11-06 16:47): these faces are meant to need the rope gun, with no ladder or
+/// steps added. Their walk-throughs take the gun up them to the chest: `site_halt_traverse`,
+/// `site_fossil_over_the_beast`, `site_pumpworks_traverse` / `site_pumpworks_rope_to_chest`.
+pub const ROPE_GATED: &[(&str, &str)] = &[("halt", "crate stacks, 4.25 m"), ("fossil", "the mound's east face, 2.2 m"), ("pump", "the pump wheel, 9 m")];
+
+/// The gate opens in the first minutes: the workbench, the rope gun and one hook rope need only wood, stone and
+/// fungus (no forge, no ore), and the wood fits in the Survival kit. So the gun can be made before any gated site
+/// is met (the pumpworks can lie as shallow as 12 m above the burrow).
+#[test]
+fn rope_gun_comes_before_the_faces_that_need_it() {
+    use molehill_sim::craft::{raw_bill, bill_of_station, Item, Station, NITEM};
+    let (g, r, b) = (raw_bill(Item::RopeGun, 1), raw_bill(Item::HookRope, 1), bill_of_station(Station::Workbench));
+    let total: Vec<u32> = (0..NITEM).map(|i| g[i] + r[i] + b[i]).collect();
+    for (i, &n) in total.iter().enumerate() {
+        let it = molehill_sim::craft::ITEMS[i];
+        assert!(n == 0 || matches!(it, Item::Wood | Item::Stone | Item::Fungus), "the rope gun's way in needs {n} {it:?}: only wood, stone and fungus allowed");
+    }
+    let kit_wood = molehill_sim::survival::KIT.iter().find(|k| k.0 == Item::Wood).map_or(0, |k| k.1);
+    assert!(total[Item::Wood as usize] <= kit_wood, "workbench + rope gun need {} wood; the kit has {kit_wood}", total[Item::Wood as usize]);
+    for &(k, _) in ROPE_GATED { assert!(Kind::from_name(k).is_some(), "{k} is a site kind"); }
+}
