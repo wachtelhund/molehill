@@ -48,6 +48,9 @@ impl Run {
             // ladders and lifts: how many; whether the mole is on a ladder; the first lift's cage floor (tiles from
             // the map top), its speed (tiles/s, + = down) and its counterweight's ballast (stones)
             "ladders" => self.w.tr.ladders.len() as f64, "climbing" => self.w.tr.climbing as u8 as f64, "lifts" => self.w.tr.lifts.len() as f64,
+            // what the game's W / S would do here: 1 = grab or climb down the rope ladder (not jump / dig)
+            "ladder_up" => self.w.ladder_takes_up() as u8 as f64, "ladder_down" => self.w.ladder_takes_down() as u8 as f64,
+            "chests" => self.w.chests_opened as f64, // chests opened (walked up to)
             "lifty" => self.w.tr.lifts.first().map_or(-1., |l| (l.y - self.oy as f32) as f64 / kf),
             "liftv" => self.w.tr.lifts.first().map_or(0., |l| l.v as f64 / kf),
             "ballast" => self.w.tr.lifts.first().map_or(0., |l| l.ballast as f64),
