@@ -515,6 +515,38 @@ pub fn borer(part: u8) -> Image {
     p.finish(ICON_LINE).image()
 }
 
+/// A wagon's body (16×12, 1 px = 1 world unit; the wheels are drawn on it), by kind (store, workshop, bunk, water, coal),
+/// each its own silhouette: a low open plank box with iron straps; a steep gable roof on posts over a saw bench; a closed car
+/// under a low canvas barrel roof with a lamp-lit window; a riveted tank on its side with a filler cap and a gauge glass;
+/// a flared riveted bunker with its stoking chute. Unfinished (no outline), so the icon can reuse it.
+pub fn wagon_px(kind: u8) -> Px {
+    let mut p = Px::new(16, 12); let (wood, dark, iron) = ([146, 104, 62], [100, 70, 42], [104, 104, 116]);
+    p.rect(0, 10, 15, 11, [70, 70, 80]); p.rect(0, 10, 15, 10, [96, 96, 106]); // chassis
+    match kind {
+        0 => { p.rect(1, 4, 14, 9, wood); for y in [6, 8] { p.rect(1, y, 14, y, dark); } for x in [1, 14] { p.rect(x, 4, x, 9, iron); } p.rect(1, 4, 14, 4, shade(wood, 1.25)); }
+        1 => { p.rect(1, 7, 14, 9, wood); p.rect(1, 7, 14, 7, shade(wood, 1.25)); for x in [1, 14] { p.rect(x, 3, x, 9, dark); } // bench, posts
+               for x in 0..16 { let top = ((x as f32 - 7.5).abs() * 0.45) as i32; p.rect(x, top, x, top + 1, [120, 60, 44]); } // a steep gable roof
+               p.oval(8., 6., 1.8, 1.8, [176, 178, 190]); p.set(8, 6, [96, 96, 106]); p.rect(3, 4, 3, 5, [150, 150, 160]); p.rect(12, 4, 12, 6, wood); } // saw blade, hanging tools
+        2 => { p.rect(1, 4, 14, 9, [120, 132, 96]); for x in 1..15 { let top = 2 + ((x as f32 - 7.5).powi(2) / 24.) as i32; p.rect(x, top, x, 4, [196, 186, 150]); } // car and a low canvas barrel roof
+               p.rect(5, 5, 9, 7, [255, 206, 120]); p.rect(7, 5, 7, 7, dark); p.rect(1, 9, 14, 9, dark); } // the lit window
+        3 => { p.oval(7.5, 6.5, 7., 3.6, iron); p.rect(1, 4, 14, 4, shade(iron, 1.3)); for x in [3, 7, 11] { p.set(x, 8, [76, 76, 88]); } p.rect(6, 1, 8, 2, [70, 70, 80]); // tank, rivets, cap
+               p.rect(12, 4, 13, 8, [30, 34, 42]); } // the gauge glass (the level is drawn in it)
+        _ => { for y in 3..10 { let inset = (y - 3) / 3; p.rect(inset, y, 15 - inset, y, [64, 62, 66]); } p.rect(0, 3, 15, 3, [110, 108, 116]); for x in [2, 7, 13] { p.set(x, 6, [96, 94, 102]); } // flared bunker
+               p.rect(14, 7, 15, 8, iron); } // stoking chute
+    }
+    p
+}
+pub fn wagon(kind: u8) -> Image { wagon_px(kind).finish(ICON_LINE).image() }
+/// A wagon's load, heaped above its rim as it fills (14×6, pale for the store's crates and sacks, black lumps for coal).
+pub fn wagon_load(coal: bool) -> Image {
+    let mut p = Px::new(14, 6);
+    if coal { for x in 0..14 { let h = 6 - ((x as f32 - 6.5).abs() / 1.6) as i32; for y in (6 - h.max(1))..6 { p.set(x, y, if (x + y) % 3 == 0 { [70, 68, 76] } else { [24, 22, 26] }); } } }
+    else { p.rect(1, 2, 4, 5, [150, 108, 64]); p.rect(1, 2, 4, 2, [180, 136, 84]); p.rect(5, 0, 8, 5, [136, 96, 58]); p.rect(5, 0, 8, 0, [170, 126, 78]); p.oval(11., 4., 2.6, 2., [196, 180, 140]); p.set(11, 2, [150, 130, 96]); }
+    p.finish(ICON_LINE).image()
+}
+/// The coupling bar between a wagon and what pulls it: an iron bar with a link at each end (stretched to the gap).
+pub fn coupling() -> Image { let mut p = Px::new(6, 3); p.rect(0, 1, 5, 1, [104, 104, 116]); p.rect(0, 0, 0, 2, [70, 70, 80]); p.rect(5, 0, 5, 2, [70, 70, 80]); p.finish(ICON_LINE).image() }
+
 /// The boiler over its shell cells (1 px = 1 world unit, `BOILER_W`×`BOILER_H` cells): a riveted iron drum with a
 /// steam dome and a stub chimney over a brick firebox, the fire door in its middle; lit, the fire shows through the door.
 pub fn boiler(lit: bool) -> Image {
@@ -779,6 +811,16 @@ mod tests {
         assert!(hot(&px(1)) >= 6 && hot(&px(0)) == 0, "the firebox door glows only while lit");
         assert!(px(2) != px(3) && px(3) != px(4), "the bore head's frames turn");
         let sizes: Vec<(u32, u32)> = [0u8, 2, 5].into_iter().map(|k| { let im = borer(k); (im.width(), im.height()) }).collect(); assert_eq!(sizes, vec![(24, 16), (6, 12), (6, 6)]);
+    }
+
+    /// Every wagon kind has its own silhouette (at least 12 pixels differ in coverage between any two), the water wagon
+    /// has a gauge glass, and the loads are drawn.
+    #[test] fn wagons_have_their_own_silhouettes() {
+        use super::{wagon, wagon_load};
+        let mask = |k: u8| -> Vec<bool> { wagon(k).data.unwrap().chunks(4).map(|c| c[3] > 0).collect() };
+        for a in 0..5u8 { for b in a + 1..5 { let d = mask(a).iter().zip(&mask(b)).filter(|(x, y)| x != y).count(); assert!(d >= 12, "wagons {a} and {b} share a silhouette ({d})"); } }
+        let water = wagon(3).data.unwrap(); assert!(water.chunks(4).filter(|c| c[3] > 0 && c[0] < 40 && c[2] > 35).count() >= 6, "the water wagon has its gauge glass");
+        assert_ne!(wagon_load(true).data, wagon_load(false).data);
     }
 
     #[test] fn ore_pockets_stand_out_without_glowing() {

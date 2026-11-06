@@ -135,7 +135,7 @@ const BG_BASE: [f32; 3] = [44., 34., 30.];
 #[inline] fn srgb(l: f32) -> f32 { l.max(0.).powf(1. / 2.2) * 255. }
 #[derive(Component)] pub struct WorldSprite;
 #[derive(Component)] struct Pooled(u8, usize);
-#[derive(Resource)] pub struct Sprites { pub borer: Vec<Handle<Image>>, pub leaf: Handle<Image>, pub lever: [Handle<Image>; 2], pub scale: [Handle<Image>; 4], pub rope: [Handle<Image>; 2], pub weight: Handle<Image>, pub boiler: [Handle<Image>; 2], pub stamp: [Handle<Image>; 2], pub tub: [Handle<Image>; 2], pub smelter: [Handle<Image>; 4], pub props: Vec<Handle<Image>>, pub cart: Handle<Image>, pub bin: Vec<Handle<Image>>, pub clue: Vec<Handle<Image>>, pub furn: Vec<Option<(Handle<Image>, Option<Handle<Image>>)>>, pub tools: [Handle<Image>; 3], pub dev: Vec<Handle<Image>>, pub ring: Handle<Image>, pub mole: Vec<Handle<Image>>, pub mole_out: Vec<Handle<Image>>, pub held: Vec<Handle<Image>>, pub icons: Vec<Handle<Image>>, pub chest: [Handle<Image>; 2], pub station: Vec<[Handle<Image>; 2]>, pub torch: Handle<Image>, pub torch_f: Vec<Handle<Image>>, pub glow: Handle<Image>, pub shroom: [Handle<Image>; 3], pub px: Handle<Image> }
+#[derive(Resource)] pub struct Sprites { pub wagon: Vec<Handle<Image>>, pub wload: [Handle<Image>; 2], pub coupling: Handle<Image>, pub borer: Vec<Handle<Image>>, pub leaf: Handle<Image>, pub lever: [Handle<Image>; 2], pub scale: [Handle<Image>; 4], pub rope: [Handle<Image>; 2], pub weight: Handle<Image>, pub boiler: [Handle<Image>; 2], pub stamp: [Handle<Image>; 2], pub tub: [Handle<Image>; 2], pub smelter: [Handle<Image>; 4], pub props: Vec<Handle<Image>>, pub cart: Handle<Image>, pub bin: Vec<Handle<Image>>, pub clue: Vec<Handle<Image>>, pub furn: Vec<Option<(Handle<Image>, Option<Handle<Image>>)>>, pub tools: [Handle<Image>; 3], pub dev: Vec<Handle<Image>>, pub ring: Handle<Image>, pub mole: Vec<Handle<Image>>, pub mole_out: Vec<Handle<Image>>, pub held: Vec<Handle<Image>>, pub icons: Vec<Handle<Image>>, pub chest: [Handle<Image>; 2], pub station: Vec<[Handle<Image>; 2]>, pub torch: Handle<Image>, pub torch_f: Vec<Handle<Image>>, pub glow: Handle<Image>, pub shroom: [Handle<Image>; 3], pub px: Handle<Image> }
 
 /// `?seed=N` (web) / `--seed=N` (native) was given: the game opens straight into that holt.
 fn seed_pinned() -> bool {
@@ -307,7 +307,8 @@ fn dev_dump(n: Local<u32>, g: Res<Game>, sp: Res<Sprites>, images: Res<Assets<Im
         for (k, h) in sp.tools.iter().enumerate() { list.push((format!("tool{k}"), h.clone())); }
         list.push(("cart".into(), sp.cart.clone())); list.push(("rope".into(), sp.rope[0].clone())); list.push(("hook".into(), sp.rope[1].clone())); list.push(("weight".into(), sp.weight.clone())); list.push(("boiler0".into(), sp.boiler[0].clone())); list.push(("boiler1".into(), sp.boiler[1].clone()));
         for (k, h) in sp.stamp.iter().chain(sp.tub.iter()).chain(sp.smelter.iter()).enumerate() { list.push((format!("works{k}"), h.clone())); }
-        list.push(("gate-leaf".into(), sp.leaf.clone())); for (k, h) in sp.borer.iter().enumerate() { list.push((format!("borer{k}"), h.clone())); } for (k, h) in sp.lever.iter().chain(sp.scale.iter()).enumerate() { list.push((format!("logic{k}"), h.clone())); }
+        list.push(("gate-leaf".into(), sp.leaf.clone())); for (k, h) in sp.borer.iter().enumerate() { list.push((format!("borer{k}"), h.clone())); }
+        for (k, h) in sp.wagon.iter().chain(sp.wload.iter()).enumerate() { list.push((format!("wagon{k}"), h.clone())); } list.push(("coupling".into(), sp.coupling.clone())); for (k, h) in sp.lever.iter().chain(sp.scale.iter()).enumerate() { list.push((format!("logic{k}"), h.clone())); }
         for (k, h) in sp.bin.iter().enumerate() { list.push((format!("orebin{k}"), h.clone())); }
         for (k, h) in sp.props.iter().enumerate() { list.push((format!("prop-{:?}", props::PROPS[k]), h.clone())); }
         for (k, h) in sp.icons.iter().enumerate() { list.push((format!("icon-{:?}", ITEMS[k]), h.clone())); }
@@ -384,6 +385,23 @@ fn stage_scene(w: &mut World) {
                 for k in 0..6u8 { put(w, ClueKind::Relic, x0 + 14 * S + k as usize * 4 * S, my, k); }
                 put(w, ClueKind::Draft, x0 + 45 * S, my, 0);
                 for k in 0..3 { w.torches.push((x0 + (6 + k * 20) * S, my - 4 * S)); }
+            }
+            "wagons" => { // a long tunnel east of the burrow ending in a dirt face: a lit borer with the mole riding it near the
+                // face, hauling all five wagon kinds coupled behind it (water, coal, store, workshop, bunk), the store, coal and
+                // water wagons part full; `--shot-walk` drives the train into the face
+                use molehill_sim::{borer::{Borer, TANK, STEAM_MAX, BORER_W}, wagon::{Wagon, WagonKind, WAGON_W, GAP}};
+                let (x0, x1, y0) = (mx + 4 * S, mx + 80 * S, my - 12 * S);
+                for x in x0 - 2 * S..x1 + 2 * S { for y in y0 - 4 * S..my + 1 + 2 * S { set(w, x, y, Mat::Bedrock); } }
+                for x in x0..x1 { for y in y0..=my { set(w, x, y, if x >= x0 + 66 * S { Mat::Dirt } else { Mat::Empty }); } }
+                w.torches.retain(|t| t.0 < x0 || t.0 >= x1);
+                let (bx, fy) = ((x0 + 60 * S) as f32, (my + 1) as f32);
+                w.tr.borers.push(Borer { x: bx, y: fy, px: bx, py: fy, vx: 0., vy: 0., dir: 1, fuel: vec![(Item::Coal, 6)], burning: Some(Item::Coal), burn: 2000, water: TANK, steam: STEAM_MAX, grind: 0., jammed: false });
+                w.tr.borer_ride = Some(w.tr.borers.len() - 1);
+                let mut wx = bx - BORER_W / 2. - GAP - WAGON_W / 2.;
+                for (kind, cargo, water) in [(WagonKind::Water, vec![], 30.), (WagonKind::Coal, vec![(Item::Coal, 26)], 0.), (WagonKind::Store, vec![(Item::Stone, 60), (Item::CopperOre, 40)], 0.), (WagonKind::Workshop, vec![], 0.), (WagonKind::Bunk, vec![], 0.)] {
+                    w.tr.wagons.push(Wagon { kind, x: wx, y: fy, px: wx, py: fy, vy: 0., coupled: true, parted: false, cargo, water }); wx -= WAGON_W + GAP; }
+                molehill_sim::light::reveal_box(&mut w.g, mx, y0 - 10 * S, x1 + 10 * S, my + 10 * S);
+                for k in 0..7 { w.torches.push((x0 + (4 + k * 10) * S, y0 + 2 * S)); }
             }
             "borer" => { // a tunnel east of the burrow ending in a dirt face, and a lit steam borer in it facing the face with
                 // water and steam up and the mole riding it: with `--shot-walk` the running game drives it into the face
@@ -734,7 +752,7 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, mut fonts: R
         mole_out: art::mole_sheet(false).into_iter().map(|i| images.add(i)).collect(),
         held: [art::Held::Pick, art::Held::Drill, art::Held::Bore, art::Held::Charge, art::Held::Block(Item::WoodPillar.color()), art::Held::Block(Item::Brick.color()), art::Held::Block(Item::IronBeam.color()), art::Held::RopeGun(true), art::Held::RopeGun(false)]
             .into_iter().map(|h| images.add(art::held_sprite(h))).collect(),
-        clue: (0..9).map(|k| images.add(decorart::clue(k))).collect(), props: props::PROPS.iter().map(|&p| images.add(props::image(p))).collect(), cart: images.add(art::cart()), borer: (0..6).map(|k| images.add(art::borer(k))).collect(), leaf: images.add(art::gate_leaf()), lever: [images.add(art::gate_lever(false)), images.add(art::gate_lever(true))], scale: [0, 1, 2, 3].map(|k| images.add(art::scale_part(k))), rope: [images.add(art::rope_seg()), images.add(art::rope_hook())], weight: images.add(art::weight()), boiler: [images.add(art::boiler(false)), images.add(art::boiler(true))], stamp: [images.add(art::stamp_mill(0)), images.add(art::stamp_mill(1))], tub: [images.add(art::washer_tub(false)), images.add(art::washer_tub(true))], smelter: [0, 1, 2, 3].map(|k| images.add(art::smelter(k))), bin: (0..5).map(|k| images.add(art::ore_bin(k))).collect(),
+        clue: (0..9).map(|k| images.add(decorart::clue(k))).collect(), props: props::PROPS.iter().map(|&p| images.add(props::image(p))).collect(), cart: images.add(art::cart()), borer: (0..6).map(|k| images.add(art::borer(k))).collect(), wagon: (0..5).map(|k| images.add(art::wagon(k))).collect(), wload: [images.add(art::wagon_load(false)), images.add(art::wagon_load(true))], coupling: images.add(art::coupling()), leaf: images.add(art::gate_leaf()), lever: [images.add(art::gate_lever(false)), images.add(art::gate_lever(true))], scale: [0, 1, 2, 3].map(|k| images.add(art::scale_part(k))), rope: [images.add(art::rope_seg()), images.add(art::rope_hook())], weight: images.add(art::weight()), boiler: [images.add(art::boiler(false)), images.add(art::boiler(true))], stamp: [images.add(art::stamp_mill(0)), images.add(art::stamp_mill(1))], tub: [images.add(art::washer_tub(false)), images.add(art::washer_tub(true))], smelter: [0, 1, 2, 3].map(|k| images.add(art::smelter(k))), bin: (0..5).map(|k| images.add(art::ore_bin(k))).collect(),
         furn: ITEMS.iter().map(|&it| it.furn().map(|_| { let (b, c) = decorart::furniture(it); (images.add(decorart::finish(b)), c.map(|c| images.add(decorart::cloth(c)))) })).collect(),
         icons: ITEMS.iter().map(|&it| images.add(itemart::icon(it))).collect(),
         chest: [images.add(art::chest(false)), images.add(art::chest(true))],
@@ -1466,20 +1484,26 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
                 want.push((124, k * 3 + j as usize, cell_to_world(x - d * (1.75 + ff * 2.) + hh - 0.5, y - bh - ff * 2. * CPM as f32), 4.45, sp.glow.clone(), Vec2::splat(4. + 8. * ff), false, Color::srgba(0.42, 0.4, 0.4, 0.45 * (1. - ff)))); }
         }
     }
-    // wagons (placeholder until p3's art; sprite ids 130-133): a body on two wheels coloured by kind, a coupling bar to what pulls it, and
-    // what it holds on top (coal heaped, water in the tank, the store's load)
+    // wagons (sprite ids 130-134): each kind's own body; two spoked wheels turning with the ground covered; the load heaped
+    // above the rim as a store or coal wagon fills (its height is the fill), the water level in the water wagon's gauge glass;
+    // the coupling bar to what pulls it
     for (k, wg) in w.tr.wagons.iter().enumerate() {
         use molehill_sim::wagon::{WagonKind, WAGON_H, WAGON_W, GAP};
         let (x, y) = (wg.px + (wg.x - wg.px) * a, wg.py + (wg.y - wg.py) * a); let (cx, cy) = (x as usize, (y as usize).saturating_sub(2));
         if cx >= W || cy >= H || w.g.flags[cy * W + cx] & F_SEEN == 0 { continue; }
-        let lt = lightf(cx, cy).to_srgba(); let lit = |r: f32, gg: f32, bb: f32| Color::srgb(r * lt.red, gg * lt.green, bb * lt.blue);
-        let body = match wg.kind { WagonKind::Store => lit(0.50, 0.38, 0.26), WagonKind::Workshop => lit(0.55, 0.44, 0.31), WagonKind::Bunk => lit(0.47, 0.52, 0.38), WagonKind::Water => lit(0.36, 0.44, 0.52), WagonKind::Coal => lit(0.27, 0.26, 0.25) };
-        want.push((130, k, cell_to_world(x, y - WAGON_H / 2. - 0.5), 4.2, sp.px.clone(), Vec2::new(WAGON_W * CPX * 0.92, (WAGON_H - 1.5) * CPX), false, body));
-        for (j, s) in [-1f32, 1.].into_iter().enumerate() { want.push((131, k * 2 + j, cell_to_world(x + s * WAGON_W * 0.3, y - 1.), 4.22, sp.px.clone(), Vec2::splat(2. * CPX), false, lit(0.2, 0.18, 0.17))); }
-        let full = match wg.kind { WagonKind::Store => wg.load() as f32 / molehill_sim::wagon::STORE_CAP as f32, WagonKind::Coal => wg.load() as f32 / molehill_sim::wagon::COAL_CAP as f32, WagonKind::Water => wg.water / molehill_sim::wagon::WATER_CAP, _ => 0. };
-        if full > 0. { let c = match wg.kind { WagonKind::Coal => lit(0.12, 0.11, 0.11), WagonKind::Water => lit(0.25, 0.45, 0.75), _ => lit(0.55, 0.53, 0.5) };
-            want.push((132, k, cell_to_world(x, y - WAGON_H + 0.5 + (1. - full)), 4.21, sp.px.clone(), Vec2::new(WAGON_W * CPX * 0.8, (1. + full * 2.) * CPX), false, c)); }
-        if wg.coupled { want.push((133, k, cell_to_world(x + if w.tr.borers.first().map_or(1, |b| b.dir) > 0 { WAGON_W / 2. + GAP / 2. } else { -WAGON_W / 2. - GAP / 2. }, y - 2.5), 4.19, sp.px.clone(), Vec2::new(GAP * CPX, 0.7 * CPX), false, lit(0.3, 0.3, 0.32))); }
+        let lt = lightf(cx, cy).to_srgba(); let lit = Color::srgb(lt.red, lt.green, lt.blue);
+        let kind = wg.kind as usize; let top = y - WAGON_H;
+        want.push((130, k, cell_to_world(x, y - WAGON_H / 2.), 4.2, sp.wagon[kind].clone(), Vec2::new(WAGON_W * CPX, WAGON_H * CPX), false, lit));
+        for (j, s) in [-1f32, 1.].into_iter().enumerate() { let id = k * 2 + j; rot.insert((131, id), -x);
+            want.push((131, id, cell_to_world(x + s * WAGON_W * 0.3, y - 1.), 4.22, sp.borer[5].clone(), Vec2::splat(2. * CPX), false, lit)); }
+        let full = match wg.kind { WagonKind::Store => wg.load() as f32 / molehill_sim::wagon::STORE_CAP as f32, WagonKind::Coal => wg.load() as f32 / molehill_sim::wagon::COAL_CAP as f32, WagonKind::Water => wg.water / molehill_sim::wagon::WATER_CAP, _ => 0. }.clamp(0., 1.);
+        if full > 0. { match wg.kind {
+            WagonKind::Water => { let h = 2.5 * full; // the gauge glass is 5 px tall from the body's 4th row: the level rises in it
+                want.push((134, k, cell_to_world(x + 2.75, top + 4.5 - h / 2.), 4.21, sp.px.clone(), Vec2::new(2., h * CPX), false, Color::srgb(0.3 * lt.red, 0.55 * lt.green, 0.9 * lt.blue))); }
+            WagonKind::Store | WagonKind::Coal => { let h = (0.5 + 2.5 * full).min(3.); // heaped above the rim, taller as it fills
+                want.push((132, k, cell_to_world(x, top + 2. - h / 2.), 4.21, sp.wload[(wg.kind == WagonKind::Coal) as usize].clone(), Vec2::new(14., h * CPX), false, lit)); }
+            _ => {} } }
+        if wg.coupled { want.push((133, k, cell_to_world(x + if w.tr.borers.first().map_or(1, |b| b.dir) > 0 { WAGON_W / 2. + GAP / 2. } else { -WAGON_W / 2. - GAP / 2. }, y - 2.5), 4.19, sp.coupling.clone(), Vec2::new(GAP * CPX + 2., 3.), false, lit)); }
     }
     // sluice gates: lifted, the leaf is drawn raised out of the opening (its cells are open then); its lever on the head
     // shows which way round it is (up: lifts when pulled; down: shuts when pulled)
