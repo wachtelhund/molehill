@@ -256,6 +256,7 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `craft_stations.scn` | Survival crafting at a workbench; a forge refuses cold and works with lava in reach; a workshop refuses unpowered and makes the drill once a lever powers its line |
 | `place_refused_once.scn` | A refused place says why in one line (brick in mid-air or into rock, table or cart with none left, torch into rock or with no oil), once per 5 s for the same words; a different reason speaks at once |
 | `dig_refused_once.scn` | A dig the Pickaxe can't do says so once per press and material (not per cell swept), repeats the words only after 5 s, and soft rock beside it still digs |
+| `dig_refusals.scn` | Every dig refusal says why at once: out of reach ("Too far to dig"), water with nothing solid, granite too hard for the pickaxe; each once per press, the same words not again within 5 s |
 | `tool_tiers_survival.scn` | Survival digs with the best tool owned: claws (dirt, soft stone), pickaxe, drill (granite), bore (basalt) |
 | `forge_coal_fuel.scn` | With no lava in reach the forge burns a coal per job; with no fuel it's cold |
 | `feel_feedback.scn` | Each action answers on its tick: dig strike, refused dig (clink), throw, a 0.5 m landing bump |

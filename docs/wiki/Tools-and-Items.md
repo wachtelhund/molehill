@@ -214,23 +214,24 @@ With only one of the two it grows at ¼ speed, and with neither it doesn't grow.
 
 ## Quests
 
-A chain of 18 quests leads through the game. Each one has an item reward:
+A chain of 19 quests leads through the game. Each one has an item reward. The HUD shows the current one, and the log says "Next: ..." when one is done (and at the start of a Survival holt, after a line listing the pack). The first seven are the first hour: each says what it takes, and none is already done by the Survival kit (test `survival_start_says_what_next`).
 
 1. Dig down to 5 m
-2. Gather 6 wood
-3. Build a workbench
-4. Farm mushrooms: gather 4
-5. Prop a tunnel: place 8 pillar cells
-6. Make a pickaxe
-7. Reach 15 m
-8. Build a forge (it needs heat)
-9. Open a buried chest
-10. Fire 10 bricks
-11. Smelt 4 copper ingots
-12. Alloy bronze
-13. Reach 40 m
-14. Build a workshop and power it
-15. Make a drill
-16. Assemble a thrummer
-17. Reach 80 m: the deep
-18. Open 4 chests
+2. Build a workbench (4 wood, 4 stone)
+3. Find wood: dig a root tangle (have 6)
+4. Dig 4 copper ore (green-flecked rock)
+5. Build a forge (10 stone, 4 clay)
+6. Smelt 4 copper ingots
+7. Draw 8 copperline at the forge
+8. Farm mushrooms: gather 4
+9. Prop a tunnel: place 8 pillar cells
+10. Reach 15 m
+11. Open a buried chest
+12. Fire 10 bricks
+13. Alloy bronze
+14. Reach 40 m
+15. Build a workshop and power it
+16. Make a drill
+17. Assemble a thrummer
+18. Reach 80 m: the deep
+19. Open 4 chests

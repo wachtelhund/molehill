@@ -1,0 +1,5 @@
+concept-holt.jpg / .webp and the 960-wide companions are
+user-supplied concept illustration, optimized for the landing page.
+
+They are not gameplay, not screenshots, and must never be captioned as the game.
+Gameplay images are copied at build time from shots.manifest only.
