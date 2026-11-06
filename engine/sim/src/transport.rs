@@ -51,6 +51,8 @@ pub struct Cart {
     pub dir: i8,
     pub on_rail: bool,
     pub cargo: Vec<(Item, u32)>,
+    /// ticks since it began tipping its load at a bumper (0 = upright; see production.rs)
+    pub tip: u16,
 }
 impl Cart {
     pub fn load(&self) -> u32 { self.cargo.iter().map(|c| c.1).sum() }
@@ -62,7 +64,7 @@ impl Cart {
 }
 
 /// Pack items that go down whole as a transport machine (`World::place_transport`).
-pub fn is_machine(it: Item) -> bool { matches!(it, Item::Cart | Item::RopeLadder | Item::Lift | Item::TubeHopper) }
+pub fn is_machine(it: Item) -> bool { matches!(it, Item::Cart | Item::RopeLadder | Item::Lift | Item::TubeHopper | Item::OreHopper) }
 
 /// Everything transport keeps between ticks.
 #[derive(Clone, Debug, Default)]
@@ -74,6 +76,8 @@ pub struct Transport {
     pub ladders: Vec<crate::lifts::Ladder>, pub lifts: Vec<crate::lifts::Lift>, pub climbing: bool,
     /// pressure-tube hoppers and capsules in the pipe (see tubes.rs), and the capsule the mole is sealed in
     pub hoppers: Vec<crate::tubes::Hopper>, pub capsules: Vec<crate::tubes::Capsule>, pub in_tube: Option<usize>,
+    /// ore hoppers over the track (see production.rs), and how many times a cart has tipped at a bumper
+    pub bins: Vec<crate::production::OreHopper>, pub tips: u32,
 }
 
 impl World {
@@ -120,12 +124,12 @@ impl World {
                 if self.cart_blocked(xf, y) { return Err("no room for it"); }
                 if self.tr.carts.iter().any(|c| (c.x - xf).abs() < CART_W && (c.y - y).abs() < CART_H) { return Err("there's a cart there"); }
                 self.inv[it as usize] -= 1;
-                self.tr.carts.push(Cart { x: xf, y, px: xf, py: y, v: 0., vy: 0., dir: self.moles.first().map_or(1, |m| m.facing), on_rail: false, cargo: vec![] });
+                self.tr.carts.push(Cart { x: xf, y, px: xf, py: y, v: 0., vy: 0., dir: self.moles.first().map_or(1, |m| m.facing), on_rail: false, cargo: vec![], tip: 0 });
                 self.events.push(Event::Place); Ok(true)
             }
-            Item::RopeLadder | Item::Lift | Item::TubeHopper => {
+            Item::RopeLadder | Item::Lift | Item::TubeHopper | Item::OreHopper => {
                 if self.inv[it as usize] == 0 { return Err("none left"); }
-                match it { Item::RopeLadder => self.place_ladder(x, y)?, Item::Lift => self.place_lift(x, y)?, _ => self.place_hopper(x, y)? }
+                match it { Item::RopeLadder => self.place_ladder(x, y)?, Item::Lift => self.place_lift(x, y)?, Item::OreHopper => self.place_bin(x, y)?, _ => self.place_hopper(x, y)? }
                 self.inv[it as usize] -= 1; Ok(true)
             }
             _ => Ok(false),
@@ -138,7 +142,7 @@ impl World {
             if self.tr.riding == Some(k) { self.leave_cart(); } else { self.tr.riding = Some(k); self.say("In the cart. Space to jump out.".into()); }
             self.events.push(Event::Click); return true;
         }
-        self.use_hopper(x, y) || self.use_lift(x, y)
+        self.use_bin(x, y) || self.use_hopper(x, y) || self.use_lift(x, y)
     }
     fn leave_cart(&mut self) {
         if let Some(k) = self.tr.riding.take() { let c = &self.tr.carts[k];
@@ -147,7 +151,7 @@ impl World {
     }
     /// `E` on a cart: take its cargo into the pack; an empty cart (nobody in it) comes up itself.
     pub fn pick_up_transport(&mut self, x: usize, y: usize) -> Option<Item> {
-        let Some(k) = self.cart_at(x, y) else { return self.pick_up_hopper(x, y).or_else(|| self.pick_up_lift(x, y)) };
+        let Some(k) = self.cart_at(x, y) else { return self.pick_up_bin(x, y).or_else(|| self.pick_up_hopper(x, y)).or_else(|| self.pick_up_lift(x, y)) };
         // unloading says what came home ("Unloaded the cart: 12 stone, 3 copper ore.")
         if !self.tr.carts[k].cargo.is_empty() { let mut got = vec![];
             for (it, n) in std::mem::take(&mut self.tr.carts[k].cargo) { self.inv[it as usize] += n; got.push(format!("{n} {}", it.name().to_lowercase())); }
@@ -180,6 +184,8 @@ impl World {
         for k in 0..self.tr.carts.len() {
             let mut c = self.tr.carts[k].clone(); c.px = c.x; c.py = c.y;
             let rider = self.tr.riding == Some(k);
+            // tipping at a bumper: held there, its load going out over the front (production.rs)
+            if c.tip > 0 && self.step_tip(&mut c) { self.tr.carts[k] = c; continue; }
             let top = self.rail_top(c.x.floor() as i32, c.y, 2 * S as i32);
             c.on_rail = top.is_some() && c.vy >= 0.;
             if let Some(t) = top.filter(|_| c.on_rail) {
@@ -203,6 +209,8 @@ impl World {
                     match self.rail_top(nx.floor() as i32, c.y, S as i32) {
                         Some(ny) if !self.cart_blocked(nx, ny) => { c.x = nx; c.y = ny; self.shove_from_cart(nx, ny); }
                         _ => {
+                            // a buffer (a Bumper block) ahead: a loaded cart tips its load out over it
+                            if c.load() > 0 && self.bumper_ahead(&c, c.dir) { c.tip = 1; c.v = 0.; self.tr.tips += 1; self.events.push(Event::Click); break; }
                             if c.v.abs() > 2. * CPM as f32 { self.events.push(Event::Click); self.shake = self.shake.max(0.1); } c.v = -c.v * 0.15; break; } // the bumper
                     }
                 }
@@ -232,6 +240,7 @@ impl World {
                 self.tr.carts[a].v = na * 0.9; self.tr.carts[b].v = nb * 0.9; self.events.push(Event::Click);
             } } }
         self.push_carts();
+        self.step_bins();
         self.step_lifts();
         self.step_tubes();
     }
@@ -282,14 +291,14 @@ impl World {
             if riding == Some(k as i64) { new_ride = Some(keep.len()); } keep.push(c);
         }
         self.tr.carts = keep; self.tr.riding = new_ride;
-        self.shift_tubes(rows);
+        self.shift_tubes(rows); self.shift_bins(rows, h);
         let (dr, hh) = (rows, h as i64);
         self.tr.ladders.retain_mut(|l| { let t = l.top as i64 - dr; let a = l.ay as i64 - dr; if t < 1 || a < 0 || t + l.len as i64 >= hh { return false; } l.top = t as usize; l.ay = a as usize; true });
         self.tr.lifts.retain_mut(|l| { let hd = l.head as i64 - dr; let b = l.bottom as i64 - dr; if hd < 1 || b >= hh - 1 { return false; } l.head = hd as usize; l.bottom = b as usize; l.y -= dy; l.py -= dy; true });
     }
     /// Save: the carts (window-relative cells) and their cargo.
     pub fn encode_transport(&self) -> Vec<u8> {
-        let mut o = crate::band::Wr(vec![]); o.u8(3);
+        let mut o = crate::band::Wr(vec![]); o.u8(4);
         o.u32(self.tr.carts.len() as u32);
         for c in &self.tr.carts { o.f32(c.x); o.f32(c.y); o.f32(c.v); o.u8((c.dir + 1) as u8); o.u32(c.cargo.len() as u32); for &(it, n) in &c.cargo { o.u8(it as u8); o.u32(n); } }
         // v2: ladders and lifts
@@ -297,6 +306,8 @@ impl World {
         o.u32(self.tr.lifts.len() as u32); for l in &self.tr.lifts { o.u32(l.x as u32); o.u32(l.head as u32); o.f32(l.y); o.u32(l.bottom as u32); o.u32(l.ballast); }
         // v3: pressure tubes
         self.encode_tubes(&mut o);
+        // v4: ore hoppers
+        self.encode_bins(&mut o);
         o.0
     }
     pub fn decode_transport(&mut self, b: &[u8]) -> Result<(), String> {
@@ -305,7 +316,7 @@ impl World {
         for _ in 0..r.len(4096)? {
             let (x, y, v, dir) = (r.f32()?, r.f32()?, r.f32()?, r.u8()? as i8 - 1);
             let mut cargo = vec![]; for _ in 0..r.len(NITEM)? { let (it, n) = (r.u8()?, r.u32()?); if (it as usize) < NITEM { cargo.push((crate::craft::ITEMS[it as usize], n)); } }
-            if x > 1. && x < gw - 1. && y > 1. && y < gh - 1. { self.tr.carts.push(Cart { x, y, px: x, py: y, v, vy: 0., dir: dir.signum().max(-1), on_rail: false, cargo }); }
+            if x > 1. && x < gw - 1. && y > 1. && y < gh - 1. { self.tr.carts.push(Cart { x, y, px: x, py: y, v, vy: 0., dir: dir.signum().max(-1), on_rail: false, cargo, tip: 0 }); }
         }
         if ver >= 2 {
             let (w, h) = (self.g.w, self.g.h);
@@ -314,6 +325,7 @@ impl World {
                 if x < w && head > 0 && bottom < h - 1 && y.is_finite() { self.tr.lifts.push(crate::lifts::Lift { x, head, y, py: y, v: 0., bottom, ballast }); } }
         }
         if ver >= 3 { self.decode_tubes(&mut r)?; }
+        if ver >= 4 { self.decode_bins(&mut r)?; }
         Ok(())
     }
 }

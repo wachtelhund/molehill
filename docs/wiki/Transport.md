@@ -17,6 +17,8 @@ The deeper the holt goes, the further its Delvers haul, so getting about is a la
 * **Tube hopper:** blowing (drop items in to send, ride with an empty paw) or receiving only; which hopper it sends to.
 * **Track and pipe:** whether the track is powered; that a line needs hoppers.
 
+Carts also tip their load at a **bumper**, and ore hoppers fill them: see [Production](Production.md).
+
 The Ancients' tube stations and waygates in the ruins stay broken: they are endgame finds, not working lines (see [World and Generation](World-and-Generation.md#ruins-of-the-ancients)).
 
 ## Rails

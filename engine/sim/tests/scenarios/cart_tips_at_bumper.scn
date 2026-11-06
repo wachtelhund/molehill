@@ -1,0 +1,32 @@
+// A loaded cart let go on a 1-in-4 slope rolls down to a bumper (a timber buffer at the end of the track) and
+// tips there: it is held against the buffer while its load comes out over the front, one lump at a time, and
+// the stones fall into the pit beyond as loose items. Then it rights itself, empty, still on the rails.
+map
+############################################################
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#.@........................................................#
+#######====................................................#
+#......####====............................................#
+#......########====........................................#
+#......############====............|.......................#
+#......################============|.......................#
+#......############################.......................##
+#......############################.......................##
+#......############################.......................##
+#......############################.......................##
+############################################################
+end
+give Cart 1
+place 2 7 1 Cart
+load 3 20 Stone
+expect 4 cargo == 20
+expect 60 tips == 0
+expect 200 tips == 1              // it ran into the buffer and tipped
+expect 260 cargo == 0             // its whole load came out, a lump every 3 ticks
+expect 200 cartrail == 1          // and it is still on the rails
+expect 200 cartx > 28
+expect 320 zone:Stone,33,57,5,10 == 20   // every stone lies in the pit beyond the buffer
+expect 320 items:Stone == 20
+expect 320 ev:Explode == 0

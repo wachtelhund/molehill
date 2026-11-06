@@ -25,6 +25,12 @@ The bot's tunnel refill and cave-ins are dominated by roof rubble (sandstone and
 seams; `WHY=1` breaks it down), not by the loose ground the generator places. That half is p2's
 (collapse/slide thresholds); the crumbled numbers are passed on as their baseline, not changed here.
 
+### Polish check on merged main (`c738448`, `loosesurvey -- 8`)
+Spawn tunnels: loose share within 30 m 0.66 %, generator-loose ground displaced 1.01 cells per tunnel metre
+(was 9.96); `digging_straight_down_never_kills` and `settled_ground` pass. Tunnel refill (18.9/m) is roof rubble.
+Seed 7's cave-ins rose from 91 to 486 crumbled cells/m between the branch survey and merged main; that came in
+from other streams' merges and is for p2 to look at.
+
 ## Open / for others
 * **p2:** the parallel CA (rayon) isn't deterministic on the first run after a rebuild. Seen on
   `digging_straight_down_never_kills` seed 6 (a limestone clump falls into a flooded shaft onto the mole on some runs),

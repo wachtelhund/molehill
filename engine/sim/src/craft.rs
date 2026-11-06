@@ -19,8 +19,10 @@ pub enum Item {
     Rail, Cart, RopeLadder, Lift, Tube, TubeHopper,
     // decorative background walls (see walls.rs): they hold no roof
     RockWall, TimberWall, MasonryWall, BeamWall, PipeWall, CarvedWall,
+    // production (production.rs): chute and shaker screen blocks, a cart bumper, an ore hopper that feeds carts
+    Chute, Screen, Bumper, OreHopper,
 }
-pub const NITEM: usize = 69;
+pub const NITEM: usize = 73;
 /// What an item can do in the world (see `Item::uses`).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Uses { pub place: bool, pub throw: bool, pub pick_up: bool }
@@ -55,10 +57,13 @@ pub struct ItemDef {
     pub uses: Uses,
     /// the input line for the item in hand ("" = the default: the throw hint if it throws, else nothing)
     pub controls: &'static str,
+    /// its lump size (m): the coarsest piece in it. A shaker screen lets through what is finer than its mesh
+    /// (`production::MESH_M`); 0.25 m (a whole lump) unless set
+    pub size_m: f32,
 }
 const fn it(item: Item, name: &'static str, color: [u8; 3], desc: &'static str) -> ItemDef {
     ItemDef { item, name, desc, color, mat: None, density: 2000., ignite: 0, block: None, pigment: 0, furn: None, wall: false,
-        uses: Uses { place: false, throw: false, pick_up: false }, controls: "" }
+        uses: Uses { place: false, throw: false, pick_up: false }, controls: "", size_m: 0.25 }
 }
 impl ItemDef {
     const fn lump(mut self, m: Mat) -> Self { self.mat = Some(m); self }
@@ -72,6 +77,7 @@ impl ItemDef {
     const fn throw(mut self) -> Self { self.uses.throw = true; self }
     const fn pick_up(mut self) -> Self { self.uses.pick_up = true; self }
     const fn controls(mut self, c: &'static str) -> Self { self.controls = c; self }
+    const fn size(mut self, m: f32) -> Self { self.size_m = m; self }
 }
 
 /// The item registry, in `Item` order (checked at compile time below).
@@ -80,38 +86,38 @@ const ITEM_DEFS_CONST: [ItemDef; NITEM] = {
     use Item::*;
     [
     it(Dirt, "Dirt", [122, 88, 58],
-       "Loose earth. Packs into burrow walls; weak under load.").lump(Mat::Dirt).throw(),
+       "Loose earth. Packs into burrow walls; weak under load.").size(0.01).lump(Mat::Dirt).throw(),
     it(Clay, "Clay", [168, 104, 78],
-       "Stiff, wet earth. Holds a little better than dirt; fired into brick.").lump(Mat::Clay).throw(),
+       "Stiff, wet earth. Holds a little better than dirt; fired into brick.").size(0.02).lump(Mat::Clay).throw(),
     it(Sand, "Sand", [222, 196, 132],
-       "Flows like water when nothing holds it. Melts into glass.").lump(Mat::Sand).throw(),
+       "Flows like water when nothing holds it. Melts into glass.").size(0.002).lump(Mat::Sand).throw(),
     it(Gravel, "Gravel", [140, 134, 124],
-       "Rubble. Shifts when disturbed.").lump(Mat::Gravel).throw(),
+       "Rubble. Shifts when disturbed.").size(0.03).lump(Mat::Gravel).throw(),
     it(Stone, "Stone", [160, 156, 150],
-       "Broken rock. Builds kilns; cut into brick.").lump(Mat::Rock).throw(),
+       "Broken rock. Builds kilns; cut into brick.").size(0.2).lump(Mat::Rock).throw(),
     it(Coal, "Coal", [50, 48, 54],
-       "Burns hot. Lights torches and feeds the furnace.").lump(Mat::Coal).throw(),
+       "Burns hot. Lights torches and feeds the furnace.").size(0.08).lump(Mat::Coal).throw(),
     it(CopperOre, "Copper ore", [200, 120, 70],
-       "Green-flecked rock. Smelted into copper for copperline.").lump(Mat::CopperOre).throw(),
+       "Green-flecked rock. Smelted into copper for copperline.").size(0.12).lump(Mat::CopperOre).throw(),
     it(TinOre, "Tin ore", [180, 190, 200],
-       "Pale ore. Alloyed with copper into bronze.").lump(Mat::TinOre).throw(),
+       "Pale ore. Alloyed with copper into bronze.").size(0.12).lump(Mat::TinOre).throw(),
     it(IronOre, "Iron ore", [150, 90, 80],
-       "Heavy red ore. Smelted into iron for beams and heatstones.").lump(Mat::IronOre).throw(),
+       "Heavy red ore. Smelted into iron for beams and heatstones.").size(0.12).lump(Mat::IronOre).throw(),
     it(Quartz, "Quartz", [235, 232, 240],
-       "Clear stone that lets light through.").lump(Mat::Quartz).throw(),
+       "Clear stone that lets light through.").size(0.1).lump(Mat::Quartz).throw(),
     it(Crystal, "Crystal", [120, 200, 255],
-       "Glowing stone from deep down. Lights the dark.").lump(Mat::Crystal).throw(),
+       "Glowing stone from deep down. Lights the dark.").size(0.1).lump(Mat::Crystal).throw(),
     it(Wood, "Wood", [150, 105, 60],
        "Roots and timber. Pillars, torches and workbenches.").lump(Mat::WoodBeam).throw(),
     it(Fungus, "Fungus", [96, 200, 120],
-       "Soft glowing growth. Edible in a pinch.").lump(Mat::Fungus).throw(),
+       "Soft glowing growth. Edible in a pinch.").size(0.04).lump(Mat::Fungus).throw(),
     it(Brick, "Brick", [170, 80, 60],
        "Fired stone block. Strong in a wall, heavy on a roof.").lump(Mat::StoneBrick).place()
        .controls("Left mouse: build (hold to keep building)"),
     it(Glass, "Glass", [190, 230, 240],
        "Clear pane. Lets light through a wall.").lump(Mat::Glass),
     it(Charcoal, "Charcoal", [70, 60, 60],
-       "Wood baked black. Burns cleaner than wood.").dens(400.0).ignite(1).throw(),
+       "Wood baked black. Burns cleaner than wood.").size(0.08).dens(400.0).ignite(1).throw(),
     it(CopperIngot, "Copper ingot", [230, 140, 80],
        "Drawn into copperline.").dens(8900.0).throw(),
     it(TinIngot, "Tin ingot", [210, 215, 225],
@@ -151,12 +157,12 @@ const ITEM_DEFS_CONST: [ItemDef; NITEM] = {
     it(Bore, "Bore", [200, 205, 220],
        "Heavy heat-bore: grinds through basalt.").dens(5500.0),
     it(Grub, "Grub", [235, 215, 170],
-       "Fat burrowing larva. A good meal.").dens(1050.0).ignite(1).throw(),
+       "Fat burrowing larva. A good meal.").size(0.06).dens(1050.0).ignite(1).throw(),
     it(Spore, "Spore", [200, 170, 230],
-       "Mushroom spore. Plant it on soil to grow food.").dens(300.0).ignite(1).place().throw()
+       "Mushroom spore. Plant it on soil to grow food.").size(0.005).dens(300.0).ignite(1).place().throw()
        .controls("Left mouse: plant on soil · Q: throw"),
     it(Mushroom, "Mushroom", [214, 120, 90],
-       "A ripe mushroom. Fills the belly.").dens(600.0).ignite(1).throw(),
+       "A ripe mushroom. Fills the belly.").size(0.06).dens(600.0).ignite(1).throw(),
     it(Vent, "Vent", [150, 200, 210],
        "Draws stale air out of the tunnels around it.").dens(2500.0).place().pick_up()
        .controls("Left/right mouse: set down · E: pick up"),
@@ -166,7 +172,7 @@ const ITEM_DEFS_CONST: [ItemDef; NITEM] = {
     it(FungusOil, "Fungus oil", [200, 220, 120],
        "Pressed from fungus. Fuels the headlamp and soaks a torch so it burns.").dens(900.0).ignite(1).throw(),
     it(Root, "Root", [190, 140, 90],
-       "A fat, starchy root from a root tangle. A fair meal.").dens(1100.0).ignite(1).throw(),
+       "A fat, starchy root from a root tangle. A fair meal.").size(0.06).dens(1100.0).ignite(1).throw(),
     it(Planks, "Planks", [182, 134, 84],
        "Sawn boards for floors and panelling. A light prop.").lump(Mat::Planks).block(Mat::Planks).place()
        .controls("Left mouse: build (hold to keep building)"),
@@ -180,22 +186,22 @@ const ITEM_DEFS_CONST: [ItemDef; NITEM] = {
        "Fluted stone column. Holds a roof better than brick.").lump(Mat::Carved).block(Mat::Carved).place()
        .controls("Left mouse: build (hold to keep building)"),
     it(Ochre, "Ochre", PIGMENTS[1],
-       "Yellow earth pigment, ground from iron ore and clay.").dens(1800.0).pigment(1).place()
+       "Yellow earth pigment, ground from iron ore and clay.").size(0.005).dens(1800.0).pigment(1).place()
        .controls("Left mouse: paint blocks, or dye a rug, banner or nest (hold to keep painting)"),
     it(Rust, "Rust", PIGMENTS[2],
-       "Red-brown pigment, ground from iron ore.").dens(1800.0).pigment(2).place()
+       "Red-brown pigment, ground from iron ore.").size(0.005).dens(1800.0).pigment(2).place()
        .controls("Left mouse: paint blocks, or dye a rug, banner or nest (hold to keep painting)"),
     it(Chalk, "Chalk", PIGMENTS[3],
-       "Pale pigment, ground from quartz.").dens(1800.0).pigment(3).place()
+       "Pale pigment, ground from quartz.").size(0.005).dens(1800.0).pigment(3).place()
        .controls("Left mouse: paint blocks, or dye a rug, banner or nest (hold to keep painting)"),
     it(Verdigris, "Verdigris", PIGMENTS[4],
-       "Green pigment, scraped from weathered copper ore.").dens(1800.0).pigment(4).place()
+       "Green pigment, scraped from weathered copper ore.").size(0.005).dens(1800.0).pigment(4).place()
        .controls("Left mouse: paint blocks, or dye a rug, banner or nest (hold to keep painting)"),
     it(Woad, "Woad", PIGMENTS[5],
-       "Blue pigment, pressed from fungus.").dens(1800.0).pigment(5).place()
+       "Blue pigment, pressed from fungus.").size(0.005).dens(1800.0).pigment(5).place()
        .controls("Left mouse: paint blocks, or dye a rug, banner or nest (hold to keep painting)"),
     it(Soot, "Soot", PIGMENTS[6],
-       "Black pigment, from charcoal.").dens(1800.0).pigment(6).place()
+       "Black pigment, from charcoal.").size(0.005).dens(1800.0).pigment(6).place()
        .controls("Left mouse: paint blocks, or dye a rug, banner or nest (hold to keep painting)"),
     it(Table, "Table", [160, 112, 66],
        "A sturdy board on legs. Somewhere to eat.").lump(Mat::WoodBeam).furn(8, 4, false, false).place().pick_up()
@@ -258,6 +264,19 @@ const ITEM_DEFS_CONST: [ItemDef; NITEM] = {
     it(CarvedWall, "Carved wall", [124, 116, 106],
        "Carved marks on the back. They hold no roof.").wall().place()
        .controls("Left mouse: panel the back (hold) · right mouse: scrape lining · never edits the rock in front"),
+    // production (production.rs)
+    it(Chute, "Chute", [168, 128, 82],
+       "Smooth timber trough. Lay it sloping: loose things slide down it.").lump(Mat::Chute).block(Mat::Chute).place()
+       .controls("Left mouse: lay a sloping trough (hold) · loose things slide down it"),
+    it(Screen, "Shaker screen", [120, 116, 112],
+       "Iron grating that sorts by size: sand, dirt and gravel drop through, lumps of ore ride over.").lump(Mat::Screen).block(Mat::Screen).place()
+       .controls("Left mouse: lay a sloping grating (hold) · fines drop through · copperline current shakes it"),
+    it(Bumper, "Bumper", [150, 70, 48],
+       "Timber buffer for the end of a track. A loaded cart that runs into it tips its load out.").lump(Mat::Bumper).block(Mat::Bumper).place()
+       .controls("Left mouse: build at the end of the track · a loaded cart that runs into it tips out"),
+    it(OreHopper, "Ore hopper", [140, 104, 66],
+       "A timber bin on legs over the track. Fill it from above; it lets its load down into a cart.").dens(900.0).place().pick_up()
+       .controls("Left mouse: stand it over the track · fill it from above · a cart under it is filled · right mouse: hold the gate open · E: empty, then pick up"),
     ]
 };
 /// Every item, in order.
@@ -272,6 +291,8 @@ const _: () = { let mut i = 0; while i < NITEM { assert!(ITEM_DEFS_CONST[i].item
 impl Item {
     /// This item's row in the registry.
     #[inline] pub fn def(self) -> &'static ItemDef { &ITEM_DEFS[self as usize] }
+    /// Its lump size (m), for a shaker screen's mesh (see `ItemDef::size_m`).
+    pub fn size_m(self) -> f32 { self.def().size_m }
     pub fn name(self) -> &'static str { self.def().name }
     pub fn desc(self) -> &'static str { self.def().desc }
     pub fn color(self) -> [u8; 3] { self.def().color }
@@ -309,7 +330,7 @@ pub fn drop_of(m: Mat) -> Option<Item> {
         Dirt | Grass => Item::Dirt, Clay => Item::Clay, Sand => Item::Sand, Gravel => Item::Gravel,
         Granite | Rock | Limestone | Basalt | StoneBrick => Item::Stone, Coal => Item::Coal, CopperOre => Item::CopperOre, TinOre => Item::TinOre,
         IronOre => Item::IronOre, Quartz => Item::Quartz, Crystal => Item::Crystal, Roots | WoodBeam | Door | RootTree | TreeRoot => Item::Wood, Fungus | Mycelium => Item::Fungus, Moss => Item::Dirt,
-        IronBeam => Item::IronIngot, Glass => Item::Glass, Planks => Item::Wood, Polished | Carved => Item::Stone, Tiles => Item::Clay,
+        IronBeam => Item::IronIngot, Glass => Item::Glass, Planks | Chute | Bumper => Item::Wood, Polished | Carved => Item::Stone, Tiles => Item::Clay,
         _ => return None,
     })
 }
@@ -374,6 +395,8 @@ pub static RECIPES: &[Recipe] = &[
     // the oil press: a bench presses fungus better than the pack does on the go (3 make 2 measures, where the
     // pack takes 2 a measure), and a mushroom farm's crop can feed the lamp instead of the belly
     Recipe { name: "Fungus oil x2", station: Station::Workbench, inputs: &[(Item::Fungus, 3)], out: (Item::FungusOil, 2), ticks: 60 },
+    Recipe { name: "Chute x8", station: Station::Workbench, inputs: &[(Item::Wood, 2)], out: (Item::Chute, 8), ticks: 60 },
+    Recipe { name: "Bumper x2", station: Station::Workbench, inputs: &[(Item::Wood, 2), (Item::Stone, 1)], out: (Item::Bumper, 2), ticks: 60 },
     Recipe { name: "Fungus oil (mushroom)", station: Station::Workbench, inputs: &[(Item::Mushroom, 2)], out: (Item::FungusOil, 1), ticks: 60 },
     Recipe { name: "TNT", station: Station::Workbench, inputs: &[(Item::Coal, 2), (Item::Sand, 2)], out: (Item::Tnt, 1), ticks: 90 },
     // forge: heat. Smelting, firing, metalwork (tier 2 copper and bronze, tier 3 iron, and the Bore)
@@ -392,6 +415,9 @@ pub static RECIPES: &[Recipe] = &[
     // transport: copper-strapped track and a cart to run on it (tier 2: copper)
     Recipe { name: "Rail x8", station: Station::Forge, inputs: &[(Item::CopperIngot, 1), (Item::Wood, 1)], out: (Item::Rail, 8), ticks: 120 },
     Recipe { name: "Mine cart", station: Station::Forge, inputs: &[(Item::CopperIngot, 2), (Item::Wood, 4)], out: (Item::Cart, 1), ticks: 200 },
+    // production: the ore hopper is timber bound with copper; the shaker screen is an iron grating
+    Recipe { name: "Ore hopper", station: Station::Forge, inputs: &[(Item::Wood, 6), (Item::CopperIngot, 1)], out: (Item::OreHopper, 1), ticks: 200 },
+    Recipe { name: "Shaker screen x4", station: Station::Forge, inputs: &[(Item::IronIngot, 1), (Item::Wood, 1)], out: (Item::Screen, 4), ticks: 150 },
     Recipe { name: "Pressure tube x8", station: Station::Forge, inputs: &[(Item::IronIngot, 1), (Item::Glass, 2)], out: (Item::Tube, 8), ticks: 150 },
     Recipe { name: "Bore", station: Station::Forge, inputs: &[(Item::IronIngot, 6), (Item::CopperIngot, 2), (Item::Crystal, 2)], out: (Item::Bore, 1), ticks: 300 },
     // workshop: copperline and power. Machines and fine parts
