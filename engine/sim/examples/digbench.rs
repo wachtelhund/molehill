@@ -1,9 +1,11 @@
 //! Frame cost of moving through the world on the game-sized window (256 × 128 m): every tick is timed
 //! along several routes, and ticks where the window slid (`World::shift`: rows packed, unpacked or
 //! generated) are counted apart. Each route starts from a fresh world with the same seed.
-//! * `down`: a shaft is cleared under the player mole so it falls as fast as it can (digging straight down)
+//! * `down`: a shaft is cleared under the player mole so it falls as fast as it can (digging straight down;
+//!   about 15 m/s, `TUNE.terminal`: the longest real fall)
 //! * `up`, `side`, `diag`: the mole is carried along at running speed (6 m/s) through a cleared pocket
-//! * `fastdown`, `fastup`: the same at 40 m/s (a long fall, a lift, fast travel)
+//! * `fastdown`, `fastup`: the same at 40 m/s, faster than the mole can fall (a stress test: the 40 m/s climb
+//!   outruns the ground built ahead)
 //! * `respawn`: dies 200 m down and comes back to the burrow (the window slides all the way back at once)
 //! * `load`: saved 200 m down and loaded, then carried 100 m deeper into ground nobody has seen
 //! Like the game, each frame is a tick plus one `World::prefetch_step` (fresh ground built ahead of the
