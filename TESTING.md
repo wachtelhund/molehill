@@ -194,7 +194,7 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `tnt_collapse.scn` | A blast removes rock, and the sand cap falls |
 | `cave_stability.scn` | A small granite cave shows no crumbling over 600 ticks |
 | `hall_sag_arrests.scn` | A 24 m granite hall (past failing) sags out of midspan and the cave-in stops (< 60 cells) |
-| `strained_roof_creaks_and_holds.scn` | A 15 m granite hall is strained (past capacity, under `FAIL_U`): it creaks at once and at most every 10 s after, and nothing crumbles; harness variable `strain` counts the strained cells |
+| `strained_roof_creaks_and_holds.scn` | A 15 m granite hall is strained (past capacity, under `FAIL_U`): it creaks at once and at most every 20 s after, and nothing crumbles; harness variable `strain` counts the strained cells |
 | `pillar_holds.scn` / `pillar_on_sand.scn` | Placed wood pillars stay rigid, also when standing on a sand floor |
 | `pillar_wide_hall.scn` | A lone pillar in a wide, sound hall isn't crushed |
 | `roof_unpropped.scn` / `roof_propped.scn` | A wide clay roof caves in; four pillar columns hold it |
