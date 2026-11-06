@@ -124,6 +124,8 @@ Seven families of **found places**, not random loot rooms (`sim/src/sites.rs`). 
 
 Stamped sites and their interactions: `all_seven_site_families_stamp_with_purpose`, `site_pumpworks`, `site_mine`, `site_holt`, `site_fissure`, `site_fossil`, `site_crystal`, `site_halt`. Headless tests do not prove the rooms *look* like carved rock. Native `--scene=mine` (and the other family names, or `walls`) stamps one isolated copy in host rock next to the burrow so a `--shot` can inspect lining, props and layout.
 
+
+**How they read.** Rail and ore draw their own pixel art (`art::mat_color`): track is a copper strap along the top (old track flecked with verdigris) over dark timber sleepers every half metre with sooty ballast between, so it never reads as a plank floor; ore pockets and veins show rounded half-metre nuggets in the ore's own colour (copper, rust-red iron, pale tin, glossy coal) in a darker matrix. Nothing glows: they are lit like any rock (tests `rails_do_not_read_as_a_wood_floor`, `ore_pockets_stand_out_without_glowing`).
 ## Caves
 
 A cell is open when either test passes:

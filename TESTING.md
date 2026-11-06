@@ -9,6 +9,8 @@ cargo test --release -p molehill-sim          # about 1 min; build the release p
 cargo test --release -p molehill-sim --test sim -- jump coyote   # filter by name
 ```
 
+The game crate has a few headless unit tests of its own for HUD and art logic that needs no window: `cargo test --release -p molehill` (the Survival hotbar layout and faint slots, the refusal ring's colour and jolt, the vitals notes and hover tips, quest progress, rail and ore pixel colours, the music composer).
+
 `sim/tests/sim.rs` covers stress and collapse, fluids, digging tiers, and movement. The movement tests check jump height, the variable short hop, coyote time, wall cling, climbing and wall jumping. Helpers: `arena()` makes a cleared granite box around spawn, and `press(&mut w, n, |input| ...)` steps n ticks with a given input.
 
 ## 2. Scenario harness (`sim/examples/scenario.rs`)

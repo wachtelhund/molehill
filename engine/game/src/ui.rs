@@ -9,7 +9,7 @@ pub const S: f32 = 44.; pub const GAP: f32 = 4.;
 #[derive(Resource)] pub struct UiFont(pub Handle<Font>);
 #[derive(Component)] pub struct Slot(pub usize);
 #[derive(Component)] pub struct SlotIcon(pub usize);
-#[derive(Component, Clone, Copy, PartialEq)] pub enum Lbl { Count(usize), Tip, Quest, Toast, Sel, Center, Dev, Brush, Craft(usize) }
+#[derive(Component, Clone, Copy, PartialEq)] pub enum Lbl { Note(usize), Count(usize), Tip, Quest, Toast, Sel, Center, Dev, Brush, Craft(usize) }
 #[derive(Component)] pub struct InvBg;
 #[derive(Component)] pub struct Held;
 #[derive(Component)] pub struct Bar(pub u8);
@@ -30,6 +30,8 @@ pub fn slot_at(p: Vec2, ww: f32, wh: f32, inv_open: bool) -> Option<usize> {
     (0..if inv_open { NSLOT } else { 10 }).find(|&k| { let q = slot_pos(k, ww, wh); p.x >= q.x && p.x < q.x + S && p.y >= q.y && p.y < q.y + S })
 }
 fn tf(f: &Handle<Font>, s: f32) -> TextFont { TextFont { font: f.clone().into(), font_size: s.into(), ..default() } }
+/// Height of a vitals row and the gap between rows (px), and where the column starts.
+pub const VROW_H: f32 = 13.; const VGAP: f32 = 5.; const VTOP: f32 = 14.;
 const INK: Color = Color::srgb(0.93, 0.90, 0.84);
 const PANEL: Color = Color::srgba(0.05, 0.04, 0.05, 0.55);
 
@@ -38,13 +40,16 @@ pub fn setup(commands: &mut Commands, f: &Handle<Font>) {
     commands.spawn((Node { position_type: PositionType::Absolute, width: Val::Percent(100.), height: Val::Percent(100.), ..default() }, Visibility::Inherited, HudRoot)).with_children(|commands| {
     let abs = |l: f32, t: f32| Node { position_type: PositionType::Absolute, left: Val::Px(l), top: Val::Px(t), ..default() };
     // vitals
-    commands.spawn((Node { position_type: PositionType::Absolute, left: Val::Px(14.), top: Val::Px(14.), flex_direction: FlexDirection::Column, row_gap: Val::Px(5.), ..default() })).with_children(|p| {
-        for (k, c) in [Color::srgb(0.86, 0.25, 0.25), Color::srgb(0.88, 0.62, 0.25), Color::srgb(0.35, 0.65, 0.95)].into_iter().enumerate() {
-            p.spawn((Node { flex_direction: FlexDirection::Row, align_items: AlignItems::Center, column_gap: Val::Px(6.), ..default() }, BarRow(k as u8))).with_children(|r| {
+    commands.spawn((Node { position_type: PositionType::Absolute, left: Val::Px(14.), top: Val::Px(14.), flex_direction: FlexDirection::Column, row_gap: Val::Px(VGAP), ..default() })).with_children(|p| {
+        // health, food, breath, lamp oil (Survival); each row a fixed VROW_H tall so hover can find it, with a
+        // short note after the bar saying what is left to refill it (`vitals.rs`)
+        for (k, c) in [Color::srgb(0.86, 0.25, 0.25), Color::srgb(0.88, 0.62, 0.25), Color::srgb(0.35, 0.65, 0.95), Color::srgb(0.98, 0.80, 0.42)].into_iter().enumerate() {
+            p.spawn((Node { flex_direction: FlexDirection::Row, align_items: AlignItems::Center, column_gap: Val::Px(6.), height: Val::Px(VROW_H), ..default() }, BarRow(k as u8))).with_children(|r| {
                 r.spawn((Node { width: Val::Px(9.), height: Val::Px(9.), border_radius: BorderRadius::all(Val::Px(if k == 2 { 5. } else { 2. })), ..default() }, BackgroundColor(c)));
                 r.spawn((Node { width: Val::Px(120.), height: Val::Px(7.), border_radius: BorderRadius::all(Val::Px(2.)), ..default() }, BackgroundColor(Color::srgba(0., 0., 0., 0.45)))).with_children(|b| {
                     b.spawn((Node { width: Val::Percent(100.), height: Val::Percent(100.), border_radius: BorderRadius::all(Val::Px(2.)), ..default() }, BackgroundColor(c), Bar(k as u8)));
                 });
+                r.spawn((Text::new(""), tf(f, 12.), TextColor(INK.with_alpha(0.62)), TextShadow::default(), Lbl::Note(k)));
             });
         }
         p.spawn((Text::new(""), tf(f, 15.), TextColor(INK.with_alpha(0.8)), TextShadow::default(), Node { margin: UiRect::top(Val::Px(4.)), ..default() }, Lbl::Quest));
@@ -106,10 +111,12 @@ pub fn update(g: Res<Game>, sp: Res<Sprites>, time: Res<Time>, win: Query<&Windo
         Some(t) if crate::thing_usable(&g, t) || faint(t) => { let h = icon(&sp, t); if im.image != h { im.image = h; }
             let c = if faint(t) { let [r, gg, b, a] = crate::hotbar::FAINT_ICON; Color::srgba(r, gg, b, a) } else { Color::WHITE }; if im.color != c { im.color = c; } *vis = Visibility::Inherited; }
         _ => *vis = Visibility::Hidden } }
-    let vals = [me.hp, me.hunger, me.breath];
     for (b, row, mut n) in &mut q.p2() {
-        if let Some(b) = b { n.width = Val::Percent(vals[b.0 as usize].clamp(0., 100.)); }
-        if let Some(r) = row { let d = if r.0 == 1 && w.rules.no_hunger { Display::None } else { Display::Flex }; if n.display != d { n.display = d; } } }
+        if let Some(b) = b { n.width = Val::Percent(crate::vitals::fill(w, b.0 as usize)); }
+        if let Some(r) = row { let d = if crate::vitals::shown(w, r.0 as usize) { Display::Flex } else { Display::None }; if n.display != d { n.display = d; } } }
+    // which vitals row the cursor is on (rows hidden by the rules take no room)
+    let vrow = |c: Vec2| -> Option<usize> { if c.x < 10. || c.x > 300. || c.y < VTOP - 2. { return None; }
+        let k = ((c.y - VTOP + VGAP / 2.) / (VROW_H + VGAP)).floor() as usize; (0..crate::vitals::ROWS).filter(|&r| crate::vitals::shown(w, r)).nth(k) };
     { let mut p = q.p3(); if let Ok((mut n, mut v)) = p.single_mut() { let a = slot_pos(10, ww, wh); let b = slot_pos(9, ww, wh); n.left = Val::Px(a.x - 10.); n.top = Val::Px(a.y - 10.); n.width = Val::Px(b.x + S - a.x + 20.); n.height = Val::Px(b.y + S - a.y + 20.); *v = if g.inv_open { Visibility::Inherited } else { Visibility::Hidden }; } }
     let cur = win.cursor_position();
     { let mut p = q.p4(); if let Ok((mut n, mut im, mut v)) = p.single_mut() { match (g.held, cur) { (Some(t), Some(c)) => { im.image = icon(&sp, t); n.left = Val::Px(c.x - 8.); n.top = Val::Px(c.y - 8.); *v = Visibility::Inherited; } _ => *v = Visibility::Hidden } } }
@@ -119,6 +126,7 @@ pub fn update(g: Res<Game>, sp: Res<Sprites>, time: Res<Time>, win: Query<&Windo
     if let Some(c) = cur { if c.distance(still.0) > 3. { *still = (c, now); } }
     let busy = mouse.pressed(MouseButton::Left) || mouse.pressed(MouseButton::Right);
     let tip: Option<(Vec2, String, String)> = match (cur, hov.and_then(|(_, k)| g.slots[k])) {
+        (Some(c), None) if hov.is_none() && g.held.is_none() && vrow(c).is_some() => vrow(c).map(|r| { let (a, b) = crate::vitals::tip(w, r); (c, a, b) }),
         (Some(c), Some(th)) if g.held.is_none() => Some((c, match thing_count(&g, th) { Some(n) => format!("{}  ({})", thing_name(&g, th), n.min(9999)), None => thing_name(&g, th) }, { let c = crate::thing_controls(th); if c.is_empty() { crate::thing_desc(th).to_string() } else { format!("{}\n{}", crate::thing_desc(th), c) } })),
         (Some(c), None) if hov.is_none() && !busy && now - still.1 > 0.35 && !g.inv_open => g.aim.and_then(|(x, y, _)|
             molehill_sim::tips::describe(w, x, y).map(|t| (c, t.name, t.lines.join("\n")))),
@@ -137,7 +145,8 @@ pub fn update(g: Res<Game>, sp: Res<Sprites>, time: Res<Time>, win: Query<&Windo
                     n.top = if fy { Val::Auto } else { Val::Px(cp.y + 16.) }; n.bottom = if fy { Val::Px(wh - cp.y + 10.) } else { Val::Auto };
                     n.max_width = Val::Px(280.); *v = Visibility::Inherited; }
                 None => *v = Visibility::Hidden },
-            Lbl::Quest => set(&mut t, if w.quest < QUESTS.len() { format!("{}{}", QUESTS[w.quest].text, if w.quest_done(w.quest) { "  (done)" } else { "" }) } else { String::new() }),
+            Lbl::Quest => set(&mut t, if w.quest < QUESTS.len() { format!("{}{}", QUESTS[w.quest].text, crate::vitals::quest_progress(w)) } else { String::new() }),
+            Lbl::Note(k) => set(&mut t, crate::vitals::note(w, k)),
             Lbl::Toast => { let live: Vec<&(String, f32)> = g.toasts.iter().filter(|(_, t0)| now - t0 < 4.).collect();
                 set(&mut t, live.iter().map(|(m, _)| m.as_str()).collect::<Vec<_>>().join("\n"));
                 let age = live.last().map_or(9., |(_, t0)| now - t0); c.0 = INK.with_alpha((4. - age).clamp(0., 1.)); }
