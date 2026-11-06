@@ -77,6 +77,9 @@ One row per item in the item registry (`ITEM_DEFS` in `craft.rs`, read through `
 | Chute, shaker screen, bumper, riffle bar | left mouse (brush) | no | no (dig it; a chute, bumper or riffle bar gives wood back) |
 | Iron shaft, gear, water wheel, belt | left mouse (brush; `X` snaps a shaft's straight run); a belt runs the way you face as it is laid, and right mouse turns a run round | no | no (dig it; a gear, wheel or belt gives wood back) |
 | Counterweight | left mouse: hang the drum under a roof over a drop, joined to the drive | no | yes (`E` takes it down) |
+| Boiler | left mouse: stand it in a sump or by water; drop coal, charcoal or wood on it to feed it | no | `E` rakes out its fuel, then picks it up |
+| Steam engine, steam pipe | left mouse (brush; `X` snaps a pipe's straight run): an engine against a boiler or at a pipe's end, joined to a shaft, gear or belt | no | no (dig it) |
+| Ash, slag | what a boiler leaves at its ash door: haul it off (ash is light, so water washes it away and a screen lets it through) | yes | yes |
 | Ore hopper | left mouse over the track: both legs need a floor | no | `E` empties its load into the pack, then picks up the empty hopper |
 | Tube hopper | left mouse on a tube (drop items in to send; right mouse: ride, or pick where it sends) | no | yes |
 | Lift | left mouse in a shaft: the head hangs under its ceiling (right mouse on head or cage: stone ballast on or off) | no | yes, with its ballast |
@@ -222,6 +225,9 @@ Chains are short: nothing is more than two steps from the ground (ore → ingot 
 | | 4 shaker screen | 1 iron ingot + 1 wood |
 | | 8 iron shaft | 1 iron ingot |
 | | counterweight | 4 iron ingots + 2 wood |
+| | boiler | 4 iron ingots + 6 brick |
+| | 4 steam engine | 3 iron ingots + 1 copper ingot |
+| | 8 steam pipe | 1 copper ingot |
 | | lamp | 1 glass + 2 fungus |
 | | 8 masonry wall | 2 brick |
 | | 4 pipe wall | 1 copper ingot |

@@ -8,7 +8,7 @@ Every item has its own drawing. No two share a silhouette, and none is another i
 
 ![Every item's pack icon, then every device as the hotbar shows it](images/item-icons.png)
 
-The sheet shows all 81 items, then the 21 devices.
+The sheet shows the first 81 items, then the 21 devices. The coal-power items (boiler, steam engine, steam pipe, ash, slag) are not on it yet.
 
 The pack, the hotbar, the item in the mole's paws and anything lying loose all use the icon (a loose item is drawn at half size). Devices in the hotbar use their own in-world sprite (`devart::hotbar_icon`, switched off), so a lever, a plate and a floodgate no longer share one placeholder. The fuse and the pressure plate are the exceptions: in the world each is a thin strip along the floor of its block, so the hotbar shows a coil of fuse cord and the plate seen from above at an angle.
 
@@ -88,6 +88,11 @@ The pack, the hotbar, the item in the mole's paws and anything lying loose all u
 | Water wheel | a paddle wheel dipping into blue water | placed cells: a one-metre wheel per metre of block, a bright rim and four spokes ending in pale paddles that turn with its train over a darker boarded disc |
 | Belt | a fibre belt over two rollers, stitching along it | placed cells: woven fibre on top with stitched chevrons pointing the way it carries and sliding that way while it runs; under the fabric, wooden rollers with a turning spoke |
 | Counterweight | a rope drum over a hanging iron weight | its drum cell ticks between rope and iron as it turns; the rope pays out as twisted fibre down to a cast-iron weight hanging on its eye (`art::weight`) |
+| Boiler | a brick firebox with a glowing door under a riveted iron drum | boiler shell cells |
+| Steam engine | an iron cylinder and a crank wheel | placed cells |
+| Steam pipe | a copper pipe with a flanged joint and a wisp of steam | placed cells |
+| Ash | a soft grey heap with paler flecks | loose item (the icon) |
+| Slag | a dark glassy clinker with bubbles | loose item (the icon) |
 | Ore hopper | a timber bin heaped with ore, tapering to a spout, on splayed legs | ore hopper sprite: back boards, the heap tinted with what it holds, the front frame open over the heap, a boarded taper to an iron spout whose gate shows shut or swung open, two legs down to the floor (`art::ore_bin`) |
 | Rock wall | a rough slab of scraped host rock with tool marks | background lining |
 | Timber wall | boards standing on end, uneven tops, gaps between | background lining |
