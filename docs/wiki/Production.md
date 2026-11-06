@@ -68,6 +68,8 @@ Running water sorts what lies in it by how heavy it is for its size (`sluice.rs`
 * **Riffle bar** (`Mat::Riffle`, `Item::Riffle`): a low timber bar across a sluice floor. Lumps the water rolls along the bed fetch up behind it, while fines held up in the flow go over the top. Sand washed along as grains also collects behind riffles, so a riffled sluice wants clearing now and then, as a real one does.
 * **Water through screens:** a shaker screen's mesh lets water through (`water_through_screen`), so a screen can stand under a sluice or drain a wash.
 
+**Blasting ore frees it.** Ore and coal break into loose lumps of themselves (`crumbles_to` in the material table), in a blast or a cave-in alike, so the rubble a sluice washes still has its ore. Before, they crumbled to gravel and a blast destroyed the ore it broke (scenario `blast_ore_leaves_ore`). Loose ore still needs its tool to dig by hand (a drill for iron), but an ore hopper takes rubble poured into it.
+
 A sluice is a sloping channel, rock or timber rather than a slippery chute, with riffle bars along it and water running down it from a pocket or a breach. Scenarios:
 * `sluice_sorts`: a reservoir drains down a stepped 1-in-4 channel with a riffle at the foot of each step. Gravel, coal and sand tipped in at the top are carried into the tailings pond. Copper ore, iron ore and stone settle in the riffle traps, both copper ores behind the first bar.
 * `sluice_washes_rubble`: after a blast, the same channel without riffles has heaps of loose rubble on two steps. Every grain of sand and gravel is washed into the pond, and the iron ore stays where it lay.

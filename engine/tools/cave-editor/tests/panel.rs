@@ -69,7 +69,8 @@ fn keys_do_what_the_panel_says() {
     let i = e.pal_cur(); e.key("."); assert_eq!(e.pal_cur(), i + 1); e.key(","); assert_eq!(e.pal_cur(), i);
     e.key(","); e.key(","); let n = e.pal_len(); for _ in 0..n { e.key("."); } assert_eq!(e.pal_cur(), (i + n - 2) % n, "the palette wraps");
     let b = e.brush; e.key("]"); assert_eq!(e.brush, b + 0.5); e.key("[");
-    e.key("b"); e.key("B"); assert_eq!(e.var, 17); e.key("V"); e.key("v"); assert_eq!(e.var, 0); e.key("v"); assert_eq!(e.var, 0, "var stops at 0");
+    e.key("b"); e.key("B"); assert_eq!(e.var, 257); e.key("V"); e.key("v"); assert_eq!(e.var, 0); e.key("v"); assert_eq!(e.var, 0, "var stops at 0");
+    let d = e.depth; e.key("e"); assert_ne!(e.depth, d); e.key("e"); e.key("e"); assert_eq!(e.depth, d, "depth cycles");
     e.key("n"); assert!(e.left);
     e.key("p"); assert!(matches!(e.overlay, Overlay::Stress(_))); e.key("esc"); assert!(matches!(e.overlay, Overlay::None));
     e.key("f"); assert!(e.fit);
@@ -104,4 +105,21 @@ fn a_stroke_is_one_undo_and_unsaved_work_is_guarded() {
     e.press(70, 100, Press::Right); assert_eq!(e.doc.file.things.len(), n);
     e.key("c"); e.press(70, 300, Press::Left); assert_eq!(e.doc.file.chest, Some([70, 300]));
     e.press(1, 1, Press::Right); assert_eq!(e.doc.file.chest, None);
+}
+
+/// With a flipped variant previewed, the canvas shows the piece mirrored and a stroke lands where the
+/// template has that spot (the file is never stored flipped); the panel says what varied.
+#[test]
+fn a_flipped_preview_paints_the_template() {
+    let mut e = Editor::new(4).unwrap(); // fossil
+    let t = e.doc.template().unwrap();
+    let v = (1..400u32).map(|i| i << 8).find(|&v| t.mirrored(v)).unwrap();
+    e.run(Act::Var(v as i64));
+    let slots = e.slot_choices(&e.doc.template().unwrap());
+    assert!(slots.iter().any(|(k, o)| k == "varied" && o.contains("flipped")), "{slots:?}");
+    e.run(Act::Pal(e.mats.iter().position(|&m| m == Some(Mat::Basalt)).unwrap()));
+    e.press(20, 60, Press::Left); e.release();
+    let t = e.doc.template().unwrap();
+    assert_eq!(t.cell(t.w - 1 - 20, 60, 0, false), Some(Mat::Basalt), "painted on the template's own side");
+    assert_eq!(t.placed_cell(20, 60, e.placement()), Some(Mat::Basalt), "and shown where it was painted");
 }

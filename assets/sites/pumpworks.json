@@ -351,5 +351,6 @@
   "connectors": [
     {"tag":"entrance","side":"west","at":136,"len":16},
     {"tag":"entrance","side":"east","at":136,"len":16}
-  ]
+  ],
+  "variation": {"mirror":true}
 }

@@ -11,7 +11,7 @@ use molehill_sim::craft::ITEMS;
 use molehill_sim::logic::Dev;
 use molehill_sim::mat::{Mat, CPM, NMAT};
 use molehill_sim::sites::Kind;
-use molehill_sim::templates::{self, default_char, rle_decode, rle_encode, SiteFile, Template, ThingDef, FAMILIES, HOST};
+use molehill_sim::templates::{self, default_char, rle_decode, rle_encode, Placement, SiteFile, Template, ThingDef, FAMILIES, HOST};
 use molehill_sim::walls::{Wall, NWALL};
 use molehill_sim::world::World;
 
@@ -185,14 +185,14 @@ impl Doc {
 /// A piece stamped alone in solid granite, as the found-places test and `sitewalk` do.
 pub struct Stamped { pub w: World, pub x0: usize, pub y0: usize, pub chest: Option<(usize, usize)> }
 const M: usize = 2 * CPM;
-pub fn stamp(t: &Template, var: u32, left: bool) -> Result<Stamped, String> {
+pub fn stamp(t: &Template, p: Placement) -> Result<Stamped, String> {
     let (ww, wh) = (((t.w + 4 * M + 127) / 64 * 64).max(1024), ((t.h + 6 * M + 127) / 64 * 64).max(512));
     let mut w = World::new(ww, wh, 1);
     w.disasters.enabled = false;
     let (x0, y0) = (64, wh - t.h - 3 * M);
     for y in y0 - M..y0 + t.h + M { for x in x0 - M..x0 + t.w + M { let i = w.g.idx(x, y); w.g.set(i, Mat::Granite); w.g.flags[i] = 0; } }
     w.tr.ladders.clear(); w.chests.clear(); w.torches.clear(); w.furniture.clear();
-    let chest = w.stamp_template(t, x0, y0, var, left, 0x51FE);
+    let chest = w.stamp_template(t, x0, y0, p, 0x51FE);
     Ok(Stamped { w, x0, y0, chest })
 }
 
@@ -205,8 +205,8 @@ pub struct Reach {
     pub ways_in: Vec<u32>,
     pub problems: Vec<String>,
 }
-pub fn reach(t: &Template, var: u32, left: bool) -> Result<Reach, String> {
-    let s = stamp(t, var, left)?;
+pub fn reach(t: &Template, p: Placement) -> Result<Reach, String> {
+    let s = stamp(t, p)?;
     let (bx0, by0, bw, bh) = (s.x0 - M / 2, s.y0 - M / 2, t.w + M, t.h + M);
     let (reg, sizes) = s.w.body_regions(bx0, by0, bw, bh);
     let mut edge = vec![false; sizes.len()]; let mut goal = vec![false; sizes.len()];
@@ -239,8 +239,8 @@ pub fn reach(t: &Template, var: u32, left: bool) -> Result<Reach, String> {
 }
 
 /// Which cells the stress solver says are over capacity (they crack and fall in play), box-relative.
-pub fn stress(t: &Template, var: u32, left: bool) -> Result<Vec<bool>, String> {
-    let mut s = stamp(t, var, left)?;
+pub fn stress(t: &Template, p: Placement) -> Result<Vec<bool>, String> {
+    let mut s = stamp(t, p)?;
     let fails = s.w.st.solve(&s.w.g);
     let mut over = vec![false; t.w * t.h];
     for i in fails { let (x, y) = (i as usize % s.w.g.w, i as usize / s.w.g.w);
@@ -251,8 +251,8 @@ pub fn stress(t: &Template, var: u32, left: bool) -> Result<Vec<bool>, String> {
 /// Run the piece for `ticks` with a mole standing in it (at the chest, else the middle of the floor):
 /// what it looks like after, and what happened.
 pub struct Sim { pub cells: Vec<Mat>, pub changed: usize, pub crumbled: u64, pub hp: f32, pub ticks: u32 }
-pub fn simulate(t: &Template, var: u32, left: bool, ticks: u32) -> Result<Sim, String> {
-    let mut s = stamp(t, var, left)?;
+pub fn simulate(t: &Template, p: Placement, ticks: u32) -> Result<Sim, String> {
+    let mut s = stamp(t, p)?;
     let read = |w: &World| -> Vec<Mat> { let mut v = Vec::with_capacity(t.w * t.h); for y in 0..t.h { for x in 0..t.w { v.push(w.g.get(s.x0 + x, s.y0 + y)); } } v };
     let before = read(&s.w);
     let (mx, my) = s.chest.unwrap_or((s.x0 + t.w / 2, s.y0 + t.h - CPM - 1));
@@ -270,27 +270,27 @@ pub fn simulate(t: &Template, var: u32, left: bool, ticks: u32) -> Result<Sim, S
 /// RGBA pixels for the piece as the variant shows it, one pixel per cell: materials in their table
 /// colour, host rock dark and hatched, the lining a dim back behind open cells, and markers for the
 /// chest and things.
-pub fn draw(t: &Template, var: u32, left: bool, sim: Option<&[Mat]>) -> Vec<u8> {
+pub fn draw(t: &Template, p: Placement, sim: Option<&[Mat]>) -> Vec<u8> {
     let mut px = vec![0u8; t.w * t.h * 4];
     for y in 0..t.h { for x in 0..t.w {
         let i = y * t.w + x;
-        let m = match sim { Some(c) => Some(c[i]), None => t.cell(x, y, var, left) };
+        let m = match sim { Some(c) => Some(c[i]), None => t.placed_cell(x, y, p) };
         let c: [u8; 3] = match m {
             None => if (x + y) % 6 == 0 { [40, 36, 34] } else { [26, 23, 22] },
-            Some(Mat::Empty) => match t.lining_with(x, y, var, left, molehill_sim::grid::hash3(x as u32, y as u32, 0x51FE)) {
+            Some(Mat::Empty) => match t.placed_lining(x, y, p, molehill_sim::grid::hash3(x as u32, y as u32, 0x51FE)) {
                 Some(w) => { let k = w.color(); [k[0] / 2 + 10, k[1] / 2 + 10, k[2] / 2 + 10] } None => [14, 12, 12] },
             Some(m) => molehill_sim::mat::PROPS[m as usize].color,
         };
         px[i * 4..i * 4 + 4].copy_from_slice(&[c[0], c[1], c[2], 255]);
     } }
-    draw_markers(t, var, left, &mut px);
+    draw_markers(t, p, &mut px);
     px
 }
 /// The chest and things as markers, over whatever is drawn (so a check's tint doesn't hide them).
-pub fn draw_markers(t: &Template, var: u32, left: bool, px: &mut [u8]) {
+pub fn draw_markers(t: &Template, p: Placement, px: &mut [u8]) {
     let mut dot = |x: i64, y: i64, r: i64, c: [u8; 3]| for yy in y - r..=y + r { for xx in x - r..=x + r {
         if xx >= 0 && yy >= 0 && (xx as usize) < t.w && (yy as usize) < t.h { let i = (yy as usize * t.w + xx as usize) * 4; px[i..i + 4].copy_from_slice(&[c[0], c[1], c[2], 255]); } } };
-    for th in t.things(var, left) {
+    for th in t.placed_things(p) {
         use molehill_sim::templates::Thing::*;
         match th {
             Torch { at } => dot(at[0] as i64, at[1] as i64, 1, [255, 200, 80]),
@@ -303,7 +303,7 @@ pub fn draw_markers(t: &Template, var: u32, left: bool, px: &mut [u8]) {
             SwitchOn { at } => dot(at[0] as i64, at[1] as i64, 1, [255, 255, 255]),
         }
     }
-    if let Some((cx, cy)) = t.chest(var, left) { dot(cx as i64, cy as i64, 3, [240, 190, 40]); }
+    if let Some((cx, cy)) = t.placed_chest(p) { dot(cx as i64, cy as i64, 3, [240, 190, 40]); }
 }
 
 /// Lay an overlay over drawn pixels: `tint` where `mask` is set, mixed by `a` (0..1).
@@ -332,7 +332,7 @@ pub enum Tool { Material, Lining, Thing, Chest }
 pub enum Overlay { None, Reach(Reach), Stress(Vec<bool>), Sim(Sim) }
 /// Everything a panel row or a key does.
 #[derive(Clone, Copy, PartialEq, Debug)]
-pub enum Act { Family(usize), Tool(Tool), Pal(usize), PalStep(i64), Var(i64), Side, Brush(f32), Reach, Stress, Simulate, Clear, Undo, Redo, Save, Fit }
+pub enum Act { Family(usize), Tool(Tool), Pal(usize), PalStep(i64), Var(i64), Side, Depth, Brush(f32), Reach, Stress, Simulate, Clear, Undo, Redo, Save, Fit }
 /// A panel row: its text, what clicking it does, and whether it shows as the current choice.
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct PanelRow { pub text: String, pub act: Option<Act>, pub on: bool }
@@ -342,6 +342,8 @@ pub enum Press { Left, LeftHeld, Right }
 
 pub struct Editor {
     pub fam: usize, pub doc: Doc, pub var: u32, pub left: bool, pub tool: Tool,
+    /// the depth (m) the preview places the piece at (depth remaps)
+    pub depth: f32,
     pub mat_i: usize, pub wall_i: usize, pub thing_i: usize, pub brush: f32,
     pub overlay: Overlay, pub msg: String,
     /// the canvas needs redrawing / the view refitting (the window clears these)
@@ -358,11 +360,17 @@ impl Editor {
         let mut mats = vec![None]; mats.extend(paint_mats().into_iter().map(Some));
         let mut walls = vec![None]; walls.extend(paint_walls().into_iter().map(Some));
         let mat_i = mats.iter().position(|m| *m == Some(Mat::Rock)).unwrap_or(0);
-        Ok(Editor { fam, doc, var: 0, left: false, tool: Tool::Material, mat_i, wall_i: 1, thing_i: 0, brush: 2., overlay: Overlay::None,
+        Ok(Editor { fam, doc, var: 0, left: false, depth: DEPTHS[1], tool: Tool::Material, mat_i, wall_i: 1, thing_i: 0, brush: 2., overlay: Overlay::None,
             msg: "Opened. Paint with the left mouse; the right mouse picks or removes.".into(), redraw: true, fit: true, save_dir: sites_dir(),
             stroke: false, discard: None, mats, walls, things: thing_kinds() })
     }
     pub fn kind(&self) -> Kind { families()[self.fam] }
+    /// How the preview places the piece: the variant, the side and the depth.
+    pub fn placement(&self) -> Placement { Placement { var: self.var, left: self.left, depth: self.depth } }
+    /// A canvas column in the template's own cells (a flipped preview is painted where the template has it).
+    fn to_template(&self, x: usize) -> usize {
+        match self.doc.template() { Ok(t) if t.mirrored(self.var) => t.w - 1 - x.min(t.w - 1), _ => x }
+    }
     pub fn pal_len(&self) -> usize { match self.tool { Tool::Material | Tool::Chest => self.mats.len(), Tool::Lining => self.walls.len(), Tool::Thing => self.things.len() } }
     pub fn pal_cur(&self) -> usize { match self.tool { Tool::Material | Tool::Chest => self.mat_i, Tool::Lining => self.wall_i, Tool::Thing => self.thing_i } }
     fn set_pal(&mut self, i: usize) { match self.tool { Tool::Material | Tool::Chest => self.mat_i = i, Tool::Lining => self.wall_i = i, Tool::Thing => self.thing_i = i } }
@@ -394,16 +402,17 @@ impl Editor {
             Act::PalStep(d) => { let n = self.pal_len().max(1) as i64; let i = (self.pal_cur() as i64 + d).rem_euclid(n) as usize; self.set_pal(i); }
             Act::Var(d) => { self.var = (self.var as i64 + d).clamp(0, (1 << 20) - 1) as u32; self.overlay = Overlay::None; self.redraw = true; }
             Act::Side => { self.left = !self.left; self.overlay = Overlay::None; self.redraw = true; }
+            Act::Depth => { let i = DEPTHS.iter().position(|&d| d == self.depth).map_or(0, |i| (i + 1) % DEPTHS.len()); self.depth = DEPTHS[i]; self.overlay = Overlay::None; self.redraw = true; }
             Act::Brush(d) => self.brush = (self.brush + d).clamp(0.5, 24.),
             Act::Reach | Act::Stress | Act::Simulate => {
                 let t = match self.doc.template() { Ok(t) => t, Err(e) => { self.msg = e; return; } };
                 let r = match a {
-                    Act::Reach => reach(&t, self.var, self.left).map(|r| {
-                        self.msg = if r.problems.is_empty() { format!("Walkable: every way in reaches the {} (green; orange is open space the mole can't get to). Gravity is ignored: G runs it for real.", if t.chest(self.var, self.left).is_some() { "chest" } else { "floor" }) } else { r.problems.join(" / ") };
+                    Act::Reach => reach(&t, self.placement()).map(|r| {
+                        self.msg = if r.problems.is_empty() { format!("Walkable: every way in reaches the {} (green; orange is open space the mole can't get to). Gravity is ignored: G runs it for real.", if t.placed_chest(self.placement()).is_some() { "chest" } else { "floor" }) } else { r.problems.join(" / ") };
                         Overlay::Reach(r) }),
-                    Act::Stress => stress(&t, self.var, self.left).map(|o| { let n = o.iter().filter(|&&b| b).count();
+                    Act::Stress => stress(&t, self.placement()).map(|o| { let n = o.iter().filter(|&&b| b).count();
                         self.msg = if n == 0 { "Sound: nothing over capacity.".into() } else { format!("{n} cells over capacity (red): they crack and fall in play.") }; Overlay::Stress(o) }),
-                    _ => simulate(&t, self.var, self.left, 600).map(|s| {
+                    _ => simulate(&t, self.placement(), 600).map(|s| {
                         self.msg = format!("After 10 s with a mole at the chest: {} cells changed, {} crumbled, hp {:.0}.", s.changed, s.crumbled, s.hp); Overlay::Sim(s) }),
                 };
                 match r { Ok(o) => { self.overlay = o; self.redraw = true; } Err(e) => self.msg = e }
@@ -424,7 +433,7 @@ impl Editor {
             "1" | "2" | "3" | "4" | "5" | "6" | "7" => Act::Family(k.parse::<usize>().unwrap() - 1),
             "m" => Act::Tool(Tool::Material), "l" => Act::Tool(Tool::Lining), "t" => Act::Tool(Tool::Thing), "c" => Act::Tool(Tool::Chest),
             "[" => Act::Brush(-0.5), "]" => Act::Brush(0.5), "," => Act::PalStep(-1), "." => Act::PalStep(1),
-            "v" => Act::Var(-1), "b" => Act::Var(1), "V" => Act::Var(-16), "B" => Act::Var(16), "n" => Act::Side,
+            "v" => Act::Var(-1), "b" => Act::Var(1), "V" => Act::Var(-256), "B" => Act::Var(256), "n" => Act::Side, "e" => Act::Depth,
             "r" => Act::Reach, "p" => Act::Stress, "g" => Act::Simulate, "esc" => Act::Clear, "f" => Act::Fit,
             "^s" => Act::Save, "^z" => Act::Undo, "^Z" | "^y" => Act::Redo,
             _ => return,
@@ -454,11 +463,12 @@ impl Editor {
             for i in first..(first + PALETTE_ROWS).min(n) { row(format!("{} {}", if i == cur { ">" } else { " " }, self.pal_label(i)), Some(Act::Pal(i)), i == cur); }
         } else { row("Left sets the chest, right removes it.".into(), None, false); }
         row(String::new(), None, false);
-        row(format!("V / B  variant var = {}   (Shift: 16)", self.var), None, false);
+        row(format!("V / B  variant var = {}   (Shift: 256)", self.var), None, false);
         row("      -1".into(), Some(Act::Var(-1)), false);
         row("      +1".into(), Some(Act::Var(1)), false);
         row(format!("N  side: {}", if self.left { "west (left)" } else { "east" }), Some(Act::Side), self.left);
         for (name, opt) in slots { row(format!("      {name}: {opt}"), None, false); }
+        row(format!("E  depth {:.0} m (remaps)", self.depth), Some(Act::Depth), false);
         row(String::new(), None, false);
         row("R  can the mole walk it?".into(), Some(Act::Reach), matches!(self.overlay, Overlay::Reach(_)));
         row("P  will it stand? (stress)".into(), Some(Act::Stress), matches!(self.overlay, Overlay::Stress(_)));
@@ -483,6 +493,7 @@ impl Editor {
     /// The mouse on the canvas at cell (x, y).
     pub fn press(&mut self, x: usize, y: usize, p: Press) {
         let (var, left) = (self.var, self.left);
+        let x = self.to_template(x);
         match (self.tool, p) {
             (Tool::Material | Tool::Lining, Press::Left | Press::LeftHeld) => {
                 if p == Press::Left || !self.stroke { self.doc.begin(); self.stroke = true; }
@@ -504,12 +515,18 @@ impl Editor {
     pub fn release(&mut self) { self.stroke = false; }
     /// The variant's slot choices, for the panel: (slot, option) names.
     pub fn slot_choices(&self, t: &Template) -> Vec<(String, String)> {
-        t.file.slots.iter().map(|s| { let o = s.pick.choose(self.var, self.left).min(s.options.len() - 1); (s.name.clone(), s.options[o].name.clone()) }).collect()
+        let mut v: Vec<(String, String)> = t.file.slots.iter().map(|s| { let o = s.pick.choose(self.var, self.left).min(s.options.len() - 1); (s.name.clone(), s.options[o].name.clone()) }).collect();
+        // the seeded variation (from var 256 up), as the game would place it
+        let mut on = vec![];
+        if t.mirrored(self.var) { on.push("flipped".to_string()); }
+        for (z, zone) in t.variation.zones.iter().enumerate() { if t.zone_on(z, self.var) { on.push(zone.tag.clone()); } else if zone.tag == "chest" && self.var >= templates::VARY_FROM { on.push("no chest".into()); } }
+        if !t.variation.is_empty() { v.push(("varied".into(), if self.var < templates::VARY_FROM { "no (var under 256)".into() } else if on.is_empty() { "nothing this time".into() } else { on.join(", ") })); }
+        v
     }
     /// The canvas pixels with the current check laid over.
     pub fn pixels(&self, t: &Template) -> Vec<u8> {
         let sim = if let Overlay::Sim(s) = &self.overlay { Some(s.cells.as_slice()) } else { None };
-        let mut px = draw(t, self.var, self.left, sim);
+        let mut px = draw(t, self.placement(), sim);
         match &self.overlay {
             Overlay::Reach(r) => {
                 overlay(&mut px, r.region.iter().map(|&k| k != 0 && r.ways_in.contains(&k)), [80, 220, 120], 0.35);
@@ -518,12 +535,14 @@ impl Editor {
             Overlay::Stress(o) => overlay(&mut px, o.iter().copied(), [255, 40, 40], 0.75),
             _ => {}
         }
-        draw_markers(t, self.var, self.left, &mut px);
+        draw_markers(t, self.placement(), &mut px);
         px
     }
 }
+/// Depths the preview cycles through with `E` (metres; the wet up, the holt layers, the hot deep).
+pub const DEPTHS: [f32; 3] = [10., 50., 80.];
 /// Palette entries shown at once, and message lines kept.
-pub const PALETTE_ROWS: usize = 11;
+pub const PALETTE_ROWS: usize = 9;
 pub const MSG_ROWS: usize = 4;
 fn wrap(s: &str, width: usize) -> Vec<String> {
     let mut out = vec![]; let mut line = String::new();
@@ -533,7 +552,8 @@ fn wrap(s: &str, width: usize) -> Vec<String> {
 }
 /// The longest the panel gets (the halt and mine have the most slot rows), against the rows the window has.
 pub fn panel_fits() -> bool {
-    let slots = vec![(String::new(), String::new()); 3];
+    // the most slot rows any piece shows (the mine's three) and the variation row
+    let slots = vec![(String::new(), String::new()); 4];
     let mut e = Editor::new(0).unwrap();
     e.msg = "x ".repeat(200);
     let n = e.rows(&slots).len();

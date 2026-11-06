@@ -2,7 +2,7 @@
 use molehill_cave_editor::*;
 use molehill_sim::mat::Mat;
 use molehill_sim::sites::Kind;
-use molehill_sim::templates::{self, Template};
+use molehill_sim::templates::{self, Placement, Template};
 use molehill_sim::walls::Wall;
 
 #[test]
@@ -81,24 +81,24 @@ fn a_save_is_canonical_marked_as_the_editors_and_loads_back() {
 #[test]
 fn checks_run_the_real_sim() {
     for &k in &families() {
-        let r = reach(templates::get(k), 3, false).unwrap();
+        let r = reach(templates::get(k), Placement { var: 3, left: false, depth: 50. }).unwrap();
         assert!(r.problems.is_empty(), "{k:?}: {:?}", r.problems);
         assert!(!r.ways_in.is_empty() && r.region.iter().any(|&g| g != 0));
     }
-    let over = stress(templates::get(Kind::Fossil), 0, false).unwrap();
+    let over = stress(templates::get(Kind::Fossil), Placement { var: 0, left: false, depth: 50. }).unwrap();
     assert!(over.iter().filter(|&&b| b).count() < 40, "the fossil beast lies on its floor and stands");
     // a 9 m clay slab painted in the fossil cave's air, touching nothing, can't stand
     let mut d = Doc::open(Kind::Fossil).unwrap();
     d.begin();
     for x in 100..170 { d.paint(x, 60, 2., Brush::Mat(Some(Mat::Clay))); }
     let t = d.template().unwrap();
-    assert!(stress(&t, 0, false).unwrap().iter().filter(|&&b| b).count() > 100, "a floating clay slab is over capacity");
+    assert!(stress(&t, Placement { var: 0, left: false, depth: 50. }).unwrap().iter().filter(|&&b| b).count() > 100, "a floating clay slab is over capacity");
     // and sealing the salt hall's mouths cuts the way to the chest
     let mut d = Doc::open(Kind::Crystal).unwrap();
     d.begin();
     for y in 0..d.h as i64 { d.paint(d.w as i64 / 2, y, 3., Brush::Mat(Some(Mat::Granite))); }
-    assert!(!reach(&d.template().unwrap(), 0, false).unwrap().problems.is_empty(), "a wall across the hall is caught");
-    let s = simulate(templates::get(Kind::Pumpworks), 0, false, 120).unwrap();
+    assert!(!reach(&d.template().unwrap(), Placement { var: 0, left: false, depth: 50. }).unwrap().problems.is_empty(), "a wall across the hall is caught");
+    let s = simulate(templates::get(Kind::Pumpworks), Placement { var: 0, left: false, depth: 50. }, 120).unwrap();
     assert_eq!(s.cells.len(), s.cells.len());
     assert!(s.hp > 90., "the mole stands by the pumpworks chest unhurt: {}", s.hp);
 }
@@ -106,7 +106,7 @@ fn checks_run_the_real_sim() {
 #[test]
 fn drawing_fills_every_pixel() {
     let t = templates::get(Kind::Halt);
-    let px = draw(t, 0, true, None);
+    let px = draw(t, Placement { var: 0, left: true, depth: 50. }, None);
     assert_eq!(px.len(), t.w * t.h * 4);
     assert!(px.chunks(4).all(|p| p[3] == 255));
 }

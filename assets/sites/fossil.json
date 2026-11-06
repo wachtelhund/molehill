@@ -279,5 +279,11 @@
   "connectors": [
     {"tag":"entrance","side":"west","at":96,"len":24},
     {"tag":"entrance","side":"east","at":96,"len":24}
-  ]
+  ],
+  "variation": {
+    "mirror": true,
+    "remap": [
+      {"from":"Rock","to":"Basalt","deeper_than":60}
+    ]
+  }
 }

@@ -1,0 +1,17 @@
+// A blast in an ore seam breaks the ore into loose ore, not gravel: rubble a sluice or an ore hopper can recover
+// (before the fix every broken ore cell crumbled to gravel and the ore was lost).
+map
+########################################
+#......................................#
+#......................................#
+#..........rrrrrrrrrrrrrrr.............#
+#..........rriiiiiiiiiiirr.............#
+#..........rriiiiiiiiiiirr.............#
+#..........rriiiiiiiiiiirr.............#
+#.@........rrrrrrrrrrrrrrr.............#
+########################################
+end
+explode 5 13 -2 0.5
+expect 4 static:IronOre == 33
+expect 400 static:IronOre < 10                 // most of the seam broken...
+expect 400 count:IronOre > 18                  // ...and over half of it lies about as loose ore
