@@ -44,6 +44,22 @@ pub fn in_start_zone(w: usize, x: usize, wy: i64) -> bool { near_start(w, x, wy,
 pub fn near_start(w: usize, x: usize, wy: i64, r: f32) -> bool {
     let (dx, dy) = ((x as f32 - (w / 2) as f32) / CPM as f32, wy as f32 / CPM as f32); dx * dx + dy * dy < r * r
 }
+/// The settled ground round the burrow, where a new holt digs its first tunnels: within SETTLED.0 m the
+/// generator lays down fewer and smaller loose lenses (sand, gravel), soaks none of them, and cements the sand
+/// facing an open cave into sandstone, so early tunnels don't run into a steady rain of loose ground. It fades
+/// back to the ordinary ground by SETTLED.1 m. Deeper and further out the lenses stay, as the hazard they are.
+pub const SETTLED: (f32, f32) = (40., 70.);
+/// Metres under the burrow floor, 3 m either side of its middle, kept free of water and lava pockets.
+pub const DRY_UNDER: usize = 6;
+/// How settled (cell x, wy) is: 1 within SETTLED.0 m of the burrow, easing to 0 at SETTLED.1 m.
+pub fn settled_at(w: usize, x: usize, wy: i64) -> f32 {
+    let (dx, dy) = ((x as f32 - (w / 2) as f32) / CPM as f32, wy as f32 / CPM as f32);
+    let t = (((dx * dx + dy * dy).sqrt() - SETTLED.0) / (SETTLED.1 - SETTLED.0)).clamp(0., 1.); 1. - t * t * (3. - 2. * t)
+}
+/// Loose lenses form where the lens noise is above LENS.0, plus LENS.1 in the upper layers (effective depth
+/// under 10 m: fewer lenses where the early tunnels go), plus LENS.2 × how settled the spot is. Soaked
+/// (aquifer) lenses need LENS.3 more.
+pub const LENS: (f32, f32, f32, f32) = (0.67, 0.012, 0.14, 0.04);
 /// A pickaxe-diggable stand-in for harder ground (strong stone stays strong: granite becomes limestone).
 pub fn soften(m: Mat) -> Mat {
     if m == Mat::Bedrock || m.p().tier <= 1 { return m; }
@@ -250,7 +266,9 @@ impl Gen {
             else if dd < 30. { if self.biome[x] == Biome::Crags && dd >= 15. { Mat::Granite } else if n2.fbm(fx + 300., fy, 70., 3) > 0.55 { Mat::Rock } else { Mat::Limestone } }
             else if dd < 70. { if n2.fbm(fx + 300., fy, 70., 3) > 0.5 { Mat::Granite } else { Mat::Rock } }
             else if self.biome[x] == Biome::Ashlands || n2.at(fx / 50., fy / 50.) > 0.3 { Mat::Basalt } else { Mat::Granite }; // the deep is mostly basalt
-        if dd < 35. { let l = n2.fbm(fx, fy * 3., 50., 3); if l > 0.67 { m = if n1.at(fx / 30., fy / 30.) > 0.5 { Mat::Gravel } else { Mat::Sand }; if l > 0.71 { fl |= F_WET; } } }
+        if dd < 35. { let l = n2.fbm(fx, fy * 3., 50., 3); let calm = settled_at(w, x, wy);
+            let at = LENS.0 + if dd < 10. { LENS.1 } else { 0. } + LENS.2 * calm;
+            if l > at { m = if n1.at(fx / 30., fy / 30.) > 0.5 { Mat::Gravel } else { Mat::Sand }; if l > at + LENS.3 && calm < 0.5 { fl |= F_WET; } } }
         let vein = |nn: &Noise, sc: f32, sal: f32| (nn.fbm(fx + sal, fy * 1.3, sc, 3) - 0.5).abs();
         if m != Mat::Sand && m != Mat::Gravel {
             if dd > -20. && dd < 9. && vein(&self.n1, 70., 11.) < 0.018 { m = Mat::Coal; } // coal never forms where lava runs
@@ -296,11 +314,18 @@ impl Gen {
         for y in y0..y1 { for x in 0..w { let i = y * w + x; let wy = oy + y as i64;
             if g.mat[i] == Mat::Lava as u8 && near_start(w, x, wy, START_SAFE + 10.) { g.mat[i] = Mat::Water as u8; } // (10 m spare: no lava can run in while the world settles)
             else if in_start_zone(w, x, wy) { g.mat[i] = soften(Mat::from_u8(g.mat[i])) as u8; } } }
-        // unsupported sand at gen time turns to sandstone
+        // unsupported sand at gen time turns to sandstone; in the settled ground round the burrow so does sand
+        // within a metre of open cave (a natural cave wall there doesn't pour into the first tunnels)
+        let r = CPM as i64;
         for y in (y0..y1).rev() { if y + 1 >= g.h { continue; } for x in 1..w - 1 {
             let i = y * w + x; if g.mat[i] != Mat::Sand as u8 { continue; }
             let ok = |j: usize| { let m = Mat::from_u8(g.mat[j]); m.kind() == crate::mat::Kind::Solid || m == Mat::Sand };
-            if !(ok(i + w) && ok(i + w - 1) && ok(i + w + 1)) { g.mat[i] = Mat::Rock as u8; }
+            if !(ok(i + w) && ok(i + w - 1) && ok(i + w + 1)) { g.mat[i] = Mat::Rock as u8; continue; }
+            if settled_at(w, x, oy + y as i64) > 0.5 {
+                let near_open = (-r..=r).step_by(S).any(|dy| (-r..=r).step_by(S).any(|dx| { let (xx, yy) = (x as i64 + dx, y as i64 + dy);
+                    xx >= 0 && yy >= y0 as i64 && (xx as usize) < w && (yy as usize) < y1 && Mat::from_u8(g.mat[yy as usize * w + xx as usize]).passable() }));
+                if near_open { g.mat[i] = Mat::Rock as u8; }
+            }
         } }
     }
     /// Chest sites in a CHEST_BAND-row (32 m) band (deterministic): (x, absolute row).
@@ -327,6 +352,9 @@ pub fn generate(g: &mut Grid, seed: u32, oy: i64) -> (Gen, GenInfo) {
     let sx = w / 2; let cy1 = (-oy) as usize; // window row of the starting layer
     let (cx0, cx1, cy0) = (sx - 15 * S, sx + 15 * S, cy1 - 12 * S);
     for y in cy0 - 6 * S..cy1 + 6 * S { for x in cx0 - 8 * S..=cx1 + 8 * S { let i = y * w + x; if g.mat[i] == Mat::Water as u8 || g.mat[i] == Mat::Lava as u8 { g.mat[i] = Mat::Clay as u8; } } }
+    // ...and the dig-down column under the burrow is dry for DRY_UNDER m: a held S doesn't drain a pocket into
+    // the shaft and drop the Delver down it (the settled ground no longer leaves sand there to plug one)
+    for y in cy1..(cy1 + DRY_UNDER * CPM).min(h) { for x in sx - 3 * CPM..=sx + 3 * CPM { let i = y * w + x; if g.mat[i] == Mat::Water as u8 || g.mat[i] == Mat::Lava as u8 { g.mat[i] = Mat::Clay as u8; } } }
     // a domed burrow: the roof steps down toward the walls so no roof run spans more than a few cells
     let top = |x: usize| { let t = (x as f32 - sx as f32) / (15. * SF); cy0 + (12. * SF * t * t).round() as usize };
     for x in cx0 - 3 * S..=cx1 + 3 * S { let t = top(x.clamp(cx0, cx1)); for y in t.saturating_sub(5 * S)..t { g.mat[y * w + x] = Mat::Limestone as u8; } }

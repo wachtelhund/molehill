@@ -52,6 +52,14 @@ which works against early discovery. Next slice candidate.
 Tests: `the_drill_costs_a_first_hour_haul`, `the_bench_presses_oil_better_than_the_pack`.
 Scenario: `craft_oil_press`.
 
+## Polish after merge (#7)
+* Main after the merge is green: 97 tests, 180 scenarios, game and web build.
+* The bench press was invisible in play: only the recipe list showed it. The "last measure" warning and the
+  lamp-oil hover tip now say a workbench presses 3 fungus into 2 measures (scenario `survival_lamp_oil`
+  checks the line).
+* `site/` rebuilt with the oil press. While #7 was open it kept main's copy, because every merge of main
+  re-conflicted the wasm.
+
 ## Open
 * Waking after death: the lamp holds whatever is left, with no oil in the pack (above). Option: the burrow
   keeps a measure for whoever crawls back in (a stash, not magic), once per wake.

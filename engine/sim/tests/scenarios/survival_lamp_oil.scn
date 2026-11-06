@@ -40,6 +40,7 @@ expect 240 inv:Fungus == 0
 expect 240 oil > 178
 expect 240 log:pressed_2_fungus == 1
 expect 240 log:last_measure == 1     // pressed the last of it
+expect 240 log:a_workbench_presses_3_into_2 == 1   // and where to press more, better
 // nothing left to burn: the lamp goes out, and a torch won't light
 set 300 oil 0.5
 expect 340 lamp == 0
