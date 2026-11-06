@@ -144,6 +144,21 @@ Raw bills (`craft::raw_bill`, a coal per cold-forge job), against the ladder's d
   `the_smelter_is_patient_not_a_shortcut` (yield equal, coal lower, ≥ 3× slower, concentrate gated by iron,
   the smelter kit pickaxe-diggable). Ash and slag: still residue, uses later.
 
+## Stage 6 recipe costs (p9's rod linkages, main a066fc0)
+| item | from the ground |
+|---|---|
+| 2 float | 2 wood |
+| sluice gate | 4 wood, 1 stone |
+| 8 pull-rod / 2 tread plate | 2 iron ore, 2 coal each |
+| 2 clutch | 4 iron ore, 3 coal |
+| tipping scale | 4 iron ore, 3 copper ore, 1 tin ore, 2 wood, 6 coal |
+
+* First hour: untouched. The wooden parts (float, gate) unlock early but only work through iron rods, so the whole
+  kit is after the drill. That matches the shaft and screen: no loss, since nothing early wants them.
+* Mid-game: cheap automation. A float-and-gate water rig with 8 m of rod is 11 lumps and one iron ingot. No
+  cost changes; pinned by `rod_linkages_are_cheap_once_there_is_iron` (≤ 4 iron ore a part, nothing else past
+  the pickaxe, the rig ≤ 12 lumps and 2 iron ore).
+
 ## Open
 * Waking after death: the lamp holds whatever is left, with no oil in the pack (above). Option: the burrow
   keeps a measure for whoever crawls back in (a stash, not magic), once per wake.

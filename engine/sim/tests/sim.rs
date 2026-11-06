@@ -973,6 +973,20 @@ mod progression {
         for it in [Item::Smelter, Item::Bellows, Item::Mould, Item::Washer] { let b = raw_bill(it, 1);
             for (k, &n) in b.iter().enumerate() { assert!(n == 0 || pick(ITEMS[k]), "{it:?} needs {:?}, past the pickaxe", ITEMS[k]); } }
     }
+    /// Rod linkages (weight and water logic) are cheap automation once there's iron: the rods are iron, so it
+    /// comes after the drill, but a float, a sluice gate and 8 m of rod are a dozen lumps and one iron ingot, and
+    /// no part asks more than two ingots of iron. Nothing else in them is past the pickaxe.
+    #[test] fn rod_linkages_are_cheap_once_there_is_iron() {
+        use molehill_sim::mat::{Mat, NMAT};
+        let pick = |it: Item| (0..NMAT).any(|m| { let m = Mat::from_u8(m as u8); m.p().tier <= 1 && drop_of(m) == Some(it) });
+        for it in [Item::Float, Item::SluiceGate, Item::Rod, Item::TreadPlate, Item::Clutch, Item::Scale] { let b = raw_bill(it, 1);
+            assert!(b[Item::IronOre as usize] <= 4, "{it:?} takes {} iron ore", b[Item::IronOre as usize]);
+            for (k, &n) in b.iter().enumerate() { assert!(n == 0 || pick(ITEMS[k]) || ITEMS[k] == Item::IronOre, "{it:?} needs {:?}", ITEMS[k]); } }
+        let mut rig = raw_bill(Item::Float, 1);
+        for (it, n) in [(Item::SluiceGate, 1), (Item::Rod, 8)] { let b = raw_bill(it, n); for k in 0..NITEM { rig[k] += b[k]; } }
+        let total: u32 = rig.iter().sum();
+        assert!(rig[Item::IronOre as usize] == 2 && total <= 12, "a float-and-gate rig: {total} lumps, {rig:?}");
+    }
     /// Every metal made in Survival is wanted by something past it: bronze makes the drill, so no ingot is a dead end.
     #[test] fn bronze_makes_the_drill() {
         let drill = &RECIPES[recipe_by_name("Drill").unwrap()];
