@@ -309,6 +309,15 @@ pub fn icon_px(it: Item) -> Px {
             for x in 12..16 { let hw = 16 - x; for y in 8 - hw..8 + hw { p.set(x, y, if (x + y) % 2 == 0 { [196, 198, 210] } else { [110, 112, 124] }); } } // the bore head
             p.rect(0, 12, 12, 12, IRON_D);
             for cx in [3.5f32, 9.5] { p.oval(cx, 13., 2.6, 2.6, [56, 56, 64]); p.rect(cx as i32, 11, cx as i32, 15, [96, 96, 106]); p.rect(cx as i32 - 2, 13, cx as i32 + 2, 13, [96, 96, 106]); p.set(cx as i32, 13, BRASS); } }
+        StoreWagon | WorkshopWagon | BunkWagon | WaterWagon | CoalWagon => { // a body on two iron wheels, a coupling bar out front; what each holds on top
+            for cx in [4., 11.] { p.oval(cx, 13., 2.2, 2.2, IRON_D); p.set(cx as i32, 13, STONE); } p.rect(15, 9, 15, 10, IRON);
+            match it {
+                StoreWagon => { p.rect(1, 6, 14, 11, col); for x in [1, 7, 14] { p.rect(x, 6, x, 11, WOOD_D); } p.rect(3, 3, 6, 5, STONE); p.rect(8, 4, 12, 5, sh(col, 1.3)); }
+                WorkshopWagon => { p.rect(1, 6, 14, 11, col); poly(&mut p, &[(0., 6.), (7.5, 1.), (15., 6.)], WOOD_D); p.rect(5, 8, 10, 8, IRON); p.rect(7, 4, 8, 5, BRASS); }
+                BunkWagon => { p.rect(1, 6, 14, 11, col); p.oval(5., 6., 3.2, 1.5, sh(col, 1.35)); p.rect(2, 7, 13, 8, ROPE); p.rect(1, 3, 2, 6, WOOD_D); }
+                WaterWagon => { p.oval(7.5, 8., 6.8, 3.6, col); p.rect(2, 7, 13, 7, sh(col, 1.3)); for x in [4, 7, 11] { p.set(x, 9, IRON); } p.rect(6, 3, 8, 4, IRON_D); p.set(7, 5, [90, 140, 200]); }
+                _ => { poly(&mut p, &[(1., 5.), (14., 5.), (12., 11.), (3., 11.)], col); p.oval(5., 4.5, 2., 1.4, [36, 34, 34]); p.oval(9.5, 4., 2.2, 1.5, [52, 48, 46]); p.rect(2, 10, 3, 12, IRON); }
+            } }
         // ---- background linings: a piece of each, darker, as it sits behind
         RockWall => { // a rough slab of scraped host rock with tool marks
             poly(&mut p, &[(1., 3.), (6., 1.), (14., 2.), (15., 9.), (13., 15.), (3., 14.), (1., 9.)], sh(col, 0.85)); for y in [5, 9, 12] { line(&mut p, 3., y as f32, 11., y as f32 - 2., 1, sh(col, 0.6)); } }
@@ -337,7 +346,7 @@ pub fn world_form(it: Item) -> &'static str {
     match it {
         Planks | PolishedStone | Tiles | CarvedPillar | Rail | Tube | Chute | Screen | Bumper | Riffle | Shaft | Gear | WaterWheel | Belt | Engine | SteamPipe | Bellows | Mould | Rod | TreadPlate | Float | Clutch | WoodPillar | IronBeam | Brick | Glass => "placed cells",
         Torch => "torch flame", Lamp | Thrummer | Gate | Tnt | Vent => "device sprite", CopperWire => "copperline tile",
-        Cart => "cart sprite", RopeLadder => "rope ladder", HookRope => "rope chain and stone hook", RopeGun => "held rope gun (loaded or empty)", Lift => "lift cage", TubeHopper => "hopper mouth", OreHopper => "ore hopper bin", Counterweight => "counterweight on its drum", Boiler => "boiler shell cells", StampMill => "stamp mill shell cells", Washer => "washer shell cells", Smelter => "smelter shell cells", SluiceGate => "sluice gate cells", Scale => "scale pan cells", SteamBorer => "borer body, head and rider",
+        Cart => "cart sprite", RopeLadder => "rope ladder", HookRope => "rope chain and stone hook", RopeGun => "held rope gun (loaded or empty)", Lift => "lift cage", TubeHopper => "hopper mouth", OreHopper => "ore hopper bin", Counterweight => "counterweight on its drum", Boiler => "boiler shell cells", StampMill => "stamp mill shell cells", Washer => "washer shell cells", Smelter => "smelter shell cells", SluiceGate => "sluice gate cells", Scale => "scale pan cells", SteamBorer => "borer body, head and rider", StoreWagon | WorkshopWagon | BunkWagon | WaterWagon | CoalWagon => "wagon body on wheels",
         Mushroom | Spore => "mushroom plot (planted)",
         _ => "loose (icon)",
     }

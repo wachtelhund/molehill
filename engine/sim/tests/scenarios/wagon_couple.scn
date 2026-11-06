@@ -1,0 +1,65 @@
+// Coupling is physical. A store wagon stands loose in the tunnel a way behind a borer: nothing couples. The borer backs
+// up to it and its tail meets the wagon's front: clank, it couples on, and is shoved back as the borer backs on. E on
+// it (empty) uncouples it: the borer drives off without it, and the wagon stays where it was left. Backed up to again,
+// it couples again. Backed into the tunnel's end, the wagon can't go further, and the borer stops with it (the train is
+// stuck). Off the borer, E uncouples it and E again takes it up.
+map
+##################################################
+##################################################
+##################################################
+##################################################
+##################################################
+##################################################
+#.................................................
+#.................................................
+#.................................................
+#.................................................
+#...........@.....................................
+##################################################
+##################################################
+##################################################
+end
+give SteamBorer 1
+give StoreWagon 1
+give Coal 6
+hold 1-1 right
+place 2 8 0 SteamBorer
+place 3 -3 0 StoreWagon               // its front 4 tiles short of the borer's tail
+expect 8 wagons == 1
+expect 8 train == 0
+pour 9 3 -3 Water
+pour 9 4 -3 Water
+pour 9 5 -3 Water
+pour 9 6 -3 Water
+pour 9 7 -3 Water
+pour 9 8 -3 Water
+wield 10 Coal
+use 11 8 -1
+use 12 8 -1
+use 13 8 -1
+wield 14 none
+use 15 8 -1                           // on
+expect 200 borersteam > 2
+hold 220-420 left                     // back up into it
+expect 420 train == 1
+expect 420 log:couples == 1
+expect 420 wagonx < 9                 // shoved back from 9
+pickup 425 -5 0                       // E: uncouple
+expect 426 train == 0
+expect 426 log:Uncoupled == 1
+hold 430-700 right                    // drive off without it
+expect 700 borerx > 18
+expect 700 train == 0
+expect 700 wagonx < 9
+hold 710-1100 left                    // back up to it again: it couples again
+expect 1100 train == 1
+expect 1100 log:couples == 2
+hold 1100-1900 left                   // into the end of the tunnel
+expect 1900 wagonx > 2                // the wagon is at the wall...
+expect 1900 borerx > 9                // ...and the borer stopped behind it
+expect 1900 log:stuck >= 1
+hold 1905-1907 jump
+pickup 1920 -9 0                      // E: uncouple
+pickup 1925 -9 0                      // E: take it up
+expect 1926 wagons == 0
+expect 1926 inv:StoreWagon == 1

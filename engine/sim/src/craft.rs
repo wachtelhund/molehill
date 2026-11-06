@@ -33,10 +33,10 @@ pub enum Item {
     StampMill, Washer, Smelter, Bellows, Mould, CopperFines, TinFines, IronFines,
     // non-electric logic (linkage.rs): pull-rods, a tread plate, a float, a sluice gate, a tipping scale, a clutch
     Rod, TreadPlate, Float, SluiceGate, Scale, Clutch,
-    // the rideable steam borer (borer.rs)
-    SteamBorer,
+    // the rideable steam borer (borer.rs) and the wagons it hauls (wagon.rs)
+    SteamBorer, StoreWagon, WorkshopWagon, BunkWagon, WaterWagon, CoalWagon,
 }
-pub const NITEM: usize = 101;
+pub const NITEM: usize = 106;
 /// What an item can do in the world (see `Item::uses`).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Uses { pub place: bool, pub throw: bool, pub pick_up: bool }
@@ -369,6 +369,21 @@ const ITEM_DEFS_CONST: [ItemDef; NITEM] = {
     it(SteamBorer, "Steam borer", [104, 96, 92],
        "A rideable boring machine with its own firebox. It grinds a tunnel through rock and carries the spoil back.").dens(5000.0).place().pick_up()
        .controls("Left mouse: set it down facing your way · coal in paw + right mouse: feed it · empty paw: get on · A/D: drive and bore · Space: off · E: rake out fuel, then pick up"),
+    it(StoreWagon, "Store wagon", [128, 98, 66],
+       "A timber box on iron wheels for a borer to haul. What falls in rides along; you can stow your stacks in it.").dens(600.0).place().pick_up()
+       .controls("Left mouse: set it down (behind a borer it couples on) · right mouse: climb in or out · walk into it to shove it · inside, right mouse: stow the stack in paw · E: unload, then uncouple, then pick up"),
+    it(WorkshopWagon, "Workshop wagon", [140, 112, 80],
+       "A roofed wagon with a saw bench in it for a borer to haul. Inside it you can work as at a workbench.").dens(600.0).place().pick_up()
+       .controls("Left mouse: set it down (behind a borer it couples on) · right mouse: climb in or out · walk into it to shove it · inside: craft as at a workbench · E: uncouple, then pick up"),
+    it(BunkWagon, "Bunk wagon", [120, 132, 96],
+       "A fungus-fibre bunk on wheels for a borer to haul. Sleep in it to wake there after a fall (the holt is saved).").dens(500.0).place().pick_up()
+       .controls("Left mouse: set it down (behind a borer it couples on) · right mouse: climb in or out · walk into it to shove it (climbing in is going to sleep) · E: uncouple, then pick up"),
+    it(WaterWagon, "Water wagon", [92, 112, 132],
+       "A riveted iron tank on wheels. It draws water it touches and, coupled to a borer, keeps its tank topped up.").dens(900.0).place().pick_up()
+       .controls("Left mouse: set it down (behind a borer it couples on) · right mouse: climb in or out · walk into it to shove it · E: uncouple, then pick up (its water pours out)"),
+    it(CoalWagon, "Coal wagon", [70, 66, 64],
+       "An iron fuel bunker on wheels. Coupled to a borer, its stoking chute feeds the firebox a lump at a time.").dens(900.0).place().pick_up()
+       .controls("Left mouse: set it down (behind a borer it couples on) · right mouse: climb in or out · walk into it to shove it · fuel in paw + right mouse: shovel it in · E: take the fuel out, then uncouple, then pick up"),
     ]
 };
 /// Every item, in order.
@@ -546,6 +561,12 @@ pub static RECIPES: &[Recipe] = &[
     Recipe { name: "Lift", station: Station::Workshop, inputs: &[(Item::IronIngot, 2), (Item::Wood, 4), (Item::CopperIngot, 1)], out: (Item::Lift, 1), ticks: 240 },
     // the steam borer: an iron frame and firebox with a bronze-toothed head (the workshop's fine work)
     Recipe { name: "Steam borer", station: Station::Workshop, inputs: &[(Item::IronIngot, 8), (Item::BronzeIngot, 4), (Item::Brick, 4)], out: (Item::SteamBorer, 1), ticks: 400 },
+    // the borer's wagons: timber bodies on iron wheels; the tanks and bunker riveted iron at the forge
+    Recipe { name: "Store wagon", station: Station::Workbench, inputs: &[(Item::Wood, 6), (Item::IronIngot, 2)], out: (Item::StoreWagon, 1), ticks: 200 },
+    Recipe { name: "Workshop wagon", station: Station::Workbench, inputs: &[(Item::Wood, 8), (Item::Stone, 4), (Item::IronIngot, 2)], out: (Item::WorkshopWagon, 1), ticks: 240 },
+    Recipe { name: "Bunk wagon", station: Station::Workbench, inputs: &[(Item::Wood, 6), (Item::Fungus, 4), (Item::IronIngot, 2)], out: (Item::BunkWagon, 1), ticks: 200 },
+    Recipe { name: "Water wagon", station: Station::Forge, inputs: &[(Item::IronIngot, 5), (Item::Wood, 2)], out: (Item::WaterWagon, 1), ticks: 240 },
+    Recipe { name: "Coal wagon", station: Station::Forge, inputs: &[(Item::IronIngot, 4), (Item::Wood, 2)], out: (Item::CoalWagon, 1), ticks: 240 },
     Recipe { name: "Drill", station: Station::Workshop, inputs: &[(Item::BronzeIngot, 4)], out: (Item::Drill, 1), ticks: 240 },
     Recipe { name: "Knot", station: Station::Workshop, inputs: &[(Item::CopperIngot, 1), (Item::Quartz, 1)], out: (Item::Gate, 1), ticks: 100 },
     Recipe { name: "Thrummer", station: Station::Workshop, inputs: &[(Item::Crystal, 2), (Item::CopperIngot, 2), (Item::Glass, 1)], out: (Item::Thrummer, 1), ticks: 200 },
