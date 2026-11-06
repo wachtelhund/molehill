@@ -204,6 +204,7 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `beam_overload.scn` | A long wood span under deep sand cracks and falls as wooden debris |
 | `dirt_cavein_chokes.scn` | A void under a deep dirt bank caves in but bulking rubble chokes it off (< 600 cells, then sleeps) |
 | `buried_under_rock.scn` / `buried_in_sand.scn` | A mole buried under a rock slab stays put (no popping through rock); under loose sand it wriggles out |
+| `breath_gasp_underwater.scn` | Held under water, the mole gasps and the log says to surface when breath first drops below 35, and again ("drowning") at 0, once per crossing; then it's hurt |
 | `tree_regrow.scn` / `tree_no_seep.scn` | A root-tree cut to its roots regrows beside its seep pool (and nothing crumbles); with the seep drained it never does |
 | `glowmite_catch.scn` | A grotto's glowmite swarm drifts over the map |
 | `brush_place.scn` | A radius-2 brick brush fills the open part of the disc and uses items 4 cells to one |

@@ -208,3 +208,15 @@ bit-identical to before (checked before flipping it).
   crater fail one or two at a time for seconds, and each tick with any crumble pushed Event::Crumble, which plays
   the 2.8 s collapse rumble. Now only a crumble of CRUMBLE_LOUD (two tiles' worth) cells or more in a tick sounds.
   Tests in tests/blast_events.rs (fail on the old rule); `blastevents` example.
+
+## Found-place mood: TNT, water, light
+Measured first with `--example moodbench` (each family stamped in plain host rock: light stats over its open
+cells from its own torches and glowing rock, one charge in the mine / pumpworks / halt, the sluice flipped).
+* Before: mine, pumpworks, halt and fossil cave were 83–88 % pitch dark (luma < 0.05) between torch pools, the
+  fissure 100 % (no torch); the salt hall blew out (4 % of its open cells above 1.2, peak 2.12). One charge:
+  mine 4.2 m² changed, 228 debris; pumpworks 5.3 m²; halt barely marked (iron and brick) but the halt shed 113
+  cells and 14 collapse rumbles in 10 s with no charge at all (its layout: reported to env-rework, not touched).
+  Sluice: about 195 water cells (3 m²) run into the dry hall in 10 s and settle; the site's water is conserved.
+* Breath: the game had a Gasp sound the sim never sent, so drowning was silent until the hurt. Now the mole gasps
+  and the log says to surface when breath first drops below 35 (BREATH_LOW, ~4.5 s left under water) and again
+  at 0; once per crossing. Scenario breath_gasp_underwater.
