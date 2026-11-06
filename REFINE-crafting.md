@@ -106,22 +106,6 @@ of any pickaxe rock is at most 30 ticks (half a second) and of soft soil at most
   holding S at 24 s, on main too. It's an existing hazard the old 15 s run never reached, left for the
   dig-safety owner.
 
-## Polish after merge (#25, dig tempo)
-* Main after the merge is green: 98 tests, 190 scenarios. `--example digtempo` on main matches the PR's table
-  (pickaxe room: dirt 0.8 s, copper ore 4.2 s, limestone 4.8 s; drill on granite 3.0 s, bore 1.5 s).
-* Early dig feel: soft soil is unchanged (a pickaxe bite of dirt is 5 ticks, of sand or fungus 4), so the first
-  tunnel out of the burrow still answers at once. A pickaxe bite of limestone is 29 ticks (0.48 s); the strike
-  sound and shake still come every 1/6 s while holding, so the wait is felt as work, not lag.
-* Upgrade contrast holds: on limestone the drill clears 2.5× what the pickaxe does; on granite the bore clears
-  2× the drill.
-* The first hour still flows (`progression -- 6 15` on main): first-hour finds are 1–15 s away by straight
-  line, the bench is affordable at 0.2 min on every seed, nobody starves, and the light lasts 5.4–10 min. No
-  code change needed.
-* **Open, for Hampus:** a bite takes the same time whatever its size, so enlarging the pickaxe's brush to its
-  maximum (radius 3 tiles against the default 2.5) clears about 45% more a bite. That claws back most of the
-  stone slowdown. Scaling a bite's time with its area would close it, but that changes the dig rule, not the
-  table, so it's left as a design call.
-
 ## Open
 * Waking after death: the lamp holds whatever is left, with no oil in the pack (above). Option: the burrow
   keeps a measure for whoever crawls back in (a stash, not magic), once per wake.

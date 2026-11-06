@@ -194,7 +194,7 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `tnt_collapse.scn` | A blast removes rock, and the sand cap falls |
 | `cave_stability.scn` | A small granite cave shows no crumbling over 600 ticks |
 | `hall_sag_arrests.scn` | A 24 m granite hall (past failing) sags out of midspan and the cave-in stops (< 60 cells) |
-| `strained_roof_creaks_and_holds.scn` | A 15 m granite hall is strained (past capacity, under `FAIL_U`): it creaks at once and at most every 20 s after, and nothing crumbles; harness variable `strain` counts the strained cells |
+| `strained_roof_creaks_and_holds.scn` | A 15 m granite hall is strained (past capacity, under `FAIL_U`): it creaks at once and at most every 10 s after, and nothing crumbles; harness variable `strain` counts the strained cells |
 | `pillar_holds.scn` / `pillar_on_sand.scn` | Placed wood pillars stay rigid, also when standing on a sand floor |
 | `pillar_wide_hall.scn` | A lone pillar in a wide, sound hall isn't crushed |
 | `roof_unpropped.scn` / `roof_propped.scn` | A wide clay roof caves in; four pillar columns hold it |
@@ -348,7 +348,9 @@ Settled ground tests in `sim/tests/settled_ground.rs`: `loose_lenses_are_rare_ro
 
 Item registry (`tests/items.rs`): the rows of `craft::ITEM_DEFS` are hand-written, so these check what each row must keep: rows in `Item` order with one name each; blocks, pigments, furniture and walls can be set down, furniture picked back up, a pigment's swatch is its paint colour; every density is sane and every usable item has a controls line.
 
-Site templates (`tests/templates.rs`): `templates_match_the_procedural_sites` is the golden check that the found-place data in `assets/sites/` stamps exactly what the procedural reference in `sites.rs` does, cell for cell, for every variant (var 0–95 plus large values, both halt sides): materials, linings, chest and things. After a layout change in `sites.rs`, run `cargo run --release -p molehill-sim --example export_sites` (`-- --check` only reports SAME/STALE per file). `site_chest_comes_from_the_template`, `template_files_round_trip_and_explain_errors`, `template_files_are_canonical_and_parse_fast` (files on disk are exactly what the writer makes; all seven parse in about 8 ms). See `docs/wiki/Site-Templates.md`.
+Site templates (`tests/templates.rs`): `templates_match_the_procedural_sites` is the golden check that the found-place data in `assets/sites/` stamps exactly what the procedural reference in `sites.rs` does, cell for cell, for every variant (var 0–95 plus large values, both halt sides): materials, linings, chest and things. After a layout change in `sites.rs`, run `cargo run --release -p molehill-sim --example export_sites` (`-- --check` only reports SAME/STALE per file). `site_chest_comes_from_the_template`, `template_files_round_trip_and_explain_errors`, `template_files_are_canonical_and_parse_fast` (files on disk are exactly what the writer makes; all seven parse in about 8 ms), `stamp_template_matches_the_game_stamp` (the cave editor's stamp equals the game's site stamp). A file the cave editor saved (`"source": "editor"`) is skipped by the golden check and kept by the exporter.
+
+The dev-only cave editor has its own tests: `cargo test --release -p molehill-cave-editor` (model, checks against the real sim, and `packaging`: not a default member, not a dependency of the game, not in `build-web.sh` or `site/`). See `docs/wiki/Cave-Editor.md`. See `docs/wiki/Site-Templates.md`.
 
 Worldgen tests in `sim.rs`: `ore_sits_in_its_depth_bands` (copper just below the holt, iron in the mid granite, basalt below 90 m), `grottos_follow_the_layers` (frequency by depth band over 6 seeds, none in the deep, deterministic), `generated_grottos_hold` (fresh holts' grottos stay open with their trees up), `slides_leave_nothing_failing`, `glowmites_drift_glow_and_get_caught`.
 

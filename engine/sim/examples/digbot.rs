@@ -29,7 +29,7 @@ fn main() {
         let (mut quiet, mut ep_cells, mut ep_warned, mut warned) = (u64::MAX, 0u64, false, 0u32);
         let mut crack_ticks: std::collections::VecDeque<u64> = Default::default();
         let mut by_mat = std::collections::BTreeMap::<String, u64>::new(); let (mut hang, mut over) = (0u64, 0u64);
-        let (mut far, mut stuck, mut best) = (0f32, 0u64, 0f32); let mut drift = 0u64; let mut drift_kind = [0u64; 3]; let mut drift_mat = std::collections::BTreeMap::<String, u64>::new(); let mut deaths = 0u64; let mut sizes = [0u32; 3]; let mut big_warned = 0u32; let mut creak_src = [0u32; 3];
+        let (mut far, mut stuck, mut best) = (0f32, 0u64, 0f32); let mut drift = 0u64; let mut drift_kind = [0u64; 3]; let mut drift_mat = std::collections::BTreeMap::<String, u64>::new(); let mut deaths = 0u64; let mut sizes = [0u32; 3]; let mut big_warned = 0u32;
         let mut dir = 0usize;
         for t in 0..ticks {
             if t % (30 * 60) == 0 { dir = (t / (30 * 60)) as usize % 4; stuck = 0; best = 0.; }
@@ -45,7 +45,7 @@ fn main() {
             if ((w.pl.px - sx) / c > 40. && dx > 0.) || ((sx - w.pl.px) / c > 40. && dx < 0.) || (w.oy as f32 + w.pl.py - sy) / c > 25. && dy > 0. { dir = (dir + 2) % 4; best = 0.; stuck = 0; if (w.oy as f32 + w.pl.py - sy) / c > 25. { dir &= 2; } }
             if stuck > 120 && stuck % 40 < 6 { w.input.jump = true; }
             if stuck > 300 { dir = (dir + 1) % 4; stuck = 0; best = 0.; }
-            let before = w.crumbled; let hp0 = w.moles[0].hp; let sc0 = w.strain_creak; let deny0 = w.pl.deny;
+            let before = w.crumbled; let hp0 = w.moles[0].hp;
             let (mx, my, r) = (w.moles[0].x, w.moles[0].y, 8 * CPM);
             let near: Vec<usize> = (my.saturating_sub(r)..(my + r).min(w.g.h)).flat_map(|y| (mx.saturating_sub(r)..(mx + r).min(w.g.w)).map(move |x| (x, y))).map(|(x, y)| y * w.g.w + x).collect();
             let mv0: Vec<u8> = near.iter().map(|&i| w.g.moved[i]).collect();
@@ -57,11 +57,7 @@ fn main() {
                 molehill_sim::mat::Kind::Powder => drift_kind[0] += 1, molehill_sim::mat::Kind::Solid if w.g.loose(i) => drift_kind[1] += 1, molehill_sim::mat::Kind::Solid => drift_kind[2] += 1, _ => {} };
                 if matches!(m.kind(), molehill_sim::mat::Kind::Powder | molehill_sim::mat::Kind::Solid) { *drift_mat.entry(format!("{m:?}")).or_insert(0u64) += 1; } } }
             drift += near.iter().zip(&mv0).filter(|(&i, &m0)| w.g.moved[i] != m0 && matches!(w.g.m(i).kind(), molehill_sim::mat::Kind::Solid | molehill_sim::mat::Kind::Powder)).count() as u64;
-            let creaked = w.events.iter().any(|e| *e == Event::Crack);
-            // (the refused-dig clink is the same sound: a dig the tools can't do, not the ground)
-            let refused = w.pl.deny.is_some() && w.pl.deny != deny0;
-            if creaked { if w.strain_creak != sc0 { creak_src[0] += 1; } else if refused { creak_src[2] += 1; } else { creak_src[1] += 1; } }
-            if creaked && !w.st.cracking.is_empty() { cracks += 1; crack_ticks.push_back(t); }
+            if w.events.iter().any(|e| *e == Event::Crack) && !w.st.cracking.is_empty() { cracks += 1; crack_ticks.push_back(t); }
             while crack_ticks.front().is_some_and(|&c| c + 600 < t) { crack_ticks.pop_front(); }
             if crumbled > 0 {
                 if quiet >= 60 { if episodes > 0 { sizes[size_bin(ep_cells)] += 1; } episodes += 1; ep_cells = 0; ep_warned = crack_ticks.iter().any(|&lc| lc + 30 <= t); if ep_warned { warned += 1; } }
@@ -78,7 +74,6 @@ fn main() {
         }
         if std::env::var("WHY").is_ok() { println!("   crumbled by material {:?}; no load path {hang}, overloaded {over}; dead ticks {deaths}, deaths {}", by_mat, w.pl.deaths); }
         if episodes > 0 { sizes[size_bin(ep_cells)] += 1; }
-        if std::env::var("WHY").is_ok() { println!("   creaks heard: {:.1}/min from strain, {:.1}/min from cracking or a wedged mass (and {:.1}/min refused-dig clinks)", creak_src[0] as f32 / mins, creak_src[1] as f32 / mins, creak_src[2] as f32 / mins); }
         if std::env::var("DRIFT").is_ok() { println!("   drift: powder {} loose rubble {} other solid {}; by material {:?}", drift_kind[0], drift_kind[1], drift_kind[2], drift_mat); }
         if std::env::var("WHY").is_ok() { println!("   episode sizes: <1 tile {}, <1 m² {}, ≥1 m² {}", sizes[0], sizes[1], sizes[2]); }
         for k in 0..3 { all_sizes[k] += sizes[k]; }

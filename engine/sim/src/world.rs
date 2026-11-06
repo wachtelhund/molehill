@@ -253,9 +253,9 @@ pub struct World {
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Picked { Dev(Dev), Torch, Wire, Furniture(Item), Transport(Item) }
 /// Strain watch (see `World::step_strain`): how often (ticks), how far round the mole (cells), at most how many
-/// cells kept, the least gap between creaks (ticks, 3 s), and how often a roof that stays strained creaks again (20 s).
+/// cells kept, the least gap between creaks (ticks, 3 s), and how often a roof that stays strained creaks again (10 s).
 pub const STRAIN_EVERY: u64 = 30; pub const STRAIN_HX: usize = 12 * CPM; pub const STRAIN_HY: usize = 8 * CPM;
-pub const STRAIN_MAX: usize = 96; pub const STRAIN_CREAK: u64 = 180; pub const STRAIN_REPEAT: u64 = 1200;
+pub const STRAIN_MAX: usize = 96; pub const STRAIN_CREAK: u64 = 180; pub const STRAIN_REPEAT: u64 = 600;
 /// Breath (of 100) below which the mole gasps and the log warns (see `World::breath_cues`).
 pub const BREATH_LOW: f32 = 35.;
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -796,7 +796,7 @@ impl World {
         // new strain creaks at once (at most every STRAIN_CREAK ticks); a roof that stays strained creaks again
         // now and then (every STRAIN_REPEAT) while the mole is under it, a reminder rather than a din
         let since = if self.strain_creak == 0 { u64::MAX } else { self.tick - self.strain_creak };
-        if (fresh >= S * S && since >= STRAIN_CREAK) || (!self.strain.is_empty() && since >= STRAIN_REPEAT) { self.strain_creak = self.tick; self.events.push(Event::Crack); }
+        if (fresh >= S && since >= STRAIN_CREAK) || (!self.strain.is_empty() && since >= STRAIN_REPEAT) { self.strain_creak = self.tick; self.events.push(Event::Crack); }
     }
     fn mole_physics(&mut self, k: usize) {
         let (x, y) = (self.moles[k].x, self.moles[k].y);
