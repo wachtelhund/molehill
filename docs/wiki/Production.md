@@ -40,6 +40,10 @@ Scenario `cart_tips_at_bumper`: a cart with 20 stones rolls down a 1-in-4 slope 
 
 Scenario `ore_hopper_feeds_cart`: ten stones and a pour of sand go in. The gate stays shut until it's held open, and two lumps drop onto the track. A cart rolled down under the spout scoops those up and is filled until the hopper is empty. The load survives a save.
 
+## How they look
+
+Chutes, screens and bumpers are cells with their own patterns (`art::mat_color`). A chute has a pale worn lip and boards along it. A screen is iron bars over a dark mesh under a timber rail. A bumper is red-painted timber with a bright head and iron bands. The ore hopper is drawn: its heap is tinted with what it holds, it shows through the open front of the bin and rises with the load, and the gate under the spout swings open when it lets a lump down. `--scene=production` stamps a small works (chute onto screen, a hopper of copper ore over track, a bumper) for stills. See [Item and Place Art](Item-and-Place-Art.md).
+
 ## Hover tips
 
 The chute, screen (shaking or not) and bumper say what moves things along them. The ore hopper's tip gives its load and capacity, and says whether the gate is held open or opens for a cart.

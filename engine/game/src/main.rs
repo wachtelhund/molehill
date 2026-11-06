@@ -133,7 +133,7 @@ const BG_BASE: [f32; 3] = [44., 34., 30.];
 #[inline] fn srgb(l: f32) -> f32 { l.max(0.).powf(1. / 2.2) * 255. }
 #[derive(Component)] pub struct WorldSprite;
 #[derive(Component)] struct Pooled(u8, usize);
-#[derive(Resource)] pub struct Sprites { pub props: Vec<Handle<Image>>, pub cart: Handle<Image>, pub clue: Vec<Handle<Image>>, pub furn: Vec<Option<(Handle<Image>, Option<Handle<Image>>)>>, pub tools: [Handle<Image>; 3], pub dev: Vec<Handle<Image>>, pub ring: Handle<Image>, pub mole: Vec<Handle<Image>>, pub mole_out: Vec<Handle<Image>>, pub held: Vec<Handle<Image>>, pub icons: Vec<Handle<Image>>, pub chest: [Handle<Image>; 2], pub station: Vec<[Handle<Image>; 2]>, pub torch: Handle<Image>, pub torch_f: Vec<Handle<Image>>, pub glow: Handle<Image>, pub shroom: [Handle<Image>; 3], pub px: Handle<Image> }
+#[derive(Resource)] pub struct Sprites { pub props: Vec<Handle<Image>>, pub cart: Handle<Image>, pub bin: Vec<Handle<Image>>, pub clue: Vec<Handle<Image>>, pub furn: Vec<Option<(Handle<Image>, Option<Handle<Image>>)>>, pub tools: [Handle<Image>; 3], pub dev: Vec<Handle<Image>>, pub ring: Handle<Image>, pub mole: Vec<Handle<Image>>, pub mole_out: Vec<Handle<Image>>, pub held: Vec<Handle<Image>>, pub icons: Vec<Handle<Image>>, pub chest: [Handle<Image>; 2], pub station: Vec<[Handle<Image>; 2]>, pub torch: Handle<Image>, pub torch_f: Vec<Handle<Image>>, pub glow: Handle<Image>, pub shroom: [Handle<Image>; 3], pub px: Handle<Image> }
 
 pub fn seed_now() -> u32 {
     // ?seed=N (web) / --seed=N (native) pins the first world
@@ -295,6 +295,7 @@ fn dev_dump(n: Local<u32>, g: Res<Game>, sp: Res<Sprites>, images: Res<Assets<Im
         for (k, f) in sp.furn.iter().enumerate() { if let Some((b, c)) = f { list.push((format!("furn-{:?}", ITEMS[k]), b.clone())); if let Some(c) = c { list.push((format!("cloth-{:?}", ITEMS[k]), c.clone())); } } }
         for (k, h) in sp.tools.iter().enumerate() { list.push((format!("tool{k}"), h.clone())); }
         list.push(("cart".into(), sp.cart.clone()));
+        for (k, h) in sp.bin.iter().enumerate() { list.push((format!("orebin{k}"), h.clone())); }
         for (k, h) in sp.props.iter().enumerate() { list.push((format!("prop-{:?}", props::PROPS[k]), h.clone())); }
         for (k, h) in sp.icons.iter().enumerate() { list.push((format!("icon-{:?}", ITEMS[k]), h.clone())); }
         for (k, h) in sp.station.iter().enumerate() { list.push((format!("station{k}"), h[1].clone())); }
@@ -367,6 +368,22 @@ fn stage_scene(w: &mut World) {
                 for k in 0..6u8 { put(w, ClueKind::Relic, x0 + 14 * S + k as usize * 4 * S, my, k); }
                 put(w, ClueKind::Draft, x0 + 45 * S, my, 0);
                 for k in 0..3 { w.torches.push((x0 + (6 + k * 20) * S, my - 4 * S)); }
+            }
+            "production" => { // a works east of the burrow: a chute sloping down onto a shaker screen, an ore hopper
+                // heaped with copper ore over a rail, and a bumper at the end of the track
+                use molehill_sim::mat::CPM;
+                let (x0, x1, y0) = (mx + 4 * S, mx + 64 * S, my - 22 * S);
+                for x in x0 - 2 * S..x1 + 2 * S { for y in y0 - 4 * S..my + 1 + 2 * S { set(w, x, y, Mat::Limestone); } } // a sealed stone shell, so no pocket floods it
+                for x in x0..x1 { for y in y0..=my { set(w, x, y, Mat::Empty); } set(w, x, my, Mat::Rail); set(w, x, my - 1, Mat::Rail); }
+                // the chute runs out of the west wall; the screen it feeds rests on a timber post at its far end
+                for k in 0..10 * CPM / 4 { let (x, y) = (x0 + k, y0 + 4 * S + k / 2); for d in 0..2 { set(w, x, y + d, Mat::Chute); } }
+                let (sx, sy) = (x0 + 10 * CPM / 4, y0 + 4 * S + 5 * CPM / 4); for x in sx..sx + 2 * CPM { for d in 0..2 { set(w, x, sy + d, Mat::Screen); } }
+                for x in sx + 2 * CPM - 2..sx + 2 * CPM { for y in sy + 2..my - 1 { set(w, x, y, Mat::WoodBeam); } }
+                for x in x1 - CPM / 2..x1 { for y in my - CPM..my - 1 { set(w, x, y, Mat::Bumper); } }
+                let bx = x0 + 40 * S; let floor = my - 1; let by = floor - molehill_sim::production::BIN_LEGS;
+                w.tr.bins.push(molehill_sim::production::OreHopper { x: bx, y: by, floor, contents: vec![(Item::CopperOre, 40)], held: false, open: false, feed: 0, grit: vec![] });
+                molehill_sim::light::reveal_box(&mut w.g, mx, y0 - 10 * S, x1 + 10 * S, my + 10 * S);
+                for k in 0..4 { w.torches.push((x0 + (6 + k * 16) * S, y0 + 2 * S)); }
             }
             "decor" => { // a furnished hall east of the burrow: plank floor, tiled and polished walls painted, carved pillars,
                 // a table with stools and a rug, a nest, a shelf, banners and planters
@@ -564,7 +581,7 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, mut fonts: R
         mole_out: art::mole_sheet(false).into_iter().map(|i| images.add(i)).collect(),
         held: [art::Held::Pick, art::Held::Drill, art::Held::Bore, art::Held::Charge, art::Held::Block(Item::WoodPillar.color()), art::Held::Block(Item::Brick.color()), art::Held::Block(Item::IronBeam.color())]
             .into_iter().map(|h| images.add(art::held_sprite(h))).collect(),
-        clue: (0..9).map(|k| images.add(decorart::clue(k))).collect(), props: props::PROPS.iter().map(|&p| images.add(props::image(p))).collect(), cart: images.add(art::cart()),
+        clue: (0..9).map(|k| images.add(decorart::clue(k))).collect(), props: props::PROPS.iter().map(|&p| images.add(props::image(p))).collect(), cart: images.add(art::cart()), bin: (0..5).map(|k| images.add(art::ore_bin(k))).collect(),
         furn: ITEMS.iter().map(|&it| it.furn().map(|_| { let (b, c) = decorart::furniture(it); (images.add(decorart::finish(b)), c.map(|c| images.add(decorart::cloth(c)))) })).collect(),
         icons: ITEMS.iter().map(|&it| images.add(itemart::icon(it))).collect(),
         chest: [images.add(art::chest(false)), images.add(art::chest(true))],
@@ -1171,18 +1188,20 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
         want.push((44, k, cell_to_world(cx, cy - n * 0.15), 3.9, sp.px.clone(), Vec2::new(n * 0.8 * CPX, n * 0.3 * CPX), false, lit(0.7, 0.52, 0.26)));
         want.push((45, k, cell_to_world(cx, cy - n * 0.32), 3.95, sp.px.clone(), Vec2::new(n * 0.6 * CPX, 1.5), false, lit(0.15, 0.13, 0.12)));
     }
-    // ore hoppers (placeholder until p3's sprite): a timber bin on two legs, its heap filling it, the gate under the spout
+    // ore hoppers: the bin's back boards, the heap of what it holds tinted with that item's colour, the front
+    // frame (its gate shut or swung open under the spout) and two legs stretched down to the floor
     for (k, b) in w.tr.bins.iter().enumerate() {
         if w.g.flags[b.y.min(H - 1) * W + b.x.min(W - 1)] & F_SEEN == 0 { continue; }
-        let (x0, y0, x1, y1) = b.rect(); let (xc, yc) = ((x0 + x1) / 2., (y0 + y1) / 2.);
+        let (x0, y0, x1, y1) = b.rect(); let xc = (x0 + x1) / 2.;
         let lt = lightf(b.x, b.y.saturating_sub(2)).to_srgba(); let lit = |r: f32, gg: f32, bb: f32| Color::srgb(r * lt.red, gg * lt.green, bb * lt.blue);
-        want.push((47, k, cell_to_world(xc, yc), 3.9, sp.px.clone(), Vec2::new((x1 - x0) * CPX, (y1 - y0) * CPX), false, lit(0.5, 0.36, 0.22)));
+        let (bw, bh) = (x1 - x0, y1 - y0 + 1.);
         let legs = (b.floor as f32 - y1).max(0.);
-        for (j, xl) in [x0 + 0.5, x1 - 0.5].into_iter().enumerate() { want.push((48, k * 2 + j, cell_to_world(xl, y1 + legs / 2.), 3.85, sp.px.clone(), Vec2::new(CPX, legs * CPX), false, lit(0.42, 0.3, 0.18))); }
+        for (j, xl) in [x0 + 1.5, x1 - 1.5].into_iter().enumerate() { want.push((48, k * 2 + j, cell_to_world(xl, y1 + legs / 2.), 3.85, sp.bin[3].clone(), Vec2::new(2., legs * CPX), false, lit(1., 1., 1.))); }
+        want.push((47, k, cell_to_world(xc, y0 + bh / 2.), 3.9, sp.bin[0].clone(), Vec2::new(bw * CPX, bh * CPX), false, lit(1., 1., 1.)));
         let f = b.load() as f32 / molehill_sim::production::BIN_LOAD as f32;
-        if let Some(&(it, _)) = b.contents.first() { let col = it.color(); let hh = (y1 - y0 - 2.) * f;
-            want.push((49, k, cell_to_world(xc, y1 - 1. - hh / 2.), 3.95, sp.px.clone(), Vec2::new((x1 - x0 - 2.) * CPX, hh * CPX), false, lit(col[0] as f32 / 255., col[1] as f32 / 255., col[2] as f32 / 255.))); }
-        want.push((50, k, cell_to_world(xc, y1 + 0.5), 3.96, sp.px.clone(), Vec2::new(if b.open { 1. } else { 3. } * CPX, CPX), false, lit(0.25, 0.22, 0.2)));
+        if let Some(&(it, _)) = b.contents.first() { let col = it.color(); let straight = (y1 - y0) * 5. / 8.; let hh = ((straight - 1.) * f).max(1.); // the heap fills the straight-sided part above the taper
+            want.push((49, k, cell_to_world(xc, y0 + straight - hh / 2.), 3.95, sp.bin[4].clone(), Vec2::new((bw - 2.) * CPX, hh * CPX), false, lit(col[0] as f32 / 255., col[1] as f32 / 255., col[2] as f32 / 255.))); }
+        want.push((50, k, cell_to_world(xc, y0 + bh / 2.), 3.96, sp.bin[if b.open { 2 } else { 1 }].clone(), Vec2::new(bw * CPX, bh * CPX), false, lit(1., 1., 1.)));
     }
     for (k, c) in w.tr.capsules.iter().enumerate() {
         let at = c.pat + (c.at - c.pat) * a; let i0 = c.path[(at as usize).min(c.path.len() - 1)] as usize; let i1 = c.path[(at as usize + 1).min(c.path.len() - 1)] as usize; let f = at.fract();
