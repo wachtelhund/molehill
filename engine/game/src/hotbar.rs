@@ -13,6 +13,11 @@ pub const FAINT_ICON: [f32; 4] = [0.62, 0.62, 0.68, 0.45];
 /// white dig ring (1, 0.97, 0.9) so it never reads as a white outline, and solid enough to see on rock.
 pub const REFUSE_RING: [f32; 4] = [0.42, 0.52, 0.72, 0.6];
 
+/// After a refused dig: how strongly the cold ring flashes (1 at the clink, gone by 0.3 s) and how far it
+/// jolts sideways, in legacy tiles (a quick decaying shake: left, right, settle, done by 0.25 s).
+pub fn refuse_jolt(age: f32) -> f32 { if !(0. ..0.3).contains(&age) { 0. } else { 1. - age / 0.3 } }
+pub fn refuse_shake(age: f32) -> f32 { if !(0. ..0.25).contains(&age) { 0. } else { (age * 60.).sin() * 0.5 * (1. - age / 0.25) } }
+
 /// How usable a thing is right now. Ordered: owned first, free next, none last.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub enum Have { Owned, Free, None }
@@ -39,9 +44,11 @@ pub fn have_w(w: &molehill_sim::world::World, t: Thing) -> Have {
 /// Survival's rules (tools must be owned): the only mode where the hotbar adapts.
 pub fn adaptive(g: &Game) -> bool { g.w.rules.tools }
 
-/// Stable sort: owned, then free, then none, then empty slots; within each, the given order.
+/// Stable sort: owned, then stations, then other free things, then none, then empty slots; within each,
+/// the given order.
 pub fn arrange(slots: &mut [Option<Thing>], f: impl Fn(Thing) -> Have) {
-    let rank = |s: &Option<Thing>| s.map_or(3, |t| f(t) as u8);
+    // stations (the first quests ask for a workbench) come before free devices, which wait for copperline
+    let rank = |s: &Option<Thing>| s.map_or(4, |t| match (t, f(t)) { (_, Have::Owned) => 0, (Thing::Station(_), _) => 1, (_, Have::Free) => 2, _ => 3 });
     slots.sort_by_key(rank);
 }
 
@@ -100,6 +107,7 @@ mod tests {
         assert_eq!(hot[0], Thing::Pick(1));
         for &(it, _) in KIT { if it != Item::Pickaxe && s.contains(&Some(Thing::Item(it))) { assert!(hot.contains(&Thing::Item(it)), "{it:?} not on the hotbar: {hot:?}"); } }
         assert!(hot.iter().all(|&t| have_w(&w, t) != Have::None), "{hot:?}");
+        assert!(hot.contains(&Thing::Station(0)), "the workbench (an early quest) is on the start hotbar: {hot:?}");
         let d = crate::default_slots(); assert!(d[..10].iter().flatten().any(|&t| have_w(&w, t) == Have::None), "the fixed layout had faint slots");
         w.set_mode(Mode::Creative); assert!(d.iter().flatten().all(|&t| have_w(&w, t) != Have::None));
     }
@@ -117,6 +125,14 @@ mod tests {
         let f = FAINT_ICON;
         assert!((0.35..=0.6).contains(&f[3]), "readable, not cluttering");
         assert!(f[0..3].iter().all(|&v| (0.5..=0.75).contains(&v)) && f[2] >= f[0], "a cool grey tint");
+    }
+
+    /// The refusal jolt is short and settles: strongest at the clink, nothing left after a third of a second,
+    /// and the sideways shake stays under half a tile.
+    #[test] fn the_refusal_jolt_is_short_and_settles() {
+        assert_eq!(refuse_jolt(0.), 1.); assert!(refuse_jolt(0.15) < 0.6); assert_eq!(refuse_jolt(0.31), 0.); assert_eq!(refuse_jolt(-1.), 0.);
+        for k in 0..40 { let a = k as f32 * 0.01; assert!(refuse_shake(a).abs() <= 0.5); } assert_eq!(refuse_shake(0.3), 0.);
+        assert!((0..25).any(|k| refuse_shake(k as f32 * 0.01) < -0.1) && (0..25).any(|k| refuse_shake(k as f32 * 0.01) > 0.1), "it goes both ways");
     }
 
     #[test] fn have_reads_counts_tools_and_free_things() {
