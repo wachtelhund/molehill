@@ -72,7 +72,7 @@ snap 4 on               // grid snap; line 5 DX1 DY1 DX2 DY2 Brick drags a snapp
 slide 60                // slide the window away until only its bottom band is left, and back (things go into bands and return)
 put 2 8 0 WoodPillar    // put exactly one block cell at (dx,dy) at tick T, no reach check (scripted building)
 ruin 1 vault 2 -17      // stamp a ruin of the Ancients (hall | vault | tube, `left` for a tube running left) with its top-left on tile (dx,dy); a vault's chest is registered
-wall 2 4 -2 timber      // set the back wall of tile (dx,dy) (none|rock|timber|masonry|beams|pipes|carved|damp|crack|root|gap|salt|crystal|fossil)
+wall 2 4 -2 timber      // set the back wall of tile (dx,dy) (none|rock|timber|masonry|beams|pipes|carved|damp|crack|root|gap|salt|crystal|fossil|soot|wetstone|basalt|ashlar|ironclad|mycel)
 scrape 3 4 -2           // scrape lining with the current brush (never the rock in front)
 site 2 mine 4 -24       // stamp a found place (mine|holt|pump|fissure|fossil|crystal|halt) with its top-left on tile (dx,dy)
 mode survival           // start in a game mode (survival | creative): its rules and its pack; `give` applies after
@@ -316,6 +316,8 @@ Zoom limits and brush ranges also have unit tests in `sim/tests/sim.rs` (`zoom_i
 **Web frame time:** serve `dist/` (`python3 -m http.server`) and measure `requestAnimationFrame` intervals in Chrome after starting a holt. At 8 cells/m on an M4 with the active region: 58 fps (p95 16.8 ms) from a fresh holt's first seconds, 60 fps steady state.
 
 Blast tests in `sim.rs`: `blast_overpressure_curve` (Kinney-Graham values, monotone, deterministic, bounded), `blast_is_heard_by_listeners`, `blast_debris_deterministic_and_conserved`. Blast sound tests in `blast_events.rs`: `one_charge_is_heard_once_*` (one charge in a generated world: one blast, no later Explode or Quake, no collapse rumble for a cell or two trickling off the crater). Transport tests in `transport.rs`: `transport_is_reachable_in_survival`, `creative_has_transport_freely`, `transport_hover_tips_say_what_to_do` (each machine's hover tip names its action). `--example blastbench` times one charge.
+
+Region tests in `sim/tests/biomes.rs`: `regions_follow_the_layers` (every region turns up; no Ashlands above 30 m and all of the deep below 110 m; Fungal hollows only in the middle layers and only as pockets; deterministic), `each_region_has_its_own_ground` (compared at the same depths: soil leads in the loam, limestone in the karst, gravel and granite in the crags, growth in the fungal hollows; the karst floods more than the crags; the ashlands are basalt with lava pockets and no growth), `each_region_lines_its_caves` (mycelium lining only in the fungal hollows, split basalt in the ashlands, salt and damp in the karst, roots in the loam, cracks in the crags), `hard_ground_lies_just_past_the_start_zone` (35-60 m under the burrow, 40 seeds). `--example biomediag -- [SEED]` prints the ground and regions just past a fresh holt's start zone and a column of regions under the burrow.
 
 Worldgen tests in `sim.rs`: `ore_sits_in_its_depth_bands` (copper just below the holt, iron in the mid granite, basalt below 90 m), `grottos_follow_the_layers` (frequency by depth band over 6 seeds, none in the deep, deterministic), `generated_grottos_hold` (fresh holts' grottos stay open with their trees up), `slides_leave_nothing_failing`, `glowmites_drift_glow_and_get_caught`.
 

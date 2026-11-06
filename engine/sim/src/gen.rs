@@ -180,9 +180,30 @@ impl Noise {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Debug)]
-pub enum Biome { Loam, Karst, Crags, Ashlands }
-pub const BIOME_NAMES: [&str; 4] = ["Loamlands", "Karst caverns", "Granite crags", "Ashlands"];
+/// The Deepholt's regions. A column has a leaning (`Gen::biome`, wide stretches across the world); the
+/// region a cell actually lies in (`Gen::biome_of`) bends that by depth, wetter up and hotter down:
+/// * Loamlands: soil, clay and root tangles, damp root-grown walls; water in the pockets.
+/// * Karst caverns: pale limestone washed out into wide caves, sand washes, seep pools and salt crust;
+///   flooding is the danger.
+/// * Granite crags: hard stone close up, narrow passages, loose gravel lenses that slump when cut; cracked walls.
+/// * Fungal hollows: wide damp hollows in the middle layers, floored with moss and fungus (lamp oil), their
+///   walls threaded with glowing mycelium.
+/// * Ashlands: the hot deep. Basalt, lava pockets, crystal and quartz, no growth, sooted split-rock walls.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
+pub enum Biome { Loam, Karst, Crags, Ashlands, Fungal }
+pub const NBIOME: usize = 5;
+pub const BIOME_NAMES: [&str; NBIOME] = ["Loamlands", "Karst caverns", "Granite crags", "Ashlands", "Fungal hollows"];
+impl Biome {
+    pub fn name(self) -> &'static str { BIOME_NAMES[self as usize] }
+    /// Shift of the strata (metres) in this region: hard rock comes up closer in the crags, soil runs deeper in the loam.
+    fn strata(self) -> f32 { match self { Biome::Loam => -4., Biome::Karst => 2., Biome::Crags => 8., Biome::Ashlands => 4., Biome::Fungal => 0. } }
+    /// How much more open the caves are (added to the cave noise).
+    fn openness(self) -> f32 { match self { Biome::Karst => 0.04, Biome::Loam => 0.0, Biome::Crags => -0.03, Biome::Ashlands => 0.01, Biome::Fungal => 0.05 } }
+}
+/// Fungal hollows lie between these depths (m, after the region wobble).
+pub const FUNGAL_DEPTH: (f32, f32) = (12., 64.);
+/// Below this depth (m) every region is Ashlands; an Ashlands-leaning column turns to it from ASH_DEPTH.1.
+pub const ASH_DEPTH: (f32, f32) = (80., 50.);
 
 pub struct GenInfo { pub surface: Vec<usize>, pub biome: Vec<Biome>, pub chests: Vec<(usize, usize)>, pub start: (usize, usize), pub seed: u32 }
 
@@ -205,10 +226,26 @@ impl Gen {
         let mut g = Gen { seed, n0: Noise::new(seed), n1: Noise::new(seed ^ 0x51ED), n2: Noise::new(seed ^ 0xA77A), n3, biome, near_grotto: None, near_site: None };
         g.near_grotto = g.find_near_grotto(); g.near_site = g.find_near_site(); g
     }
+    /// The region (see `Biome`) the cell (x, wy) lies in: the column's leaning, bent by depth. Region edges
+    /// wander up to 15 m either way, so a band is never a ruled line. Pure function of (x, wy, seed).
+    pub fn biome_of(&self, x: usize, wy: i64) -> Biome {
+        let x = x.min(self.biome.len().saturating_sub(1));
+        let (fx, fy) = (x as f32 / SF, wy as f32 / SF);
+        let d = fy * 0.25 + (self.n2.fbm(fx + 2100., fy * 1.2, 120., 2) - 0.5) * 30.;
+        let col = self.biome[x];
+        if d > ASH_DEPTH.0 || (col == Biome::Ashlands && d > ASH_DEPTH.1) { return Biome::Ashlands; }
+        if d > FUNGAL_DEPTH.0 && d < FUNGAL_DEPTH.1 && self.n0.fbm(fx + 3300., fy * 1.5, 90., 2) > 0.6 { return Biome::Fungal; }
+        match col {
+            Biome::Ashlands => Biome::Crags, // not hot yet this high: dry hard stone
+            Biome::Crags if d < -25. => Biome::Karst, // the wet upper layers wash the crags out
+            Biome::Loam if d > 35. => Biome::Karst, // soil gives out deeper down
+            b => b,
+        }
+    }
     /// Open cave cell? Blobby caverns + thin winding tunnels.
     pub fn open(&self, x: usize, wy: i64) -> bool {
         let (fx, fy) = (x as f32 / SF, wy as f32 / SF); // noise runs in legacy 0.25 m tiles: features keep their size in metres
-        let band = match self.biome[x] { Biome::Karst => 0.04, Biome::Loam => 0.0, Biome::Crags => -0.03, Biome::Ashlands => 0.01 };
+        let band = self.biome_of(x, wy).openness();
         let c = self.n3.fbm(fx, fy * 1.6, 46., 3) + band;
         let t = (self.n1.fbm(fx + 5000., fy * 1.3, 110., 2) - 0.5).abs();
         c > 0.66 || t < 0.012
@@ -232,12 +269,15 @@ impl Gen {
             Some(Part::Wall) if glow() => return (Mat::Mycelium as u8, 0),
             _ => {}
         }
-        let dd = d + (self.n1.fbm(fx, fy, 60., 3) - 0.5) * 10. + match self.biome[x] { Biome::Loam => -4., Biome::Karst => 2., Biome::Crags => 8., Biome::Ashlands => 4. };
+        let bio = self.biome_of(x, wy);
+        let dd = d + (self.n1.fbm(fx, fy, 60., 3) - 0.5) * 10. + bio.strata();
         if part.is_none() && open(x, wy) {
-            // fluid pockets: wetter up, hotter down
+            // fluid pockets: wetter up, hotter down; the karst holds the most water, the ashlands the most lava,
+            // the crags the fewest pockets of either
+            let (pk_at, wet, hot) = match bio { Biome::Karst => (0.6, 0.25, 0.), Biome::Loam | Biome::Fungal => (0.63, 0.1, 0.), Biome::Crags => (0.66, 0., 0.), Biome::Ashlands => (0.62, 0., 0.25) };
             let pk = self.n2.fbm(fx + 7000., fy * 1.4, 28., 2);
-            if pk > 0.63 {
-                let lava_p = ((dd - 10.) / 60.).clamp(0., 0.92); let water_p = ((40. - dd) / 60.).clamp(0.08, 1.);
+            if pk > pk_at {
+                let lava_p = ((dd - 10.) / 60. + hot).clamp(0., 0.92); let water_p = ((40. - dd) / 60. + wet).clamp(0.08, 1.);
                 let r = (hash3((x / (24 * S)) as u32, (wy.div_euclid(24 * S as i64)) as u32, self.seed ^ 0xF1) & 1023) as f32 / 1024.;
                 if r < lava_p { return (Mat::Lava as u8, 0); }
                 if r < lava_p + water_p * (1. - lava_p) { return (Mat::Water as u8, 0); }
@@ -245,12 +285,19 @@ impl Gen {
             return (0, 0);
         }
         let (n1, n2) = (&self.n1, &self.n2); let mut fl = 0u8;
-        let mut m = if dd < -30. { if n2.fbm(fx, fy * 2., 40., 2) > 0.55 { Mat::Clay } else { Mat::Dirt } }
-            else if dd < 0. { if n2.fbm(fx, fy * 2., 40., 2) > 0.5 { Mat::Clay } else if n2.fbm(fx + 90., fy, 70., 2) > 0.62 { Mat::Limestone } else { Mat::Dirt } }
-            else if dd < 30. { if self.biome[x] == Biome::Crags && dd >= 15. { Mat::Granite } else if n2.fbm(fx + 300., fy, 70., 3) > 0.55 { Mat::Rock } else { Mat::Limestone } }
-            else if dd < 70. { if n2.fbm(fx + 300., fy, 70., 3) > 0.5 { Mat::Granite } else { Mat::Rock } }
-            else if self.biome[x] == Biome::Ashlands || n2.at(fx / 50., fy / 50.) > 0.3 { Mat::Basalt } else { Mat::Granite }; // the deep is mostly basalt
-        if dd < 35. { let l = n2.fbm(fx, fy * 3., 50., 3); if l > 0.67 { m = if n1.at(fx / 30., fy / 30.) > 0.5 { Mat::Gravel } else { Mat::Sand }; if l > 0.71 { fl |= F_WET; } } }
+        // host rock by depth, leaned by the region: the karst is limestone through and through, the loam
+        // keeps its clay, the crags turn granite early, the ashlands to basalt once they are hot enough
+        let lime = if bio == Biome::Karst { 0.4 } else { 0.62 }; // limestone above the starting layer
+        let rock = match bio { Biome::Karst => 0.72, Biome::Crags => 0.45, _ => 0.55 }; // sandstone (else limestone) below it; dry sandstone in the crags
+        let mut m = if dd < -30. { if n2.fbm(fx, fy * 2., 40., 2) > 0.55 { Mat::Clay } else if bio == Biome::Karst && n2.fbm(fx + 90., fy, 70., 2) > 0.6 { Mat::Limestone } else { Mat::Dirt } }
+            else if dd < 0. { if n2.fbm(fx, fy * 2., 40., 2) > if bio == Biome::Loam { 0.45 } else { 0.5 } { Mat::Clay } else if n2.fbm(fx + 90., fy, 70., 2) > lime { Mat::Limestone } else { Mat::Dirt } }
+            else if dd < 30. { if bio == Biome::Crags && dd >= 15. { Mat::Granite }
+                else if bio == Biome::Loam && dd < 12. && n2.fbm(fx, fy * 2., 40., 2) > 0.58 { Mat::Clay } else if n2.fbm(fx + 300., fy, 70., 3) > rock { Mat::Rock } else { Mat::Limestone } }
+            else if dd < 70. { if bio == Biome::Ashlands && dd > 55. && n2.fbm(fx + 600., fy, 60., 2) > 0.45 { Mat::Basalt } else if n2.fbm(fx + 300., fy, 70., 3) > 0.5 { Mat::Granite } else if bio == Biome::Karst { Mat::Limestone } else { Mat::Rock } }
+            else if bio == Biome::Ashlands || n2.at(fx / 50., fy / 50.) > 0.3 { Mat::Basalt } else { Mat::Granite }; // the deep is mostly basalt
+        // loose lenses: gravel that slumps in the crags, wet sand washes in the karst
+        let lens = match bio { Biome::Crags => 0.63, Biome::Karst => 0.65, _ => 0.67 };
+        if dd < 35. { let l = n2.fbm(fx, fy * 3., 50., 3); if l > lens { m = if bio == Biome::Crags || (bio != Biome::Karst && n1.at(fx / 30., fy / 30.) > 0.5) { Mat::Gravel } else { Mat::Sand }; if l > lens + 0.04 && bio != Biome::Crags { fl |= F_WET; } } }
         let vein = |nn: &Noise, sc: f32, sal: f32| (nn.fbm(fx + sal, fy * 1.3, sc, 3) - 0.5).abs();
         if m != Mat::Sand && m != Mat::Gravel {
             if dd > -20. && dd < 9. && vein(&self.n1, 70., 11.) < 0.018 { m = Mat::Coal; } // coal never forms where lava runs
@@ -265,14 +312,25 @@ impl Gen {
             if m.p().tensile < Mat::Limestone.p().tensile || m.kind() != crate::mat::Kind::Solid { m = Mat::Limestone; }
             return (m as u8, fl & !F_WET);
         }
-        // decoration on cave walls
+        // decoration on cave walls, by region
         let (k, ki) = (S, S as i64); // a decoration skin one legacy tile thick
-        let edge = open(x, wy - ki) || open(x, wy + ki) || open(x - k, wy) || open(x + k, wy);
+        let (up, down) = (open(x, wy - ki), open(x, wy + ki));
+        let edge = up || down || open(x - k, wy) || open(x + k, wy);
         if edge && m != Mat::Sand {
             let r = self.n0.at(fx / 9., fy / 9.);
-            if dd > 45. && r > 0.80 { m = Mat::Crystal; } else if dd > 35. && r < 0.10 { m = Mat::Quartz; }
-            else if open(x, wy - ki) && dd < 9. && n1.at(fx / 14., fy / 14.) > 0.68 { m = Mat::Fungus; }
-            else if dd < -10. && n2.at(fx / 7., fy / 7.) > 0.7 { m = Mat::Roots; }
+            let crys = if bio == Biome::Ashlands { 0.74 } else { 0.80 };
+            if dd > 45. && r > crys { m = Mat::Crystal; } else if dd > 35. && r < if bio == Biome::Ashlands { 0.16 } else { 0.10 } { m = Mat::Quartz; }
+            else if bio == Biome::Ashlands {} // nothing grows in the hot deep
+            else if bio == Biome::Fungal {
+                // fungal hollows: fungus banks on the floors, moss under them, glowing threads up the side walls
+                // (never on a roof: the threads are too weak to hang)
+                let f = n1.at(fx / 10., fy / 10.);
+                if up && f > 0.42 { m = Mat::Fungus; } else if up { m = Mat::Moss; fl |= F_WET; }
+                else if !down && f > 0.5 { m = Mat::Mycelium; }
+            }
+            else if up && dd < 9. && n1.at(fx / 14., fy / 14.) > if bio == Biome::Loam { 0.64 } else { 0.68 } { m = Mat::Fungus; }
+            else if up && bio == Biome::Karst && dd < 30. && n1.at(fx / 12. + 40., fy / 12.) > 0.7 { m = Mat::Moss; fl |= F_WET; } // seep moss on the karst floors
+            else if dd < if bio == Biome::Loam { 10. } else { -10. } && n2.at(fx / 7., fy / 7.) > if bio == Biome::Loam { 0.64 } else { 0.7 } { m = Mat::Roots; }
         }
         (m as u8, fl)
     }

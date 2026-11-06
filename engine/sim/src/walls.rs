@@ -8,7 +8,7 @@
 //! Storage is one byte per cell, packed with the bands (optional trailing RLE). Old saves load with
 //! no wall bytes; `World::infer_back` then lines open cave the way a fresh holt would.
 use crate::craft::Item;
-use crate::gen::Gen;
+use crate::gen::{Biome, Gen};
 use crate::grid::{hash3, Grid};
 use crate::mat::{Kind, Mat, S, SF};
 use crate::world::{disc, Event, World, CELLS_PER_BLOCK};
@@ -56,14 +56,16 @@ pub enum Wall {
     Ashlar,
     /// Dark iron plates on the back. They hold no weight.
     Ironclad,
+    /// Pale fungal threads over the rock: the fungal hollows.
+    Mycel,
 }
-pub const NWALL: usize = 19;
+pub const NWALL: usize = 20;
 
 impl Wall {
     pub fn from_u8(v: u8) -> Wall { if (v as usize) < NWALL { unsafe { std::mem::transmute(v) } } else { Wall::None } }
     pub fn name(self) -> &'static str {
         ["", "Rock wall", "Timber wall", "Masonry wall", "Beam wall", "Pipe wall", "Carved wall",
-            "Damp stain", "Crack", "Root wall", "Missing panel", "Salt wall", "Crystal wall", "Fossil wall", "Sooted timber", "Wet stone wall", "Basalt wall", "Ashlar wall", "Ironclad wall"][self as usize]
+            "Damp stain", "Crack", "Root wall", "Missing panel", "Salt wall", "Crystal wall", "Fossil wall", "Sooted timber", "Wet stone wall", "Basalt wall", "Ashlar wall", "Ironclad wall", "Mycelium wall"][self as usize]
     }
     /// One lore-safe line. Always says it holds no roof.
     pub fn desc(self) -> &'static str {
@@ -84,7 +86,8 @@ impl Wall {
             "Damp dressed stone lining. Walk in front of it; it holds no roof.",
             "Split basalt lining. Walk in front of it; it holds no roof.",
             "Dressed blue-gray stone lining. Walk in front of it; it holds no roof.",
-            "Iron plates on the back. They hold no weight."][self as usize]
+            "Iron plates on the back. They hold no weight.",
+            "Fungal threads over the rock. They hold no roof."][self as usize]
     }
     /// Darker, flatter than the matching foreground block, so a wall never reads as load-bearing.
     pub fn color(self) -> [u8; 3] {
@@ -108,6 +111,7 @@ impl Wall {
             Wall::Basalt => [48, 46, 56],
             Wall::Ashlar => [88, 98, 114],
             Wall::Ironclad => [58, 60, 66],
+            Wall::Mycel => [92, 118, 120],
         }
     }
     /// How much of the far parallax shows through (0 = fully covered, 1 = none of the wall).
@@ -154,6 +158,8 @@ impl Wall {
                 if ty % 3 == 2 || (tx + off) % 6 == 0 { 0.68 } else { 0.96 + (h((tx + off) / 6, row, 59) - 0.5) * 0.1 }
             }
             Wall::Ironclad => if tx % 5 == 0 || ty % 4 == 0 { 1.08 } else { 0.82 + h(tx / 5, ty / 4, 67) * 0.08 },
+            // threads wandering up the rock: pale strands over a dim damp ground
+            Wall::Mycel => if (tx.wrapping_add((ty / 3) % 4)) % 5 == 0 || v > 0.93 { 1.16 } else { 0.8 + h(tx / 3, ty / 4, 73) * 0.1 },
         }
     }
     /// The pack item that places this wall, if a Delver can make it.
@@ -219,18 +225,22 @@ pub fn lining_of(m: Mat) -> Wall {
     }
 }
 
-/// Natural lining of an open cave cell: mostly rock, with stains, cracks, roots and the odd missing panel.
+/// Natural lining of an open cave cell, by region (`Gen::biome_of`): mostly carved rock, with what the
+/// region leaves on it. Roots and damp in the loam, seep stains and salt crust in the karst, cracks and
+/// missing panels in the crags, fungal threads in the fungal hollows, split basalt and soot in the ashlands.
+/// Patches are about a metre across (one hash per 1 m block, plus a little per-cell grain).
 pub fn natural_at(gen: &Gen, x: usize, wy: i64) -> Wall {
-    let d = wy as f32 * crate::mat::CELL_M;
-    let h = hash3(x as u32, wy as u32, gen.seed ^ 0xB4C11);
-    let r = (h & 255) as f32 / 255.;
-    if d < -8. && r > 0.82 { Wall::Root }
-    else if d < 20. && r > 0.88 { Wall::Damp }
-    else if r > 0.93 { Wall::Crack }
-    else if r > 0.97 { Wall::Gap }
-    else if d > 50. && r < 0.06 { Wall::Salt }
-    else if d > 45. && r < 0.04 { Wall::Crystal }
-    else { Wall::Rock }
+    let d = wy as f32 * crate::mat::CELL_M; let c = crate::mat::CPM;
+    let r = (hash3((x / c) as u32, wy.div_euclid(c as i64) as u32, gen.seed ^ 0xB4C11) & 255) as f32 / 255.;
+    let g = (hash3(x as u32, wy as u32, gen.seed ^ 0xB4C12) & 255) as f32 / 255.;
+    let r = (r * 0.8 + g * 0.2).clamp(0., 1.);
+    match gen.biome_of(x, wy) {
+        Biome::Loam => if r > 0.72 { Wall::Root } else if r > 0.6 { Wall::Damp } else if r < 0.04 { Wall::Gap } else { Wall::Rock },
+        Biome::Karst => if r > 0.72 { Wall::Damp } else if r > 0.64 && d > -10. { Wall::Salt } else if d < -8. && r < 0.08 { Wall::Root } else { Wall::Rock },
+        Biome::Crags => if r > 0.74 { Wall::Crack } else if r < 0.07 { Wall::Gap } else if d > 45. && r < 0.1 { Wall::Crystal } else { Wall::Rock },
+        Biome::Fungal => if r > 0.45 { Wall::Mycel } else if r > 0.3 { Wall::Damp } else { Wall::Rock },
+        Biome::Ashlands => if r > 0.45 { Wall::Basalt } else if r < 0.08 { Wall::Crystal } else if r < 0.16 { Wall::Salt } else { Wall::Rock },
+    }
 }
 
 impl World {

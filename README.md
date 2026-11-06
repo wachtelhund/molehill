@@ -80,7 +80,7 @@ New Holt asks for a mode. **Survival** starts with a small kit: you dig with the
 * **Falling sand and fluids:** sand, gravel, water and lava. Lava meeting water becomes loose basalt scoria.
 * **Structural stress:** overburden, bending, compression and connectivity. Cracked cells crumble after 40 ticks. With no player action, the start burrow stands and a fresh world collapses only a little in the first 2 minutes (this is tested). Some natural caves may still settle in the fog away from the colony.
 * **Endless Deepholt:** you start in the middle layer of earth (depth 0 m). The 1024×512-cell grid is a sliding window over an infinite column: when the camera or colony nears the top or bottom edge, the window slides by 128 rows. Leaving rows are stored as 8 m bands with everything in them (your digging, devices, torches and stations are kept), and new rows are generated on demand from a pure per-cell function of (seed, x, absolute row), so the world is deterministic per seed. Horizontally it is still bounded by bedrock walls.
-* **Seeded procgen:** biomes, strata by depth, caves, and pockets of water and lava. Water is common in shallow layers and lava deeper down (details below).
+* **Seeded procgen:** underground regions (loam, karst, crags, fungal hollows, ashlands: each with its own ground, pockets, growth and back walls), strata by depth, caves, and pockets of water and lava. Water is common in shallow layers and lava deeper down (details below).
 * **Lighting:** unlit tunnels stay dark. Torches, powered lamps, forges, a torch in the paws and the mole's fungus-oil headlamp (`G`) cast light with soft falloff and rock shadows; lava, crystal and fungus glow. There is also fog of war and a deep-earth parallax background. There is no sky light and no day cycle.
 * **Moles:**
   * They dig, haul, build and craft.
@@ -152,7 +152,7 @@ Units: cell edge s = 0.25 m, unit depth b = 1 m, g = 9.81 m/s². Densities are i
 
 Open underground cells show procedural background layers:
 
-* far rock strata with biome tint (parallax 0.8);
+* far rock strata tinted by region (parallax 0.8); natural ground in front takes a lighter wash of the same tint;
 * cave silhouettes (0.6);
 * mineral veins, rusty near the start and pale quartz or ember veins deeper down (0.35).
 

@@ -2,7 +2,7 @@
 use bevy::asset::RenderAssetUsages;
 use bevy::image::{Image, ImageSampler};
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
-use molehill_sim::gen::{Biome, Noise};
+use molehill_sim::gen::{Biome, Gen, Noise};
 
 pub fn image(w: u32, h: u32, data: Vec<u8>, nearest: bool) -> Image {
     let mut im = Image::new(Extent3d { width: w, height: h, depth_or_array_layers: 1 }, TextureDimension::D2, data, TextureFormat::Rgba8UnormSrgb, RenderAssetUsages::default());
@@ -10,15 +10,31 @@ pub fn image(w: u32, h: u32, data: Vec<u8>, nearest: bool) -> Image {
     im
 }
 fn mix(a: [f32; 3], b: [f32; 3], t: f32) -> [f32; 3] { [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t] }
-pub fn biome_tint(b: Biome) -> [f32; 3] { match b { Biome::Loam => [1.0, 0.92, 0.82], Biome::Karst => [0.88, 0.95, 1.0], Biome::Crags => [0.9, 0.9, 0.98], Biome::Ashlands => [1.05, 0.8, 0.72] } }
+pub fn biome_tint(b: Biome) -> [f32; 3] { match b { Biome::Loam => [1.0, 0.92, 0.82], Biome::Karst => [0.88, 0.95, 1.0], Biome::Crags => [0.9, 0.9, 0.98], Biome::Ashlands => [1.05, 0.8, 0.72], Biome::Fungal => [0.86, 0.98, 0.96] } }
+/// Region tint for natural ground in front: most of the parallax tint, so a block keeps its own colour
+/// but each region reads apart (warm loam, cool karst, grey crags, green-blue fungal hollows, scorched ashlands).
+pub fn ground_tint(b: Biome) -> [f32; 3] { biome_tint(b).map(|v| 1. + (v - 1.) * 0.6) }
+/// The ground tint of every 1 m block of the window (row-major, `w / CPM` per row), for `tint_at`.
+pub fn region_map(gen: &Gen, oy: i64, w: usize, h: usize) -> Vec<[f32; 3]> {
+    let c = molehill_sim::mat::CPM; let (bw, bh) = (w / c, h / c);
+    (0..bw * bh).map(|i| ground_tint(gen.biome_of((i % bw) * c + c / 2, oy + ((i / bw) * c + c / 2) as i64))).collect()
+}
+/// The ground tint at window cell (x, y), blended between block centres so a region edge is a soft wash.
+pub fn tint_at(map: &[[f32; 3]], w: usize, x: usize, y: usize) -> [f32; 3] {
+    let c = molehill_sim::mat::CPM; let bw = w / c; if bw == 0 || map.is_empty() { return [1.; 3]; } let bh = map.len() / bw;
+    let (fx, fy) = ((x as f32 + 0.5) / c as f32 - 0.5, (y as f32 + 0.5) / c as f32 - 0.5);
+    let (x0, y0) = (fx.floor().clamp(0., (bw - 1) as f32) as usize, fy.floor().clamp(0., (bh - 1) as f32) as usize);
+    let (x1, y1) = ((x0 + 1).min(bw - 1), (y0 + 1).min(bh - 1)); let (tx, ty) = ((fx - x0 as f32).clamp(0., 1.), (fy - y0 as f32).clamp(0., 1.));
+    let a = mix(map[y0 * bw + x0], map[y0 * bw + x1], tx); let b = mix(map[y1 * bw + x0], map[y1 * bw + x1], tx); mix(a, b, ty)
+}
 fn smooth(e0: f32, e1: f32, x: f32) -> f32 { let t = ((x - e0) / (e1 - e0)).clamp(0., 1.); t * t * (3. - 2. * t) }
 
 /// Background layer kinds. Each image covers `cells_w × cells_h` world cells at `res` cells per texel.
 pub enum Layer { Strata, Caves, Veins }
 
-/// `surface[x]`, `biome[x]` per cell column; layer image spans [-pad, w+pad] × [-pad, h+pad] cells.
-/// `oy` = absolute row of window row 0, so the deep-earth bands line up with the endless world.
-pub fn layer(kind: Layer, oy: i64, biome: &[Biome], w: usize, h: usize, pad: usize, res: usize, seed: u32) -> (Vec<u8>, u32, u32) {
+/// `region(x, wy)`: the region of window column x at absolute row wy (`Gen::biome_of`); layer image spans
+/// [-pad, w+pad] × [-pad, h+pad] cells. `oy` = absolute row of window row 0, so the deep-earth bands line up with the endless world.
+pub fn layer(kind: Layer, oy: i64, region: &dyn Fn(usize, i64) -> Biome, w: usize, h: usize, pad: usize, res: usize, seed: u32) -> (Vec<u8>, u32, u32) {
     let (tw, th) = (((w + 2 * pad) / res) as u32, (h / res) as u32);
     let mut d = vec![0u8; (tw * th * 4) as usize];
     let n = Noise::new(seed ^ 0xBEEF); let n2 = Noise::new(seed ^ 0xF00D);
@@ -27,7 +43,7 @@ pub fn layer(kind: Layer, oy: i64, biome: &[Biome], w: usize, h: usize, pad: usi
         let cxf = tx as f32 * res as f32 - pad as f32; let cyf = (ty as i64 * res as i64 + oy) as f32;
         // noise runs in legacy 0.25 m tiles so the rock patterns keep their size in metres at any CPM
         let (cxf, cyf) = (cxf / molehill_sim::mat::SF, cyf / molehill_sim::mat::SF);
-        let depth = cyf * 0.25; let tint = biome_tint(biome[cx]);
+        let depth = cyf * 0.25; let tint = biome_tint(region(cx, ty as i64 * res as i64 + oy));
         let (mut c, mut a): ([f32; 3], f32) = ([0.; 3], 0.);
         match kind {
             Layer::Strata => {

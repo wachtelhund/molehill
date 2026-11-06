@@ -126,7 +126,8 @@ pub(crate) fn default_slots() -> Vec<Option<Thing>> {
 /// Parallax background: three deep-earth layers (pixels, parallax factor). They are drawn as GPU sprites
 /// (`BgLayer`) behind the world and slide smoothly with the camera; open cells in the world texture are a
 /// translucent light/air overlay on top of them. Replacing the resource re-uploads the layer images.
-#[derive(Resource)] struct Bg { layers: Vec<(Vec<u8>, f32)> }
+#[derive(Resource)] struct Bg { layers: Vec<(Vec<u8>, f32)>, /// region tint per 1 m block (`art::region_map`)
+    region: Vec<[f32; 3]> }
 #[derive(Component)] pub struct BgLayer(usize);
 const BG_BASE: [f32; 3] = [44., 34., 30.];
 #[inline] fn lin(c: f32) -> f32 { (c / 255.).max(0.).powf(2.2) }
@@ -658,8 +659,9 @@ pub fn load_saved(g: &mut Game, commands: &mut Commands) -> bool {
         Some(Err(e)) => { g.msg = format!("Load failed: {e}"); false } None => { g.msg = "No save yet".into(); false } }
 }
 fn make_bg(w: &World) -> Bg {
-    let mk = |k, f| (art::layer(k, w.oy, &w.info.biome, W, H, PAD, BG_RES, w.info.seed).0, f);
-    Bg { layers: vec![mk(art::Layer::Strata, 0.8), mk(art::Layer::Caves, 0.6), mk(art::Layer::Veins, 0.35)] }
+    let region = |x: usize, wy: i64| w.gen.biome_of(x, wy);
+    let mk = |k, f| (art::layer(k, w.oy, &region, W, H, PAD, BG_RES, w.info.seed).0, f);
+    Bg { layers: vec![mk(art::Layer::Strata, 0.8), mk(art::Layer::Caves, 0.6), mk(art::Layer::Veins, 0.35)], region: art::region_map(&w.gen, w.oy, W, H) }
 }
 fn dev_cost(d: Dev) -> Option<Item> { d.cost() }
 fn input(mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<ButtonInput<MouseButton>>, scroll: Res<AccumulatedMouseScroll>,
@@ -959,7 +961,9 @@ fn render_world(mut gm: ResMut<Game>, bg: Res<Bg>, mut images: ResMut<Assets<Ima
                     let pn = gr.paint(i); let base = if pn > 0 && p.kind == Kind::Solid { let pc = craft::PIGMENTS[pn as usize]; [0usize, 1, 2].map(|j| p.color[j] as f32 * 0.25 + pc[j] as f32 * 0.75) } else {
                         // rails and ore pockets draw their own two-tone pixel art (`art::mat_color`)
                         let above = (1..=2).take_while(|&d| y >= d && gr.m(i - d * W) == m).count() as u32;
-                        art::mat_color(m, x as u32, wy, above).unwrap_or(p.color.map(|v| v as f32)) };
+                        art::mat_color(m, x as u32, wy, above).unwrap_or_else(|| {
+                            // natural ground takes its region's tint (built blocks and glowing ones keep their own colour)
+                            let c = p.color.map(|v| v as f32); if m.has(molehill_sim::mat::BUILT) || em { c } else { let t = art::tint_at(&bg.region, W, x, y); [c[0] * t[0], c[1] * t[1], c[2] * t[2]] } }) };
                     let mut c = [lm(base[0] * k, l[0]), lm(base[1] * k, l[1]), lm(base[2] * k, l[2])];
                     let mut alpha = 255.;
                     if m == Mat::Water { c = [lm(40. + 30. * v2, l[0]), lm(90. + 20. * v2, l[1]), lm(170., l[2])]; alpha = 255.; }
