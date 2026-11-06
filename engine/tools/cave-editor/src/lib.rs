@@ -46,8 +46,12 @@ pub fn thing_label(t: &ThingDef) -> String { match &t.item { Some(i) => format!(
 pub fn paint_mats() -> Vec<Mat> { (0..NMAT as u8).map(Mat::from_u8).filter(|m| !matches!(m, Mat::Steam | Mat::Fire)).collect() }
 pub fn paint_walls() -> Vec<Wall> { (1..NWALL as u8).map(Wall::from_u8).collect() }
 
-#[derive(Clone, PartialEq)]
-struct Snap { cells: Vec<char>, lining: Vec<char>, things: Vec<ThingDef>, chest: Option<[usize; 2]>, file: SiteFile }
+/// What an edit can change, kept small: the grids as bytes (palette characters are ASCII), the things,
+/// the chest, and the palette and lining mixes (strokes add entries to them).
+struct Snap { cells: Vec<u8>, lining: Vec<u8>, things: Vec<ThingDef>, chest: Option<[usize; 2]>,
+    palette: std::collections::BTreeMap<String, String>, linings: std::collections::BTreeMap<String, Vec<String>> }
+/// Undo steps kept (on the largest piece, the mine, about 0.2 MB each).
+pub const UNDO_STEPS: usize = 100;
 
 /// One template open for editing. Painting changes the base layer; slot patches (the variants) are kept
 /// and laid over it in the preview, so a cell a variant patches shows the variant's value.
@@ -76,10 +80,16 @@ impl Doc {
         let f: SiteFile = serde_json::from_str(&text).map_err(|e| format!("{}: {e}", path.display()))?;
         Doc::from_file(f)
     }
-    fn snap(&self) -> Snap { Snap { cells: self.cells.clone(), lining: self.lining.clone(), things: self.file.things.clone(), chest: self.file.chest, file: self.file.clone() } }
-    fn restore(&mut self, s: Snap) { self.cells = s.cells; self.lining = s.lining; self.file = s.file; self.file.things = s.things; self.file.chest = s.chest; self.dirty = true; }
+    fn snap(&self) -> Snap {
+        let b = |g: &[char]| g.iter().map(|&c| c as u8).collect();
+        Snap { cells: b(&self.cells), lining: b(&self.lining), things: self.file.things.clone(), chest: self.file.chest, palette: self.file.palette.clone(), linings: self.file.linings.clone() }
+    }
+    fn restore(&mut self, s: Snap) {
+        self.cells = s.cells.into_iter().map(char::from).collect(); self.lining = s.lining.into_iter().map(char::from).collect();
+        self.file.things = s.things; self.file.chest = s.chest; self.file.palette = s.palette; self.file.linings = s.linings; self.dirty = true;
+    }
     /// Call once at the start of each stroke or action, so one undo takes it back whole.
-    pub fn begin(&mut self) { self.undo.push(self.snap()); if self.undo.len() > 200 { self.undo.remove(0); } self.redo.clear(); }
+    pub fn begin(&mut self) { self.undo.push(self.snap()); if self.undo.len() > UNDO_STEPS { self.undo.remove(0); } self.redo.clear(); }
     pub fn undo(&mut self) -> bool { let Some(s) = self.undo.pop() else { return false }; self.redo.push(self.snap()); self.restore(s); true }
     pub fn redo(&mut self) -> bool { let Some(s) = self.redo.pop() else { return false }; self.undo.push(self.snap()); self.restore(s); true }
 
@@ -273,6 +283,11 @@ pub fn draw(t: &Template, var: u32, left: bool, sim: Option<&[Mat]>) -> Vec<u8> 
         };
         px[i * 4..i * 4 + 4].copy_from_slice(&[c[0], c[1], c[2], 255]);
     } }
+    draw_markers(t, var, left, &mut px);
+    px
+}
+/// The chest and things as markers, over whatever is drawn (so a check's tint doesn't hide them).
+pub fn draw_markers(t: &Template, var: u32, left: bool, px: &mut [u8]) {
     let mut dot = |x: i64, y: i64, r: i64, c: [u8; 3]| for yy in y - r..=y + r { for xx in x - r..=x + r {
         if xx >= 0 && yy >= 0 && (xx as usize) < t.w && (yy as usize) < t.h { let i = (yy as usize * t.w + xx as usize) * 4; px[i..i + 4].copy_from_slice(&[c[0], c[1], c[2], 255]); } } };
     for th in t.things(var, left) {
@@ -289,7 +304,6 @@ pub fn draw(t: &Template, var: u32, left: bool, sim: Option<&[Mat]>) -> Vec<u8> 
         }
     }
     if let Some((cx, cy)) = t.chest(var, left) { dot(cx as i64, cy as i64, 3, [240, 190, 40]); }
-    px
 }
 
 /// Lay an overlay over drawn pixels: `tint` where `mask` is set, mixed by `a` (0..1).
@@ -301,3 +315,243 @@ pub fn overlay(px: &mut [u8], mask: impl Iterator<Item = bool>, tint: [u8; 3], a
 /// The families in key order 1–7.
 pub fn families() -> [Kind; 7] { FAMILIES.map(|f| f.0) }
 pub fn kind_label(k: Kind) -> &'static str { templates::file_name(k) }
+
+// ---------------------------------------------------------------- the editor's state and panel (no Bevy)
+
+/// Panel geometry the window lays rows out with, and clicks are mapped back through.
+pub const PANEL_W: f32 = 330.;
+pub const ROW_TOP: f32 = 8.;
+pub const LINE: f32 = 17.;
+/// Rows the window lays out (the panel never needs more: see `panel_fits`); the window is never shorter
+/// than they need (`MIN_WINDOW_H`).
+pub const ROWS: usize = 53;
+pub const MIN_WINDOW_H: f32 = ROW_TOP * 2. + ROWS as f32 * LINE;
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Tool { Material, Lining, Thing, Chest }
+pub enum Overlay { None, Reach(Reach), Stress(Vec<bool>), Sim(Sim) }
+/// Everything a panel row or a key does.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum Act { Family(usize), Tool(Tool), Pal(usize), PalStep(i64), Var(i64), Side, Brush(f32), Reach, Stress, Simulate, Clear, Undo, Redo, Save, Fit }
+/// A panel row: its text, what clicking it does, and whether it shows as the current choice.
+#[derive(Clone, Debug, PartialEq, Default)]
+pub struct PanelRow { pub text: String, pub act: Option<Act>, pub on: bool }
+/// Mouse buttons on the canvas.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Press { Left, LeftHeld, Right }
+
+pub struct Editor {
+    pub fam: usize, pub doc: Doc, pub var: u32, pub left: bool, pub tool: Tool,
+    pub mat_i: usize, pub wall_i: usize, pub thing_i: usize, pub brush: f32,
+    pub overlay: Overlay, pub msg: String,
+    /// the canvas needs redrawing / the view refitting (the window clears these)
+    pub redraw: bool, pub fit: bool,
+    /// where saves go (assets/sites/ normally; tests point it elsewhere)
+    pub save_dir: PathBuf,
+    stroke: bool, discard: Option<usize>,
+    pub mats: Vec<Option<Mat>>, pub walls: Vec<Option<Wall>>, pub things: Vec<ThingDef>,
+}
+
+impl Editor {
+    pub fn new(fam: usize) -> Result<Editor, String> {
+        let doc = Doc::open(families()[fam])?;
+        let mut mats = vec![None]; mats.extend(paint_mats().into_iter().map(Some));
+        let mut walls = vec![None]; walls.extend(paint_walls().into_iter().map(Some));
+        let mat_i = mats.iter().position(|m| *m == Some(Mat::Rock)).unwrap_or(0);
+        Ok(Editor { fam, doc, var: 0, left: false, tool: Tool::Material, mat_i, wall_i: 1, thing_i: 0, brush: 2., overlay: Overlay::None,
+            msg: "Opened. Paint with the left mouse; the right mouse picks or removes.".into(), redraw: true, fit: true, save_dir: sites_dir(),
+            stroke: false, discard: None, mats, walls, things: thing_kinds() })
+    }
+    pub fn kind(&self) -> Kind { families()[self.fam] }
+    pub fn pal_len(&self) -> usize { match self.tool { Tool::Material | Tool::Chest => self.mats.len(), Tool::Lining => self.walls.len(), Tool::Thing => self.things.len() } }
+    pub fn pal_cur(&self) -> usize { match self.tool { Tool::Material | Tool::Chest => self.mat_i, Tool::Lining => self.wall_i, Tool::Thing => self.thing_i } }
+    fn set_pal(&mut self, i: usize) { match self.tool { Tool::Material | Tool::Chest => self.mat_i = i, Tool::Lining => self.wall_i = i, Tool::Thing => self.thing_i = i } }
+    pub fn pal_label(&self, i: usize) -> String {
+        match self.tool {
+            Tool::Material | Tool::Chest => self.mats[i].map_or("(host rock)".into(), |m| format!("{m:?}")),
+            Tool::Lining => self.walls[i].map_or("(no lining)".into(), |w| format!("{w:?}")),
+            Tool::Thing => thing_label(&self.things[i]),
+        }
+    }
+    fn open(&mut self, fam: usize) {
+        if fam == self.fam && !self.doc.dirty { return; }
+        if self.doc.dirty && self.discard != Some(fam) { self.discard = Some(fam); self.msg = "Unsaved changes: press again to discard them, or Ctrl+S first.".into(); return; }
+        match Doc::open(families()[fam]) {
+            Ok(d) => { self.doc = d; self.fam = fam; self.var = 0; self.left = false; self.overlay = Overlay::None; self.redraw = true; self.fit = true; self.discard = None;
+                self.msg = format!("Opened {}.", kind_label(self.kind())); }
+            Err(e) => self.msg = e,
+        }
+    }
+    pub fn run(&mut self, a: Act) {
+        match a {
+            Act::Family(k) => self.open(k),
+            Act::Tool(t) => { self.tool = t; self.msg = match t {
+                Tool::Material => "Paint materials: left paints, right picks the one under the cursor.",
+                Tool::Lining => "Paint the back-wall lining (behind open space; it holds nothing up).",
+                Tool::Thing => "Set things down: left sets the one picked, right takes the nearest away.",
+                Tool::Chest => "Left sets the chest (in open space, just above a floor); right removes it." }.into(); }
+            Act::Pal(i) => { if i < self.pal_len() { self.set_pal(i); } }
+            Act::PalStep(d) => { let n = self.pal_len().max(1) as i64; let i = (self.pal_cur() as i64 + d).rem_euclid(n) as usize; self.set_pal(i); }
+            Act::Var(d) => { self.var = (self.var as i64 + d).clamp(0, (1 << 20) - 1) as u32; self.overlay = Overlay::None; self.redraw = true; }
+            Act::Side => { self.left = !self.left; self.overlay = Overlay::None; self.redraw = true; }
+            Act::Brush(d) => self.brush = (self.brush + d).clamp(0.5, 24.),
+            Act::Reach | Act::Stress | Act::Simulate => {
+                let t = match self.doc.template() { Ok(t) => t, Err(e) => { self.msg = e; return; } };
+                let r = match a {
+                    Act::Reach => reach(&t, self.var, self.left).map(|r| {
+                        self.msg = if r.problems.is_empty() { format!("Walkable: every way in reaches the {} (green; orange is open space the mole can't get to). Gravity is ignored: G runs it for real.", if t.chest(self.var, self.left).is_some() { "chest" } else { "floor" }) } else { r.problems.join(" / ") };
+                        Overlay::Reach(r) }),
+                    Act::Stress => stress(&t, self.var, self.left).map(|o| { let n = o.iter().filter(|&&b| b).count();
+                        self.msg = if n == 0 { "Sound: nothing over capacity.".into() } else { format!("{n} cells over capacity (red): they crack and fall in play.") }; Overlay::Stress(o) }),
+                    _ => simulate(&t, self.var, self.left, 600).map(|s| {
+                        self.msg = format!("After 10 s with a mole at the chest: {} cells changed, {} crumbled, hp {:.0}.", s.changed, s.crumbled, s.hp); Overlay::Sim(s) }),
+                };
+                match r { Ok(o) => { self.overlay = o; self.redraw = true; } Err(e) => self.msg = e }
+            }
+            Act::Clear => { self.overlay = Overlay::None; self.redraw = true; }
+            Act::Undo => { if self.doc.undo() { self.overlay = Overlay::None; self.redraw = true; self.msg = "Undone.".into(); } else { self.msg = "Nothing to undo.".into(); } }
+            Act::Redo => { if self.doc.redo() { self.overlay = Overlay::None; self.redraw = true; self.msg = "Redone.".into(); } else { self.msg = "Nothing to redo.".into(); } }
+            Act::Save => {
+                let p = self.save_dir.join(format!("{}.json", kind_label(self.kind())));
+                self.msg = match self.doc.save(&p) { Ok(()) => format!("Saved {}. It is the editor's now: export_sites keeps it.", p.display()), Err(e) => format!("Not saved: {e}") };
+            }
+            Act::Fit => self.fit = true,
+        }
+    }
+    /// A key (the letter or symbol as typed, `^` prefix for Ctrl/Cmd, upper case for Shift on letters).
+    pub fn key(&mut self, k: &str) {
+        let a = match k {
+            "1" | "2" | "3" | "4" | "5" | "6" | "7" => Act::Family(k.parse::<usize>().unwrap() - 1),
+            "m" => Act::Tool(Tool::Material), "l" => Act::Tool(Tool::Lining), "t" => Act::Tool(Tool::Thing), "c" => Act::Tool(Tool::Chest),
+            "[" => Act::Brush(-0.5), "]" => Act::Brush(0.5), "," => Act::PalStep(-1), "." => Act::PalStep(1),
+            "v" => Act::Var(-1), "b" => Act::Var(1), "V" => Act::Var(-16), "B" => Act::Var(16), "n" => Act::Side,
+            "r" => Act::Reach, "p" => Act::Stress, "g" => Act::Simulate, "esc" => Act::Clear, "f" => Act::Fit,
+            "^s" => Act::Save, "^z" => Act::Undo, "^Z" | "^y" => Act::Redo,
+            _ => return,
+        };
+        self.run(a);
+    }
+    /// The left panel, top to bottom.
+    pub fn rows(&self, slots: &[(String, String)]) -> Vec<PanelRow> {
+        let mut r: Vec<PanelRow> = vec![];
+        let mut row = |text: String, act: Option<Act>, on: bool| r.push(PanelRow { text, act, on });
+        row(format!("CAVE EDITOR  (dev only, not shipped){}", if self.doc.dirty { "  *unsaved*" } else { "" }), None, false);
+        row(String::new(), None, false);
+        for (k, &f) in families().iter().enumerate() { row(format!("{}  {}", k + 1, kind_label(f)), Some(Act::Family(k)), k == self.fam); }
+        row(String::new(), None, false);
+        let t = self.tool;
+        for (key, label, tool) in [("M", "paint material", Tool::Material), ("L", "paint lining", Tool::Lining), ("T", "set things (torch, furniture, rope...)", Tool::Thing), ("C", "move the chest", Tool::Chest)] {
+            row(format!("{key}  {label}"), Some(Act::Tool(tool)), t == tool);
+        }
+        row(format!("[ ]  brush radius {:.1} cells ({:.2} m)", self.brush, self.brush / CPM as f32), None, false);
+        row("      smaller".into(), Some(Act::Brush(-0.5)), false);
+        row("      bigger".into(), Some(Act::Brush(0.5)), false);
+        row(String::new(), None, false);
+        if t != Tool::Chest {
+            let (n, cur) = (self.pal_len(), self.pal_cur());
+            let first = cur.saturating_sub(5).min(n.saturating_sub(PALETTE_ROWS));
+            row(format!(",  .  palette ({} of {n})", cur + 1), None, false);
+            for i in first..(first + PALETTE_ROWS).min(n) { row(format!("{} {}", if i == cur { ">" } else { " " }, self.pal_label(i)), Some(Act::Pal(i)), i == cur); }
+        } else { row("Left sets the chest, right removes it.".into(), None, false); }
+        row(String::new(), None, false);
+        row(format!("V / B  variant var = {}   (Shift: 16)", self.var), None, false);
+        row("      -1".into(), Some(Act::Var(-1)), false);
+        row("      +1".into(), Some(Act::Var(1)), false);
+        row(format!("N  side: {}", if self.left { "west (left)" } else { "east" }), Some(Act::Side), self.left);
+        for (name, opt) in slots { row(format!("      {name}: {opt}"), None, false); }
+        row(String::new(), None, false);
+        row("R  can the mole walk it?".into(), Some(Act::Reach), matches!(self.overlay, Overlay::Reach(_)));
+        row("P  will it stand? (stress)".into(), Some(Act::Stress), matches!(self.overlay, Overlay::Stress(_)));
+        row("G  run it 10 s with a mole in it".into(), Some(Act::Simulate), matches!(self.overlay, Overlay::Sim(_)));
+        row("Esc  clear the check".into(), Some(Act::Clear), false);
+        row(String::new(), None, false);
+        row("Ctrl/Cmd+Z  undo".into(), Some(Act::Undo), false);
+        row("Ctrl/Cmd+Shift+Z or Y  redo".into(), Some(Act::Redo), false);
+        row("Ctrl/Cmd+S  save to assets/sites/".into(), Some(Act::Save), false);
+        row("F  fit   (wheel or +/- zoom, arrows/WASD pan)".into(), Some(Act::Fit), false);
+        row(String::new(), None, false);
+        for l in wrap(&self.msg, 44).into_iter().take(MSG_ROWS) { row(l, None, false); }
+        r
+    }
+    /// The row under a cursor at window y (logical pixels).
+    pub fn row_at(y: f32) -> Option<usize> { let i = ((y - ROW_TOP) / LINE).floor(); (i >= 0.).then_some(i as usize) }
+    /// A click on the panel: runs that row's command, if it has one.
+    pub fn click_panel(&mut self, y: f32, slots: &[(String, String)]) -> bool {
+        let Some(i) = Editor::row_at(y) else { return false };
+        match self.rows(slots).get(i).and_then(|r| r.act) { Some(a) => { self.run(a); true } None => false }
+    }
+    /// The mouse on the canvas at cell (x, y).
+    pub fn press(&mut self, x: usize, y: usize, p: Press) {
+        let (var, left) = (self.var, self.left);
+        match (self.tool, p) {
+            (Tool::Material | Tool::Lining, Press::Left | Press::LeftHeld) => {
+                if p == Press::Left || !self.stroke { self.doc.begin(); self.stroke = true; }
+                let b = if self.tool == Tool::Material { Brush::Mat(self.mats[self.mat_i]) } else { Brush::Lining(self.walls[self.wall_i]) };
+                if self.doc.paint(x as i64, y as i64, self.brush, b) > 0 { self.overlay = Overlay::None; self.redraw = true; }
+            }
+            (Tool::Material, Press::Right) => {
+                if let Some(Brush::Mat(m)) = self.doc.pick(x, y) { if let Some(i) = self.mats.iter().position(|&q| q == m) { self.mat_i = i; self.msg = format!("Picked {}.", self.pal_label(i)); } }
+            }
+            (Tool::Lining, Press::Right) => {}
+            (Tool::Thing, Press::Left) => { self.doc.begin(); let t = self.things[self.thing_i].clone(); self.doc.place_thing(&t, x, y, var, left); self.msg = format!("Set down a {} at ({x}, {y}).", thing_label(&t)); self.redraw = true; }
+            (Tool::Thing, Press::Right) => { self.doc.begin(); self.msg = if self.doc.remove_thing_near(x, y, 6.) { self.redraw = true; "Took the nearest thing away.".into() } else { "No thing within 6 cells.".into() }; }
+            (Tool::Chest, Press::Left) => { self.doc.begin(); self.doc.set_chest(Some([x, y])); self.msg = format!("Chest at ({x}, {y})."); self.redraw = true; }
+            (Tool::Chest, Press::Right) => { self.doc.begin(); self.doc.set_chest(None); self.msg = "No chest.".into(); self.redraw = true; }
+            (Tool::Thing | Tool::Chest, Press::LeftHeld) => {}
+        }
+    }
+    /// The mouse button let go: the stroke ends (the next press starts a new undo step).
+    pub fn release(&mut self) { self.stroke = false; }
+    /// The variant's slot choices, for the panel: (slot, option) names.
+    pub fn slot_choices(&self, t: &Template) -> Vec<(String, String)> {
+        t.file.slots.iter().map(|s| { let o = s.pick.choose(self.var, self.left).min(s.options.len() - 1); (s.name.clone(), s.options[o].name.clone()) }).collect()
+    }
+    /// The canvas pixels with the current check laid over.
+    pub fn pixels(&self, t: &Template) -> Vec<u8> {
+        let sim = if let Overlay::Sim(s) = &self.overlay { Some(s.cells.as_slice()) } else { None };
+        let mut px = draw(t, self.var, self.left, sim);
+        match &self.overlay {
+            Overlay::Reach(r) => {
+                overlay(&mut px, r.region.iter().map(|&k| k != 0 && r.ways_in.contains(&k)), [80, 220, 120], 0.35);
+                overlay(&mut px, r.region.iter().map(|&k| k != 0 && !r.ways_in.contains(&k)), [240, 140, 40], 0.5);
+            }
+            Overlay::Stress(o) => overlay(&mut px, o.iter().copied(), [255, 40, 40], 0.75),
+            _ => {}
+        }
+        draw_markers(t, self.var, self.left, &mut px);
+        px
+    }
+}
+/// Palette entries shown at once, and message lines kept.
+pub const PALETTE_ROWS: usize = 11;
+pub const MSG_ROWS: usize = 4;
+fn wrap(s: &str, width: usize) -> Vec<String> {
+    let mut out = vec![]; let mut line = String::new();
+    for w in s.split(' ') { if !line.is_empty() && line.len() + 1 + w.len() > width { out.push(std::mem::take(&mut line)); } if !line.is_empty() { line.push(' '); } line.push_str(w); }
+    if !line.is_empty() { out.push(line); }
+    out
+}
+/// The longest the panel gets (the halt and mine have the most slot rows), against the rows the window has.
+pub fn panel_fits() -> bool {
+    let slots = vec![(String::new(), String::new()); 3];
+    let mut e = Editor::new(0).unwrap();
+    e.msg = "x ".repeat(200);
+    let n = e.rows(&slots).len();
+    if n > ROWS { eprintln!("the panel needs {n} rows, the window has {ROWS}"); }
+    n <= ROWS
+}
+
+/// Write pixels as a 24-bit BMP (`--canvas`, `--shot`).
+pub fn write_bmp(path: &Path, w: usize, h: usize, rgba: &[u8], bgra: bool) -> std::io::Result<()> {
+    let row = (w * 3 + 3) / 4 * 4;
+    let mut out = Vec::with_capacity(54 + row * h);
+    let le = |v: u32| v.to_le_bytes();
+    out.extend_from_slice(b"BM"); out.extend_from_slice(&le((54 + row * h) as u32)); out.extend_from_slice(&[0; 4]); out.extend_from_slice(&le(54));
+    out.extend_from_slice(&le(40)); out.extend_from_slice(&le(w as u32)); out.extend_from_slice(&le(h as u32)); out.extend_from_slice(&[1, 0, 24, 0]);
+    out.extend_from_slice(&[0; 24]);
+    for y in (0..h).rev() {
+        for x in 0..w { let i = (y * w + x) * 4; let (r, g, b) = if bgra { (rgba[i + 2], rgba[i + 1], rgba[i]) } else { (rgba[i], rgba[i + 1], rgba[i + 2]) }; out.extend_from_slice(&[b, g, r]); }
+        out.extend(std::iter::repeat(0).take(row - w * 3));
+    }
+    std::fs::write(path, out)
+}
