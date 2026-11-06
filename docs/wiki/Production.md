@@ -1,6 +1,6 @@
 # Production
 
-A mine's output moves as **real loose items**: every lump is a loose item in the world, in a cart, or in an ore hopper's bin (drawn as its heap). Nothing teleports and nothing is stored out of sight. Lumps get from the face to where they are wanted by falling, sliding and rolling, so a line can jam, spill and pile up. The code is `engine/sim/src/production.rs`, `sluice.rs`, `power.rs`, `steam.rs` and `refine.rs`; carts are in [Transport](Transport.md).
+A mine's output moves as **real loose items**: every lump is a loose item in the world, in a cart, or in an ore hopper's bin (drawn as its heap). Nothing teleports and nothing is stored out of sight. Lumps get from the face to where they are wanted by falling, sliding and rolling, so a line can jam, spill and pile up. The code is `engine/sim/src/production.rs`, `sluice.rs`, `power.rs`, `steam.rs`, `refine.rs` and `linkage.rs`; carts are in [Transport](Transport.md).
 
 | stage | what | state |
 |---|---|---|
@@ -9,7 +9,7 @@ A mine's output moves as **real loose items**: every lump is a loose item in the
 | 3 | Mechanical power: water wheels, shafts, gears, belts that carry and queue real lumps, counterweights | **built** |
 | 4 | Coal power: a boiler raises steam from coal and real water; a steam engine drives a train; ash and slag come out to haul away | **built** |
 | 5 | Refinement: a stamp mill crushes ore under falling stamps, a washer sorts by weight, a smelter blown by bellows melts it, moulds cast ingots | **built** |
-| 6 | Non-electric logic: plates, tipping scales, float valves, gates | design |
+| 6 | Non-electric logic: pull-rods from tread plates, tipping scales and floats to sluice gates, clutches and ore hoppers | **built** |
 
 ## Chutes
 
@@ -135,6 +135,26 @@ The three works stand on a level floor on the tile grid. Their bodies are solid 
   * **Yield:** raw ore gives half an ingot and half a lump of **slag**; washed concentrate gives three quarters and a quarter, so crushing and washing pay. Slag comes out of its spout (`smelter_iron_slag`: raw iron ore waits until the heat passes 1250 °C, then casts an iron ingot and leaves a lump of slag).
 * **Ingot mould** (`Mat::Mould`): a tile of mould built against a smelter is filled when it holds an ingot's worth of molten metal. It glows as it sets (`Mat::MouldHot`, a flame's heat) for 15 s, then it is empty again and the ingot lies on top (`smelter_bellows_mould`).
 
+## Non-electric logic
+
+Weight, water and rods, with no current (`linkage.rs`): the mechanical side of the lore's levers and pressure plates, next to copperline (see [Devices and Copperline](Devices-and-Copperline.md)).
+
+A **linkage** is pull-rod cells and the sensors and actuators touching them. When any of its sensors is pressed, the rods are pulled and every actuator on it moves. Several sensors on one linkage act as *either*; a gate turned round acts as a *turn*. Linkages are solved every 6 ticks over the active region.
+
+* **Pull-rod** (`Mat::Rod`): iron rods on guides, laid with the brush. They can run through rock, so a line can go up a wall and along a roof.
+* **Sensors:**
+  * **Tread plate** (`Mat::TreadPlate`, built into a floor): pressed by 20 kg or more on it. That's the mole (30 kg), four lumps, or a cart.
+  * **Tipping scale** (`Item::Scale`): a pan 1 m wide on a floor, with a counter-pan of stones (10 to start, 5 kg each). It tips when what lies on its pan outweighs them. Right mouse with a stone in the paw puts one on; with an empty paw it takes one off, back into the pack. That sets the batch it weighs out.
+  * **Float** (`Mat::Float`): lifted, and so pressed, while water touches it.
+* **Actuators:**
+  * **Sluice gate** (`Item::SluiceGate`): a timber gate set into an opening, filling it top to bottom (up to 2 m). Pulled, it lifts and its cells open, so water and lumps pass. Let go, it drops again, pushing what's in its way up out of it, as a door does. Right mouse turns it round so that it *shuts* when pulled.
+  * **Clutch** (`Mat::Clutch`): machinery that joins its drive train only while its rod is pulled.
+  * **Ore hopper:** a pulled rod touching one holds its gate open.
+* Scenarios:
+  * `tread_plate_gate`: the mole on a plate lifts a gate under a reservoir, and stepping off drops it.
+  * `float_valve`: a turned-round gate fills a tank until the water reaches a float, and then shuts.
+  * `scale_clutch`: a scale weighing out 10 kg tips on the third stone and engages a clutch, and a belt starts.
+
 ## How they look
 
 Chutes, screens and bumpers are cells with their own patterns (`art::mat_color`). A chute has a pale worn lip and boards along it. A screen is iron bars over a dark mesh under a timber rail. A bumper is red-painted timber with a bright head and iron bands. The ore hopper is drawn: its heap is tinted with what it holds, it shows through the open front of the bin and rises with the load, and the gate under the spout swings open when it lets a lump down. `--scene=production` stamps a small works (chute onto screen, a hopper of copper ore over track, a bumper) for stills. See [Item and Place Art](Item-and-Place-Art.md).
@@ -157,6 +177,8 @@ The chute, screen (shaking or not) and bumper say what moves things along them. 
 | Workbench | washer | 6 wood + 2 clay |
 | Workbench | 4 bellows | 2 wood + 2 fungus |
 | Workbench | 4 ingot mould | 2 sand + 1 clay |
+| Workbench | 2 float | 2 wood |
+| Workbench | sluice gate | 4 wood + 1 stone |
 | Workbench | 2 gear | 2 wood |
 | Workbench | 8 water wheel | 4 wood |
 | Workbench | 8 belt | 2 wood + 2 fungus |
@@ -164,6 +186,10 @@ The chute, screen (shaking or not) and bumper say what moves things along them. 
 | Forge | boiler | 4 iron ingots + 6 brick |
 | Forge | stamp mill | 4 iron ingots + 4 wood |
 | Forge | smelter | 10 brick + 4 clay |
+| Forge | 8 pull-rod | 1 iron ingot |
+| Forge | 2 tread plate | 1 iron ingot |
+| Forge | 2 clutch | 2 iron ingots |
+| Forge | tipping scale | 2 iron ingots + 1 bronze ingot + 2 wood |
 | Forge | 4 steam engine | 3 iron ingots + 1 copper ingot |
 | Forge | 8 steam pipe | 1 copper ingot |
 | Forge | counterweight | 4 iron ingots + 2 wood |

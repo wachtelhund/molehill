@@ -273,6 +273,22 @@ pub fn icon_px(it: Item) -> Px {
         CopperFines | TinFines | IronFines => { // a heap of dark, glittering fine grains: each metal its own heap shape
             let k = match it { CopperFines => 0., TinFines => 1., _ => 2. };
             poly(&mut p, &[(1., 14.), (5. + k, 7. - k), (9., 8.), (12. - k, 6. + k), (15., 14.)], col); fleck(&mut p, 1, 5, 15, 14, 3, 41 + k as u32, sh(col, 1.35)); fleck(&mut p, 1, 5, 15, 14, 4, 43 + k as u32, sh(col, 0.65)); }
+        Rod => { // two iron rods on a guide bracket, a clevis at one end
+            p.rect(0, 5, 15, 6, col); p.rect(0, 10, 15, 11, sh(col, 0.85)); p.rect(6, 3, 8, 13, WOOD_D); p.rect(13, 4, 15, 7, IRON_D); p.set(14, 5, BRASS); p.set(1, 10, sh(col, 1.3)); }
+        TreadPlate => { // a chequered iron plate on two springs
+            p.rect(1, 6, 14, 9, col); for x in (2..14).step_by(3) { p.set(x, 7, sh(col, 1.3)); p.set(x + 1, 8, sh(col, 0.7)); }
+            for x in [3, 11] { line(&mut p, x as f32, 10., x as f32 + 1., 14., 1, IRON_D); } p.rect(1, 14, 14, 15, STONE); }
+        Float => { // a fat sealed barrel float on its rod, in a line of water
+            p.rect(7, 0, 8, 6, IRON); p.oval(7.5, 9., 5.5, 3.5, col); for x in [4, 11] { p.rect(x, 6, x, 12, WOOD_D); } p.rect(0, 12, 15, 15, [72, 128, 200]); p.rect(0, 12, 15, 12, [150, 196, 236]); }
+        SluiceGate => { // a planked gate leaf in a frame with a lifting rod and wheel
+            p.rect(1, 2, 2, 15, WOOD_D); p.rect(13, 2, 14, 15, WOOD_D); p.rect(3, 6, 12, 15, col); for y in [8, 11, 14] { p.rect(3, y, 12, y, sh(col, 0.75)); }
+            p.rect(7, 0, 8, 6, IRON); p.oval(7.5, 1.5, 3., 1.2, IRON_D); }
+        Scale => { // a beam on a post with a pan of ore one side and stones the other
+            p.rect(7, 4, 8, 14, WOOD_D); p.rect(4, 14, 11, 15, WOOD_D); line(&mut p, 1., 5., 14., 3., 1, BRASS); p.oval(2.5, 9., 2.5, 1., BRASS_D); p.oval(13., 7., 2.5, 1., BRASS_D);
+            p.rect(1, 6, 1, 8, ROPE); p.rect(13, 4, 13, 6, ROPE); p.oval(2.5, 8., 1.2, 1., [200, 120, 70]); p.oval(13., 6., 1.5, 1., STONE); }
+        Clutch => { // two toothed iron halves on a shaft, a fork lever on one
+            p.rect(0, 7, 15, 8, IRON); p.rect(3, 3, 6, 12, col); p.rect(9, 3, 12, 12, sh(col, 0.85)); for y in [4, 7, 10] { p.set(7, y, col); p.set(8, y + 1, sh(col, 0.85)); }
+            line(&mut p, 11., 3., 14., 0., 1, WOOD_D); }
         // ---- background linings: a piece of each, darker, as it sits behind
         RockWall => { // a rough slab of scraped host rock with tool marks
             poly(&mut p, &[(1., 3.), (6., 1.), (14., 2.), (15., 9.), (13., 15.), (3., 14.), (1., 9.)], sh(col, 0.85)); for y in [5, 9, 12] { line(&mut p, 3., y as f32, 11., y as f32 - 2., 1, sh(col, 0.6)); } }
@@ -299,9 +315,9 @@ pub fn world_form(it: Item) -> &'static str {
     if it.furn().is_some() { return "furniture sprite"; }
     if it.is_wall() { return "background lining"; }
     match it {
-        Planks | PolishedStone | Tiles | CarvedPillar | Rail | Tube | Chute | Screen | Bumper | Riffle | Shaft | Gear | WaterWheel | Belt | Engine | SteamPipe | Bellows | Mould | WoodPillar | IronBeam | Brick | Glass => "placed cells",
+        Planks | PolishedStone | Tiles | CarvedPillar | Rail | Tube | Chute | Screen | Bumper | Riffle | Shaft | Gear | WaterWheel | Belt | Engine | SteamPipe | Bellows | Mould | Rod | TreadPlate | Float | Clutch | WoodPillar | IronBeam | Brick | Glass => "placed cells",
         Torch => "torch flame", Lamp | Thrummer | Gate | Tnt | Vent => "device sprite", CopperWire => "copperline tile",
-        Cart => "cart sprite", RopeLadder => "rope ladder", HookRope => "rope chain and stone hook", RopeGun => "held rope gun (loaded or empty)", Lift => "lift cage", TubeHopper => "hopper mouth", OreHopper => "ore hopper bin", Counterweight => "counterweight on its drum", Boiler => "boiler shell cells", StampMill => "stamp mill shell cells", Washer => "washer shell cells", Smelter => "smelter shell cells",
+        Cart => "cart sprite", RopeLadder => "rope ladder", HookRope => "rope chain and stone hook", RopeGun => "held rope gun (loaded or empty)", Lift => "lift cage", TubeHopper => "hopper mouth", OreHopper => "ore hopper bin", Counterweight => "counterweight on its drum", Boiler => "boiler shell cells", StampMill => "stamp mill shell cells", Washer => "washer shell cells", Smelter => "smelter shell cells", SluiceGate => "sluice gate cells", Scale => "scale pan cells",
         Mushroom | Spore => "mushroom plot (planted)",
         _ => "loose (icon)",
     }

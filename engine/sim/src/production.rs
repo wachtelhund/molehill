@@ -52,6 +52,8 @@ pub struct OreHopper {
     pub contents: Vec<(Item, u32)>,
     /// gate held open by hand; the gate is open this tick (held, or tripped by a cart under it); ticks to the next item
     pub held: bool, pub open: bool, pub feed: u16,
+    /// held open by a pulled pull-rod touching it (linkage.rs)
+    pub rod_held: bool,
     /// cells of loose sand and rubble poured in, per item, toward the next whole item
     pub grit: Vec<(Item, u16)>,
 }
@@ -152,7 +154,7 @@ impl World {
         if self.passable(x - half, floor) || self.passable(x + half - 1, floor) { return Err("its legs need a floor under both"); }
         if !(by - BIN_H..floor).all(|r| (x - half..x + half).all(|c| self.passable(c, r))) { return Err("needs 1.5 m by 1.75 m of open space"); }
         if self.tr.bins.iter().any(|b| b.x.abs_diff(x) < BIN_W && b.y.abs_diff(by) < BIN_H + BIN_LEGS) { return Err("there's an ore hopper there"); }
-        self.tr.bins.push(OreHopper { x, y: by, floor, contents: vec![], held: false, open: false, feed: 0, grit: vec![] });
+        self.tr.bins.push(OreHopper { x, y: by, floor, contents: vec![], held: false, open: false, feed: 0, rod_held: false, grit: vec![] });
         self.events.push(Event::Place); Ok(())
     }
     pub fn bin_at(&self, x: usize, y: usize) -> Option<usize> { let (xf, yf) = (x as f32 + 0.5, y as f32 + 0.5); self.tr.bins.iter().position(|b| b.contains(xf, yf)) }
@@ -204,7 +206,7 @@ impl World {
             let xs = b.x as f32;
             let tripped = self.tr.carts.iter().any(|c| (c.x - xs).abs() < CART_W / 2. - ITEM_HW && c.y - CART_H >= y1 - 1. && c.y - CART_H <= y1 + CPM as f32 && c.tip == 0
                 && c.load() + self.drops.iter().filter(|d| (d.px - xs).abs() < CART_W / 2. && d.py > y1 && d.py < c.y).map(|d| d.n).sum::<u32>() < CART_LOAD);
-            b.open = b.held || tripped;
+            b.open = b.held || b.rod_held || tripped;
             if b.open && b.load() > 0 {
                 b.feed += 1;
                 let (sx, sy) = (xs, y1 + ITEM_HW + 0.05);
@@ -228,7 +230,7 @@ impl World {
         for _ in 0..r.len(4096)? {
             let (x, y, floor, held) = (r.u32()? as usize, r.u32()? as usize, r.u32()? as usize, r.u8()? != 0);
             let mut contents = vec![]; for _ in 0..r.len(NITEM)? { let (it, n) = (r.u8()?, r.u32()?); if (it as usize) < NITEM { contents.push((crate::craft::ITEMS[it as usize], n)); } }
-            if x > BIN_W && x + BIN_W < w && y > BIN_H + 1 && floor < h - 1 && floor > y { self.tr.bins.push(OreHopper { x, y, floor, contents, held, open: false, feed: 0, grit: vec![] }); }
+            if x > BIN_W && x + BIN_W < w && y > BIN_H + 1 && floor < h - 1 && floor > y { self.tr.bins.push(OreHopper { x, y, floor, contents, held, open: false, feed: 0, rod_held: false, grit: vec![] }); }
         }
         Ok(())
     }

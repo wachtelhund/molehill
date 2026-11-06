@@ -447,7 +447,7 @@ fn stage_scene(w: &mut World) {
                 for x in x1 - CPM / 2..x1 { for y in my - CPM..my - 1 { set(w, x, y, Mat::Bumper); } }
                 for x in x0 + 26 * S..x0 + 26 * S + 2 * CPM { for y in my - 3..my - 1 { set(w, x, y, Mat::Riffle); } } // a run of riffle bars on the track bed
                 let bx = x0 + 40 * S; let floor = my - 1; let by = floor - molehill_sim::production::BIN_LEGS;
-                w.tr.bins.push(molehill_sim::production::OreHopper { x: bx, y: by, floor, contents: vec![(Item::CopperOre, 40)], held: false, open: false, feed: 0, grit: vec![] });
+                w.tr.bins.push(molehill_sim::production::OreHopper { x: bx, y: by, floor, contents: vec![(Item::CopperOre, 40)], held: false, rod_held: false, open: false, feed: 0, grit: vec![] });
                 molehill_sim::light::reveal_box(&mut w.g, mx, y0 - 10 * S, x1 + 10 * S, my + 10 * S);
                 for k in 0..4 { w.torches.push((x0 + (6 + k * 16) * S, y0 + 2 * S)); }
             }

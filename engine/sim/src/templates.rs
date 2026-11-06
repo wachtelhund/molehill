@@ -54,8 +54,9 @@ pub fn default_char(m: Mat) -> char {
         Lava => 'l', Steam => '~', Fire => '^', Glass => 'G', RootTree => 'T', TreeRoot => 'R', Moss => 'm', Mycelium => 'y',
         Planks => 'p', Polished => 'q', Tiles => 'x', Carved => 'C', Rail => '=', Tube => '%',
         Chute => 'h', Screen => 'H', Bumper => '|', Riffle => 'z',
-        Shaft => 'j', Gear => '*', Wheel => 'O', Belt => '>', BeltL => '<', Drum => 'U', Engine => 'E', SteamPipe => 'P', Boiler => 'K',
+        Shaft => 'j', Gear => '*', Wheel => 'O', Belt => '>', BeltL => '<', Drum => 'U', Engine => 'E', SteamPipe => 'P', Boiler => '!',
         StampMill => 'M', Washer => 'W', Smelter => 'S', Bellows => 'Y', Mould => 'V', MouldHot => 'X',
+        Rod => 'F', TreadPlate => 'e', Float => 'A', SluiceGate => 'Z', ScalePan => 'N', Clutch => 'J',
     }
 }
 pub fn mat_named(s: &str) -> Option<Mat> { (0..NMAT as u8).map(Mat::from_u8).find(|m| format!("{m:?}") == s) }

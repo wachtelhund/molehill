@@ -117,3 +117,7 @@ Copperline is drawn per 1 m block as a 3-pixel copper wire with a bright top edg
 ## Save and load
 
 Copperline, devices and their state (thrown levers, lit lamps, burning fuses and lit charges, patterns and beats) survive save and load (`saveload_devices.scn`), and survive the window sliding away from them and back (`band_keeps_devices.scn`).
+
+## Without current
+
+The same jobs can be done with no copperline at all: a **tread plate**, **tipping scale** or **float** pulls iron **pull-rods** that lift a **sluice gate**, engage a **clutch** or hold an ore hopper open. See [Production: non-electric logic](Production.md#non-electric-logic).

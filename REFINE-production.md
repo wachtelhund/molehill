@@ -200,3 +200,28 @@ I playtested the trains in context and probed the edges:
   iron ingot and lets out a lump of slag. Scenario `smelter_iron_slag`.
 * `site/` is rebuilt on main after #52.
 * **Not tested live:** headless only; tin smelting has no scenario.
+
+## Stage 6: non-electric logic (branch `refine/production-logic`)
+
+* **Linkages** (`linkage.rs`): pull-rod cells plus touching sensors and actuators, flood-filled every 6 ticks. Pulled if
+  any sensor is pressed (either); a turned-round gate inverts (turn). There's no both-knot: wire one with copperline.
+  - **Sensors:** tread plate (20 kg on it), tipping scale (load against stone ballast, set with right mouse), float (water
+    touching it).
+  - **Actuators:** sluice gate (an entity over its cells: lifted they're open, dropped it pushes contents up like a door),
+    clutch (machinery joined to its train only while pulled), ore hoppers (held open).
+  - Gates and scales are saved in transport encoding v9.
+* **Fixes found on the way:**
+  - The power solve indexed the train map for every machinery cell, and crashed on a disengaged clutch, which is in no
+    train.
+  - The boiler's template char `K` duplicated crystal's; it's now `!`. Test `every_material_has_its_own_template_char`.
+  - The game's art scene builds an ore hopper literal and needed the new `rod_held` field.
+* The tread plate weighed a tile either side of each plate cell, so a mole beside it still counted. It now weighs only
+  what's over the plate.
+* Scenarios `tread_plate_gate`, `float_valve`, `scale_clutch`. Harness: legend `F` `e` `A` `J`; vars `gates`, `gateopen`,
+  `scales`, `tipped`, `pulled:`.
+* For p3 (6 kinds): **Pull-rod**, **Tread plate** (sinks when pressed: `World::pulled`), **Float** (bobs with the water),
+  **Sluice gate** (`Gate::open`, it lifts), **Tipping scale** (`Mat::ScalePan` cells plus `Scale::tipped` and its
+  `ballast`), **Clutch** (in or out). All have placeholder pack icons.
+* For p7: workbench: float x2 (2 wood), sluice gate (4 wood + 1 stone); forge: pull-rod x8 (1 iron ingot), tread plate x2
+  (1 iron ingot), clutch x2 (2 iron ingots), tipping scale (2 iron + 1 bronze ingot + 2 wood).
+* **Not tested live:** headless only. The ore-hopper hold has no scenario, and neither does a cart on a tread plate.

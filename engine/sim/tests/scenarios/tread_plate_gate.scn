@@ -1,0 +1,97 @@
+// A tread plate lifts a sluice gate, with no current. A gate stands in the opening under a reservoir's wall (the
+// water is let in once it's there, so it holds it back); a pull-rod runs along in the floor from under the gate to a
+// tread plate. The mole walks onto the plate: its weight pulls the rod, the gate lifts and the water runs out. It walks
+// off again: the gate drops and holds back what's left.
+map
+##################################
+##################################
+#........#.......................#
+#........#.......................#
+#........#.......................#
+#........#.......................#
+#........#.......................#
+#................................#
+#................................#
+#................................#
+#......................@.........#
+#########FFFFFFFFFFFee############
+##################################
+end
+give SluiceGate 1
+place 2 -14 -2 SluiceGate
+expect 3 gates == 1
+expect 3 gateopen == 0
+pour 4 -22 -7 Water
+pour 4 -22 -6 Water
+pour 4 -22 -5 Water
+pour 4 -22 -4 Water
+pour 4 -22 -3 Water
+pour 4 -22 -2 Water
+pour 4 -22 -1 Water
+pour 4 -22 0 Water
+pour 4 -21 -7 Water
+pour 4 -21 -6 Water
+pour 4 -21 -5 Water
+pour 4 -21 -4 Water
+pour 4 -21 -3 Water
+pour 4 -21 -2 Water
+pour 4 -21 -1 Water
+pour 4 -21 0 Water
+pour 4 -20 -7 Water
+pour 4 -20 -6 Water
+pour 4 -20 -5 Water
+pour 4 -20 -4 Water
+pour 4 -20 -3 Water
+pour 4 -20 -2 Water
+pour 4 -20 -1 Water
+pour 4 -20 0 Water
+pour 4 -19 -7 Water
+pour 4 -19 -6 Water
+pour 4 -19 -5 Water
+pour 4 -19 -4 Water
+pour 4 -19 -3 Water
+pour 4 -19 -2 Water
+pour 4 -19 -1 Water
+pour 4 -19 0 Water
+pour 4 -18 -7 Water
+pour 4 -18 -6 Water
+pour 4 -18 -5 Water
+pour 4 -18 -4 Water
+pour 4 -18 -3 Water
+pour 4 -18 -2 Water
+pour 4 -18 -1 Water
+pour 4 -18 0 Water
+pour 4 -17 -7 Water
+pour 4 -17 -6 Water
+pour 4 -17 -5 Water
+pour 4 -17 -4 Water
+pour 4 -17 -3 Water
+pour 4 -17 -2 Water
+pour 4 -17 -1 Water
+pour 4 -17 0 Water
+pour 4 -16 -7 Water
+pour 4 -16 -6 Water
+pour 4 -16 -5 Water
+pour 4 -16 -4 Water
+pour 4 -16 -3 Water
+pour 4 -16 -2 Water
+pour 4 -16 -1 Water
+pour 4 -16 0 Water
+pour 4 -15 -7 Water
+pour 4 -15 -6 Water
+pour 4 -15 -5 Water
+pour 4 -15 -4 Water
+pour 4 -15 -3 Water
+pour 4 -15 -2 Water
+pour 4 -15 -1 Water
+pour 4 -15 0 Water
+expect 60 cells:Water,-22,-15,-8,0 == 64      // held back
+expect 60 cells:Water,-13,-4,-8,0 == 0
+hold 70-79 left                               // onto the plate
+expect 95 pulled:-6,1 == 1                    // the rod is pulled...
+expect 100 gateopen == 1                      // ...and the gate lifts
+expect 200 cells:Water,-13,9,-8,0 > 20        // the water runs out under it
+hold 210-260 right                            // off the plate
+expect 280 gateopen == 0                      // the gate drops
+expect 280 pulled:-6,1 == 0
+expect 400 cells:Water,-22,-15,-8,0 > 15      // and holds back what's left

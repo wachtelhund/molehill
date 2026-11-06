@@ -24,6 +24,7 @@ pub mod sluice;
 pub mod power;
 pub mod steam;
 pub mod refine;
+pub mod linkage;
 pub mod survival;
 pub mod ruins;
 pub mod walls;

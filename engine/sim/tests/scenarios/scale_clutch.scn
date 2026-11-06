@@ -1,0 +1,45 @@
+// A tipping scale works a clutch. A counterweight drives a belt through a clutch set in its shaft line; the clutch's
+// pull-rod runs up into the roof, along it and down the rock to a tipping scale's pan. The mole takes all but two stones
+// off the scale's counter-pan (right mouse, empty paw: they go back in the pack), so it weighs out 10 kg. Two stones on
+// its pan don't tip it: the clutch is out, the train is still, and a stone on the belt lies there. A third tips it: the
+// rod is pulled, the clutch goes in, and the belt carries the stone away.
+map
+##################################
+##########FFFFFFFFFFFFFFFFFFFFFF##
+#....jjjjjJjjjj*...............F##
+#..............j...............F##
+#..............j...............F##
+#..............j...............F##
+#..............j...............F##
+#..............j...............F##
+#..............j...............F##
+#..............j...............F##
+#............@.*>>>>>>>>>>.....F##
+##################################
+##################################
+end
+give Counterweight 1
+give Scale 1
+place 2 -9 -8 Counterweight
+place 2 16 -1 Scale
+expect 3 scales == 1
+use 5 15 0
+use 6 15 0
+use 7 15 0
+use 8 15 0
+use 9 15 0
+use 10 15 0
+use 11 15 0
+use 12 15 0
+expect 14 inv:Stone == 8                      // eight stones taken off: two left on the counter-pan
+drop 20 Stone 5 -1                            // a stone on the belt
+drop 30 Stone 15 -2                           // two on the scale's pan
+drop 40 Stone 15 -2
+expect 90 tipped == 0                         // 10 kg doesn't outweigh 10 kg
+expect 90 turning:5,0 == 0                    // the clutch is out: the belt is still
+expect 90 zone:Stone,4,6,-2,-1 == 1
+drop 100 Stone 15 -2                          // a third
+expect 150 tipped == 1
+expect 150 pulled:-3,-8 == 1                  // the rod pulled...
+expect 150 turning:5,0 == 1                   // ...the clutch in: the belt turns
+expect 200 zone:Stone,7,14,-2,0 == 1          // and carries the stone away

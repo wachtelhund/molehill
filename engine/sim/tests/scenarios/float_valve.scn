@@ -1,0 +1,84 @@
+// A float valve fills a tank and stops. A sluice gate in the opening under a reservoir's wall is turned round (right
+// mouse), so it lifts while its rod is *not* pulled. Its pull-rod runs up the wall, along the roof and down into the rock
+// beside a tank, to a float near the tank's top. The water runs through the gate, along the channel and down into the
+// tank; when it reaches the float the float lifts, the rod is pulled, the gate drops, and the tank stops filling with the
+// rest of the water still held in the reservoir.
+map
+##################################
+#########FFFFFFFFFFFFFFFFF########
+#........F...............F########
+#........F...............F########
+#........F...............F########
+#........................F########
+#........................F########
+#............@...........F########
+################.........F########
+################........AF########
+################.........#########
+################.........#########
+################.........#########
+##################################
+##################################
+end
+give SluiceGate 1
+place 2 -4 -1 SluiceGate
+use 3 -4 -1                                   // turned round: it shuts when pulled
+expect 4 gateopen == 0
+pour 5 -12 -5 Water
+pour 5 -12 -4 Water
+pour 5 -12 -3 Water
+pour 5 -12 -2 Water
+pour 5 -12 -1 Water
+pour 5 -12 0 Water
+pour 5 -11 -5 Water
+pour 5 -11 -4 Water
+pour 5 -11 -3 Water
+pour 5 -11 -2 Water
+pour 5 -11 -1 Water
+pour 5 -11 0 Water
+pour 5 -10 -5 Water
+pour 5 -10 -4 Water
+pour 5 -10 -3 Water
+pour 5 -10 -2 Water
+pour 5 -10 -1 Water
+pour 5 -10 0 Water
+pour 5 -9 -5 Water
+pour 5 -9 -4 Water
+pour 5 -9 -3 Water
+pour 5 -9 -2 Water
+pour 5 -9 -1 Water
+pour 5 -9 0 Water
+pour 5 -8 -5 Water
+pour 5 -8 -4 Water
+pour 5 -8 -3 Water
+pour 5 -8 -2 Water
+pour 5 -8 -1 Water
+pour 5 -8 0 Water
+pour 5 -7 -5 Water
+pour 5 -7 -4 Water
+pour 5 -7 -3 Water
+pour 5 -7 -2 Water
+pour 5 -7 -1 Water
+pour 5 -7 0 Water
+pour 5 -6 -5 Water
+pour 5 -6 -4 Water
+pour 5 -6 -3 Water
+pour 5 -6 -2 Water
+pour 5 -6 -1 Water
+pour 5 -6 0 Water
+pour 5 -5 -5 Water
+pour 5 -5 -4 Water
+pour 5 -5 -3 Water
+pour 5 -5 -2 Water
+pour 5 -5 -1 Water
+pour 5 -5 0 Water
+expect 30 gateopen == 1                       // not pulled: lifted, the water runs
+expect 30 cells:Water,3,11,1,5 > 0
+expect 120 pulled:11,2 == 1                   // the water reached the float
+expect 120 gateopen == 0                      // and the gate dropped
+expect 900 cells:Water,3,11,1,5 > 30          // the tank full to the float...
+expect 900 cells:Water,3,11,1,5 < 41          // ...and no further
+expect 900 cells:Water,-12,-5,-5,0 > 5        // the rest still in the reservoir
+saveload 910
+expect 911 gates == 1
+expect 911 gateopen == 0
