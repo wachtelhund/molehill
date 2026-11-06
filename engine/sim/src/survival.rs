@@ -85,6 +85,22 @@ impl World {
         if self.oil_measures() == 0 { self.say(format!("The last measure of oil: about {:.0} minutes of light. Gather fungus to press more, or turn back.", OIL_SECS / 60.)); self.events.push(Event::Warning); }
         true
     }
+    /// Can a mole stand here: open and not liquid at its feet and head, on something solid?
+    fn dry_at(&self, x: usize, y: usize) -> bool {
+        let g = &self.g; if x == 0 || x + 1 >= g.w || y < 3 * crate::mat::S || y + 1 >= g.h { return false; }
+        let clear = |m: crate::mat::Mat| matches!(m.kind(), crate::mat::Kind::Empty | crate::mat::Kind::Gas);
+        (0..3 * crate::mat::S).all(|j| clear(g.get(x, y - j))) && matches!(g.get(x, y + 1).kind(), crate::mat::Kind::Solid | crate::mat::Kind::Powder)
+    }
+    /// The nearest dry floor (feet position, cells) within `PACK_DRY_M` of the dead mole, if any.
+    fn nearest_dry_floor(&self) -> Option<(f32, f32)> {
+        let r = (PACK_DRY_M * crate::mat::CPM as f32) as i64; let (cx, cy) = (self.pl.px as i64, self.pl.py as i64 - 1);
+        let mut best: Option<(i64, (f32, f32))> = None;
+        for y in (cy - r).max(0)..=(cy + r).min(self.g.h as i64 - 2) { for x in (cx - r).max(1)..=(cx + r).min(self.g.w as i64 - 2) {
+            let d = (x - cx).pow(2) + (y - cy).pow(2); if d > r * r || best.is_some_and(|(b, _)| d >= b) { continue; }
+            if self.dry_at(x as usize, y as usize) { best = Some((d, (x as f32 + 0.5, y as f32 + 1.))); }
+        } }
+        best.map(|b| b.1)
+    }
     /// Measures of oil the pack can still give: oil, and fungus to press.
     pub fn oil_measures(&self) -> u32 { self.inv[Item::FungusOil as usize] + self.inv[Item::Fungus as usize] / FUNGUS_PER_OIL
     }
@@ -110,7 +126,9 @@ impl World {
     /// under it), otherwise where it fell.
     pub(crate) fn drop_pack(&mut self) {
         let near = |(x, y): (f32, f32)| (x - self.pl.px).hypot(y - self.pl.py) <= PACK_DRY_M * crate::mat::CPM as f32;
-        let dry = self.pl.dry.filter(|&p| near(p));
+        // no dry place stood on nearby (it fell or swam into deep water, or the ground came down): the nearest
+        // dry floor within reach of the death instead, so the pack still waits out of the water
+        let dry = self.pl.dry.filter(|&p| near(p)).or_else(|| if self.dry_at(self.pl.px as usize, self.pl.py as usize - 1) { None } else { self.nearest_dry_floor() });
         let (px, py) = dry.unwrap_or((self.pl.px, self.pl.py)); let moved = dry.is_some_and(|(x, y)| (x - self.pl.px).hypot(y - self.pl.py) > crate::mat::CPM as f32);
         let (cx, cy) = (px, py - BODY_H * 0.5); let mut k = 0;
         for (i, &it) in ITEMS.iter().enumerate() {
