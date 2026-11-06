@@ -1933,3 +1933,56 @@ fn loading_prefetch_finishes_the_ground_ahead() {
         assert_eq!(w.stream_progress(), 1., "prefetch stopped before the ground ahead was built");
     }
 }
+
+/// The window slides 32 m while the mole hangs on a rope gun's rope (it climbed past the window's margin): the rope
+/// moves with the rock and the mole keeps its hold instead of dropping off.
+#[test]
+fn a_window_slide_keeps_the_mole_on_its_rope() {
+    let mut w = World::new(512 * S, 512 * S, 11); w.disasters.enabled = false;
+    let (x0, y0) = (w.moles[0].x, w.moles[0].y);
+    for y in y0 - 30 * S..=y0 + 3 * S { for x in x0 - 40 * S..=x0 + 40 * S { let i = w.g.idx(x, y); w.g.set(i, if y > y0 || y < y0 - 28 * S || x < x0 - 30 * S || x > x0 + 30 * S { Mat::Bedrock } else { Mat::Empty }); w.g.flags[i] = 0; } }
+    w.drops.clear(); w.torches.clear(); w.farms.clear();
+    for _ in 0..10 { w.step(); }
+    w.inv[Item::RopeGun as usize] = 1; w.inv[Item::HookRope as usize] = 1;
+    let (hx, hy) = molehill_sim::ropes::hand(w.pl.px, w.pl.py);
+    w.fire_rope_gun((hx, hy - 40. * S as f32)).unwrap();
+    for _ in 0..60 { w.step(); }
+    assert_eq!(w.tr.ropes.len(), 1, "the hook bit the ceiling");
+    press(&mut w, 60, |i| i.up = true);
+    assert!(w.tr.on_rope.is_some(), "climbing the rope");
+    let rows = if y0 > w.g.h / 2 { SLIDE as i64 } else { -(SLIDE as i64) };
+    let feet = w.pl.py - rows as f32; let hp = w.moles[0].hp;
+    w.shift(rows);
+    assert_eq!(w.tr.ropes.len(), 1, "the rope moved with the window");
+    press(&mut w, 30, |i| { i.up = false; });
+    assert!(w.tr.on_rope.is_some(), "still holding the rope after the slide");
+    assert!((w.pl.py - feet).abs() < 1. * S as f32, "hanging where it was (feet {} vs {feet})", w.pl.py);
+    assert_eq!(w.moles[0].hp, hp);
+}
+
+/// Getting into a cart from a rope lets go of the rope: jumping out later is a plain jump, not a yank back
+/// toward the hook.
+#[test]
+fn riding_from_a_rope_lets_go_of_it() {
+    let mut w = World::new(512 * S, 512 * S, 11); w.disasters.enabled = false;
+    let (x0, y0) = (w.moles[0].x, w.moles[0].y);
+    for y in y0 - 30 * S..=y0 + 3 * S { for x in x0 - 40 * S..=x0 + 40 * S { let i = w.g.idx(x, y); w.g.set(i, if y > y0 || y < y0 - 28 * S || x < x0 - 30 * S || x > x0 + 30 * S { Mat::Bedrock } else { Mat::Empty }); w.g.flags[i] = 0; } }
+    w.drops.clear(); w.torches.clear(); w.farms.clear();
+    for _ in 0..10 { w.step(); }
+    w.inv[Item::RopeGun as usize] = 1; w.inv[Item::HookRope as usize] = 1; w.inv[Item::Cart as usize] = 1;
+    let (hx, hy) = molehill_sim::ropes::hand(w.pl.px, w.pl.py);
+    w.fire_rope_gun((hx, hy - 40. * S as f32)).unwrap();
+    for _ in 0..60 { w.step(); }
+    assert_eq!(w.place_transport(Item::Cart, x0 + 2 * S, y0), Ok(true));
+    press(&mut w, 30, |i| i.up = true);
+    assert!(w.tr.on_rope.is_some(), "on the rope");
+    let c = (w.tr.carts[0].x as usize, w.tr.carts[0].y as usize);
+    assert!(w.use_transport(c.0, c.1 - 1), "into the cart");
+    press(&mut w, 30, |i| { i.up = false; i.right = true; });
+    assert!(w.tr.riding.is_some() && w.tr.on_rope.is_none(), "riding, the rope let go");
+    press(&mut w, 2, |i| { i.right = true; i.jump = true; });
+    let (top, _) = press(&mut w, 60, |i| { *i = Default::default(); i.right = true; });
+    assert!(w.tr.riding.is_none() && w.tr.on_rope.is_none(), "out, off the rope: {:?} {:?}", w.tr.riding, w.tr.on_rope);
+    assert!(c.1 as f32 - top < 3. * mat_cpm(), "a plain hop out of the cart (rose {} m)", (c.1 as f32 - top) / mat_cpm());
+}
+fn mat_cpm() -> f32 { molehill_sim::mat::CPM as f32 }

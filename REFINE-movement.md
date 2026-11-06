@@ -191,6 +191,16 @@ Polish only: no new features or concepts. Each entry is one commit.
     and `found_places::rope_gun_comes_before_the_faces_that_need_it` checks the gate opens in the first minutes:
     workbench, gun and one hook rope cost only wood, stone and fungus, the wood within the Survival kit's 6.
 
+21. **Final polish (after #70).** Two rope-gun rough edges, each failing a new test before the fix:
+    * Climbing a rope past the window's 50 m margin slides the window 32 m, and `shift_ropes` dropped the mole
+      off the rope (it fell the height it had climbed). The rope stays in the window, so the hold now moves
+      with it (`a_window_slide_keeps_the_mole_on_its_rope`).
+    * Right-clicking a cart (or a borer, or a wagon) from a rope kept the rope held while riding; jumping out
+      later yanked the mole about 5 m back up toward the hook. Any ride now lets go of the rope
+      (`riding_from_a_rope_lets_go_of_it`).
+    * Not done live: no in-window playtest of rope feel, swing or the placeholder rope art this round (headless
+      tests and scenarios only); p3's unique rope-gun art is still to come.
+
 ## Open issues
 * Ropes and rope ladders the world window leaves (a long trip up or down) are lost with it: they aren't kept
   in the 64-row bands. Worth a band record if players rig long routes.
