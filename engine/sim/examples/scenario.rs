@@ -12,7 +12,13 @@ fn mat_by_name(s: &str) -> Option<Mat> { (0..NMAT as u8).map(Mat::from_u8).find(
 fn mat_char(c: char) -> Option<Mat> { Some(match c { '.' | '@' => Mat::Empty, 't' => Mat::Roots, 'f' => Mat::Fungus, '#' => Mat::Granite, 'B' => Mat::Bedrock, 'r' => Mat::Rock, 'd' => Mat::Dirt, 'c' => Mat::Clay, 's' => Mat::Sand, 'g' => Mat::Gravel, 'w' => Mat::Water, 'l' => Mat::Lava, 'o' => Mat::Coal, 'i' => Mat::IronOre, 'b' => Mat::WoodBeam, 'k' => Mat::StoneBrick, 'I' => Mat::IronBeam, 'a' => Mat::Basalt, 'T' => Mat::RootTree, 'R' => Mat::TreeRoot, 'm' => Mat::Moss, 'y' => Mat::Mycelium, '=' => Mat::Rail, '%' => Mat::Tube, 'p' => Mat::Planks, 'q' => Mat::Polished, 'x' => Mat::Tiles, 'C' => Mat::Carved, _ => return None }) }
 fn ch_of(m: Mat) -> char { match m { Mat::Empty => '.', Mat::Roots => 't', Mat::Fungus => 'f', Mat::Granite => '#', Mat::Bedrock => 'B', Mat::Rock => 'r', Mat::Dirt => 'd', Mat::Clay => 'c', Mat::Sand => 's', Mat::Gravel => 'g', Mat::Water => 'w', Mat::Lava => 'l', Mat::Coal => 'o', Mat::IronOre => 'i', Mat::WoodBeam => 'b', Mat::StoneBrick => 'k', Mat::IronBeam => 'I', Mat::Basalt => 'a', Mat::Steam => '~', Mat::RootTree => 'T', Mat::TreeRoot => 'R', Mat::Moss => 'm', Mat::Mycelium => 'y', Mat::Rail => '=', Mat::Tube => '%', Mat::Planks => 'p', Mat::Polished => 'q', Mat::Tiles => 'x', Mat::Carved => 'C', _ => '?' } }
 
-enum Act { Load(u64, u32, String), Ruin(u64, String, i32, i32, bool), Clue(u64, String, i32, i32), Furnish(u64, String, i32, i32), Paint(u64, String, i32, i32), Set(u64, String, f32), PlaceTorch(u64, i32, i32), Grotto(u64, i32, i32, f32, f32), Catch(u64, i32, i32), Throw(u64, String, f32, f32, f32), Loose(u64, String, i32, i32, f32, f32), Brush(u64, f32), Place(u64, i32, i32, String), Put(u64, i32, i32, String), Hold(u64, u64, Vec<String>), Mine(u64, u64, i32, i32), Dig(u64, u64, i32, i32), Tool(u64, u8), Explode(u64, i32, i32, f32), Dump(u64), Ascii(u64), Device(u64, i32, i32, String), Use(u64, i32, i32), Pickup(u64, i32, i32), Wire(u64, i32, i32, i32, i32), SaveLoad(u64), Lamp(u64, bool), Aim(u64, Option<(i32, i32)>), Wield(u64, String), Torch(u64, i32, i32), Slide(u64), SizeKey(u64, String), SizeWheel(u64, String, i32), Hand(u64, String), Snap(u64, bool), Line(u64, i32, i32, i32, i32, String), Mode(u64, bool), Pour(u64, i32, i32, String), Craft(u64, String), Station(u64, i32, i32, String), Expect(u64, String, String, f64, usize) }
+enum Act { Load(u64, u32, String), Ruin(u64, String, i32, i32, bool), Clue(u64, String, i32, i32), Furnish(u64, String, i32, i32), Paint(u64, String, i32, i32), Set(u64, String, f32), PlaceTorch(u64, i32, i32), Grotto(u64, i32, i32, f32, f32), Catch(u64, i32, i32), Throw(u64, String, f32, f32, f32), Loose(u64, String, i32, i32, f32, f32), Brush(u64, f32), Place(u64, i32, i32, String), Put(u64, i32, i32, String), Hold(u64, u64, Vec<String>), Mine(u64, u64, i32, i32), Dig(u64, u64, i32, i32), Tool(u64, u8), Explode(u64, i32, i32, f32), Dump(u64), Ascii(u64), Device(u64, i32, i32, String), Use(u64, i32, i32), Pickup(u64, i32, i32), Wire(u64, i32, i32, i32, i32), SaveLoad(u64), Lamp(u64, bool), Aim(u64, Option<(i32, i32)>), Wield(u64, String), Torch(u64, i32, i32), Slide(u64), SizeKey(u64, String), SizeWheel(u64, String, i32), Hand(u64, String), Snap(u64, bool), Line(u64, i32, i32, i32, i32, String), Mode(u64, bool), Pour(u64, i32, i32, String), Craft(u64, String), Station(u64, i32, i32, String), Scrape(u64, i32, i32), SetWall(u64, i32, i32, String), Site(u64, String, i32, i32), Expect(u64, String, String, f64, usize) }
+fn wall_code(s: &str) -> Option<u8> {
+    Some(match s.to_ascii_lowercase().as_str() {
+        "none" => 0, "rock" => 1, "timber" => 2, "masonry" => 3, "beams" | "beam" => 4, "pipes" | "pipe" => 5,
+        "carving" | "carved" => 6, "damp" => 7, "crack" => 8, "root" => 9, "gap" => 10, "salt" => 11, "crystal" => 12, "fossil" => 13, _ => return None,
+    })
+}
 
 struct Run { w: World, sizes: molehill_sim::view::BrushSizes, held: molehill_sim::world::Brush, ox: usize, oy: usize, mw: usize, mh: usize, ax: usize, ay: usize, sx: f32, sy: f32, top: f32, events: Vec<String> }
 impl Run {
@@ -110,6 +116,12 @@ impl Run {
                 match k { "ix" => ((d.px - cx) as f64) / kf, "iy" => ((d.py - cy) as f64) / kf, "ivx" => d.vx as f64 / kf, "ivy" => d.vy as f64 / kf,
                     "irest" => d.asleep() as u8 as f64, _ => (d.fuse > 0) as u8 as f64 } }
             _ if v.starts_with("ev:") => self.events.iter().filter(|e| e.split(':').nth(1) == Some(&v[3..])).count() as f64,
+            "sites" => self.w.sites.len() as f64, "sites_seen" => self.w.sites_seen.len() as f64,
+            _ if v.starts_with("walls:") => {
+                let wl = molehill_sim::walls::Wall::from_u8(wall_code(&v[6..])?); self.w.walls.count(wl) as f64 }
+            _ if v.starts_with("wall:") => {
+                let a: Vec<&str> = v[5..].split(',').collect(); let (x, y) = self.at(a.get(0)?.parse().ok()?, a.get(1)?.parse().ok()?);
+                let want = wall_code(a.get(2)?)?; (self.w.walls.at(x, y) as u8 == want) as u8 as f64 }
             _ => return None })
     }
     /// The cell nearest the centre of the tile (dx, dy) from '@'.
@@ -227,6 +239,9 @@ fn run_file(path: &str, json: bool) -> bool {
             "sizewheel" => acts.push(Act::SizeWheel(t[1].parse().unwrap(), t[2].into(), t[3].parse().unwrap())),
             "snap" => acts.push(Act::Snap(t[1].parse().unwrap(), t[2] == "on")),
             "line" => acts.push(Act::Line(t[1].parse().unwrap(), t[2].parse().unwrap(), t[3].parse().unwrap(), t[4].parse().unwrap(), t[5].parse().unwrap(), t[6].into())),
+            "scrape" => acts.push(Act::Scrape(t[1].parse().unwrap(), t[2].parse().unwrap(), t[3].parse().unwrap())),
+            "wall" => acts.push(Act::SetWall(t[1].parse().unwrap(), t[2].parse().unwrap(), t[3].parse().unwrap(), t[4].into())),
+            "site" => acts.push(Act::Site(t[1].parse().unwrap(), t[2].into(), t[3].parse().unwrap(), t[4].parse().unwrap())),
             "dump" => acts.push(Act::Dump(t[1].parse().unwrap())),
             "load" => acts.push(Act::Load(t[1].parse().unwrap(), t[2].parse().unwrap(), t[3].into())),
             "ascii" => acts.push(Act::Ascii(t[1].parse().unwrap())),
@@ -234,7 +249,7 @@ fn run_file(path: &str, json: bool) -> bool {
             o => panic!("{path}:{}: unknown directive {o}", ln + 1),
         }
     }
-    for a in &acts { ticks = ticks.max(match a { Act::Hold(_, b, _) | Act::Mine(_, b, _, _) | Act::Dig(_, b, _, _) => *b, Act::Load(t, ..) | Act::Grotto(t, ..) | Act::Catch(t, ..) | Act::Tool(t, _) | Act::Ruin(t, ..) | Act::Clue(t, ..) | Act::Furnish(t, ..) | Act::Paint(t, ..) | Act::Set(t, ..) | Act::PlaceTorch(t, ..) | Act::Throw(t, ..) | Act::Loose(t, ..) | Act::Brush(t, _) | Act::Place(t, ..) | Act::Put(t, ..) | Act::Explode(t, ..) | Act::Device(t, ..) | Act::Use(t, ..) | Act::Pickup(t, ..) | Act::Wire(t, ..) | Act::SaveLoad(t) | Act::Lamp(t, _) | Act::Aim(t, _) | Act::Wield(t, _) | Act::Torch(t, ..) | Act::Slide(t) | Act::SizeKey(t, ..) | Act::SizeWheel(t, ..) | Act::Hand(t, ..) | Act::Snap(t, ..) | Act::Line(t, ..) | Act::Dump(t) | Act::Ascii(t) | Act::Mode(t, _) | Act::Pour(t, ..) | Act::Craft(t, _) | Act::Station(t, ..) | Act::Expect(t, ..) => *t }); }
+    for a in &acts { ticks = ticks.max(match a { Act::Hold(_, b, _) | Act::Mine(_, b, _, _) | Act::Dig(_, b, _, _) => *b, Act::Load(t, ..) | Act::Grotto(t, ..) | Act::Catch(t, ..) | Act::Tool(t, _) | Act::Ruin(t, ..) | Act::Clue(t, ..) | Act::Furnish(t, ..) | Act::Paint(t, ..) | Act::Set(t, ..) | Act::PlaceTorch(t, ..) | Act::Throw(t, ..) | Act::Loose(t, ..) | Act::Brush(t, _) | Act::Place(t, ..) | Act::Put(t, ..) | Act::Explode(t, ..) | Act::Device(t, ..) | Act::Use(t, ..) | Act::Pickup(t, ..) | Act::Wire(t, ..) | Act::SaveLoad(t) | Act::Lamp(t, _) | Act::Aim(t, _) | Act::Wield(t, _) | Act::Torch(t, ..) | Act::Slide(t) | Act::SizeKey(t, ..) | Act::SizeWheel(t, ..) | Act::Hand(t, ..) | Act::Snap(t, ..) | Act::Line(t, ..) | Act::Dump(t) | Act::Ascii(t) | Act::Mode(t, _) | Act::Pour(t, ..) | Act::Craft(t, _) | Act::Station(t, ..) | Act::Scrape(t, ..) | Act::SetWall(t, ..) | Act::Site(t, ..) | Act::Expect(t, ..) => *t }); }
     let mut w = World::new(512 * K, 256 * K, seed); w.disasters.enabled = false; w.drops.clear(); w.torches.clear(); w.farms.clear(); w.grottos.clear(); w.keep_blast_field = true; // (the generated world's own grottos aren't part of the scenario)
     // every material counts as already discovered: a discovery's reward would depend on what the generated world showed
     w.discovered = [true; NMAT]; w.ruins.clear();
@@ -248,7 +263,7 @@ fn run_file(path: &str, json: bool) -> bool {
     for y in oy.saturating_sub(fr)..(oy + mh * K + fr).min(w.g.h) { for x in ox.saturating_sub(fr)..(ox + mw * K + fr).min(w.g.w) { let i = w.g.idx(x, y); w.g.set(i, Mat::Granite); w.g.flags[i] = 0; } }
     for (y, l) in map.iter().enumerate() { let cs: Vec<char> = l.chars().collect(); for x in 0..mw { let c = *cs.get(x).unwrap_or(&'#');
         let m = mat_char(c).unwrap_or_else(|| panic!("{path}: unknown map char '{c}'"));
-        for j in 0..K * K { let i = w.g.idx(ox + x * K + j % K, oy + y * K + j / K); w.g.set(i, m); w.g.flags[i] = 0; } } }
+        for j in 0..K * K { let (cx, cy) = (ox + x * K + j % K, oy + y * K + j / K); let i = w.g.idx(cx, cy); w.g.set(i, m); w.g.flags[i] = 0; w.walls.set_at(cx, cy, molehill_sim::walls::Wall::None); } } }
     if let Some(m) = mode { w.set_mode(m); }
     if nohunger { w.set_hunger(false); }
     for (n, k) in gives { let i = molehill_sim::craft::ITEMS.iter().position(|it| format!("{it:?}").eq_ignore_ascii_case(&n)).unwrap_or_else(|| panic!("unknown item {n}")); w.inv[i] = k; }
@@ -302,13 +317,22 @@ fn run_file(path: &str, json: bool) -> bool {
                 Act::Place(t, dx, dy, it) if *t == tick => {
                     let item = molehill_sim::craft::ITEMS.iter().copied().find(|i| format!("{i:?}").eq_ignore_ascii_case(it)).unwrap_or_else(|| panic!("{path}: unknown item {it}"));
                     let (x, y) = r.at(*dx, *dy);
-                    // transport machines (a cart, ...) go down whole; blocks go down with the brush
-                    match r.w.place_transport(item, x, y) { Ok(true) => {} Err(e) => { println!("  NOTE {path} tick {tick}: place {it} at {dx},{dy} failed: {e}"); r.w.refuse_place(item.name(), e); }
-                        Ok(false) => if let Err(e) = r.w.place_brush(x, y, item, inp.brush) { println!("  NOTE {path} tick {tick}: place {it} at {dx},{dy} failed: {e}"); r.w.refuse_place(item.name(), e); } }
+                    if item.is_wall() { if let Err(e) = r.w.place_walls(x, y, item, inp.brush) { println!("  NOTE {path} tick {tick}: place {it} at {dx},{dy} failed: {e}"); r.w.refuse_place(item.name(), e); } }
+                    else { match r.w.place_transport(item, x, y) { Ok(true) => {} Err(e) => { println!("  NOTE {path} tick {tick}: place {it} at {dx},{dy} failed: {e}"); r.w.refuse_place(item.name(), e); }
+                        Ok(false) => if let Err(e) = r.w.place_brush(x, y, item, inp.brush) { println!("  NOTE {path} tick {tick}: place {it} at {dx},{dy} failed: {e}"); r.w.refuse_place(item.name(), e); } } }
                 }
+                Act::Scrape(t, dx, dy) if *t == tick => { let (x, y) = r.at(*dx, *dy); if let Err(e) = r.w.scrape_walls(x, y, inp.brush) { println!("  NOTE {path} tick {tick}: scrape at {dx},{dy}: {e}"); } }
+                Act::SetWall(t, dx, dy, kind) if *t == tick => {
+                    let wl = molehill_sim::walls::Wall::from_u8(wall_code(kind).unwrap_or_else(|| panic!("{path}: unknown wall {kind}")));
+                    let (gw, cells): (usize, Vec<usize>) = (r.w.g.w, r.tile(*dx, *dy).collect());
+                    for i in cells { r.w.set_wall(i % gw, i / gw, wl); } }
+                Act::Site(t, kind, dx, dy) if *t == tick => {
+                    let kd = molehill_sim::sites::Kind::from_name(kind).unwrap_or_else(|| panic!("{path}: unknown site {kind}"));
+                    let (x, y) = (r.ax as i32 + dx * K as i32, r.ay as i32 + dy * K as i32);
+                    r.w.stamp_site(kd, x as usize, y as usize); }
                 Act::Device(t, dx, dy, n) if *t == tick => { let (x, y) = r.at(*dx, *dy);
                     let d = molehill_sim::logic::DEVS.iter().copied().find(|d| format!("{d:?}").eq_ignore_ascii_case(n)).unwrap_or_else(|| panic!("unknown device {n}"));
-                    if let Err(e) = r.w.place_device(d, x, y) { println!("  NOTE {path} tick {tick}: device {n} at {dx},{dy}: {e}"); } }
+                    if let Err(e) = r.w.place_device(d, x, y) { println!("  NOTE {path} tick {tick}: device {n} at {dx},{dy}: {e}"); r.w.refuse_place(d.name(), e); } }
                 Act::Use(t, dx, dy) if *t == tick => { let (x, y) = r.at(*dx, *dy); if !r.w.use_device(x, y) { println!("  NOTE {path} tick {tick}: nothing to use at {dx},{dy}"); } }
                 Act::Grotto(t, dx, dy, rx, ry) if *t == tick => { // a glowmite swarm of a grotto centred on that tile (radii in tiles)
                     let (x, y) = r.at(*dx, *dy); let (rx, ry) = ((*rx * K as f32) as usize, (*ry * K as f32) as usize);
@@ -341,7 +365,8 @@ fn run_file(path: &str, json: bool) -> bool {
                 Act::Snap(t, on) if *t == tick => r.sizes.snap = *on,
                 Act::Line(t, x1, y1, x2, y2, it) if *t == tick => { let item = item_by_name(it).unwrap_or_else(|| panic!("{path}: unknown item {it}"));
                     let (a, b) = (r.at(*x1, *y1), r.at(*x2, *y2)); let n = r.sizes.snap_cells();
-                    if let Err(e) = r.w.place_line(a, b, n, item) { println!("  NOTE {path} tick {tick}: line failed: {e}"); r.w.refuse_place(item.name(), e); } }
+                    let rline = if item.is_wall() { r.w.place_wall_line(a, b, n, item) } else { r.w.place_line(a, b, n, item) };
+                    if let Err(e) = rline { println!("  NOTE {path} tick {tick}: line failed: {e}"); r.w.refuse_place(item.name(), e); } }
                 Act::SaveLoad(t) if *t == tick => { let b = molehill_sim::save::save(&r.w); let mut w = molehill_sim::save::load(&b).unwrap_or_else(|e| panic!("{path}: reload failed: {e}")); w.disasters.enabled = false; r.w = w; }
                 Act::Put(t, dx, dy, it) if *t == tick => {
                     let item = molehill_sim::craft::ITEMS.iter().copied().find(|i| format!("{i:?}").eq_ignore_ascii_case(it)).unwrap_or_else(|| panic!("{path}: unknown item {it}"));

@@ -1,0 +1,24 @@
+// A wall item panels the back and scrapes it off. The rock in front never changes.
+// Shift is sprint, never a wall modifier: left mouse panels, right mouse (scrape) takes lining back.
+map
+########################
+#......................#
+#......................#
+#......................#
+#......................#
+#..@...................#
+########################
+end
+give TimberWall 20
+give Stone 4
+place 2 4 -2 TimberWall
+expect 3 wall:4,-2,timber == 1
+expect 3 is:4,-2,Empty == 1
+expect 3 ev:Place >= 1
+scrape 4 4 -2
+expect 5 wall:4,-2,none == 1
+expect 5 is:4,-2,Empty == 1
+// the granite floor: panelling it does not replace the granite
+place 7 4 1 TimberWall
+expect 8 is:4,1,Granite == 1
+expect 8 wall:4,1,timber == 1

@@ -1,6 +1,6 @@
 # World and Generation
 
-> Code: `engine/sim/src/gen.rs` (procgen), `World::shift` and `follow_colony` in `world.rs` (the endless window), `disasters.rs`.
+> Code: `engine/sim/src/gen.rs` (procgen), `walls.rs` (background lining), `sites.rs` (found places), `World::shift` and `follow_colony` in `world.rs` (the endless window), `disasters.rs`.
 
 ## The shape of the Deepholt
 
@@ -93,6 +93,37 @@ Ruins are stamped in whole at generation (their halls and tubes are kept open li
 
 The first time you come within 8 m of a ruin, its **carving** is read out: one of eight short fragments (Delvers digging upward, a band left blank above the layers, a tally of fast lines), and at a tube station a note on its waygate. A **vault's chest** holds old materials (iron ingots, copperline, crystal) and the next unfound **relic**: the **Ancient bit** (carried, every bite digs a quarter faster), then the **Ground lens** (carried, the headlamp burns half the oil). Each relic turns up once; the save keeps the relics found and the ruins visited (`ruin_vault_loot`). `ruinsurvey` counts ruins over seeds and dumps one from a generated world.
 
+## Background walls
+
+A **background wall** is a Terraria-style lining behind the player and the falling sand (`sim/src/walls.rs`). It is **not** a material: it never enters the CA, the stress solver or collision. You walk in front of it. It holds up nothing. It exists so a dug room reads as carved rock or a timbered holt instead of a hole in the far parallax.
+
+* **Storage:** one byte per window cell, packed as an optional trailing RLE on each band (save format 10). Older saves load and then `infer_back`: open cave is lined the way a fresh holt would be, and the start burrow is timbered.
+* **Look:** darker and flatter than a real block under the same light (`WALL_K` = 0.78, floor `WALL_AMIN` = 0.34 so a lined room in the dark is still timber or rock, not a hole). Damp stains, cracks, roots and missing panels let a little of the far rock through. Crystal lining does not glow; crystal *blocks* still do.
+* **Lining a bite:** digging a solid cell that has no lining leaves one that matches what you cut (rock, timber, masonry, pipes).
+* **Placing and scraping:** with a wall item in hand, left mouse panels the back (hold; `X` snaps a line). Right mouse scrapes lining back into the pack. Neither edits the rock in front. Shift is sprint, never a wall modifier. Bedrock cannot be panelled.
+* **Creative** has 999 of every wall; **Survival** crafts them at the workbench (rock, timber, carved, beams) or the forge (masonry, pipes).
+* Headless tests do not prove the contrast looks right in the game (`back_walls_line_place_scrape_and_save`, `wall_place_scrape`, `wall_saveload`, `wall_no_support`, `wall_walk`).
+
+## Found places
+
+Seven families of **found places**, not random loot rooms (`sim/src/sites.rs`). Each has a purpose, materials, layout variation, a depth band, and something a Delver can do. Foreground (props, rails, water, tubes) is ordinary cells and obeys the same physics as anything you build. Background lining comes from the wall layer and holds no roof. They **never** grow a second Ancient waygate: a buried cargo halt sits next to an existing tube station when one is near, and faces it.
+
+* **Where:** the world is cut into 96 m × 48 m site cells. A seeded hash decides whether each holds a site (about 10 % in the holt layers, a little more through the mid-granite, none in the far wet up or the lava deep). None comes near the start burrow, none overlaps a grotto, a ruin, or another site. Small test windows (under 160 m wide: the arena and most scenarios) stay site-free so existing holts don't change shape. The playable window (256 m) gets them. Deterministic, rare, clear of the start: `sites_are_rare_deterministic_and_clear_of_start_ruins_and_each_other`.
+* **Discovery:** the first time you come within 8 m, a line goes in the log. No cards, no banners.
+* **Chests** hold old kit from what the place was for (rails, clay, quartz). Relics stay in Ancient vaults.
+
+| family | size | depth | what it is | what you do |
+|---|---|---|---|---|
+| Abandoned mine | 24 × 7 m | 0–56 m | timbered drift along a seam, rail fragments, ore pockets, a collapsed side bay | salvage rails and timber; the props are real |
+| Abandoned holt | 16 × 7 m | −32–20 m | a dome, sleeping niche, table, fungus plot, a banner still hanging | read the room; the farm still grows |
+| Flooded pumpworks | 22 × 10 m | −12–40 m | brick chambers, a closed sluice on a lever, a clay plug, a pump on the dry side | flip the lever or dig the plug; water is real |
+| Fissure | 10 × 26 m | 8–90 m | a split in the host rock, broken bridge ledges, a rope ladder in the drop | climb; bring more rope or a lift |
+| Fossil cave | 20 × 10 m | 20–88 m | an oval hollow around mineralised ribs and a quartz skull | excavate the carved bone |
+| Salt / crystal hall | 16 × 8 m | 36–100 m | quartz columns, crystal clusters, shallow reflecting pools | harvest; crystal glows, the lining does not |
+| Buried cargo halt | 26 × 8 m | 12–84 m | a brick platform, wrecked cart, broken pressure tubes | ride or strip the cart; the tubes point at an Ancient station when one is near |
+
+Stamped sites and their interactions: `all_seven_site_families_stamp_with_purpose`, `site_pumpworks`, `site_mine`, `site_holt`, `site_fissure`, `site_fossil`, `site_crystal`, `site_halt`. Headless tests do not prove the rooms *look* like carved rock. Native `--scene=mine` (and the other family names, or `walls`) stamps one isolated copy in host rock next to the burrow so a `--shot` can inspect lining, props and layout.
+
 ## Caves
 
 A cell is open when either test passes:
@@ -134,7 +165,7 @@ Random noise makes caves that real rock could not hold. After filling, the gener
 
 Only the first round is a full solve. Every later round re-solves just the regions around the cells the previous round changed (`Stress::solve_cells`), with an 8 m margin at the sides and the roof rows kept between solves. This is exact, because every failing cell is changed. Together with the growing fill, it makes a new holt several times faster to generate: `World::new` on the game window takes about 1.1 s instead of 7–10 s (`genbench` measures it).
 
-Grotto hollows and pools are kept: the stability pass never fills them in, it only strengthens their shell.
+Grotto hollows and pools, ruin halls, and a found-place's carved rooms are kept: the stability pass never fills them in, it only strengthens their shell.
 
 After a slide into fresh rows the pass covers the new rows **plus 32 m of the old rows** next to them, because those may now roof a newly generated cave. A roof that runs right up to the window's edge counts as thick (the rock goes on beyond it), so nothing is left about to fail after a slide (`slides_leave_nothing_failing`).
 
@@ -158,4 +189,4 @@ Each one gives a **10 s warning** banner with its depth, lasts **6 s** with came
 
 * **Fog of war:** cells stay hidden until a mole sees them (raycasts every few ticks, 7 m radius) or digs next to them.
 * **Light** comes only from emitters (lava, crystal, fungus, fire) and lights (torches, lamps, forges, the mole's headlamp, a torch in its paws, the mole's own small glow). Rock casts shadows. See [Physics](Physics.md#light).
-* **Parallax:** open cells show three procedural deep-earth layers: far strata with biome tint (factor 0.8), cave silhouettes (0.6) and mineral veins (0.35), rusty near the start and pale quartz or ember deeper down. They follow absolute depth, so they stay continuous when the window slides, and they are drawn as GPU sprites that move smoothly with the camera.
+* **Parallax:** open cells show three procedural deep-earth layers: far strata with biome tint (factor 0.8), cave silhouettes (0.6) and mineral veins (0.35), rusty near the start and pale quartz or ember deeper down. They follow absolute depth, so they stay continuous when the window slides, and they are drawn as GPU sprites that move smoothly with the camera. A **background wall**, if any, sits in front of that far rock and behind the player: darker, flatter, lit by the same light (see [Background walls](#background-walls)).

@@ -63,7 +63,7 @@ The tool ladder matches the rock: the **Pickaxe** for soft ground, the **Drill**
 
 ## Furnishing and decor
 
-> **Built:** decorative blocks (planks, polished stone, tiles, carved pillars), six pigments that paint blocks and dye cloth, and furniture (table, stool, nest, shelf, rug, banner, glowing fungus planter). Details: [Tools and Items](docs/wiki/Tools-and-Items.md#furnishing). Not yet: back walls, and Delvers moving in.
+> **Built:** decorative blocks (planks, polished stone, tiles, carved pillars), six pigments that paint blocks and dye cloth, furniture (table, stool, nest, shelf, rug, banner, glowing fungus planter), and **back walls** (a Terraria-style lining behind open cells: they hold no roof). Details: [Tools and Items](docs/wiki/Tools-and-Items.md#furnishing). Not yet: Delvers moving in.
 
 Making the holt **look like home** is a core goal, not a side feature. A Delver should be able to stand in their main hall and be proud of it.
 
@@ -128,7 +128,7 @@ The first slice of Survival is in the game (`sim/src/survival.rs`); the rest of 
 * **Start kit:** a Pickaxe, 6 wood (enough for a workbench: wood is scarce near most burrows), 4 torches, 3 grubs, 2 roots and 2 measures of fungus oil. Nothing else.
 * **Tools you own:** you dig only with tools in the pack; a tool you don't own is drawn faint in the hotbar, after what you hold. The Drill is made at the workshop and the Bore at the forge (see [Crafting](#crafting)).
 * **Food:** hunger drains; below 40 the Delver eats from the pack on its own (grub 45, mushroom 35, root 30, fungus 25). Root tangles turn up edible **roots** when dug, soil turns up grubs, and fungus is food too. The log says each meal and what is left ("Ate a grub (2 left)."), and once, when hunger bites with nothing in the pack, where to dig for more. Starving hurts. **Hunger can be turned off** for a holt: a New Holt option, also in Settings for the current holt, and saved with it. Then food never drains and the food bar is hidden.
-* **Light costs fuel:** a lit headlamp burns a measure of **fungus oil** every 3 minutes, and placing a torch soaks up a measure. With no oil left the pack presses 2 fungus into a measure; with neither, the headlamp goes dark and torches won't light. The log says when fungus is pressed (and how much is left), when the pack's last measure goes in, and once when the headlamp goes dark (scenarios `survival_food`, `survival_lamp_oil`). The kit lasts about 12 minutes of food and 9 of headlamp oil (test `survival_kit_sustains_a_short_explore`).
+* **Light costs fuel:** a lit headlamp burns a measure of **fungus oil** every 3 minutes, and placing a torch soaks up a measure. With no oil left the pack presses 2 fungus into a measure; with neither, the headlamp goes dark and torches won't light. The log says when fungus is pressed (and how much is left), when the pack's last measure goes in, and once when the headlamp goes dark; with none spare it warns once about 30 s before the last measure runs out, says when found fungus relights it, and a torch refused for lack of oil says so (scenarios `survival_food`, `survival_lamp_oil`, `survival_light_fuel_messages`). The kit lasts about 12 minutes of food and 9 of headlamp oil (test `survival_kit_sustains_a_short_explore`).
 * **Crafting:** recipes appear as you pick up their ingredients, and you make things standing at a working station: see [Crafting](#crafting).
 * **Stale air** works as before.
 * **Death:** you wake in the burrow with an empty pack. Everything you carried lies where you fell as loose items (a pile you can walk back over). Items that burn are lost if that was in lava or fire.
@@ -157,8 +157,9 @@ Everything the Ancients built obeys the same physics as everything else: weight,
 | Light | torches, lamps, a headlamp and a jarred glowmite in the paw; in Survival the headlamp and torches burn fungus oil (pressed from fungus), the glowmite needs no fuel | fungus-oil fuel for torches and headlamp; glowmite lanterns |
 | Death | Survival: wake in the burrow, the pack stays where you died (Creative: nothing hurts) | wake in the holt; carried items stay where you died |
 | Wood | **built:** grottos with regrowing root-trees (see [World and Generation](docs/wiki/World-and-Generation.md#grottos)) | grottos with regrowing root-trees |
-| Decor | **built:** furniture, decorative blocks and pigments (see [Tools and Items](docs/wiki/Tools-and-Items.md#furnishing)); back walls not yet | furniture, decorative blocks, back walls, dyes |
+| Decor | **built:** furniture, decorative blocks, pigments and back walls (see [Tools and Items](docs/wiki/Tools-and-Items.md#furnishing)) | furniture, decorative blocks, back walls, dyes |
 | Colony | one mole | Delvers move in when the holt is comfortable |
+| Found places | **built:** seven site families on the background-wall layer (mines, holts, pumpworks, fissures, fossils, salt halls, cargo halts; see [World and Generation](docs/wiki/World-and-Generation.md#found-places)) | more of the same: purpose-built rooms, ordinary physics |
 | Late game | **built:** the Lid myth as clues and a journal, denser higher up; ruins of the Ancients with carvings in the same journal and two relics (see [Lore](docs/wiki/Lore.md#the-lid-in-the-game)) | Ancient facilities, ruins, relics, the Lid myth |
 | Travel | walking, climbing, digging; **built:** rails and mine carts, powered rails, rope ladders, lifts, pressure tubes | carts and rails, ladders and lifts, powered rails, pressure tubes; Ancient waygates (open decision) |
 
