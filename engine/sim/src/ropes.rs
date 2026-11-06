@@ -214,7 +214,9 @@ impl World {
     }
     /// Slide the ropes by `rows` (the window moved deeper); a rope that leaves the window is lost with it.
     pub(crate) fn shift_ropes(&mut self, rows: i64) {
-        let (dy, h) = (rows as f32, self.g.h as f32); self.tr.hook = None; self.tr.on_rope = None;
+        let (dy, h) = (rows as f32, self.g.h as f32); self.tr.on_rope = None;
+        // a hook still in the air when the window slides: back into the pack, not lost
+        if self.tr.hook.take().is_some() { self.inv[Item::HookRope as usize] += 1; }
         self.tr.ropes.retain_mut(|r| { let ay = r.ay as i64 - rows; if ay < 1 || r.pts.iter().any(|p| p.1 - dy < 1. || p.1 - dy > h - 2.) { return false; }
             r.ay = ay as usize; for p in r.pts.iter_mut().chain(r.prev.iter_mut()) { p.1 -= dy; } true });
     }

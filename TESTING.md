@@ -176,6 +176,8 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `coyote.scn` / `coyote_late.scn` | A jump 4 ticks after leaving a ledge works; 12 ticks after, it doesn't |
 | `no_wall_climb.scn` | No wall climbing: in a 6 m chimney 2 m wide, W and Space held into a wall, and jumps from wall to wall, never rise above a jump (6.5 tiles), never cling; back on the floor unhurt |
 | `rope_gun_anchor_stone.scn` | The rope gun's hook glances off a heap of sand and sinks in a pool (no rope; the hook rope lies where it stopped), bites a granite ceiling 7.5 m up (the rope stays through a save and load), and when that rock is blown away the rope comes down as a hook rope |
+| `rope_gun_catch.scn` | Up 5 m of rope, `Space` lets go, `W` held while falling past grabs it again at once (no damage); `S` down onto the floor lets go by itself |
+| `rope_gun_slide.scn` | A hook still in the air when the world window slides goes back into the pack as a hook rope |
 | `rope_gun_climb.scn` | At a bare 4.5 m cliff's foot: the hook up into the ceiling, W grabs, W climbs at 2 m/s, D at the top steps off onto the ledge; full health |
 | `first_hour_without_wallclimb.scn` | Survival, under a 4 m granite shaft: no way up by hand; from first-hour stuff a workbench, the rope gun and a hook rope; the hook up the shaft, climb, step off onto the upper floor unhurt |
 | `no_ceiling_climb.scn` | Jumping into a low ceiling while holding sideways and `W` never clings; the mole falls back down |
