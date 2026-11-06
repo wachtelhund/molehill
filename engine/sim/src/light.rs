@@ -226,6 +226,16 @@ pub fn reveal_cone(g: &mut Grid, cx: f32, cy: f32, c: Cone, r: usize) -> usize {
     }
     n
 }
+/// Seen rock `r` cells deep around every seen open cell in the box: the skin of a chamber you stand in.
+pub fn reveal_skin(g: &mut Grid, x0: usize, y0: usize, x1: usize, y1: usize, r: usize) {
+    let (x1, y1) = (x1.min(g.w - 1), y1.min(g.h - 1)); let mut mark = vec![];
+    for y in y0..=y1 { for x in x0..=x1 { let i = y * g.w + x;
+        if g.flags[i] & F_SEEN == 0 || matches!(g.m(i).kind(), Kind::Solid | Kind::Powder) { continue; }
+        for yy in y.saturating_sub(r)..=(y + r).min(g.h - 1) { for xx in x.saturating_sub(r)..=(x + r).min(g.w - 1) {
+            let (dx, dy) = (xx as i64 - x as i64, yy as i64 - y as i64); if dx * dx + dy * dy <= (r * r) as i64 { mark.push(yy * g.w + xx); } } }
+    } }
+    for i in mark { g.flags[i] |= F_SEEN; }
+}
 pub fn reveal_box(g: &mut Grid, x0: usize, y0: usize, x1: usize, y1: usize) {
     for y in y0..=y1.min(g.h - 1) { for x in x0..=x1.min(g.w - 1) { let i = y * g.w + x; g.flags[i] |= F_SEEN; } }
 }
