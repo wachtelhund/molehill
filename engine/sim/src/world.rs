@@ -84,7 +84,10 @@ pub struct Player { pub px: f32, pub py: f32, pub ppx: f32, pub ppy: f32, pub sy
     /// "hungry and nothing to eat" was said: once until the next meal
     pub hungry_said: bool,
     /// what last hurt the player's mole: the cause the log gives if it dies
-    pub harm: Harm }
+    pub harm: Harm,
+    /// the last dry place the mole stood (on the ground, out of water, lava and stale air): where its pack
+    /// is left if it dies close by, so a drowning doesn't sink the pack with it
+    pub dry: Option<(f32, f32)> }
 /// Said when a bite under the feet is held back over a deadly drop (`World::fatal_drop`).
 /// Floor thinner than this (cells) over a deadly drop rings hollow: a bite that would leave less is held back.
 pub const HOLLOW_FLOOR: usize = CPM;
@@ -1005,7 +1008,12 @@ impl World {
             let mut y = (swy - self.oy).clamp(4 * S as i64, h - 3 * S as i64) as usize; while y > 4 * S && !self.fits(sx, y) { y -= 1; }
             let m = &mut self.moles[0]; m.x = sx; m.y = y; m.hp = 100.; m.breath = 100.; m.hunger = m.hunger.max(50.); m.alive = true; m.fall = 0;
             self.pl = Player { spawn: self.pl.spawn, deaths: self.pl.deaths, fall_from: y, ..Default::default() };
-            self.say("You crawl back into the burrow.".into()); return;
+            // Survival: the burrow's stores give a meal and fill the headlamp (never items), so there is time
+            // and light to go back for the pack
+            if self.rules.drop_pack { self.moles[0].hunger = 100.; self.lamp_oil = self.lamp_oil.max(crate::survival::OIL_SECS); self.lamp_dry = false;
+                self.say("You crawl back into the burrow. Its stores give you a meal and fill the headlamp.".into()); }
+            else { self.say("You crawl back into the burrow.".into()); }
+            return;
         }
         if self.ride_step() { return; }
         let inp = self.input.clone();
@@ -1134,6 +1142,7 @@ impl World {
         let landed = self.box_hits(self.pl.px, self.pl.py + 0.05);
         if landed && !self.pl.grounded && !wet && !lava { let f = y.saturating_sub(self.pl.fall_from); if f >= 8 * S { self.shake = self.shake.max(0.25 + f as f32 * 0.02 / SF); } else if f >= 2 * S { self.shake = self.shake.max(0.1); /* even a hop down lands with a bump */ } if f > t.safe_fall { self.moles[0].hp -= (f - t.safe_fall) as f32 * 3. / SF; self.pl.harm = Harm::Fell; self.events.push(Event::Hurt); } }
         if landed || wet || lava || self.pl.cling != 0 || self.pl.vy < 0. { self.pl.fall_from = y; }
+        if landed && !wet && !lava && self.air.at(x, y.saturating_sub(S)) <= 0.45 { self.pl.dry = Some((self.pl.px, self.pl.py)); }
         let _ = airfall;
         self.pl.grounded = landed;
         if self.pl.vx.abs() > 0.5 * SF && landed || self.pl.cling != 0 && self.pl.vy.abs() > SF { self.moles[0].anim += 1; }

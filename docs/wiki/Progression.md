@@ -132,7 +132,7 @@ The first slice of Survival is in the game (`sim/src/survival.rs`); the rest of 
 * **Finds you can't use yet:** the first sight of a notable material logs a discovery with its depth (+2 torches). One the tools you own can't cut says what to come back with: "Discovery: Iron ore at 34 m (+2 torches). Your pickaxe can't cut it: come back with a drill (bronze, made at a powered workshop)". Digging at it refuses with the same advice, once per press. The quest chain follows it up: find iron ore, make the drill, go back for the iron (see [Quests](Tools-and-Items.md#quests)).
 * **Crafting:** recipes appear as you pick up their ingredients, and you make things standing at a working station: see [Crafting](#crafting).
 * **Stale air** works as before.
-* **Death:** you wake in the burrow with an empty pack. Everything you carried lies where you fell as loose items (a pile you can walk back over). Items that burn are lost if that was in lava or fire.
+* **Death:** you wake in the burrow with an empty pack. Everything you carried lies as loose items (a pile you can walk back over) on the last dry ground you stood on within 16 m, so a drowned Delver's pack waits at the water's edge rather than under it; otherwise where you fell. Items that burn are lost if that was in lava or fire. The log says what killed you and where the pack is. The burrow's stores give you a meal and fill the headlamp when you wake (never items), so there is time and light to go back for it (scenarios `death_pack_dry_ground`, `death_cause`).
 * **Creative:** 999 of everything, nothing hurts, nothing needs fuel.
 
 ### The Ancients
