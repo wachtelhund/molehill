@@ -81,8 +81,10 @@ impl World {
             // gravity less buoyancy (by the share of the box under liquid), and drag in a liquid (thicker in lava)
             let rho = d.item.density();
             let lift = if wet > 0. { wet * liq.p().density / rho } else { 0. };
-            d.vy = (d.vy + t.gravity * (1. - lift) * dt).clamp(-t.terminal, t.terminal);
-            if wet > 0. { let drag = 1. - wet * 0.12 * 10. / liq.p().flow_in_10.max(1) as f32; d.vx *= drag; d.vy *= drag; }
+            // running water pulls it along if it is light enough for its size, and keeps the lightest up off the bed (sluice.rs)
+            let (vw, kept) = if wet > 0. && liq == Mat::Water { self.wash_drag(d.item, d.px, d.py) } else { (0., false) };
+            d.vy = (d.vy + t.gravity * (1. - lift) * if kept { 0.2 } else { 1. } * dt).clamp(-t.terminal, t.terminal);
+            if wet > 0. { let drag = 1. - wet * 0.12 * 10. / liq.p().flow_in_10.max(1) as f32; d.vx = vw + (d.vx - vw) * drag; d.vy *= drag; }
             // swept, axis-separated movement; bounce and skid on what it hits
             let (mx, my) = (d.vx * dt, d.vy * dt);
             let n = ((mx.abs().max(my.abs()) / (0.5 * ITEM_HW)).ceil() as i32).max(1);
@@ -102,12 +104,16 @@ impl World {
                     let settling = my > 0. && v0 <= 1.5 * t.gravity * dt && self.chute_under(d.px, d.py, d.item).is_some();
                     let f = if settling { 0. } else { s.friction * (v0 - d.vy).abs() }; d.vx = if d.vx.abs() <= f { 0. } else { d.vx - d.vx.signum() * f }; } }
             }
+            // the flow goes up and over what it meets (a riffle bar): it lifts a lump it holds up with it
+            if kept && hx && mx * vw > 0. { d.vy = d.vy.min(-0.6 * vw.abs()); }
             // sliding friction on the ground (soft earth grabs, stone and iron let it roll on)
             let floor = self.mat_at(d.px, d.py + ITEM_HW + 0.05);
             if self.item_hits(d.px, d.py + 0.05, d.item) && d.vy >= 0. {
                 // on a chute or screen it slides down the slope (production.rs); elsewhere it skids to a stop
                 if let Some((cx, cy)) = self.chute_under(d.px, d.py, d.item) { self.chute_slide(&mut d, cx, cy, dt); }
-                else { let f = floor.p().friction * t.gravity * dt; d.vx = if d.vx.abs() <= f { 0. } else { d.vx - d.vx.signum() * f }; }
+                // (in running water it presses on the bed with only its weight less buoyancy, less still while the flow holds it up)
+                else { let sub = if vw != 0. { (1. - lift).max(0.) * if kept { 0.2 } else { 1. } } else { 1. };
+                    let f = floor.p().friction * t.gravity * sub * dt; d.vx = if d.vx.abs() <= f { 0. } else { d.vx - d.vx.signum() * f }; }
                 if d.vx.abs() < 0.3 * SF && d.vy.abs() < 0.3 * SF && wet == 0. { d.rest = d.rest.saturating_add(1); if d.asleep() { d.vx = 0.; d.vy = 0.; } } else { d.rest = 0; }
             } else { d.rest = 0; }
             d.px = d.px.clamp(1., self.g.w as f32 - 2.); d.py = d.py.clamp(1., self.g.h as f32 - 2.);

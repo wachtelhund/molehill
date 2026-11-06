@@ -53,3 +53,27 @@ I playtested the machines together in headless scenarios and probed the edges:
   `production_is_reachable_in_survival` and `production_hover_tips_say_what_to_do`.
 * **Noted for stage 2:** a shaker screen is a solid cell, so water doesn't run through it. Sluicing will need liquids to pass
   screens and riffles.
+
+## Stage 2: water sluicing (branch `refine/production-sluice`)
+
+* **Water through screens** (the one change in p2's CA, `grid.rs::liquid_target`): a liquid cell with a screen under it
+  drains through up to a tile of screen into the open under it. Scenario `water_through_screen`.
+* **The current** (`sluice::current`) is read from the water's surface slope over ±1 m (the CA keeps no velocities):
+  speed 4·√|s| m/s, bed stress depth·|s|. A level pool is still, so p2's pools and their scenarios are untouched.
+* **Mobility** = (ρ/ρw − 1)·size. Water carries a lump past `WASH_K`·h·|s| (1.0) and holds it up at twice that.
+  Fines (sand to coal, ≤ 0.03) wash; ore and stone (0.26 to 0.34) stay. At `WASH_K` 1.5 deep water at the reservoir mouth
+  rolled iron ore 1.5 m; at 1.0 it moves a tile at most.
+* **Items** (`items.rs`): drag toward the current. In a current, bed friction scales with submerged weight; at first a lump
+  on the bed kept full dry friction, which cancelled the pull every tick. A held-up lump is lifted over what it's driven
+  into (riffles).
+* **Grains** (`sluice::step_wash`, every 4 ticks over the awake chunks; about 0.005 ms a pass, measured beside a 0.3–0.5 ms CA step): loose cells move a cell downstream. Riffles trap
+  washed sand: a grain can't climb a 2-cell bar because the CA keeps sinking it. That's real sluice behaviour, and it's
+  documented.
+* **Riffle bar** (`Mat::Riffle` / `Item::Riffle`, workbench: 2 wood → 8). A sluice floor must not be chute: a 1-in-4 chute
+  slides ore down dry.
+* **Regression found by p2's `death_pack_dry_ground` (fixed):** a flooded passage under a bedrock roof beside an open
+  hole read as a downhill surface, because its "top" was capped a tile lower. That fake current dragged a dead mole's
+  grubs under the roof. Only a free surface (open above) now counts. Test `water_under_a_roof_is_not_a_current`.
+* Harness: `loosen T DX DY`; vars `flow:`, `bedstress:`, `cells:`; legend `z`. Scenarios `water_through_screen`,
+  `sluice_sorts`, `sluice_washes_rubble`; tests `sluice.rs`. A hover line on running water gives direction and speed.
+* For p3: **Riffle bar** needs an in-world look (it draws with its table colour) and has a pack icon in `itemart.rs`.
