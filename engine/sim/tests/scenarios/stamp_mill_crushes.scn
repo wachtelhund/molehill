@@ -1,0 +1,40 @@
+// A stamp mill crushes ore under falling stamps. It stands against the gear at the foot of a shaft, driven by two
+// counterweights on the same train (each blow lifts its stamps, about 1.8 kJ a lump: one 200 kg weight's 2 m fall
+// crushes about two). Copper ore, iron ore and a stone dropped on its top go into its mortar and are broken one at a
+// time: the ore into its concentrate and a lump of sand (the rock it was in), the stone into gravel, all out of the
+// spout at its right foot. The weights share the work: the second drives the mill once the first is down.
+map
+##################################
+##################################
+#....jj*jjjjjjj*.................#
+#..............j.................#
+#..............j.................#
+#..............j.................#
+#..............j.................#
+#..............j.................#
+#..............j.................#
+#..............j.................#
+#..........@...*.................#
+##################################
+##################################
+end
+give Counterweight 2
+give StampMill 1
+place 2 -7 -8 Counterweight          // a drum at the shaft's end...
+place 2 -4 -7 Counterweight          // ...and one under the gear in its line
+place 3 7 -1 StampMill
+expect 4 works == 1
+expect 4 weights == 2
+drop 10 CopperOre 6 -7
+drop 20 IronOre 6 -7
+drop 30 Stone 6 -7
+expect 60 stampload == 3             // in its mortar
+expect 60 turning:5,0 == 1
+expect 600 items:CopperFines == 1    // the first lump crushed...
+expect 600 items:Sand == 1
+expect 1200 stampload == 0           // ...and all three
+expect 1200 items:IronFines == 1
+expect 1200 items:Sand == 2
+expect 1200 items:Gravel == 1
+expect 1200 zone:CopperFines,8,14,-1,0 == 1    // out of the spout at its right foot
+expect 1800 turning:5,0 == 0         // nothing left to crush: the weights hang still

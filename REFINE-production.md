@@ -161,3 +161,30 @@ I playtested the trains in context and probed the edges:
   over 10 s: single wisps, as the excess (about 4 kJ/s against 30 kJ a puff) says.
 * `site/` is rebuilt on main after #49.
 * **Not tested live:** still headless only. No screenshot or in-game check of the boiler, engine or ash.
+
+## Stage 5: refinement (branch `refine/production-refine`)
+
+* **Works** (`refine.rs`): stamp mill, washer and smelter, all shell cells on the tile grid with fed tops and spouts at
+  the floor. Saved, with setting casts, in transport encoding v8.
+  - **Stamp mill:** machinery. Six blows a lump, each paid by the train (m·g·h ≈ 300 W at full speed). Ore gives
+    concentrate plus sand; stone and slag give gravel.
+  - **Washer:** machinery. It needs water touching it and uses a cell every 4 lumps. Density ≥ 2500 kg/m³ goes out the left
+    spout, lighter out the right; the spouts are strict, so a blocked side jams rather than mixing.
+  - **Smelter:** burns coal or charcoal and tends to 800 °C, up to 1350 °C with full bellows air. Copper and tin need
+    1100 °C, iron 1250 °C. Ore yields 0.5 ingot and 0.5 slag; concentrate 0.75 and 0.25.
+* **Bellows:** machinery, 10 W a cell while the smelter is lit. The whole block touching the smelter counts; at first only
+  the touching cells did, so 2 tiles gave half air and the heat stalled at about 1050 °C.
+* **Ingot moulds:** a mould tile against a smelter fills at an ingot's worth and glows (`MouldHot`, heat 1) for 15 s; then
+  an ingot pops out on top.
+* **Fixed (stage 3):** counterweights on one train each covered the whole shortfall, so two fell twice as fast as needed
+  and both ran out together. Each now covers only what the ones before it leave.
+* Scenarios `stamp_mill_crushes`, `washer_sorts`, `smelter_bellows_mould`. Harness: legend `Y` `V`; vars `works`,
+  `casts`, `stampload`, `washload`, `smeltload`, `smelttemp`, `smeltair`, `molten`.
+* For p3 (8 kinds): **Stamp mill** (stamps rising and falling: `Works::stroke`), **Washer** (rocking, water), **Smelter**
+  (a glow and smoke while lit, heat shown by `temp`), **Bellows** (pumping), **Ingot mould** plus the setting mould's glow,
+  **Copper, tin and iron concentrate**. All have placeholder pack icons.
+* For p7: forge: stamp mill (4 iron ingots + 4 wood), smelter (10 brick + 4 clay); workbench: washer (6 wood + 2 clay),
+  bellows x4 (2 wood + 2 fungus), ingot mould x4 (2 sand + 1 clay). The smelter makes ingots outside the forge's recipes:
+  please weigh it against the forge's ore → ingot rows.
+* **Not tested live:** headless scenarios only. Iron smelting at 1250 °C isn't covered by a scenario; neither is tin, nor
+  slag coming out of a smelter.

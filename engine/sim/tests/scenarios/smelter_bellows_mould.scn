@@ -1,0 +1,47 @@
+// A smelter needs bellows air, and a mould against it casts an ingot. Coal and two lumps of copper concentrate are
+// dropped into a smelter; bellows stand against its left side on a drive train, an ingot mould against its right
+// foot. With nothing turning the bellows the fire only reaches about 800 °C and nothing melts. Two counterweights hung
+// on the train set the bellows going: full air, the heat climbs past copper's 1100 °C, the concentrate melts (more
+// metal than raw ore would give), and at an ingot's worth the mould is filled: it glows as it sets, then the copper
+// ingot lies on top of it.
+map
+##################################
+##################################
+#....jj*jjjjjjj*.................#
+#..............j.................#
+#..............j.................#
+#..............*.................#
+#..............Y.................#
+#..............Y.................#
+#................................#
+#................................#
+#..........@........V............#
+##################################
+##################################
+
+end
+give Counterweight 2
+give Smelter 1
+place 3 7 -1 Smelter
+expect 4 works == 1
+drop 10 Coal 6 -7
+drop 15 Coal 6 -7
+drop 20 Coal 6 -7
+drop 25 CopperFines 6 -7
+drop 30 CopperFines 6 -7
+expect 60 smeltload == 2             // the charge is in
+expect 1400 smeltair == 0            // no air:
+expect 1400 smelttemp < 800          // the fire tops out short of copper's heat...
+expect 1400 molten == 0              // ...and nothing melts
+place 1500 -7 -8 Counterweight       // drive the bellows
+place 1500 -4 -7 Counterweight
+expect 1800 smeltair == 1
+expect 3000 smelttemp > 1100
+expect 3600 molten > 0               // melting
+expect 4200 casts == 1               // an ingot's worth tapped into the mould
+expect 4200 is:9,0,MouldHot == 1     // glowing as it sets
+expect 4200 smeltload == 0
+expect 5200 casts == 0
+expect 5200 is:9,0,Mould == 1        // set, the mould is empty again...
+expect 5200 items:CopperIngot == 1   // ...and the ingot lies on top of it
+expect 5200 zone:CopperIngot,8,10,-2,-1 == 1
