@@ -1,6 +1,6 @@
 //! Found places can be walked. Each site is stamped alone in granite, and the mole's body positions are
-//! flood-filled (`World::body_regions`: the sim's collision box, gravity ignored, as the mole climbs side
-//! walls and rope ladders). Two checks per site:
+//! flood-filled (`World::body_regions`: the sim's collision box, gravity ignored: there is no wall climbing,
+//! but the early rope gun hooks the rock overhead and takes the mole up any face, and rope ladders down). Two checks per site:
 //! * goal: from a way in (a region that reaches the site's edge: a mouth or a door) the body gets to the
 //!   chest, which stands in open space so it opens; or for the fissure (which has none) to its floor;
 //! * whole: the site's open space is one walk, with no big room cut off from the way in.

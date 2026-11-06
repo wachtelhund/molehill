@@ -322,14 +322,12 @@ fn press(w: &mut World, n: usize, f: impl Fn(&mut Input)) -> (f32, f32) { let (m
     w.moles[0].y = y0 - 15 * S; w.pl.sync = None; press(&mut w, 30, |_| {});
     let mut t = 0; while w.pl.grounded && t < 120 { w.input.right = true; w.step(); t += 1; }
     let ya = w.pl.py; press(&mut w, 15, |i| i.right = false); let (top, _) = press(&mut w, 20, |i| i.jump = true); assert!(top >= ya - 0.1 * SF, "no late jump: {top} vs {ya}");
-    // wall climb: run right into the arena wall, jump, cling, climb up, then wall-jump away
-    let (mut w, _, _) = arena(); press(&mut w, 1, |i| i.jump = false);
+    // no wall climb: run right into the arena wall, jump, and hold into it with W: no cling, no climb, back down
+    let (mut w, _, _) = arena(); press(&mut w, 1, |i| i.jump = false); let yf = w.pl.py;
     press(&mut w, 120, |i| i.right = true);
-    press(&mut w, 10, |i| { i.right = true; i.jump = true; }); press(&mut w, 4, |i| { i.right = true; i.jump = false; });
-    assert_eq!(w.pl.cling, 1, "clinging to the right wall");
-    let yc = w.pl.py; press(&mut w, 40, |i| { i.right = true; i.up = true; }); assert!(w.pl.py < yc - 3. * SF, "climbed: {} -> {}", yc, w.pl.py);
-    let xw = w.pl.px; press(&mut w, 2, |i| { i.up = false; i.jump = true; }); press(&mut w, 10, |i| i.jump = true);
-    assert!(w.pl.px < xw - 1.5 * SF && w.pl.cling == 0, "wall-jumped away: {} -> {}", xw, w.pl.px);
+    let (top, _) = press(&mut w, 120, |i| { i.right = true; i.up = true; i.jump = true; });
+    assert!(top > yf - 7. * SF && w.pl.cling == 0, "no higher than a jump up a bare wall: {top} vs floor {yf}");
+    assert!(w.pl.grounded && (w.pl.py - yf).abs() < 0.5, "back on the floor: {} vs {}", w.pl.py, yf);
 }
 #[test] fn jump_held_through_a_menu_does_not_fire() {
     // the menu closes on Space; the same press must not make the mole jump when play resumes

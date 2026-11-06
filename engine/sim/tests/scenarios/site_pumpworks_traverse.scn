@@ -1,7 +1,8 @@
-// Into flooded pumpworks by the service door on its east wall, up over the pump machinery (W held climbs it)
-// onto the iron gallery, unhurt. Walking on west, the mole steps down onto the timber landing on the viewing
-// window's sill and takes its rope to the chest: `site_pumpworks_rope_to_chest.scn` (before the site-trap fix
-// this was a 7.5-10 m drop beside the wheel, 16-43 hp).
+// Into flooded pumpworks by the service door on its east wall and up over the pump wheel (9 m), without wall
+// climbing: from the gap between the wheel and the east wall, the rope gun's hook goes 15 m straight up into the
+// iron gallery under the roof; the mole climbs above the wheel's top, swings west with A, lets go over the wheel
+// and lands on its west shoulder, unhurt. On west it steps down onto the timber landing on the viewing window's
+// sill and takes its rope ladder to the chest: `site_pumpworks_rope_to_chest.scn`.
 map
 ################################################################################################################################################################################################################
 ################################################################################################################################################################################################################
@@ -101,18 +102,15 @@ map
 ################################################################################################################################################################################################################
 end
 site 1 pump -195 -75
-hold 2-500 left up
-hold 30-38 jump
-hold 70-78 jump
-hold 110-118 jump
-hold 150-158 jump
-hold 190-198 jump
-hold 230-238 jump
-hold 270-278 jump
-hold 310-318 jump
-hold 350-358 jump
-hold 390-398 jump
-hold 430-438 jump
-hold 470-478 jump
-expect 500 py < 50                // up on the gallery
-expect 500 hp == 100
+give RopeGun 1
+give HookRope 2
+hold 2-100 left                    // in by the service door, to the wheel's foot
+hold 101-140 right                 // back into the gap between the wheel and the hall's east wall
+fireby 145 0 -40                   // the hook goes straight up, 15 m, into the iron gallery under the roof
+hold 220-510 up                    // W grabs (a fresh press, once the hook has bitten) and climbs above the wheel's top
+hold 511-585 left                  // A pumps the swing west, over the wheel
+hold 586-589 left jump             // let go at the top of the swing...
+hold 590-660 left                  // ...and drops onto the wheel's west shoulder
+expect 660 py < 50                 // up on the wheel
+expect 660 grounded == 1
+expect 660 hp == 100

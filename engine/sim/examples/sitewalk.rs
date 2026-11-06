@@ -2,8 +2,8 @@
 //! `cargo run --release -p molehill-sim --example sitewalk -- [KIND ...]` (default: all seven)
 //!
 //! Each site is stamped alone in solid granite, and every place the mole's body fits is flood-filled into
-//! connected regions (`World::body_regions`: the sim's own collision box, gravity ignored, since the mole
-//! climbs side walls and rope ladders). The map is drawn at 0.5 m a character: `#` solid, a letter per
+//! connected regions (`World::body_regions`: the sim's own collision box, gravity ignored, since the rope
+//! gun takes the mole up any face under rock and rope ladders take it down: no wall climbing). The map is drawn at 0.5 m a character: `#` solid, a letter per
 //! region (A is the biggest), `x` open space no body position reaches (too tight), `|` a rope ladder, `C`
 //! the chest. A region that never comes near the site's edge has no way in; two big regions mean the
 //! layout is cut in two. `tests/found_places.rs` checks the same thing.

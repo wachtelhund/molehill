@@ -21,10 +21,12 @@ pub enum Item {
     RockWall, TimberWall, MasonryWall, BeamWall, PipeWall, CarvedWall,
     // production (production.rs): chute and shaker screen blocks, a cart bumper, an ore hopper that feeds carts
     Chute, Screen, Bumper, OreHopper,
-    // sluicing (production.rs): riffle bars for a sluice floor
+    // the rope gun (ropes.rs) and the hook ropes it throws
+    RopeGun, HookRope,
+    // sluicing (production.rs, sluice.rs): riffle bars for a sluice floor
     Riffle,
 }
-pub const NITEM: usize = 74;
+pub const NITEM: usize = 76;
 /// What an item can do in the world (see `Item::uses`).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Uses { pub place: bool, pub throw: bool, pub pick_up: bool }
@@ -279,6 +281,11 @@ const ITEM_DEFS_CONST: [ItemDef; NITEM] = {
     it(OreHopper, "Ore hopper", [140, 104, 66],
        "A timber bin on legs over the track. Fill it from above; it lets its load down into a cart.").dens(900.0).place().pick_up()
        .controls("Left mouse: stand it over the track · fill it from above · a cart under it is filled · right mouse: hold the gate open · E: empty, then pick up"),
+    it(RopeGun, "Rope gun", [128, 96, 64],
+       "A crank-wound spring throws a stone hook on 16 m of rope. It bites solid rock, not loose ground.").dens(700.0)
+       .controls("Left mouse: throw the hook at the cursor (uses a hook rope) · W on the rope: grab · W/S climb · A/D swing · Space: let go · E on a rope: take it back"),
+    it(HookRope, "Hook rope", [196, 170, 112],
+       "A stone hook on 16 m of fungus-fibre rope, coiled for the rope gun. E takes a thrown one back.").dens(500.0).throw(),
     it(Riffle, "Riffle bar", [122, 88, 54],
        "Low timber bars for a sluice floor. Running water washes the fines on; heavy lumps settle behind them.").lump(Mat::Riffle).block(Mat::Riffle).place()
        .controls("Left mouse: build bars across a sloping channel (hold) · run water down it to wash what's tipped in"),
@@ -396,6 +403,9 @@ pub static RECIPES: &[Recipe] = &[
     Recipe { name: "Beam wall x4", station: Station::Workbench, inputs: &[(Item::WoodPillar, 1)], out: (Item::BeamWall, 4), ticks: 60 },
     Recipe { name: "Masonry wall x8", station: Station::Forge, inputs: &[(Item::Brick, 2)], out: (Item::MasonryWall, 8), ticks: 90 },
     Recipe { name: "Pipe wall x4", station: Station::Forge, inputs: &[(Item::CopperIngot, 1)], out: (Item::PipeWall, 4), ticks: 90 },
+    // the rope gun (ropes.rs): the spring and stock, and the hook ropes it throws (reusable: `E` takes a rope back)
+    Recipe { name: "Rope gun", station: Station::Workbench, inputs: &[(Item::Wood, 2), (Item::Stone, 3), (Item::Fungus, 2)], out: (Item::RopeGun, 1), ticks: 120 },
+    Recipe { name: "Hook rope", station: Station::Workbench, inputs: &[(Item::Fungus, 3), (Item::Stone, 1)], out: (Item::HookRope, 1), ticks: 60 },
     Recipe { name: "Rope ladder", station: Station::Workbench, inputs: &[(Item::Wood, 2), (Item::Fungus, 2)], out: (Item::RopeLadder, 1), ticks: 90 },
     // the oil press: a bench presses fungus better than the pack does on the go (3 make 2 measures, where the
     // pack takes 2 a measure), and a mushroom farm's crop can feed the lamp instead of the belly

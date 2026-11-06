@@ -180,6 +180,11 @@ pub fn icon_px(it: Item) -> Px {
         RopeLadder => { // ropes and rungs, rolled at the bottom
             for x in [3, 12] { p.rect(x, 0, x, 11, ROPE); } for y in [2, 5, 8] { p.rect(4, y, 11, y, WOOD); }
             p.oval(8., 13., 6., 2.4, sh(ROPE, 0.85)); p.oval(8., 13., 3.5, 1.2, WOOD_D); }
+        RopeGun => { // placeholder (p3 to replace): a root-wood stock with a crank and a stone hook in the muzzle
+            p.rect(1, 8, 11, 10, WOOD); p.rect(1, 11, 3, 14, WOOD_D); p.rect(11, 7, 13, 9, [150, 146, 140]); p.set(14, 8, [110, 106, 100]); p.set(14, 7, [110, 106, 100]);
+            p.oval(7., 6., 1.6, 1.6, BRASS); p.rect(7, 3, 7, 5, IRON); p.rect(4, 4, 10, 4, ROPE); }
+        HookRope => { // placeholder (p3 to replace): a coil of rope with a stone hook on top
+            p.oval(8., 10., 5.5, 4., ROPE); p.oval(8., 10., 3., 2., sh(ROPE, 0.7)); p.rect(7, 2, 8, 6, [150, 146, 140]); p.rect(9, 1, 10, 2, [150, 146, 140]); p.rect(5, 1, 6, 2, [150, 146, 140]); }
         Lift => { // a cage hung from a sheave
             p.oval(8., 2.5, 2.4, 2.4, IRON); p.set(8, 2, BRASS); p.rect(8, 5, 8, 6, ROPE); p.rect(3, 6, 12, 7, WOOD); p.rect(3, 13, 12, 14, WOOD);
             for x in [3, 6, 9, 12] { p.rect(x, 7, x, 13, col); } }
@@ -234,7 +239,7 @@ pub fn world_form(it: Item) -> &'static str {
     match it {
         Planks | PolishedStone | Tiles | CarvedPillar | Rail | Tube | Chute | Screen | Bumper | Riffle | WoodPillar | IronBeam | Brick | Glass => "placed cells",
         Torch => "torch flame", Lamp | Thrummer | Gate | Tnt | Vent => "device sprite", CopperWire => "copperline tile",
-        Cart => "cart sprite", RopeLadder => "rope ladder", Lift => "lift cage", TubeHopper => "hopper mouth", OreHopper => "ore hopper bin",
+        Cart => "cart sprite", RopeLadder => "rope ladder", HookRope => "rope chain and hook", RopeGun => "held (icon)", Lift => "lift cage", TubeHopper => "hopper mouth", OreHopper => "ore hopper bin",
         Mushroom | Spore => "mushroom plot (planted)",
         _ => "loose (icon)",
     }
