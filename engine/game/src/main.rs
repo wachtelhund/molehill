@@ -385,8 +385,8 @@ fn stage_scene(w: &mut World) {
                 put(w, ClueKind::Draft, x0 + 45 * S, my, 0);
                 for k in 0..3 { w.torches.push((x0 + (6 + k * 20) * S, my - 4 * S)); }
             }
-            "logic" => { // a sealed hall east of the burrow with every linkage part: a tread plate in the floor rodded to a sluice gate
-                // holding back a pool, a turned-round gate standing lifted, a tipping scale with three stones on its
+            "logic" => { // a sealed hall east of the burrow with every linkage part: a tread plate in the burrow floor under the mole,
+                // rodded to a sluice gate holding back a pool (the mole's weight lifts it), a turned-round gate standing lifted, a tipping scale with three stones on its
                 // counter-pan, and a float in a tank rodded to a clutch in a counterweight's drive train down to a belt
                 use molehill_sim::{mat::CPM, power::Weight, linkage::{Gate, Scale}};
                 let (x0, x1, y0) = (mx + 4 * S, mx + 64 * S, my - 26 * S);
@@ -399,8 +399,9 @@ fn stage_scene(w: &mut World) {
                 let mut cells = vec![]; for x in at(16)..at(18) { for y in my - 15..=my { set(w, x, y, Mat::SluiceGate); cells.push(w.g.idx(x, y)); } }
                 w.tr.links.gates.push(Gate { cells, open: false, invert: false });
                 for y in my - 14..my + 4 { set(w, at(18), y, Mat::Rod); set(w, at(19), y, Mat::Rod); }
-                for x in at(18)..at(36) { for y in my + 3..my + 5 { set(w, x, y, Mat::Rod); } }
-                for x in at(28)..at(36) { for y in my + 1..my + 3 { set(w, x, y, Mat::TreadPlate); } }
+                // the plate is in the burrow floor right under the mole, so the running game presses it and lifts the gate
+                for x in mx - 3..at(20) { for y in my + 3..my + 5 { set(w, x, y, Mat::Rod); } }
+                for x in mx - 3..mx + 5 { for y in my + 1..my + 3 { set(w, x, y, Mat::TreadPlate); } }
                 // a turned-round gate on no rod: slack, it stands lifted
                 let cells: Vec<usize> = (at(22)..at(24)).flat_map(|x| (my - 15..=my).map(move |y| (x, y))).map(|(x, y)| w.g.idx(x, y)).collect();
                 w.tr.links.gates.push(Gate { cells, open: true, invert: true });
@@ -422,6 +423,7 @@ fn stage_scene(w: &mut World) {
                 molehill_sim::light::reveal_box(&mut w.g, mx, y0 - 10 * S, x1 + 10 * S, my + 10 * S);
                 for k in 0..4 { w.torches.push((x0 + (6 + k * 16) * S, y0 + 4 * S)); }
                 for tx in [at(26), at(52), at(88)] { w.torches.push((tx, my - 2 * CPM)); }
+                w.torches.push((tx1 - 2, my - 12)); w.torches.push((xs - 4, my - 10)); // inside the tank over the float, and beside the clutch: both sit in shadow otherwise
             }
             "refine" => { // a sealed refinery east of the burrow: a counterweight under the roof drives a shaft and gears down to a
                 // stamp mill crushing copper ore, a washer with water in it and a block of bellows blowing a lit smelter;
