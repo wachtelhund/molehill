@@ -343,6 +343,10 @@ pub fn mat_color(m: molehill_sim::mat::Mat, cx: u32, cy: u32, above: u32) -> Opt
         // metre with a bolt in it
         M::Bumper => { let band = cy % c == c - 1; let g = 0.92 + h(cx, 0, 93) * 0.12;
             Some(if above == 0 { [216., 78., 56.] } else if above == 1 { [120., 40., 32.] } else if band { if cx % 3 == 1 { [196., 196., 204.] } else { [96., 98., 110.] } } else { [152. * g, 60. * g, 42. * g] }) }
+        // riffle bars: short upright timber slats across the sluice floor, a dark gap between each pair, the tops worn
+        // pale by the water running over them
+        M::Riffle => { let q = c / 2; let g = 0.9 + h(cx / q, 0, 97) * 0.16;
+            Some(if cx % q == 0 { [62., 44., 30.] } else if above == 0 { [186., 150., 100.] } else { [122. * g, 88. * g, 54. * g] }) }
         _ => None,
     }
 }
@@ -469,8 +473,9 @@ mod tests {
         let screen = patch(Mat::Screen); let mesh = screen.iter().filter(|&&c| lum(c) < 50.).count() as f32 / screen.len() as f32;
         assert!(mesh > 0.4, "the screen's mesh is dark between the bars ({mesh:.2})");
         assert!(screen.iter().any(|&c| lum(c) > 150.), "the screen's bars are bright iron");
-        let (chute, bump) = (mean(&patch(Mat::Chute)), mean(&patch(Mat::Bumper)));
-        for (a, b, what) in [(chute, mean(&screen), "chute/screen"), (chute, bump, "chute/bumper"), (bump, mean(&screen), "bumper/screen")] { assert!(dist(a, b) > 30., "{what} too alike"); }
+        let (chute, bump, riffle) = (mean(&patch(Mat::Chute)), mean(&patch(Mat::Bumper)), mean(&patch(Mat::Riffle)));
+        for (a, b, what) in [(chute, mean(&screen), "chute/screen"), (chute, bump, "chute/bumper"), (bump, mean(&screen), "bumper/screen"), (riffle, chute, "riffle/chute"), (riffle, bump, "riffle/bumper"), (riffle, mean(&screen), "riffle/screen")] { assert!(dist(a, b) > 30., "{what} too alike"); }
+        let slats = patch(Mat::Riffle).iter().filter(|&&c| lum(c) < 0.6 * lum(riffle)).count(); assert!(slats >= 16, "riffle slats have dark gaps between them");
         assert!(lum(mat_color(Mat::Chute, 3, 3, 0).unwrap()) > lum(chute) * 1.2, "a chute's top is a pale worn lip");
         let head = mat_color(Mat::Bumper, 3, 3, 0).unwrap(); assert!(head[0] > 2.5 * head[1], "a bumper's head is painted red");
         let seams = (0..CPM as u32).map(|y| mat_color(Mat::Chute, 4, 16 + y, 2).unwrap()).filter(|&c| lum(c) < 0.75 * lum(chute)).count(); assert!(seams >= 1, "chute boards have seams");

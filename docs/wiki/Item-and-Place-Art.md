@@ -72,15 +72,15 @@ The pack, the hotbar, the item in the mole's paws and anything lying loose all u
 | Rail | a length of copper strap on two sleepers, side on | placed cells of its material |
 | Mine cart | a plank tub with a bronze rim on two wheels | cart sprite on the rails |
 | Rope ladder | ropes and rungs, rolled at the bottom | rope ladder (ropes and rungs) |
-| Rope gun | a root-wood stock with a brass crank and a stone hook in the muzzle (placeholder) | held (icon) |
-| Hook rope | a coil of rope with a stone hook on top (placeholder) | rope chain and hook |
+| Rope gun | a root-wood bow-spring launcher: the stock down to a grip, the spring bent across its fore end with the cord drawn back to the catch, a brass crank, a stone hook in the muzzle | held: the same gun side on in the paws, a stone hook in its muzzle while a hook rope is ready and none in flight, empty otherwise (`art::Held::RopeGun`) |
+| Hook rope | a coil of twisted fungus-fibre rope, its loose end running out to a barbed stone hook lashed on | the rope: a twisted-fibre length per half-metre segment, turned along it; the stone hook at its head points into the rock it bit, or along its flight while thrown (`art::rope_seg`, `art::rope_hook`) |
 | Lift | a cage hung from a sheave | lift head frame, rope and cage |
 | Pressure tube | a pressure-tube length with flanged ends | placed cells of its material |
 | Tube hopper | a brass funnel mouth on a stub of tube | brass hopper mouth |
 | Chute | a timber trough running downhill, a lump sliding down it | placed cells: a pale worn lip on top, boards with a dark seam every half metre |
 | Shaker screen | an iron grating in a timber frame, the mesh open between the bars | placed cells: a timber top rail, iron bars every half metre, the dark mesh between |
 | Bumper | a squat timber buffer with a red pad, standing on a rail end | placed cells: red-painted timber, a brighter worn head, an iron band and bolt every metre |
-| Riffle bar | three low timber bars across a sloping floor, water running over them | placed cells, in the material's plain timber colour |
+| Riffle bar | three low timber bars across a sloping floor, water running over them | placed cells: upright timber slats with a dark gap every half metre, their tops worn pale by the water |
 | Ore hopper | a timber bin heaped with ore, tapering to a spout, on splayed legs | ore hopper sprite: back boards, the heap tinted with what it holds, the front frame open over the heap, a boarded taper to an iron spout whose gate shows shut or swung open, two legs down to the floor (`art::ore_bin`) |
 | Rock wall | a rough slab of scraped host rock with tool marks | background lining |
 | Timber wall | boards standing on end, uneven tops, gaps between | background lining |
@@ -127,7 +127,8 @@ Game-crate tests (`cargo test --release -p molehill`):
 * `every_slot_icon_fills_its_slot`: every pack icon and device hotbar icon covers at least 80 of its 256 pixels. The nest (its 9 × 3-tile sprite scaled), the fuse and the plate were slivers of 64–74 px; the median icon covers 135.
 * `every_device_has_its_own_sprite`: the same pattern check for the 21 devices.
 * `every_prop_has_its_own_sprite`: every prop is mostly filled, has at least four colours and differs from the others.
-* `production_blocks_have_their_own_look`: the chute, shaker screen and bumper patterns differ from each other by at least 30 in mean colour. The screen is at least 40% dark mesh with bright bars, the chute's top is a pale lip, and the bumper's head is red.
+* `production_blocks_have_their_own_look`: the chute, shaker screen, bumper and riffle patterns differ from each other by at least 30 in mean colour, and riffle slats have dark gaps between them. The screen is at least 40% dark mesh with bright bars, the chute's top is a pale lip, and the bumper's head is red.
+* `rope_gun_art_is_drawn`: the loaded gun shows its hook (at least 5 more pixels than the empty one), the rope length is solid fibre whose twist spans a wide brightness range, and the hook has a point and two barbs.
 * `ore_hopper_is_a_drawn_bin`: the bin's back boards fill it, the front leaves the upper part open (so the heap shows), the taper is boarded down to a spout, the open gate differs from the shut one, and the heap sprite is pale so its tint gives the ore colour.
 * `found_places_are_furnished`: each family is stamped into rock and must get its listed furnishings, all inside the site and none in rock. Every prop kind is placed somewhere.
 

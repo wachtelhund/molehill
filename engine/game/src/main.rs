@@ -397,7 +397,7 @@ fn stage_scene(w: &mut World) {
                 molehill_sim::light::reveal_box(&mut w.g, mx, y0 - 10 * S, x1 + 10 * S, my + 10 * S);
                 for k in 0..4 { w.torches.push((x0 + (6 + k * 16) * S, y0 + 4 * S)); }
             }
-            "production" => { // a works east of the burrow: a chute sloping down onto a shaker screen, an ore hopper
+            "production" => { // a works east of the burrow: a chute sloping down onto a shaker screen, riffle bars, an ore hopper
                 // heaped with copper ore over a rail, and a bumper at the end of the track
                 use molehill_sim::mat::CPM;
                 let (x0, x1, y0) = (mx + 4 * S, mx + 64 * S, my - 22 * S);
@@ -408,6 +408,7 @@ fn stage_scene(w: &mut World) {
                 let (sx, sy) = (x0 + 10 * CPM / 4, y0 + 4 * S + 5 * CPM / 4); for x in sx..sx + 2 * CPM { for d in 0..2 { set(w, x, sy + d, Mat::Screen); } }
                 for x in sx + 2 * CPM - 2..sx + 2 * CPM { for y in sy + 2..my - 1 { set(w, x, y, Mat::WoodBeam); } }
                 for x in x1 - CPM / 2..x1 { for y in my - CPM..my - 1 { set(w, x, y, Mat::Bumper); } }
+                for x in x0 + 26 * S..x0 + 26 * S + 2 * CPM { for y in my - 3..my - 1 { set(w, x, y, Mat::Riffle); } } // a run of riffle bars on the track bed
                 let bx = x0 + 40 * S; let floor = my - 1; let by = floor - molehill_sim::production::BIN_LEGS;
                 w.tr.bins.push(molehill_sim::production::OreHopper { x: bx, y: by, floor, contents: vec![(Item::CopperOre, 40)], held: false, open: false, feed: 0, grit: vec![] });
                 molehill_sim::light::reveal_box(&mut w.g, mx, y0 - 10 * S, x1 + 10 * S, my + 10 * S);
