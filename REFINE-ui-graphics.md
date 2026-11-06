@@ -151,6 +151,19 @@ Polish only: no new systems, lore names kept. Each entry lists what changed and 
   nothing beyond its walls. Found on the way: `--dump-art` without `--scene` cropped to the last found place in
   the window (off-window, so it panicked); only a stamped scene crops to its site now.
 
+## Production art (branch `refine/production-art`, on PR #9's production stage 1)
+* PR #9 had already given the chute, shaker screen, bumper and ore hopper their own icons; in the world the three
+  blocks drew flat colour and the hopper was placeholder rectangles.
+* Blocks: `art::mat_color` patterns. Chute: a pale lip, boards with half-metre seams. Screen: a timber top rail,
+  iron bars every half metre, the dark mesh between. Bumper: red-painted timber, a bright head, iron bands every metre.
+* Ore hopper: `art::ore_bin` parts (back boards, front frame with the gate shut or open, leg, heap). The heap is
+  tinted with the first item it holds and fills the straight part of the bin. The front is outlined only round the
+  silhouette, so the window onto the heap stays open (the first dump showed black bands there).
+* `--scene=production`: a sealed limestone works (a water pocket over the first try flooded it; the chute and screen
+  needed the wall and a post or they fell as items). Dumped at frame 90: the copper heap shows through the bin's
+  front, the chute reads as a sloped trough onto the screen, and the bumper is a red block at the track's end.
+* Tests `production_blocks_have_their_own_look`, `ore_hopper_is_a_drawn_bin`.
+
 ## Open issues
 * `--shot` writes an empty frame on macOS when the game is launched from a background shell (the surface is
   never presented). It needs a visible window, or Linux with Xvfb.
