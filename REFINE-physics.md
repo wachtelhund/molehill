@@ -235,15 +235,17 @@ cells from its own torches and glowing rock, one charge in the mine / pumpworks 
   sump's level, which would drain into open host rock.
 
 ## Rarer, telegraphed cave-ins (Hampus playtest: "near-constant cave-ins when digging")
-Measured with `--example digbot` (new): a Survival mole tunnels and digs staircases near home, 16 seeds × 2 min.
-"Before" is main's rules run in the same code (fail at u > 1, a creak on every crack start).
+Measured with `--example digbot` (new): a Survival mole tunnels and digs staircases near home, 16 seeds × 2 min,
+on main 27de59d (with p6's less-loose ground near spawn). "Before" is main's rules run in the same code (fail at
+u > 1, a creak on every crack start, no strain watch).
 
 | per minute of digging | before | after |
 |---|---|---|
-| creaks (Event::Crack) | 56 | 6.6–7.8 |
-| cave-in episodes (any size) | 6.5 | 6.0–6.9 |
-| big cave-ins (≥ 1 m²) | 0.9 | 0.4–0.7 |
-| big cave-ins warned by a creak 0.5–10 s before | (creak constant) | 6 of 7 (8 seeds) |
+| creaks (Event::Crack) | 54.5 | 8.4 |
+| big cave-ins (≥ 1 m²) | 0.9 (29) | 0.75 (24) |
+| big ones warned by a creak 0.5–10 s before | 28 of 29 (creaking constantly) | 20 of 24 (a creak that means it) |
+| cave-in episodes, any size | 6.7 | 7.1 (most are slivers the dig itself cuts free) |
+| loose ground moving within 8 m (cells/s) | 214 | 178 |
 
 * What falls is mostly limestone and rock cut free by the dig (no load path), not overloaded roofs; most episodes
   are under a tile. Drift near the mole is mostly loose gravel rubble on some seeds and worldgen sand on others
@@ -252,7 +254,8 @@ Measured with `--example digbot` (new): a Survival mole tunnels and digs stairca
   stress::FAIL_U = 1.5. Built blocks still fail at 1 (building rules unchanged). Strained cells near the mole
   (World::strain) creak once when they appear and every 10 s while you stay; the game sifts dust from them.
 * The creak now means "this is going": at least a tile of overloaded rock starting to crack, or a mass of a
-  square metre or more cut free and jammed against rock (wedged 45 ticks, creaks). Slivers drop silently.
+  square metre or more cut free that still bears on something (supported rock at a corner, rubble or sand under
+  it): wedged 45 ticks and creaks. Slivers drop silently; a chunk adrift in water or air drops.
 * Tried and dropped (no measurable gain or worse, by ablation on 8 seeds): a corner-contact hold for slivers;
   longer crack countdowns (1.5 s: more, smaller episodes as digging kept failing the edges); joining new cracks
   to a neighbour's countdown; re-settling resting rubble into ground (it fails again as weak gravel: 15/min).
