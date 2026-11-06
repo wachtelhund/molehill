@@ -146,6 +146,21 @@ In **Survival** (see [Progression](Progression.md#survival-mode-today)) crafting
 
 In Survival a dig tool you don't own sits faint in the hotbar (see [The pack](#the-pack)), and holding a better tool's slot doesn't help: digging uses the best tool in the pack (`World::tool`, scenario `tool_tiers_survival`). Without any tool, claws still take soft stone, slowly.
 
+**Dig tempo.** A bite takes the slowest cell in it: `dig × 4 / (1 + tier) + 1` ticks, at least 4 (`World::mine_time`; `dig` is the material table's), and takes the whole round bite at once. Soft soil goes at once, and stone is work, so a dug room is earned. Clearing a 4 × 3 m room with the default bite (`examples/digtempo.rs` prints every material):
+
+| material | claws | Pickaxe | Drill | Bore |
+|---|---|---|---|---|
+| dirt, gravel, roots | 2.8 s | 0.8 s | 0.4 s | 0.3 s |
+| clay | 5.4 s | 1.5 s | 0.6 s | 0.3 s |
+| coal | 9.2 s | 2.5 s | 1.0 s | 0.5 s |
+| copper or tin ore, sandstone | 15.5 s | 4.2 s | 1.7 s | 0.9 s |
+| limestone | 18.0 s | 4.8 s | 1.9 s | 1.0 s |
+| iron ore | – | – | 2.3 s | 1.2 s |
+| granite | – | – | 3.0 s | 1.5 s |
+| basalt | – | – | – | 1.3 s |
+
+Each better tool clears about twice the room a second of the one before, or more, and the kit's pickaxe bites any rock it can cut in half a second or less, with all the rock within 25 m of a new burrow its own (test `dig_tempo_is_earned_but_the_first_hour_is_open`).
+
 ## Stations
 
 Stations, not menus: you craft standing at one you have built. Open the pack (`I`) there and its recipes are listed down the left; click a bright one to make it. A dim recipe is missing something.
