@@ -1,16 +1,16 @@
-// Control for pillars_rock_roof.scn: a 12 m rock roof with no pillars fails in bending and its middle caves in (sagging into an arch).
+// Control for pillars_rock_roof.scn: a 16 m rock roof with no pillars fails in bending and its middle caves in (sagging into an arch).
 map
-##########################################################
-#rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr#
-#rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr#
-#rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr#
-#####................................................#####
-#####................................................#####
-#####................................................#####
-#####................................................#####
-#####................................................#####
-#####........................@.......................#####
-##########################################################
+##########################################################################
+#rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr#
+#rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr#
+#rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr#
+#####................................................................#####
+#####................................................................#####
+#####................................................................#####
+#####................................................................#####
+#####................................................................#####
+#####................................@...............................#####
+##########################################################################
 end
 expect 13 util:0,-6 > 1
 expect 300 crumbled > 10

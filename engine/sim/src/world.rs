@@ -228,6 +228,9 @@ pub struct World {
     pub keep_blast_field: bool, pub blast_field: Vec<f32>,
     /// cells a blast threw, in flight (see `debris.rs`), and the recent blasts' waves (for drawing)
     pub debris: Vec<crate::debris::Debris>, pub waves: Vec<crate::debris::Wave>,
+    /// strained roof cells near the mole (loaded past capacity but under `stress::FAIL_U`): they creak and
+    /// shed dust but hold (render reads them for dust); refreshed every STRAIN_EVERY ticks
+    pub strain: Vec<u32>, pub strain_creak: u64,
     /// carts and the rest of transport (see `transport.rs`)
     pub tr: crate::transport::Transport,
     /// blasts run since the world was made (diagnostics and tests: one charge, one blast)
@@ -251,6 +254,10 @@ pub struct World {
 /// What `World::pick_up` took back into the pack.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Picked { Dev(Dev), Torch, Wire, Furniture(Item), Transport(Item) }
+/// Strain watch (see `World::step_strain`): how often (ticks), how far round the mole (cells), at most how many
+/// cells kept, the least gap between creaks (ticks, 3 s), and how often a roof that stays strained creaks again (20 s).
+pub const STRAIN_EVERY: u64 = 30; pub const STRAIN_HX: usize = 12 * CPM; pub const STRAIN_HY: usize = 8 * CPM;
+pub const STRAIN_MAX: usize = 96; pub const STRAIN_CREAK: u64 = 180; pub const STRAIN_REPEAT: u64 = 1200;
 /// Breath (of 100) below which the mole gasps and the log warns (see `World::breath_cues`).
 pub const BREATH_LOW: f32 = 35.;
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -272,7 +279,7 @@ impl World {
             st: Stress::new(w * h), light: Light::new(w, h), tick: 0, inv: [0; NITEM], dig_acc: [0; NMAT], place_acc: [0; 12], desig: vec![0; w * h],
             moles: vec![], drops: vec![], stockpile: (0, 0, 0, 0), buildings: vec![], torches: vec![], chests: vec![], furniture: vec![], paint_acc: 0,
             quest: 0, log: vec![], discovered: [false; NMAT], chests_opened: 0, pillars: 0, max_depth: 0., craft_queue: vec![], gear: Gear::default(), known: [false; NITEM], mode: Default::default(), rules: Default::default(), lamp_oil: 0., lamp_dry: false, lamp_low: false, ruins: vec![], ruins_seen: Default::default(), relics: 0, crumbled: 0,
-            light_rect: (0, 0, w - 1, h - 1), events: vec![], marks: vec![], react_pending: false, logic: Logic::new(w, h), disasters: Disasters::new(seed), shake: 0., air: Air::new(w, h), farms: vec![], harvested: 0, input: Input::default(), pl: Player::default(), gen: gn, oy, bands: Default::default(), opened: Default::default(), clues: vec![], found_clues: Default::default(), journal: vec![], grottos: vec![], caught: Default::default(), keep_blast_field: false, blast_field: vec![], debris: vec![], waves: vec![], tr: Default::default(), blasts_run: 0, info, g,
+            light_rect: (0, 0, w - 1, h - 1), events: vec![], marks: vec![], react_pending: false, logic: Logic::new(w, h), disasters: Disasters::new(seed), shake: 0., air: Air::new(w, h), farms: vec![], harvested: 0, input: Input::default(), pl: Player::default(), gen: gn, oy, bands: Default::default(), opened: Default::default(), clues: vec![], found_clues: Default::default(), journal: vec![], grottos: vec![], caught: Default::default(), keep_blast_field: false, blast_field: vec![], debris: vec![], waves: vec![], strain: vec![], strain_creak: 0, tr: Default::default(), blasts_run: 0, info, g,
             walls: crate::walls::Walls::new(w, h), sites: vec![], sites_seen: Default::default(), grottos_seen: Default::default(),
         }
     }
@@ -301,7 +308,7 @@ impl World {
         for (it, n) in [(Item::Wood, 8), (Item::Torch, 6), (Item::WoodPillar, 12), (Item::Grub, 12), (Item::CopperWire, 40), (Item::Gate, 6), (Item::Thrummer, 3), (Item::Spore, 6), (Item::Vent, 1)] { wd.inv[it as usize] = n; }
         for k in 0..NMAT { if wd.g.mat.iter().zip(&wd.g.flags).any(|(&m, &f)| m as usize == k && f & F_SEEN != 0) { wd.discovered[k] = true; } }
         // settle the structure once so crack timers start from the real state
-        let f = wd.st.solve(&wd.g); wd.st.crack(&f); wd.g.clear_struct();
+        let f = wd.st.solve(&wd.g); wd.st.crack(&wd.g, &f); wd.g.clear_struct();
         wd.say("A lone mole wakes in the burrow. Seed ".to_string() + &seed.to_string());
         wd
     }
@@ -381,7 +388,7 @@ impl World {
         for m in self.moles.iter_mut() { if let Some(v) = dy(m.y) { m.y = v; } else { m.alive = false; } m.path.clear(); m.job = None; m.work_cell = None; }
         self.drops = std::mem::take(&mut self.drops).into_iter().filter_map(|mut d| dy(d.y).map(|v| { d.y = v; d.py -= rows as f32; d.ppy -= rows as f32; d })).collect();
         self.shift_transport(rows, h);
-        self.debris = std::mem::take(&mut self.debris).into_iter().filter_map(|mut d| dy(d.py.max(0.) as usize).map(|_| { d.py -= rows as f32; d.ppy -= rows as f32; d })).collect(); self.waves.clear();
+        self.debris = std::mem::take(&mut self.debris).into_iter().filter_map(|mut d| dy(d.py.max(0.) as usize).map(|_| { d.py -= rows as f32; d.ppy -= rows as f32; d })).collect(); self.waves.clear(); self.strain.clear();
         self.torches = std::mem::take(&mut self.torches).into_iter().filter_map(|(x, y)| dy(y).map(|v| (x, v))).collect();
         self.buildings = std::mem::take(&mut self.buildings).into_iter().filter_map(|mut b| dy(b.y).filter(|&v| v >= Station::H).map(|v| { b.y = v; b.claimed = false; b })).collect();
         self.furniture = std::mem::take(&mut self.furniture).into_iter().filter_map(|mut f| dy(f.y).filter(|&v| v >= 16 * S).map(|v| { f.y = v; f })).collect();
@@ -413,7 +420,7 @@ impl World {
         let m = 16 * crate::mat::CPM;
         let (ent, far) = if rows > 0 { ((0, en.saturating_sub(m), w - 1, h - 1), (0, 0, w - 1, m)) } else { ((0, 0, w - 1, (en + s + m).min(h - 1)), (0, h - 1 - m, w - 1, h - 1)) };
         let mut f = self.st.solve_rect(&self.g, Some(ent)); f.extend(self.st.solve_rect(&self.g, Some(far)));
-        self.st.crack(&f); self.g.clear_struct();
+        self.st.crack(&self.g, &f); self.g.clear_struct();
         self.light = Light::new(w, h);
         self.pl.mine = None; if let Some(m) = self.moles.first() { self.pl.fall_from = m.y; }
     }
@@ -564,8 +571,13 @@ impl World {
             let bits = if self.tick % 24 == 0 && self.react_pending { 3 } else { 1 };
             self.react_pending = false; self.g.struct_dirty = None;
             let boxes = self.g.take_struct(bits);
-            let f = self.solve_regions(boxes);            let before = self.st.cracking.len(); self.st.crack(&f); if self.st.cracking.len() > before { self.events.push(Event::Crack); }
+            let f = self.solve_regions(boxes);            let before = self.st.cracking.len(); self.st.crack(&self.g, &f);
+            // the creak means "this is going": overloaded rock of at least a tile starting to crack, or a mass cut
+            // free and wedged (a sliver left hanging by a dig just drops, without a sound)
+            let creak = self.st.cracking[before..].iter().filter(|&&i| matches!(self.st.pending[i as usize], crate::stress::CRACK_TICKS | crate::stress::WEDGED_TICKS)).count();
+            if creak >= S * S { self.events.push(Event::Crack); }
         }
+        if self.tick % STRAIN_EVERY == 0 { self.step_strain(); }
         let crumble = self.st.tick(&self.g);
         // a collapse is heard: one of at least CRUMBLE_LOUD cells in a tick. The odd cell or two trickling off a
         // cracked face (as round a fresh crater, for seconds after the blast) falls without a boom.
@@ -767,6 +779,23 @@ impl World {
             self.events.push(Event::Gasp);
             self.say(if wet { "Out of breath: you're drowning. Swim up." } else { "Out of breath: the stale air is choking you." }.into());
         }
+    }
+    /// Strained roof near the mole: static cells over open air whose load is past capacity (utilisation > 1)
+    /// but under the failure line. New strain creaks (`Event::Crack`, at most every STRAIN_CREAK ticks), so a
+    /// roof warns while the span under it grows, before it fails.
+    fn step_strain(&mut self) {
+        let Some(m) = self.moles.first().filter(|m| m.alive) else { self.strain.clear(); return };
+        let (w, h) = (self.g.w, self.g.h); let (rx, ry) = (STRAIN_HX, STRAIN_HY);
+        let (x0, x1, y0, y1) = (m.x.saturating_sub(rx).max(1), (m.x + rx).min(w - 2), m.y.saturating_sub(ry).max(1), (m.y + ry).min(h - 2));
+        let old: std::collections::HashSet<u32> = self.strain.iter().copied().collect(); self.strain.clear();
+        for y in y0..y1 { for x in x0..x1 { let i = y * w + x;
+            if self.st.util[i] > 128 && self.st.util[i] < 255 && self.g.is_static(i) && !self.g.is_solidish(i + w) { self.strain.push(i as u32); if self.strain.len() >= STRAIN_MAX { break; } } }
+            if self.strain.len() >= STRAIN_MAX { break; } }
+        let fresh = self.strain.iter().filter(|i| !old.contains(i)).count();
+        // new strain creaks at once (at most every STRAIN_CREAK ticks); a roof that stays strained creaks again
+        // now and then (every STRAIN_REPEAT) while the mole is under it, a reminder rather than a din
+        let since = if self.strain_creak == 0 { u64::MAX } else { self.tick - self.strain_creak };
+        if (fresh >= S * S && since >= STRAIN_CREAK) || (!self.strain.is_empty() && since >= STRAIN_REPEAT) { self.strain_creak = self.tick; self.events.push(Event::Crack); }
     }
     fn mole_physics(&mut self, k: usize) {
         let (x, y) = (self.moles[k].x, self.moles[k].y);
