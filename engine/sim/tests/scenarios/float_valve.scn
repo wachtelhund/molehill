@@ -2,7 +2,8 @@
 // mouse), so it lifts while its rod is *not* pulled. Its pull-rod runs up the wall, along the roof and down into the rock
 // beside a tank, to a float near the tank's top. The water runs through the gate, along the channel and down into the
 // tank; when it reaches the float the float lifts, the rod is pulled, the gate drops, and the tank stops filling with the
-// rest of the water still held in the reservoir.
+// rest of the water still held in the reservoir. The gate dropping into the running water pushes it aside, none lost
+// (before, it was pushed up into the rock above and lost).
 map
 ##################################
 #########FFFFFFFFFFFFFFFFF########
@@ -79,6 +80,7 @@ expect 120 gateopen == 0                      // and the gate dropped
 expect 900 cells:Water,3,11,1,5 > 30          // the tank full to the float...
 expect 900 cells:Water,3,11,1,5 < 41          // ...and no further
 expect 900 cells:Water,-12,-5,-5,0 > 5        // the rest still in the reservoir
+expect 900 count:Water == 48                  // none lost: the gate dropping into the flow pushed the water aside
 saveload 910
 expect 911 gates == 1
 expect 911 gateopen == 0

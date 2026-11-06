@@ -293,8 +293,10 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `stamp_mill_walled_in.scn` | A stamp mill with rock at both feet holds its ore unbroken and logs that its spout is walled in |
 | `smelter_iron_slag.scn` | Raw iron ore waits until the smelter passes 1250 °C, then casts an iron ingot and lets out a lump of slag |
 | `tread_plate_gate.scn` | The mole on a tread plate pulls a rod that lifts a sluice gate under a reservoir; stepping off drops it |
-| `float_valve.scn` | A turned-round gate fills a tank until the water reaches a float on its rod, then shuts; saved |
+| `float_valve.scn` | A turned-round gate fills a tank until the water reaches a float on its rod, then shuts; no water lost; saved |
 | `scale_clutch.scn` | A tipping scale set to 10 kg tips on the third stone, pulls its rod and engages a clutch: a belt starts |
+| `cart_treadle.scn` | A cart stopping on rails laid over a tread plate presses it and pulls its rod |
+| `ore_hopper_rod.scn` | The mole on a tread plate holds an ore hopper's gate open by a rod: it empties onto the floor; off the plate, it shuts |
 | `shaker_sorts.scn` | Gravel drops through a 1-in-4 shaker screen; ore lies on it until current shakes it, then walks off the end into its own pit |
 | `rail_needs_support.scn` | A rail span over a drop breaks and falls; its ends on rock hold |
 | `blast_moves_sand.scn` | A charge by a sand bed throws a third of it into the air at once; the near end is scoured, and it all lands (none lost) |

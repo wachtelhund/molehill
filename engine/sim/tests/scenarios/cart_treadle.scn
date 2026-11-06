@@ -1,0 +1,24 @@
+// A cart presses a tread plate under its rails: a treadle in the track bed. A plate is built into the bed under the
+// end of a track, a pull-rod running on from it; a cart let go on the slope above rolls down and stops at the end, over
+// the plate, and its weight comes through the rails onto it: the rod is pulled.
+map
+############################################################
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#.@........................................................#
+#######====................................................#
+#......####====............................................#
+#......########====........................................#
+#......############====....................................#
+#......################==============......................#
+#......##########################eeeeFFFFFF................#
+#......#####################################################
+############################################################
+end
+give Cart 1
+place 2 7 1 Cart
+expect 3 carts == 1
+expect 30 pulled:32,6 == 0           // the cart is still up the slope
+expect 400 cartx > 33                // at the end of the track...
+expect 400 pulled:32,6 == 1          // ...over the plate: the rod is pulled

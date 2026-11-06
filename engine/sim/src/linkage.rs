@@ -4,7 +4,7 @@
 //!
 //! Sensors:
 //! * **Tread plate** (`Mat::TreadPlate`, built into a floor): pressed by `PLATE_KG` or more on it: the mole, loose
-//!   lumps (each `transport::ITEM_KG`) or a loaded cart.
+//!   lumps (each `transport::ITEM_KG`) or a cart, also a cart on rails laid over it (a treadle in the track bed).
 //! * **Tipping scale** (`Item::Scale`, a pan a metre wide on a floor, with a counter-pan): tips when what lies on its pan
 //!   outweighs the stone on its counter-pan. Right mouse with a stone in the paw puts one on the counter-pan
 //!   (`STONE_KG` each), with an empty paw takes one off: that sets how much it weighs out (a batch).
@@ -13,7 +13,7 @@
 //! Actuators:
 //! * **Sluice gate** (`Item::SluiceGate`): a timber gate filling a channel's opening, top to bottom (up to `GATE_M`).
 //!   Pulled, it lifts: its cells are open and water and lumps pass; let go, it drops again (what's in the way is pushed
-//!   up out of it, as a door does). Right mouse turns it round: it then **shuts** when pulled (a *turn*).
+//!   aside through the water it's in to the nearest open cell: nothing is lost). Right mouse turns it round: it then **shuts** when pulled (a *turn*).
 //! * **Clutch** (`Mat::Clutch`, machinery): joins its drive train only while its rod is pulled (power.rs).
 //! * **Ore hopper**: a rod touching one holds its gate open while pulled.
 use std::collections::{HashMap, HashSet};
@@ -61,7 +61,8 @@ impl World {
         let lumps = self.drops.iter().filter(|d| d.px >= fx0 && d.px < fx1 && d.py + ITEM_HW >= ft - 1. && d.py < ft).map(|d| d.n).sum::<u32>() as f32 * crate::transport::ITEM_KG;
         let mole = self.moles.first().filter(|m| m.alive).map_or(0., |_| { let (px, py) = (self.pl.px, self.pl.py);
             if self.pl.grounded && px + BODY_HW > fx0 && px - BODY_HW < fx1 && (py - ft).abs() < 1. { crate::transport::RIDER_KG } else { 0. } });
-        let carts = self.tr.carts.iter().filter(|c| c.x > fx0 - crate::transport::CART_W / 2. && c.x < fx1 + crate::transport::CART_W / 2. && (c.y - ft).abs() < 1.5).map(|c| c.mass(false)).sum::<f32>();
+        // (a cart weighs a plate it stands on, or one under its rails: a treadle in the track bed, up to a tile under the wheels)
+        let carts = self.tr.carts.iter().filter(|c| c.x > fx0 - crate::transport::CART_W / 2. && c.x < fx1 + crate::transport::CART_W / 2. && c.y - ft < 1.5 && ft - c.y < S as f32 + 1.5).map(|c| c.mass(false)).sum::<f32>();
         lumps + mole + carts
     }
 
@@ -84,9 +85,14 @@ impl World {
         let gw = self.g.w;
         for &i in &gt.cells { let m = self.g.m(i);
             if m != Mat::Empty && (m.kind() != Kind::Solid || self.g.loose(i)) && m != Mat::SluiceGate {
-                // what's in the way goes up out of the gate's line, as a door does
-                let (x, y0) = (i % gw, i / gw);
-                if let Some(j) = (1..12 * S).filter_map(|k| y0.checked_sub(k)).map(|r| r * gw + x).find(|&j| self.g.mat[j] == 0 && !gt.cells.contains(&j)) { self.g.set(j, m); }
+                // what's in the way is pushed aside: through the water (or sand) it's in to the nearest open cell, so
+                // a gate dropping into a pool raises the pool instead of losing what it displaced
+                let mut seen = vec![i]; let mut q = 0; let mut to = None;
+                while q < seen.len() && seen.len() < 4096 { let c = seen[q]; q += 1;
+                    for n in self.g.n4(c % gw, c / gw).collect::<Vec<_>>() { if seen.contains(&n) || gt.cells.contains(&n) && n != i { continue; }
+                        let mn = self.g.m(n); if mn == Mat::Empty { to = Some(n); break; } if mn.passable() || self.g.loose(n) || mn.kind() == Kind::Powder { seen.push(n); } }
+                    if to.is_some() { break; } }
+                if let Some(j) = to { let f = self.g.flags[i]; self.g.set(j, m); self.g.flags[j] |= f & crate::grid::F_LOOSE; }
             }
             if self.g.m(i).passable() || self.g.loose(i) { self.g.set(i, Mat::SluiceGate); } }
         gt.open = false;
@@ -172,7 +178,7 @@ impl World {
             if pressed { pulled.extend(net.iter().copied()); }
             for &i in &net { if let Some(&(0, k)) = owner.get(&i) { gate_pull[k] = Some(gate_pull[k].unwrap_or(false) || pressed); } }
             if pressed { for (k, b) in self.tr.bins.iter().enumerate() { let (bx0, by0, bx1, by1) = b.rect();
-                if net.iter().any(|&i| { let (x, y) = ((i % gw) as f32 + 0.5, (i / gw) as f32 + 0.5); x >= bx0 - 1.5 && x < bx1 + 1.5 && y >= by0 - 1.5 && y < by1 + 1.5 }) { bins_held[k] = true; } } }
+                if net.iter().any(|&i| { let (x, y) = ((i % gw) as f32 + 0.5, (i / gw) as f32 + 0.5); x >= bx0 - 2.5 && x < bx1 + 2.5 && y >= by0 - 2.5 && y < by1 + 2.5 }) { bins_held[k] = true; } } }
         }
         // move the gates
         for k in 0..self.tr.links.gates.len() { let Some(p) = gate_pull[k] else { continue };
