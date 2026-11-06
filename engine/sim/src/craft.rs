@@ -304,7 +304,7 @@ const ITEM_DEFS_CONST: [ItemDef; NITEM] = {
        "Woven fungus-fibre belt over wooden rollers. Turned, it carries what lies on it the way it was laid.").lump(Mat::Belt).block(Mat::Belt).place()
        .controls("Left mouse: lay it (it runs the way you face) · right mouse: turn the run round · join it to a turning shaft or gear"),
     it(Counterweight, "Counterweight", [118, 112, 108],
-       "A rope drum and an iron weight. Spare power winds it up; when the drive runs short the weight falls and turns it.").dens(5000.0).place().pick_up()
+       "A rope drum and an iron weight. Spare power winds it up; when the drive runs short, it falls and turns it.").dens(5000.0).place().pick_up()
        .controls("Left mouse: hang the drum under a roof over a drop · join it to the drive · E: take down"),
     ]
 };
