@@ -12,3 +12,10 @@ External cave/site editor (dev-only, never shipped) plus data-driven found-place
 * PR #14 opened after merging main fd458d9: sim tests green, 168/168 scenarios, game builds.
 * Polish: whole-cell thing positions are written as integers (`64`, not `64.0`); the cells are unchanged.
 * Stage 2 (editor UI) waits until #14 is merged, per the watchdog.
+
+## Stage 1 polish (`refine/cave-editor-polish`)
+* #14 merged at b842698, after green runs on each main tip up to bef5986. It was merged onto da1b741 (crafting balance, no site code) through a clean merge; this branch re-runs the full suite on top of that.
+* Test `template_files_are_canonical_and_parse_fast`: the files on disk are canonical writer output; all seven parse in 8 ms.
+* Removed unused `Template::lining` (base only, it ignored variants) and `slot_names`.
+* Layout traps (fossil scaffold collapse, the fissure's 0.5 m slot at the east bridge, the pumpworks gallery drop): Hampus decided at 12:41 (confirmed after the 12:54 watchdog) that they are fixed in the templates as their own PR with scenarios, after this polish and before stage 2. Each fix goes through the sites.rs reference and `export_sites`.
+* Polish green on main b842698: sim tests, 180/180 scenarios, game builds.
