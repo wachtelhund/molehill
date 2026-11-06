@@ -387,7 +387,7 @@ fn stage_scene(w: &mut World) {
                 // from its side to a steam engine, and the engine driving a belt along the floor
                 use molehill_sim::{mat::CPM, steam::{Boiler, BOILER_W, BOILER_H, TANK}};
                 let (x0, x1, y0) = (mx + 4 * S, mx + 64 * S, my - 22 * S);
-                for x in x0 - 2 * S..x1 + 2 * S { for y in y0 - 4 * S..my + 1 + 2 * S { set(w, x, y, Mat::Limestone); } }
+                for x in x0 - 2 * S..x1 + 2 * S { for y in y0 - 4 * S..my + 1 + 2 * S { set(w, x, y, Mat::Bedrock); } }
                 for x in x0..x1 { for y in y0..=my { set(w, x, y, Mat::Empty); } }
                 let (bx, floor) = (x0 + 12 * S, my + 1); let h = BOILER_W / 2;
                 for r in floor - BOILER_H..floor { for c in bx - h..bx + h { set(w, c, r, Mat::Boiler); } }
@@ -398,13 +398,14 @@ fn stage_scene(w: &mut World) {
                 for x in ex + CPM..ex + 4 * CPM { for y in floor - 2..floor { set(w, x, y, Mat::Belt); } }
                 molehill_sim::light::reveal_box(&mut w.g, mx, y0 - 10 * S, x1 + 10 * S, my + 10 * S);
                 for k in 0..4 { w.torches.push((x0 + (6 + k * 16) * S, y0 + 4 * S)); }
+                for tx in [ex - CPM / 2, ex + 2 * CPM] { w.torches.push((tx, floor - 2 * CPM)); } // low torches either side of the engine, so its cells read in a still
             }
             "power" => { // a sealed works east of the burrow: a counterweight under the roof drives an iron shaft, a gear
                 // round the corner, a shaft down and a gear onto a belt along the floor running right; a water
                 // wheel stands at the west end (still: it has no stream)
                 use molehill_sim::{mat::CPM, power::Weight};
                 let (x0, x1, y0) = (mx + 4 * S, mx + 64 * S, my - 26 * S);
-                for x in x0 - 2 * S..x1 + 2 * S { for y in y0 - 4 * S..my + 1 + 2 * S { set(w, x, y, Mat::Limestone); } }
+                for x in x0 - 2 * S..x1 + 2 * S { for y in y0 - 4 * S..my + 1 + 2 * S { set(w, x, y, Mat::Bedrock); } }
                 for x in x0..x1 { for y in y0..=my { set(w, x, y, Mat::Empty); } }
                 let (xd, xg) = (x0 + 24 * S, x0 + 34 * S);
                 set(w, xd, y0, Mat::Drum);
@@ -420,7 +421,7 @@ fn stage_scene(w: &mut World) {
                 // and a hook in flight up toward the far ceiling with its rope paying out behind it
                 use molehill_sim::{mat::CPM, ropes::{Rope, Hook, NSEG, SEG}};
                 let (x0, x1, y0) = (mx + 4 * S, mx + 64 * S, my - 30 * S);
-                for x in x0 - 2 * S..x1 + 2 * S { for y in y0 - 4 * S..my + 1 + 2 * S { set(w, x, y, Mat::Limestone); } }
+                for x in x0 - 2 * S..x1 + 2 * S { for y in y0 - 4 * S..my + 1 + 2 * S { set(w, x, y, Mat::Bedrock); } }
                 for x in x0..x1 { for y in y0..=my { set(w, x, y, Mat::Empty); } }
                 let (ax, ay) = (x0 + 12 * CPM / 4 * 4, y0 - 1); // the anchor cell in the ceiling
                 let pts: Vec<(f32, f32)> = (0..=NSEG).map(|i| { let t = i as f32 * SEG; let y = (ay as f32 + 0.5 + t).min(my as f32 - 0.5); let lie = (ay as f32 + 0.5 + t - y).max(0.);
@@ -437,7 +438,7 @@ fn stage_scene(w: &mut World) {
                 // heaped with copper ore over a rail, and a bumper at the end of the track
                 use molehill_sim::mat::CPM;
                 let (x0, x1, y0) = (mx + 4 * S, mx + 64 * S, my - 22 * S);
-                for x in x0 - 2 * S..x1 + 2 * S { for y in y0 - 4 * S..my + 1 + 2 * S { set(w, x, y, Mat::Limestone); } } // a sealed stone shell, so no pocket floods it
+                for x in x0 - 2 * S..x1 + 2 * S { for y in y0 - 4 * S..my + 1 + 2 * S { set(w, x, y, Mat::Bedrock); } } // a sealed bedrock shell: no pocket floods it, and its span can't crack and rain gravel over the still
                 for x in x0..x1 { for y in y0..=my { set(w, x, y, Mat::Empty); } set(w, x, my, Mat::Rail); set(w, x, my - 1, Mat::Rail); }
                 // the chute runs out of the west wall; the screen it feeds rests on a timber post at its far end
                 for k in 0..10 * CPM / 4 { let (x, y) = (x0 + k, y0 + 4 * S + k / 2); for d in 0..2 { set(w, x, y + d, Mat::Chute); } }
