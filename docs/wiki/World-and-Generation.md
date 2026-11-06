@@ -51,7 +51,9 @@ Biomes vary along x only (a 2-octave fbm at scale 65 m). Generation noise is sam
 | 30 to 70 m | granite and soft rock |
 | below 70 m | mostly basalt, some granite (all basalt in the Ashlands) |
 
-Above 35 m, lenses of **sand** and **gravel** form in the rock. The wettest are aquifer-saturated (`F_WET`): they seep water when you dig into them, and they make a mushroom farm damp.
+Above 35 m, lenses of **sand** and **gravel** form in the rock where the lens noise is above 0.67 (`gen::LENS`; 0.012 more in the upper layers, above 10 m effective depth). The wettest (0.04 over that) are aquifer-saturated (`F_WET`): they seep water when you dig into them, and they make a mushroom farm damp.
+
+**Settled ground round the burrow** (`gen::SETTLED`, `settled_at`): within 40 m of the burrow, easing off by 70 m, the lens threshold is up to 0.14 higher, so lenses there are rare and small. None of them are soaked, and sand within 1 m of a natural cave is cemented into sandstone. A new holt's first tunnels then don't run into a steady rain of loose ground, while further out and deeper (10–35 m) the lenses are as common as ever. Measured over 16 seeds (`--example loosesurvey`), within 30 m of the burrow the loose share (sand, gravel, fungus, knocked-loose ground) went from 7.5 % to 0.7 % of the ground, and the soaked share from 7.7 % to 0.2 % (the near grotto's moss and roots). Tests: `loose_lenses_are_rare_round_the_burrow_but_not_beyond`, `a_new_holt_starts_on_settled_ground` (`sim/tests/settled_ground.rs`).
 
 **Ore veins** follow thin ridged-noise bands, and each ore sits in a **depth band** that matches the progression tiers (see [Progression](Progression.md#tiers)). Inside its band a seam is at full strength; over the fade it thins out to nothing (`gen::Band`):
 
