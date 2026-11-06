@@ -101,6 +101,33 @@ Polish only: no new systems, lore names kept. Each entry lists what changed and 
 * Scenarios `light_torch`, `headlamp`, `headlamp_wall`, `held_torch` (directives `lamp`, `aim`, `wield`, `torch`;
   variable `light:`); composer unit tests.
 
+## Unique item art and furnished found places (branch `refine/unique-item-art`)
+
+* **One icon per item** (`game/src/itemart.rs`). The old icons were five shapes (lump, ingot, gem, torch, charge)
+  tinted per item; blocks shared a striped square and pigments a pot. Now each of the 69 items has its own 16×16
+  drawing (a cone of sand, three pebbles of gravel, a pig of tin, a coil of copperline, a scallop of verdigris,
+  boards standing on end for a timber wall…). Furniture keeps its scaled sprite. The hotbar shows each device as
+  its own sprite instead of one shared placeholder; the floodgate now differs from the door (iron, a brace while
+  shut, a hand-wheel). Mine carts are a sprite (plank tub, bronze rim, iron wheels) instead of four rectangles.
+* **Found-place furnishings** (`game/src/props.rs`): 19 drawn props placed per family from the site box and
+  fitted against the real cells (standing on both feet, or leaning on a post; hanging under a roof; never in rock,
+  furniture, a chest, a farm or a ladder). Winch, scaffold, dig tools, crates, mine sign,
+  cold lamps, pipes, sluice gate, bridge stubs, ropes, crystal clusters, railcar, bench, station
+  sign, kitchen, bedroll, pantry, barrels. Drawn behind furniture, lit like it, shown once seen. sites.rs is
+  unchanged. After env-rework v2 built a headframe, ore chute, pump wheel and fossil scaffold in cells, the
+  drawn versions of those were dropped rather than doubled.
+* **`--dump-art`**: `view.bmp` now composites every visible world sprite over the cells (it was cells only;
+  the sprite composite was `view_wire.bmp` and included hidden pool sprites). `view_cells.bmp` keeps the cells
+  alone. A dump renders the whole window, so a site crop wider than the screen is no longer half unrendered.
+  env-rework v2 had added a separate CPU re-blit of furniture, chests, torches, carts and
+  ladders; it was replaced by compositing the real visible sprites (which also covers props and lighting).
+  The seven site stills in the wiki were regenerated with their furnishings.
+* Tests: `every_item_has_its_own_icon` (no two icons within 20 px of pattern or 8 px of silhouette, judged on
+  brightness bands, so a tint scores 0), `every_device_has_its_own_sprite`, `every_prop_has_its_own_sprite`,
+  `found_places_are_furnished`. Wiki: new page Item and Place Art (full catalogue and icon/prop sheets).
+* Not seen in a live window: the props' scale against the mole in play, and whether the cold lamps read as
+  lamps at play zoom. The holt is crowded, so its kitchen stands on the table and its pantry hangs.
+
 ## Open issues
 * `--shot` writes an empty frame on macOS when the game is launched from a background shell (the surface is
   never presented). It needs a visible window, or Linux with Xvfb.
