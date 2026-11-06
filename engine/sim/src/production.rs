@@ -63,6 +63,8 @@ impl OreHopper {
     pub fn rect(&self) -> (f32, f32, f32, f32) { let h = (BIN_W / 2) as f32; (self.x as f32 - h, (self.y - BIN_H) as f32, self.x as f32 + h, self.y as f32) }
     /// The bin and its legs, for hovering and clicking.
     pub fn contains(&self, x: f32, y: f32) -> bool { let (x0, y0, x1, _) = self.rect(); x >= x0 && x < x1 && y >= y0 && y < self.floor as f32 }
+    /// Does the bin with its legs cover any of the box [x0, x1) × [y0, y1)?
+    pub fn overlaps(&self, x0: f32, y0: f32, x1: f32, y1: f32) -> bool { let (bx0, by0, bx1, _) = self.rect(); bx0 < x1 && x0 < bx1 && by0 < y1 && y0 < self.floor as f32 }
     fn add(&mut self, it: Item, n: u32) { if let Some(c) = self.contents.iter_mut().find(|c| c.0 == it) { c.1 += n; } else { self.contents.push((it, n)); } }
     fn take_one(&mut self) -> Option<Item> {
         let c = self.contents.first_mut()?; let it = c.0; c.1 -= 1; if c.1 == 0 { self.contents.remove(0); } Some(it)
@@ -154,6 +156,9 @@ impl World {
         if self.passable(x - half, floor) || self.passable(x + half - 1, floor) { return Err("its legs need a floor under both"); }
         if !(by - BIN_H..floor).all(|r| (x - half..x + half).all(|c| self.passable(c, r))) { return Err("needs 1.5 m by 1.75 m of open space"); }
         if self.tr.bins.iter().any(|b| b.x.abs_diff(x) < BIN_W && b.y.abs_diff(by) < BIN_H + BIN_LEGS) { return Err("there's an ore hopper there"); }
+        // a tube hopper is a different machine: one standing in the bin's box would hide it from right mouse and E
+        let (bx0, by0, bx1, by1) = ((x - half) as f32, (by - BIN_H) as f32, (x + half) as f32, floor as f32);
+        if self.tr.hoppers.iter().any(|h| h.overlaps(bx0, by0, bx1, by1)) { return Err("there's a tube hopper there"); }
         self.tr.bins.push(OreHopper { x, y: by, floor, contents: vec![], held: false, open: false, feed: 0, rod_held: false, grit: vec![] });
         self.events.push(Event::Place); Ok(())
     }
