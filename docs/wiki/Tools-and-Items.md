@@ -206,8 +206,6 @@ Chains are short: nothing is more than two steps from the ground (ore → ingot 
 | | 8 chute | 2 wood |
 | | 2 bumper | 2 wood + 1 stone |
 | | 8 riffle bar | 2 wood |
-| | washer | 6 wood + 2 clay |
-| | 4 bellows / 4 ingot mould | 2 wood + 2 fungus / 2 sand + 1 clay |
 | | 2 gear / 8 water wheel | 2 wood / 4 wood |
 | | 8 belt | 2 wood + 2 fungus |
 | | washer | 6 wood + 2 clay |

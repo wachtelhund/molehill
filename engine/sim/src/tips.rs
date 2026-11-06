@@ -100,6 +100,9 @@ pub fn describe(w: &World, x: usize, y: usize) -> Option<Tip> {
     else if m.has(crate::mat::CHUTE) && !loose { l.push("Loose things slide down it where it slopes.".into()); }
     if m == Mat::Water { if let Some((v, _)) = crate::sluice::current(w, x as f32 + 0.5, y as f32 + 0.5) {
         l.push(format!("Running {}, {:.1} m/s: it carries sand, dirt, gravel and coal; ore and stone stay.", if v > 0. { "right" } else { "left" }, v.abs())); } }
+    // linkage: pulled or not, and what pulls it
+    if m.has(crate::mat::LINK) && !loose && w.gate_at(x, y).is_none() && w.scale_at(x, y).is_none() { let i = y * w.g.w + x;
+        l.push(if w.pulled(i) { "Pulled: a plate, scale or float on its linkage is pressed.".into() } else { "Slack: nothing on its linkage is pressed.".into() }); }
     // machinery: how fast its train turns and on what
     if m.has(crate::mat::MECH) && !loose { let i = y * w.g.w + x; let p = &w.tr.power;
         l.push(match p.train.get(&i) { Some(&t) if p.speed.get(t as usize).copied().unwrap_or(0.) > 0.01 => format!("Turning at {:.0}%: {:.0} W to give, {:.0} W to do.", 100. * p.speed[t as usize], p.supply[t as usize], p.demand[t as usize]),
@@ -128,6 +131,14 @@ pub fn transport_tip(w: &World, x: usize, y: usize) -> Option<Tip> {
         l.push(if c.load() > 0 { format!("Carrying {} items · E: unload them.", c.load()) } else if w.tr.riding == Some(k) { "Empty.".into() } else { "Empty: throw things in to load it · E: pick it up.".into() });
         if !c.on_rail { l.push("Off the rails: it won't roll until it's back on track.".into()); }
         return tip("Mine cart", l);
+    }
+    if let Some(k) = w.gate_at(x, y) {
+        let g = &w.tr.links.gates[k];
+        return tip("Sluice gate", vec![format!("{} · it {} when its pull-rod is pulled.", if g.open { "Lifted" } else { "Down" }, if g.invert { "shuts" } else { "lifts" }), "Right mouse: turn it round · E: take it up.".into()]);
+    }
+    if let Some(k) = w.scale_at(x, y) {
+        let s = &w.tr.links.scales[k];
+        return tip("Tipping scale", vec![format!("{} stones on its counter-pan: it tips at more than {:.0} kg{}.", s.ballast, s.ballast as f32 * crate::linkage::STONE_KG, if s.tipped { " (tipped)" } else { "" }), "Right mouse: a stone on (stone in paw) or off · E: take it up.".into()]);
     }
     if let Some(k) = w.works_at(x, y) {
         use crate::refine::WorkKind; let wk = &w.tr.works[k];

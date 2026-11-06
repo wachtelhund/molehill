@@ -44,3 +44,11 @@ fn room() -> (World, usize, usize) {
         assert!(m == it.block().unwrap() || it == Item::Belt && m == Mat::BeltL, "{it:?} built {m:?}");
     }
 }
+
+#[test] fn every_material_has_its_own_template_char() {
+    // (a site template's palette must be one-to-one: the boiler shell once shared crystal's 'K')
+    use molehill_sim::mat::NMAT; use molehill_sim::templates::{default_char, HOST};
+    let mut seen = std::collections::HashMap::new();
+    for k in 0..NMAT as u8 { let m = Mat::from_u8(k); let c = default_char(m);
+        assert!(c != HOST && !c.is_ascii_digit(), "{m:?}: '{c}' is reserved"); if let Some(o) = seen.insert(c, m) { panic!("{m:?} and {o:?} both use '{c}'"); } }
+}

@@ -31,8 +31,10 @@ pub enum Item {
     Boiler, Engine, SteamPipe, Ash, Slag,
     // refinement (refine.rs): the works, bellows, ingot moulds, and the concentrates a stamp mill and washer make
     StampMill, Washer, Smelter, Bellows, Mould, CopperFines, TinFines, IronFines,
+    // non-electric logic (linkage.rs): pull-rods, a tread plate, a float, a sluice gate, a tipping scale, a clutch
+    Rod, TreadPlate, Float, SluiceGate, Scale, Clutch,
 }
-pub const NITEM: usize = 94;
+pub const NITEM: usize = 100;
 /// What an item can do in the world (see `Item::uses`).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Uses { pub place: bool, pub throw: bool, pub pick_up: bool }
@@ -344,6 +346,24 @@ const ITEM_DEFS_CONST: [ItemDef; NITEM] = {
        "Crushed and washed tin ore. Very heavy and fine; it smelts to more tin than raw ore does.").size(0.005).dens(6900.0).throw(),
     it(IronFines, "Iron concentrate", [140, 76, 64],
        "Crushed and washed iron ore. Heavy and fine; it smelts to more iron than raw ore does.").size(0.005).dens(5200.0).throw(),
+    it(Rod, "Pull-rod", [128, 120, 116],
+       "Iron rods on guides. Lay them from a plate, scale or float to a gate or clutch: a pull goes along them.").lump(Mat::Rod).block(Mat::Rod).place()
+       .controls("Left mouse: lay a line (hold; X: snap) from a plate, scale or float to a gate, clutch or ore hopper"),
+    it(TreadPlate, "Tread plate", [150, 140, 128],
+       "A sprung iron plate for a floor. A mole, a few lumps or a cart on it pulls the rods joined to it.").lump(Mat::TreadPlate).block(Mat::TreadPlate).place()
+       .controls("Left mouse: build into a floor · join pull-rods to it"),
+    it(Float, "Float", [184, 150, 96],
+       "A sealed timber float on its rod. Where water reaches it, it lifts and pulls its rods.").lump(Mat::Float).block(Mat::Float).place()
+       .controls("Left mouse: build it where the water should reach · join pull-rods to it"),
+    it(SluiceGate, "Sluice gate", [116, 86, 58],
+       "A timber gate for a channel. Its rods lift it to let water and lumps through; turned round, they shut it.").dens(700.0).place().pick_up()
+       .controls("Left mouse: set it in an opening (up to 2 m tall) · join pull-rods to it · right mouse: turn it round · E: take up"),
+    it(Scale, "Tipping scale", [168, 140, 88],
+       "A pan and a counter-pan of stones. It tips when what's on the pan outweighs the stones, and pulls its rods.").dens(3000.0).place().pick_up()
+       .controls("Left mouse: stand it on a floor · right mouse: a stone on (stone in paw) or off its counter-pan · E: take up"),
+    it(Clutch, "Clutch", [110, 116, 126],
+       "An iron dog clutch for a drive. It joins its drive train only while its pull-rod is pulled.").lump(Mat::Clutch).block(Mat::Clutch).place()
+       .controls("Left mouse: build it into a drive line · join a pull-rod to it"),
     ]
 };
 /// Every item, in order.
@@ -397,7 +417,7 @@ pub fn drop_of(m: Mat) -> Option<Item> {
         Dirt | Grass => Item::Dirt, Clay => Item::Clay, Sand => Item::Sand, Gravel => Item::Gravel,
         Granite | Rock | Limestone | Basalt | StoneBrick => Item::Stone, Coal => Item::Coal, CopperOre => Item::CopperOre, TinOre => Item::TinOre,
         IronOre => Item::IronOre, Quartz => Item::Quartz, Crystal => Item::Crystal, Roots | WoodBeam | Door | RootTree | TreeRoot => Item::Wood, Fungus | Mycelium => Item::Fungus, Moss => Item::Dirt,
-        IronBeam => Item::IronIngot, Glass => Item::Glass, Planks | Chute | Bumper | Riffle | Gear | Wheel | Belt | BeltL | Bellows => Item::Wood, Polished | Carved => Item::Stone, Tiles => Item::Clay,
+        IronBeam => Item::IronIngot, Glass => Item::Glass, Planks | Chute | Bumper | Riffle | Gear | Wheel | Belt | BeltL | Bellows | Float | SluiceGate => Item::Wood, Polished | Carved => Item::Stone, Tiles => Item::Clay,
         _ => return None,
     })
 }
@@ -469,6 +489,9 @@ pub static RECIPES: &[Recipe] = &[
     Recipe { name: "Washer", station: Station::Workbench, inputs: &[(Item::Wood, 6), (Item::Clay, 2)], out: (Item::Washer, 1), ticks: 200 },
     Recipe { name: "Bellows x4", station: Station::Workbench, inputs: &[(Item::Wood, 2), (Item::Fungus, 2)], out: (Item::Bellows, 4), ticks: 120 },
     Recipe { name: "Ingot mould x4", station: Station::Workbench, inputs: &[(Item::Sand, 2), (Item::Clay, 1)], out: (Item::Mould, 4), ticks: 90 },
+    // non-electric logic: timber floats and gates, an iron plate, rods and clutch, a brass-pinned scale
+    Recipe { name: "Float x2", station: Station::Workbench, inputs: &[(Item::Wood, 2)], out: (Item::Float, 2), ticks: 60 },
+    Recipe { name: "Sluice gate", station: Station::Workbench, inputs: &[(Item::Wood, 4), (Item::Stone, 1)], out: (Item::SluiceGate, 1), ticks: 120 },
     Recipe { name: "Gear x2", station: Station::Workbench, inputs: &[(Item::Wood, 2)], out: (Item::Gear, 2), ticks: 90 },
     Recipe { name: "Belt x8", station: Station::Workbench, inputs: &[(Item::Wood, 2), (Item::Fungus, 2)], out: (Item::Belt, 8), ticks: 120 },
     Recipe { name: "Water wheel x8", station: Station::Workbench, inputs: &[(Item::Wood, 4)], out: (Item::WaterWheel, 8), ticks: 150 },
@@ -498,6 +521,10 @@ pub static RECIPES: &[Recipe] = &[
     // refinement: an iron-stamped mill, a timber washer tub, a brick smelter, bellows and sand moulds
     Recipe { name: "Stamp mill", station: Station::Forge, inputs: &[(Item::IronIngot, 4), (Item::Wood, 4)], out: (Item::StampMill, 1), ticks: 300 },
     Recipe { name: "Smelter", station: Station::Forge, inputs: &[(Item::Brick, 10), (Item::Clay, 4)], out: (Item::Smelter, 1), ticks: 300 },
+    Recipe { name: "Pull-rod x8", station: Station::Forge, inputs: &[(Item::IronIngot, 1)], out: (Item::Rod, 8), ticks: 90 },
+    Recipe { name: "Tread plate x2", station: Station::Forge, inputs: &[(Item::IronIngot, 1)], out: (Item::TreadPlate, 2), ticks: 90 },
+    Recipe { name: "Clutch x2", station: Station::Forge, inputs: &[(Item::IronIngot, 2)], out: (Item::Clutch, 2), ticks: 150 },
+    Recipe { name: "Tipping scale", station: Station::Forge, inputs: &[(Item::IronIngot, 2), (Item::BronzeIngot, 1), (Item::Wood, 2)], out: (Item::Scale, 1), ticks: 200 },
     Recipe { name: "Boiler", station: Station::Forge, inputs: &[(Item::IronIngot, 4), (Item::Brick, 6)], out: (Item::Boiler, 1), ticks: 300 },
     Recipe { name: "Steam engine x4", station: Station::Forge, inputs: &[(Item::IronIngot, 3), (Item::CopperIngot, 1)], out: (Item::Engine, 4), ticks: 240 },
     Recipe { name: "Steam pipe x8", station: Station::Forge, inputs: &[(Item::CopperIngot, 1)], out: (Item::SteamPipe, 8), ticks: 90 },
