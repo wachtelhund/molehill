@@ -87,7 +87,7 @@ The rule is simple: **gameplay goes in the sim.** If it changes what happens in 
 | `main.rs` | input, the fixed-step loop, the camera, world rendering and sprites |
 | `ui.rs` | the HUD: vitals, quest line, toasts, hotbar, pack grid, tooltips, dev text |
 | `menu.rs` | main and pause menus, settings, the shared controls table |
-| `loading.rs` | the loading line: a new holt built a slice per frame (`world::NewHolt`, about 20 ms a frame) and a save read on the frame after the line shows, behind one centred line of text |
+| `loading.rs` | the loading line: a new holt built a slice per frame (`world::NewHolt`, about 20 ms a frame) and a save read on the frame after the line shows, then the ground a few slides above and below built ahead ("Shoring up the deeper rock", `World::prefetch_step`), behind one centred line of text |
 | `art.rs` | pixel-art sprites and icons built in code |
 | `devart.rs` | pixel art for copperline tiles (one per neighbour mask, lit with a travelling glint), every device (off/on, animation frames) and the wiring view's schematic glyphs |
 | `hotbar.rs` | Survival's hotbar order: what you hold first, then free things, then faint slots for what you have none of; a newly gained thing fills the first faint slot (Creative keeps its fixed layout) |
