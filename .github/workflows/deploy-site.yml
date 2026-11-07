@@ -1,0 +1,73 @@
+# Manual builds and deploys only: nothing here runs on a push. GitHub-hosted runners only.
+# Run it from the Actions tab or `gh workflow run deploy-site.yml -f what=site|binaries|both`.
+# - site: build the web version from source (engine/build-web.sh) and put it in site/ in the runner's checkout,
+#   so the deployed game matches the chosen ref even if the committed site/ is behind; then build and check
+#   the showcase (showcase/test.sh runs build.sh, and play/ must be byte-identical to that site/), and
+#   deploy showcase/ with wrangler, using showcase/wrangler.toml as it is.
+# - binaries: the native builds from release.yml (macOS universal, Windows x86_64, Linux x86_64), uploaded as
+#   run artifacts. Making a GitHub Release stays with release.yml on a v* tag.
+# Secrets: CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID. No ids are written here.
+name: deploy-site
+
+on:
+  workflow_dispatch:
+    inputs:
+      what:
+        description: "What to run"
+        type: choice
+        options: [site, binaries, both]
+        default: site
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  site:
+    name: Build and deploy the site
+    if: inputs.what == 'site' || inputs.what == 'both'
+    runs-on: ubuntu-latest
+    # One deploy at a time; a newer run waits instead of cutting the running one off mid-upload.
+    concurrency:
+      group: deploy-site
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: engine
+      - name: wasm-bindgen-cli (must match the wasm-bindgen in engine/Cargo.lock)
+        uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-bindgen-cli@0.2.130
+      - name: Build the web version
+        working-directory: engine
+        run: ./build-web.sh
+      - name: Use it as site/ (this checkout only; nothing is committed)
+        run: |
+          rm -rf site && cp -r dist site
+          ls -la site
+      - name: Build and check the showcase
+        run: showcase/test.sh
+      - name: Deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: showcase
+          wranglerVersion: "4"
+          command: deploy
+
+  binaries:
+    name: Native builds
+    if: inputs.what == 'binaries' || inputs.what == 'both'
+    # release.yml's GitHub Release job asks for contents: write; it is skipped here (no tag), but a called
+    # workflow may not ask for more than its caller grants.
+    permissions:
+      contents: write
+    uses: ./.github/workflows/release.yml
