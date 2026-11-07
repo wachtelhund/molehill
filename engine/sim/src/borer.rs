@@ -1,7 +1,8 @@
 //! The steam borer: a rideable boring machine. It carries its own firebox and water tank (as a boiler does, steam.rs),
 //! drives on its wheels, and grinds the rock in front of its bore head. What it cuts goes back along its spoil belt and
-//! is dropped as loose rubble in the open tunnel behind it, so a borer can't dig into a dead end with nowhere to put
-//! the spoil: it jams. Nothing is stored in it but its fuel, its water and its steam.
+//! is dropped as loose rubble in the open tunnel behind it. With no room behind it for its spoil it jams; in a dead end
+//! it bores on only as fast as it frees room behind it, backfilling its own tunnel solid and sealing itself in (the way
+//! back has to be dug out). Nothing is stored in it but its fuel, its water and its steam.
 //!
 //! * **Fuel:** right mouse with coal, charcoal or wood in the paw puts a lump from the pack into its firebox; a lump
 //!   burns at a time (`steam::burn_ticks`) giving `FIRE_W`, raising steam while it has water.
@@ -24,7 +25,7 @@ pub const TANK: f32 = 16.;
 pub const STEAM_MAX: f32 = 300.;
 /// Driving (W) and its top speed (cells/s, 0.5 m/s); grinding (W) and seconds per column of face per unit of dig time.
 pub const DRIVE_W: f32 = 300.; pub const BORER_V: f32 = 0.5 * CPM as f32;
-pub const GRIND_W: f32 = 1500.; pub const GRIND_S: f32 = 0.15;
+pub const GRIND_W: f32 = 3000.; pub const GRIND_S: f32 = 0.03;
 pub const SPOIL_M: usize = 4;
 
 #[derive(Clone, Debug)]

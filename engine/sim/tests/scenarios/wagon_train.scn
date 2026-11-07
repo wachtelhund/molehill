@@ -56,8 +56,9 @@ hold 900-2400 right                   // into the face: spoil out behind the tai
 expect 2400 borerx > 28
 expect 2400 train == 2
 expect 2400 log:jammed == 0
-expect 2400 cells:Gravel,0,9,-5,0 >= 6 // behind the water wagon (the tail, now at 9)...
-expect 2400 cells:Gravel,10,30,-5,0 == 0 // ...none under the wagons or the borer
+expect 2400 wagonx > 38               // the train followed it in
+expect 2400 cells:Gravel,0,21,-5,0 >= 6 // behind the water wagon (the tail, now about 22)...
+expect 2400 cells:Gravel,23,37,-5,0 == 0 // ...none under the wagons or the borer
 hold 2405-2407 jump
 saveload 2410
 expect 2411 wagons == 2

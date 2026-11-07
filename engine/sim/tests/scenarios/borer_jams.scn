@@ -1,6 +1,7 @@
-// A borer can't bore into a dead end with nowhere for its spoil. In a chamber barely longer than the borer, the first
-// cut fills the little room behind it, and then there's no open cell within reach of its spoil belt: it jams, says so,
-// and grinds no further.
+// A borer in a dead end backfills its own tunnel. In a chamber barely longer than the borer, its first cuts fill the
+// little room behind it and it jams, saying so: no open cell within reach of its spoil belt. From then on it bores only
+// as it frees room behind it (each column cut is a column vacated), so the chamber and the tunnel behind it fill solid
+// with its spoil and it seals itself in: the way back has to be dug out.
 map
 ########################################
 ########################################
@@ -34,5 +35,6 @@ use 11 3 -1
 wield 13 none
 use 14 3 -1
 hold 300-3000 right
-expect 3000 log:jammed >= 1
-expect 3000 static:Granite > 480      // it got no further than a cut or two
+expect 3000 log:jammed >= 1           // it ran out of room behind it
+expect 3000 cells:Gravel,-1,7,-3,0 >= 30 // the chamber behind it is backfilled with its spoil
+expect 3000 cells:Empty,-1,7,-3,0 <= 4   // (sealed: no way back left open)
