@@ -136,8 +136,8 @@ Map legend: `t` roots (a root tangle), `f` fungus, `.` empty, `#` granite, `B` b
 | `boilers` / `bsteam` / `bwater` / `bfuel` / `bburning` / `bchoked` | Boilers; the first one's steam (kJ), water (cells), fuel (lumps, the burning one too), whether it burns, whether its ash door is choked |
 | `works` / `casts` / `stampload` / `washload` / `smeltload` / `smelttemp` / `smeltair` / `molten` | Stamp mills, washers and smelters; casts setting in moulds; the first stamp mill's, washer's or smelter's load waiting; the first smelter's heat (°C), air (0..1) and molten metal (ingots) |
 | `gates` / `gateopen` / `scales` / `tipped` / `pulled:DX,DY` | Sluice gates and whether the first is lifted; tipping scales and whether the first has tipped; whether the tile's linkage is pulled |
-| `borers` / `borerx` / `borery` / `borersteam` / `borerfuel` / `onborer` | Steam borers; the first one's middle (tiles from the map's left) and wheels' row (tiles from the map top), steam (kJ), fuel (lumps); whether the mole rides one |
-| `wagons` / `train` / `wagonx` / `wagonload` / `inwagon` / `atbench` / `slept` / `spawnx` | Wagons; how many the first borer hauls; the first wagon's middle (tiles from the map's left), load (items or lumps); whether the mole is in one; whether it stands at a workbench (a workshop wagon's counts); whether it has just slept in a bunk wagon; the wake point (tiles from the map's left) |
+| `borers` / `borerx` / `borery` / `borerang` / `borerv` / `borersteam` / `borerfuel` / `onborer` | Steam borers; the first one's head middle (tiles from the map's left, and from the map top), heading (degrees: 0 east, 90 down, 180 west, 270 up), speed (m/s), steam (kJ), fuel (lumps); whether the mole is in its cab |
+| `wagons` / `train` / `wagonx` / `wagony` / `wagonload` / `inwagon` / `atbench` / `slept` / `spawnx` | Wagons; how many the first borer hauls; the first wagon's middle (tiles from the map's left, and from the map top), load (items or lumps); whether the mole is in one; whether it stands at a workbench (a workshop wagon's counts); whether it has just slept in a bunk wagon; the wake point (tiles from the map's left) |
 | `weights` / `weighty` | Counterweights; the first one's top (tiles from the map top) |
 | `cells:Mat,DX0,DX1,DY0,DY1` | Tiles' worth of that material in those tile columns and rows from `@` |
 | `ladders` / `climbing` | Rope ladders hung; whether the mole is on one |
@@ -306,12 +306,13 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `scale_clutch.scn` | A tipping scale set to 10 kg tips on the third stone, pulls its rod and engages a clutch: a belt starts |
 | `cart_treadle.scn` | A cart stopping on rails laid over a tread plate presses it and pulls its rod |
 | `ore_hopper_rod.scn` | The mole on a tread plate holds an ore hopper's gate open by a rod: it empties onto the floor; off the plate, it shuts |
-| `borer_bores.scn` | A steam borer fed coal by hand (it runs on coal alone; no water) bores into granite when ridden; as much gravel as it cut lies behind it; Space gets off; saved |
-| `borer_needs_steam.scn` | With no coal a ridden borer raises no steam and doesn't move |
-| `borer_jams.scn` | In a dead end with a heap of sand on its floor, a borer jams once the room behind it fills, then bores on only as it frees room, backfilling the chamber behind it solid (sealed in) |
-| `borer_left_step_fall.scn` | A borer bores left into granite, climbs a tile-high step onto a ledge, then tips off the ledge's end into a pit, the mole on it |
-| `wagon_train.scn` | A coal wagon and a store wagon set down behind a borer couple on, the coal wagon stokes it (it runs on coal alone), and they follow it into the face; the spoil lies behind the tail; saved coupled |
-| `wagon_couple.scn` | A borer backing up couples a loose store wagon; E uncouples it and the borer drives off without it; backed up to again it couples; at the tunnel's end the wagon stops the train; E twice takes it up |
+| `borer_bores.scn` | A steam borer fed coal by hand (it runs on coal alone; no water) bores east into granite at about 2 m/s when ridden: a clean 1.5 m tunnel, roof and floor whole, no rubble left; Space climbs out into the tunnel; saved |
+| `borer_steers.scn` | Steered through solid granite east, then down (a curve, not a snap), on the diagonal, up (turning back the short way) and west: it goes the way it is pointed |
+| `borer_needs_steam.scn` | With no coal a ridden borer raises no steam, doesn't move and says so |
+| `borer_bedrock.scn` | Against a bedrock face the borer stops, cutting none; steered down it slides off along the bedrock and bores down beside it |
+| `borer_falls.scn` | Driven off a ledge over a pit, nothing holds it: it falls with the mole in its cab and lands on the pit floor, cutting nothing |
+| `wagon_train.scn` | A store wagon and a coal wagon set down at a borer's segment places couple on, the coal wagon stokes it, the iron ore it bores goes into the store wagon, and turned down the wagons follow round the bend and down the shaft; saved coupled |
+| `wagon_couple.scn` | Wagons set down where a borer's segments ride couple on; E on a middle one is refused, E on the last uncouples it (it doesn't hook straight back on) and E again takes it up; set down at the train's new tail it couples again |
 | `wagon_stoker_waits.scn` | A coal wagon coupled to a parked borer stokes one lump into the cold firebox, then holds its chute shut once steam is over half full: two minutes on, nothing more has burnt |
 | `wagon_kinds.scn` | A store wagon catches dropped stone and stows the paw's stack; a workshop wagon is a workbench to craft at; a bunk wagon moves the wake point, so after a death the mole wakes by it |
 | `shaker_sorts.scn` | Gravel drops through a 1-in-4 shaker screen; ore lies on it until current shakes it, then walks off the end into its own pit |

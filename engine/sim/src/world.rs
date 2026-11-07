@@ -842,7 +842,10 @@ impl World {
                 // the headlamp shows the way further ahead, inside its beam
                 if k == 0 && self.lamp_lit() { let (h, d) = self.headlamp(); let l = (d.0 * d.0 + d.1 * d.1).sqrt().max(1e-6); light::reveal_cone(&mut self.g, h.0, h.1, light::Cone { dx: d.0 / l, dy: d.1 / l, half: light::kinds::HEADLAMP_HALF }, (light::kinds::HEADLAMP.1 * crate::mat::CPM as f32) as usize); }
                 self.note_discoveries(&before, x, y); }
-            let d = self.depth_m(self.moles[k].x, self.moles[k].y); if d > self.max_depth { self.max_depth = d; }
+            let d = self.depth_m(self.moles[k].x, self.moles[k].y);
+            if d > self.max_depth { let deep = crate::craft::BORER_DEEP_M;
+                if self.max_depth < deep && d >= deep && self.rules.crafting { self.say(format!("{deep:.0} m down: the deep's machine, the steam borer, can be built at a workshop now.")); }
+                self.max_depth = d; }
         }
     }
     fn note_discoveries(&mut self, before: &[u8], x: usize, y: usize) {
@@ -1661,7 +1664,8 @@ impl World {
         if !new.is_empty() { self.say(format!("New recipes: {}.", new.join(", "))); }
     }
     /// Is this recipe listed? Creative (and Plain): always. Survival: once any of its inputs has been picked up.
-    pub fn recipe_known(&self, r: usize) -> bool { !self.rules.crafting || RECIPES[r].inputs.iter().any(|&(it, _)| self.known[it as usize]) }
+    /// The steam borer's also only once the mole has been down to `craft::BORER_DEEP_M`.
+    pub fn recipe_known(&self, r: usize) -> bool { !self.rules.crafting || RECIPES[r].inputs.iter().any(|&(it, _)| self.known[it as usize]) && (RECIPES[r].out.0 != Item::SteamBorer || self.max_depth >= crate::craft::BORER_DEEP_M) }
     /// The built station of this kind the mole is standing at (within 4 m across, 2.5 m up or down).
     pub fn station_here(&self, kind: Station) -> Option<&Building> {
         // (inside a workshop wagon, its bench: wagon.rs)

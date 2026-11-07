@@ -1,56 +1,92 @@
-// A borer hauls a train of wagons. A borer is set down facing a granite face, a coal wagon set down right behind its
-// tail (it couples on: clank) and a store wagon behind that (it couples to the coal wagon). The mole shovels coal into
-// the coal wagon (fuel in paw, right mouse): its stoking chute feeds the borer's firebox a lump at a time, and the borer
-// runs on that coal alone. The mole gets on the borer and drives: the
-// wagons follow on their coupling bars, and when the borer bores into the face its spoil comes out behind the train's
-// tail, not under the wagons. The train is saved coupled.
+// A borer hauls a train of wagons as its body segments. A borer is set down heading for a granite face with a band of
+// iron ore in it; a store wagon set down where its first segment rides couples on, and a coal wagon set down behind that
+// couples on behind it. The mole shovels coal into the coal wagon (fuel in paw, right mouse): its stoking chute feeds the
+// borer's firebox, and the borer runs on that coal alone. In the cab, the mole bores east through the ore and on into the
+// granite: the iron ore its sieve keeps goes into the store wagon, and no rubble is left behind. Then it turns down: the
+// wagons follow the head's own path round the curve and down the shaft, like a worm's body. The train is saved coupled.
 map
-##################################################
-##################################################
-##################################################
-##################################################
-##################################################
-##################################################
-#.................................################
-#.................................################
-#.................................################
-#.................................################
-#...........@.....................################
-##################################################
-##################################################
-##################################################
+######################################################################
+######################################################################
+######################################################################
+#............................iiii#####################################
+#............................iiii#####################################
+#............................iiii#####################################
+#............................iiii#####################################
+#............................iiii#####################################
+#............................iiii#####################################
+#............................iiii#####################################
+#...........@................iiii#####################################
+######################################################################
+######################################################################
+######################################################################
+######################################################################
+######################################################################
+######################################################################
+######################################################################
+######################################################################
+######################################################################
+######################################################################
+######################################################################
+######################################################################
+######################################################################
+######################################################################
+######################################################################
+######################################################################
+######################################################################
+######################################################################
+######################################################################
+######################################################################
+######################################################################
+######################################################################
+######################################################################
+######################################################################
+######################################################################
+######################################################################
+######################################################################
+######################################################################
+######################################################################
+######################################################################
+######################################################################
+######################################################################
+######################################################################
+######################################################################
+######################################################################
+######################################################################
+######################################################################
+######################################################################
+######################################################################
 end
 give SteamBorer 1
 give CoalWagon 1
 give StoreWagon 1
 give Coal 8
-hold 1-1 right                        // face right: the borer's head faces the way the mole does
+hold 1-1 right                        // face right: the borer heads the way the mole faces
 place 2 8 0 SteamBorer
-place 3 2 0 CoalWagon                 // right behind its tail: couples on
-place 4 -3 0 StoreWagon               // behind the coal wagon: couples to it
-expect 8 wagons == 2
+place 3 -2 0 StoreWagon               // its first segment: couples on
+place 4 -7 0 CoalWagon                // its second: couples on behind it
 expect 8 train == 2
-expect 8 log:couples >= 2
+expect 8 log:couples == 2
+expect 8 wagony == 8                  // set on the borer's path, at its head's height
 wield 10 Coal
-use 11 2 -1                           // shovel the coal into the coal wagon
+use 11 -7 -3                          // shovel the coal into the coal wagon
 expect 12 inv:Coal == 0
 expect 12 borerfuel >= 1              // the stoking chute fed the firebox
 wield 210 none
-use 211 8 -1                          // get on the borer
+use 211 8 -2                          // climb into the cab
 expect 212 onborer == 1
-expect 300 borersteam > 2
-hold 320-900 right                    // drive: the train follows
+hold 320-700 right                    // through the ore and into the granite
+expect 700 borerx > 60
+expect 700 train == 2
+expect 700 wagonx > 60                // the store wagon followed it in, 10 tiles behind the head
+expect 700 wagonload >= 3             // the iron ore off its sieve
+expect 700 count:Gravel < 1           // no rubble left behind
+hold 701-900 down                     // round and down: the train follows the curve
+expect 900 borery > 30
+expect 900 wagony > 20                // the store wagon is down the shaft after it...
+expect 900 wagonx > 75                // ...having come round the bend
 expect 900 train == 2
-expect 900 wagonx > 16                // the coal wagon (first set down) followed from 14
-expect 900 borerx > 26
-hold 900-2400 right                   // into the face: spoil out behind the tail
-expect 2400 borerx > 28
-expect 2400 train == 2
-expect 2400 log:jammed == 0
-expect 2400 wagonx > 38               // the train followed it in
-expect 2400 cells:Gravel,0,21,-5,0 >= 6 // behind the store wagon (the tail, now about 22)...
-expect 2400 cells:Gravel,23,37,-5,0 == 0 // ...none under the wagons or the borer
-hold 2405-2407 jump
-saveload 2410
-expect 2411 wagons == 2
-expect 2411 train == 2
+hold 905-907 jump
+saveload 910
+expect 911 train == 2
+expect 911 wagonload >= 3
+expect 911 wagony > 20

@@ -381,20 +381,20 @@ const ITEM_DEFS_CONST: [ItemDef; NITEM] = {
        "An iron dog clutch for a drive. It joins its drive train only while its pull-rod is pulled.").lump(Mat::Clutch).block(Mat::Clutch).place()
        .controls("Left mouse: build it into a drive line · join a pull-rod to it"),
     it(SteamBorer, "Steam borer", [104, 96, 92],
-       "A rideable boring machine with its own firebox. It grinds a tunnel through rock and carries the spoil back.").dens(5000.0).place().pick_up()
-       .controls("Left mouse: set it down facing your way · coal in paw + right mouse: feed it · empty paw: get on · A/D: drive and bore · Space: off · E: rake out fuel, then pick up"),
+       "The deep's boring machine: a steam cab with a round toothed head that bores a tunnel any way it's steered.").dens(5000.0).place().pick_up()
+       .controls("Left mouse: set it down heading your way · coal in paw + right mouse: feed it · empty paw: climb in · A/D/W/S: steer, diagonals too · Space: out · E: rake out fuel, then pick up"),
     it(StoreWagon, "Store wagon", [128, 98, 66],
        "A timber box on iron wheels for a borer to haul. What falls in rides along; you can stow your stacks in it.").dens(600.0).place().pick_up()
-       .controls("Left mouse: set it down (behind a borer it couples on) · right mouse: climb in or out · walk into it to shove it · inside, right mouse: stow the stack in paw · E: unload, then uncouple, then pick up"),
+       .controls("Left mouse: set it down (at a borer train's tail it couples on) · right mouse: climb in or out · walk into it to shove it · inside, right mouse: stow the stack in paw · E: unload, then uncouple, then pick up"),
     it(WorkshopWagon, "Workshop wagon", [140, 112, 80],
        "A roofed wagon with a saw bench in it for a borer to haul. Inside it you can work as at a workbench.").dens(600.0).place().pick_up()
-       .controls("Left mouse: set it down (behind a borer it couples on) · right mouse: climb in or out · walk into it to shove it · inside: craft as at a workbench · E: uncouple, then pick up"),
+       .controls("Left mouse: set it down (at a borer train's tail it couples on) · right mouse: climb in or out · walk into it to shove it · inside: craft as at a workbench · E: uncouple, then pick up"),
     it(BunkWagon, "Bunk wagon", [120, 132, 96],
        "A fungus-fibre bunk on wheels for a borer to haul. Sleep in it to wake there after a fall (the holt is saved).").dens(500.0).place().pick_up()
-       .controls("Left mouse: set it down (behind a borer it couples on) · right mouse: climb in or out · walk into it to shove it (climbing in is going to sleep) · E: uncouple, then pick up"),
+       .controls("Left mouse: set it down (at a borer train's tail it couples on) · right mouse: climb in or out · walk into it to shove it (climbing in is going to sleep) · E: uncouple, then pick up"),
     it(CoalWagon, "Coal wagon", [70, 66, 64],
        "An iron fuel bunker on wheels. Coupled to a borer, its stoking chute feeds the firebox a lump at a time.").dens(900.0).place().pick_up()
-       .controls("Left mouse: set it down (behind a borer it couples on) · right mouse: climb in or out · walk into it to shove it · fuel in paw + right mouse: shovel it in · E: take the fuel out, then uncouple, then pick up"),
+       .controls("Left mouse: set it down (at a borer train's tail it couples on) · right mouse: climb in or out · walk into it to shove it · fuel in paw + right mouse: shovel it in · E: take the fuel out, then uncouple, then pick up"),
     ]
 };
 /// Every item, in order.
@@ -570,8 +570,9 @@ pub static RECIPES: &[Recipe] = &[
     // pressure tubes (the top of the ladder for now): glass pipe banded with iron, and hoppers with blowers
     Recipe { name: "Tube hopper", station: Station::Workshop, inputs: &[(Item::IronIngot, 2), (Item::CopperIngot, 2), (Item::Glass, 1)], out: (Item::TubeHopper, 1), ticks: 240 },
     Recipe { name: "Lift", station: Station::Workshop, inputs: &[(Item::IronIngot, 2), (Item::Wood, 4), (Item::CopperIngot, 1)], out: (Item::Lift, 1), ticks: 240 },
-    // the steam borer: an iron frame and firebox with a bronze-toothed head (the workshop's fine work)
-    Recipe { name: "Steam borer", station: Station::Workshop, inputs: &[(Item::IronIngot, 8), (Item::BronzeIngot, 4), (Item::Brick, 4)], out: (Item::SteamBorer, 1), ticks: 400 },
+    // the steam borer, the deep's machine (its recipe opens only past `BORER_DEEP_M`): a riveted iron cab and firebox
+    // with a round bronze-toothed head set with crystal and quartz cutters, the workshop's longest job
+    Recipe { name: "Steam borer", station: Station::Workshop, inputs: &[(Item::IronIngot, 20), (Item::BronzeIngot, 10), (Item::Brick, 8), (Item::Crystal, 6), (Item::Quartz, 4)], out: (Item::SteamBorer, 1), ticks: 900 },
     // the borer's wagons: timber bodies on iron wheels; the coal bunker riveted iron at the forge
     Recipe { name: "Store wagon", station: Station::Workbench, inputs: &[(Item::Wood, 6), (Item::IronIngot, 2)], out: (Item::StoreWagon, 1), ticks: 200 },
     Recipe { name: "Workshop wagon", station: Station::Workbench, inputs: &[(Item::Wood, 8), (Item::Stone, 4), (Item::IronIngot, 2)], out: (Item::WorkshopWagon, 1), ticks: 240 },
@@ -602,6 +603,8 @@ fn add_job(r: &Recipe, jobs: u32, b: &mut [u32; NITEM], depth: u32) {
     if r.station == Station::Forge { b[Item::Coal as usize] += jobs; }
 }
 /// The recipe with this name (scenarios, UI).
+/// How deep (m) the mole must have been before the steam borer can be built: it is the deep's machine.
+pub const BORER_DEEP_M: f32 = 80.;
 pub fn recipe_by_name(n: &str) -> Option<usize> { RECIPES.iter().position(|r| r.name.eq_ignore_ascii_case(n)) }
 
 /// Dig tool tier owned: 0 claws, 1 Pickaxe, 2 Drill, 3 Bore. Higher tiers dig faster and open harder rock.
@@ -645,4 +648,6 @@ pub static QUESTS: &[Quest] = &[
     Quest { text: "Assemble a thrummer", goal: Goal::Have(Item::Thrummer, 1), reward: &[(Item::CopperWire, 16)], then: "" },
     Quest { text: "Reach 80 m - the deep", goal: Goal::Depth(80.), reward: &[(Item::Crystal, 4)], then: "" },
     Quest { text: "Open 4 chests", goal: Goal::Chests(4), reward: &[(Item::IronIngot, 4)], then: "" },
+    // the end of the road: the borer, open only in the deep (`BORER_DEEP_M`)
+    Quest { text: "Build a steam borer at the workshop", goal: Goal::Have(Item::SteamBorer, 1), reward: &[(Item::Coal, 12)], then: "In its cab the walking keys steer it through the rock, any way you point." },
 ];

@@ -159,3 +159,43 @@ fn reachable() -> [bool; NITEM] {
     assert_eq!(l.tr.wagons.iter().map(|g| g.kind).collect::<Vec<_>>(), [WagonKind::Store, WagonKind::Coal, WagonKind::Store]);
     assert_eq!((l.inv[Item::StoreWagon as usize], l.inv[Item::CoalWagon as usize]), (2, 3));
 }
+
+/// The borer is a worm now (transport blob 14: its heading, path and train). A save from before
+/// (`data/v13_borer_train.bin`, written by the last build with the cab on wheels: a borer heading east with a coal and a
+/// store wagon coupled behind it on its wheel row, and a bunk wagon standing loose far off) still loads: the borer heads
+/// east with its head at the old cab's front, the two coupled wagons are its segments in order with their loads, set on
+/// its path behind it, the loose one stays loose where it was; it keeps its fuel and steam, and the train still follows
+/// when it bores on, and saves again.
+#[test] fn old_borer_train_loads_as_a_worm() {
+    use molehill_sim::{save, wagon::WagonKind, borer::{seg_dist, CAB_D, BORER_H}};
+    let mut w = save::load(include_bytes!("data/v13_borer_train.bin")).expect("a v13 save with a borer train loads");
+    let fy = 60. * molehill_sim::mat::S as f32; let bx = 80. * molehill_sim::mat::S as f32;
+    let b = &w.tr.borers[0];
+    assert!((b.x - (bx + CAB_D)).abs() < 0.01 && (b.y - (fy - BORER_H / 2.)).abs() < 0.01 && b.ang.cos() > 0.99, "head at ({}, {}) heading {}", b.x, b.y, b.ang);
+    assert_eq!((b.fuel.clone(), b.burning, b.steam), (vec![(Item::Coal, 3)], Some(Item::Coal), molehill_sim::borer::STEAM_MAX / 2.));
+    let train = w.train(0); assert_eq!(train.len(), 2, "the coupled wagons are its segments");
+    assert_eq!(train.iter().map(|&j| w.tr.wagons[j].kind).collect::<Vec<_>>(), [WagonKind::Coal, WagonKind::Store]);
+    assert_eq!(w.tr.wagons[train[0]].cargo, vec![(Item::Coal, 7)]);
+    for (n, &j) in train.iter().enumerate() { let g = &w.tr.wagons[j]; assert!((g.x - (b.x - seg_dist(n))).abs() < 0.01, "wagon {n} at {} on the path", g.x); }
+    let loose = w.tr.wagons.iter().find(|g| g.kind == WagonKind::Bunk).unwrap(); assert!(!loose.coupled && (loose.x - 20. * molehill_sim::mat::S as f32).abs() < 0.01);
+    // it bores on east, the train after it
+    w.tr.borer_ride = Some(0); let x0 = w.tr.borers[0].x; let wx0 = w.tr.wagons[train[1]].x;
+    for _ in 0..120 { w.input.right = true; w.step(); }
+    assert!(w.tr.borers[0].x > x0 + 4. && w.tr.wagons[train[1]].x > wx0 + 4., "the train moved on: head {} wagon {}", w.tr.borers[0].x, w.tr.wagons[train[1]].x);
+    let l = save::load(&save::save(&w)).expect("saves again");
+    assert_eq!(l.train(0).len(), 2); assert!((l.tr.borers[0].x - w.tr.borers[0].x).abs() < 0.01 && l.tr.borers[0].path.len() == w.tr.borers[0].path.len());
+}
+
+/// The steam borer is the deep's machine: in Survival its recipe (iron, bronze, bricks, and crystal and quartz for its
+/// cutters, at the workshop) stays off the list, even with every input known, until the mole has been down to
+/// `BORER_DEEP_M`; reaching it says so once. Creative lists it at once.
+#[test] fn steam_borer_opens_in_the_deep() {
+    use molehill_sim::{craft::{recipe_by_name, BORER_DEEP_M, RECIPES}, survival::Mode, world::World};
+    let r = recipe_by_name("Steam borer").unwrap();
+    assert!(RECIPES[r].inputs.iter().any(|&(it, n)| it == Item::Crystal && n >= 6) && RECIPES[r].inputs.iter().any(|&(it, n)| it == Item::IronIngot && n >= 20), "a costly recipe");
+    let mut w = World::new(256 * molehill_sim::mat::S, 128 * molehill_sim::mat::S, 3); w.set_mode(Mode::Survival);
+    for &(it, _) in RECIPES[r].inputs { w.known[it as usize] = true; }
+    w.max_depth = BORER_DEEP_M - 1.; assert!(!w.recipe_known(r), "not before the deep");
+    w.max_depth = BORER_DEEP_M; assert!(w.recipe_known(r), "open in the deep");
+    let mut c = World::new(256 * molehill_sim::mat::S, 128 * molehill_sim::mat::S, 3); c.set_mode(Mode::Creative); assert!(c.recipe_known(r));
+}

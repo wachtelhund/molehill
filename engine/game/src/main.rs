@@ -475,45 +475,35 @@ fn stage_scene(w: &mut World) {
                 molehill_sim::light::reveal_box(&mut w.g, mx, y0 - 10 * S, x1 + 10 * S, my + 10 * S);
                 for k in 0..4 { w.torches.push((x0 + (4 + k * 10) * S, y0 + 6 * S)); }
             }
-            "wagons" => { // a long tunnel east of the burrow ending in a dirt face: a lit borer with the mole riding it near the
-                // face, hauling all four wagon kinds coupled behind it (coal, store, workshop, bunk), the store and coal
-                // wagons part full; `--shot-walk` drives the train into the face
-                use molehill_sim::{borer::{Borer, STEAM_MAX, BORER_W}, wagon::{Wagon, WagonKind, WAGON_W, GAP}};
+            "wagons" => { // a long tunnel east of the burrow ending in deep dirt: a lit borer with the mole in its cab near the
+                // face, all four wagon kinds coupled behind it as its segments (coal, store, workshop, bunk), the store and
+                // coal wagons part full; `--shot-walk` bores on east (with `--shot-down`, down and round), the train winding after it
+                use molehill_sim::{borer::HEAD_R, wagon::WagonKind};
                 let (x0, x1, y0) = (mx + 4 * S, mx + 80 * S, my - 12 * S);
-                for x in x0 - 2 * S..x1 + 2 * S { for y in y0 - 4 * S..my + 1 + 2 * S { set(w, x, y, Mat::Bedrock); } }
-                for x in x0..x1 { for y in y0..=my { set(w, x, y, if x >= x0 + 66 * S { Mat::Dirt } else { Mat::Empty }); } }
+                for x in x0 - 2 * S..x1 + 2 * S { for y in y0 - 4 * S..my + 1 + 40 * S { set(w, x, y, Mat::Bedrock); } }
+                for x in x0..x1 { for y in y0..my + 1 + 38 * S { set(w, x, y, if x >= x0 + 66 * S || y > my { Mat::Dirt } else { Mat::Empty }); } }
                 w.torches.retain(|t| t.0 < x0 || t.0 >= x1);
-                let (bx, fy) = ((x0 + 60 * S) as f32, (my + 1) as f32);
-                w.tr.borers.push(Borer { x: bx, y: fy, px: bx, py: fy, vx: 0., vy: 0., dir: 1, fuel: vec![(Item::Coal, 6)], burning: Some(Item::Coal), burn: 2000, steam: STEAM_MAX, grind: 0., jammed: false });
-                w.tr.borer_ride = Some(w.tr.borers.len() - 1);
-                let mut wx = bx - BORER_W / 2. - GAP - WAGON_W / 2.;
-                for (kind, cargo) in [(WagonKind::Coal, vec![(Item::Coal, 26)]), (WagonKind::Store, vec![(Item::Stone, 60), (Item::CopperOre, 40)]), (WagonKind::Workshop, vec![]), (WagonKind::Bunk, vec![])] {
-                    w.tr.wagons.push(Wagon { kind, x: wx, y: fy, px: wx, py: fy, vy: 0., coupled: true, parted: false, cargo }); wx -= WAGON_W + GAP; }
-                // a second borer near the west end facing west, a coal wagon coupled behind it (east of it): its bar must
-                // sit on its own puller's side, not the first borer's
-                let bx2 = (x0 + 8 * S) as f32;
-                w.tr.borers.push(Borer { x: bx2, y: fy, px: bx2, py: fy, vx: 0., vy: 0., dir: -1, fuel: vec![(Item::Coal, 6)], burning: Some(Item::Coal), burn: 2000, steam: STEAM_MAX, grind: 0., jammed: false });
-                let wx2 = bx2 + BORER_W / 2. + GAP + WAGON_W / 2.;
-                w.tr.wagons.push(Wagon { kind: WagonKind::Coal, x: wx2, y: fy, px: wx2, py: fy, vy: 0., coupled: true, parted: false, cargo: vec![(Item::Coal, 12)] });
-                molehill_sim::light::reveal_box(&mut w.g, mx, y0 - 10 * S, x1 + 10 * S, my + 10 * S);
+                let (bx, hy) = ((x0 + 58 * S) as f32, (my + 1) as f32 - HEAD_R);
+                let k = demo_borer(w, bx, hy, 0., &[(WagonKind::Coal, vec![(Item::Coal, 26)]), (WagonKind::Store, vec![(Item::Stone, 60), (Item::CopperOre, 40)]), (WagonKind::Workshop, vec![]), (WagonKind::Bunk, vec![])]);
+                w.tr.borer_ride = Some(k);
+                // a second borer near the west end heading west, a coal wagon coupled behind it (east of it)
+                demo_borer(w, (x0 + 10 * S) as f32, hy, std::f32::consts::PI, &[(WagonKind::Coal, vec![(Item::Coal, 12)])]);
+                molehill_sim::light::reveal_box(&mut w.g, mx, y0 - 10 * S, x1 + 10 * S, my + 40 * S);
                 for k in 0..7 { w.torches.push((x0 + (4 + k * 10) * S, y0 + 2 * S)); }
             }
-            "borer" => { // a tunnel east of the burrow ending in a dirt face, and a lit steam borer in it facing the face with
-                // coal burning and steam up and the mole riding it: with `--shot-walk` the running game drives it into the face
-                use molehill_sim::{mat::CPM, borer::{Borer, STEAM_MAX}};
+            "borer" => { // a tunnel east of the burrow ending in a dirt face, and a lit steam borer in it heading for the face with
+                // coal burning and steam up and the mole in its cab: with `--shot-walk` the running game bores it into the face
+                use molehill_sim::borer::HEAD_R;
                 let (x0, x1, y0) = (mx + 4 * S, mx + 60 * S, my - 12 * S);
                 for x in x0 - 2 * S..x1 + 2 * S { for y in y0 - 4 * S..my + 1 + 2 * S { set(w, x, y, Mat::Bedrock); } }
                 for x in x0..x1 { for y in y0..=my { set(w, x, y, if x >= x0 + 26 * S { Mat::Dirt } else { Mat::Empty }); } }
-                let bx = (x0 + 16 * S) as f32;
-                w.tr.borers.push(Borer { x: bx, y: (my + 1) as f32, px: bx, py: (my + 1) as f32, vx: 0., vy: 0., dir: 1, fuel: vec![(Item::Coal, 6)], burning: Some(Item::Coal), burn: 2000, steam: STEAM_MAX, grind: 0., jammed: false });
-                w.tr.borer_ride = Some(w.tr.borers.len() - 1);
-                // a second one parked behind it, lit and facing back west, nobody riding: its flip and stack smoke show
-                let bx2 = (x0 + 9 * S) as f32; // clear of the burrow's own torch
-                w.tr.borers.push(Borer { x: bx2, y: (my + 1) as f32, px: bx2, py: (my + 1) as f32, vx: 0., vy: 0., dir: -1, fuel: vec![(Item::Coal, 6)], burning: Some(Item::Coal), burn: 2000, steam: STEAM_MAX, grind: 0., jammed: false });
+                let hy = (my + 1) as f32 - HEAD_R;
+                let k = demo_borer(w, (x0 + 22 * S) as f32, hy, 0., &[]); w.tr.borer_ride = Some(k);
+                // a second one parked behind it, lit and heading back west, nobody riding: its flip and stack smoke show
+                demo_borer(w, (x0 + 6 * S) as f32, hy, std::f32::consts::PI, &[]);
                 molehill_sim::light::reveal_box(&mut w.g, mx, y0 - 10 * S, x1 + 10 * S, my + 10 * S);
                 w.torches.retain(|t| t.0 < x0 || t.0 >= x1); // the burrow's own torch would stand in the cut tunnel, over a borer
                 for k in 0..3 { w.torches.push((x0 + (4 + k * 10) * S, y0 + 2 * S)); }
-                let _ = CPM;
             }
             "logic" => { // a sealed hall east of the burrow with every linkage part: a tread plate in the burrow floor under the mole,
                 // rodded to a sluice gate holding back a pool (the mole's weight lifts it), a turned-round gate standing lifted, a tipping scale with three stones on its
@@ -927,7 +917,7 @@ fn input(mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<Button
     // Space jumps; W jumps too on a fresh press (held, it doesn't hop again on landing), except on a rope ladder
     // or by a rope-gun rope: there W grabs and climbs (`World::ladder_takes_up`, `World::rope_takes_up`); on a lift's cage
     // or at one of its stops W hauls the lift (`World::lift_takes_up`)
-    let upj = (keys.just_pressed(KeyCode::KeyW) || keys.just_pressed(KeyCode::ArrowUp)) && !g.w.ladder_takes_up() && !g.w.rope_takes_up() && !g.w.lift_takes_up();
+    let upj = (keys.just_pressed(KeyCode::KeyW) || keys.just_pressed(KeyCode::ArrowUp)) && !g.w.ladder_takes_up() && !g.w.rope_takes_up() && !g.w.lift_takes_up() && !g.w.borer_takes_up();
     g.w_jump = upk && (g.w_jump || upj);
     let jk = keys.pressed(KeyCode::Space) || g.w_jump;
     if keys.just_pressed(KeyCode::Space) || upj { g.jump_tap = true; }
@@ -1319,6 +1309,18 @@ struct Part { p: Vec2, v: Vec2, life: f32, max: f32, c: [f32; 3], size: f32, g: 
 fn sz_up(s: Vec2) -> f32 { s.y / 2. / CPX }
 /// A held item takes the light where the mole stands, like the mole does.
 fn c_hold(w: &World, m: &molehill_sim::world::Mole) -> Color { let l = w.light.at((m.y.saturating_sub(S)).min(H - 1) * W + m.x.min(W - 1)); let v = (l[0] * 0.3 + l[1] * 0.5 + l[2] * 0.2).clamp(0.5, 1.); Color::srgb(v, v, v) }
+/// Dev scenes: a lit steam borer with its head at (x, y) heading `ang`, steam up, these wagons coupled behind it as its
+/// segments (set on its path). Its index.
+fn demo_borer(w: &mut World, x: f32, y: f32, ang: f32, train: &[(molehill_sim::wagon::WagonKind, Vec<(Item, u32)>)]) -> usize {
+    use molehill_sim::{borer::{Borer, STEAM_MAX, seg_dist}, wagon::{Wagon, WAGON_H}};
+    let mut b = Borer::new(x, y, ang); b.fuel = vec![(Item::Coal, 6)]; b.burning = Some(Item::Coal); b.burn = 2000; b.steam = STEAM_MAX;
+    let mut id = w.tr.wagons.iter().map(|g| g.id + 1).max().unwrap_or(1);
+    for _ in train { b.segs.push(id); id += 1; } b.straighten();
+    for (n, (kind, cargo)) in train.iter().enumerate() { let (px, py, a) = b.at(seg_dist(n)); let wy = py + WAGON_H / 2.;
+        w.tr.wagons.push(Wagon { kind: *kind, id: b.segs[n], x: px, y: wy, px, py: wy, vy: 0., coupled: true, parted: false, cargo: cargo.clone(), ang: a }); }
+    w.tr.borers.push(b); w.tr.borers.len() - 1
+}
+
 fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Res<Time>, mut fx: Local<Fx>, mut q: Query<(Entity, &Pooled, &mut Transform, &mut Sprite, &mut Visibility)>) {
     // kind 0 moles, 22 found-place props, 12 throw arc, 16/17 furniture and its cloth, 18 furniture ghost, 19 Lid clues, 1 drops, 2 chests, 3 stations, 4 torches, 5 mushroom plots, 7 aim, 8 particles, 9 torch halos, 10 lamp halos, 11 placement pops, 14 held item, 15 headlamp lens halo
     let dt = if g.paused { 0. } else { time.delta_secs().min(0.05) }; let now = time.elapsed_secs();
@@ -1337,7 +1339,7 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
     let on_climb = w.tr.climbing || w.tr.on_rope.is_some();
     if !g.paused { if on_climb { if !fx.was_climb { fx.climb_t = 0.; } fx.climb_t += dt; } else { if fx.was_climb { fx.off_t = 0.; } fx.off_t += dt; } fx.was_climb = on_climb; }
     let mut back_view = false;
-    for (k, m) in w.moles.iter().enumerate() { if !m.alive || k == 0 && w.tr.in_tube.is_some() { continue; }
+    for (k, m) in w.moles.iter().enumerate() { if !m.alive || k == 0 && (w.tr.in_tube.is_some() || w.tr.borer_ride.is_some()) { continue; } // (in a tube, or in a borer's cab)
         let c = if k == 0 && w.pl.flash > 0. { if (w.pl.flash * 30.) as u32 % 2 == 0 { Color::srgb(6., 6., 6.) } else { Color::srgb(1.6, 0.35, 0.3) } } // hit flash: white / red strobe
             else if m.hp < 40. { Color::srgb(1., 0.6, 0.6) } else { let l = lightf(m.x, m.y - S).to_srgba(); let v = l.red.max(0.55); Color::srgb(v, v, v) };
         // pose: dig > climb > air > run > idle. Run and climb phases follow distance moved, so feet don't skate.
@@ -1378,8 +1380,8 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
     }
     // the item in the paws: turned toward the aim (snapped to 15° so the pixels stay clean), swung while
     // a pickaxe digs, shaken while a drill or bore runs, thrust out when a block or charge goes down.
-    // A torch is held upright with its flame. Nothing is held while climbing (the paws are on the wall).
-    if let (Some(m), true) = (w.moles.first().filter(|m| m.alive), pl.cling == 0 && !back_view) {
+    // A torch is held upright with its flame. Nothing is held while climbing (the paws are on the wall), nor in a borer's cab.
+    if let (Some(m), true) = (w.moles.first().filter(|m| m.alive), pl.cling == 0 && !back_view && w.tr.borer_ride.is_none()) {
         use std::f32::consts::PI;
         let f = m.facing as f32; let paw = cell_to_world(g.disp.x, g.disp.y + SF - 1.5 * SF) + Vec2::new(f * 6., -4.);
         let mut ang = g.aim.map(|(x, y, _)| (cell_to_world(x as f32 + 0.5, y as f32 + 0.5) - paw).to_angle()).unwrap_or(if f > 0. { -0.3 } else { PI + 0.3 });
@@ -1613,43 +1615,55 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
             }
         }
     }
-    // steam borers: the body (its firebox door glowing while lit), the toothed bore head turning while it drives or grinds
-    // with steam up, two wheels turning with the ground covered, a glow at the door and smoke from the stack while it burns
+    // steam borers (sprite ids 120-124): the cab body (its firebox door glowing while lit) and the toothed bore head at
+    // its front turning while it bores, both laid along the cab's angle on the path (flipped heading west, so the cab's
+    // top stays up); a glow at the door and smoke from the stack while it burns. `frame` puts a point in the cab's frame
+    // (along it toward the head, and up from its middle) into cells.
+    let frame = |(cx, cy): (f32, f32), ang: f32, along: f32, up: f32| -> (f32, f32) {
+        let (c, sn) = (ang.cos(), ang.sin()); let (ux, uy) = if c < 0. { (-sn, c) } else { (sn, -c) };
+        (cx + along * c + up * ux, cy + along * sn + up * uy) };
+    let turn = |ang: f32| if ang.cos() < 0. { std::f32::consts::PI - ang } else { -ang };
     for (k, b) in w.tr.borers.iter().enumerate() {
-        let (x, y) = (b.px + (b.x - b.px) * a, b.py + (b.y - b.py) * a); let (cx, cy) = (x as usize, (y as usize).saturating_sub(2));
+        // (the cab rides with the head: drawn moved as the head is between ticks)
+        let (ox, oy) = ((b.x - b.px) * (a - 1.), (b.y - b.py) * (a - 1.)); let cab = (b.cx + ox, b.cy + oy);
+        let (cx, cy) = (cab.0.max(0.) as usize, cab.1.max(0.) as usize);
         if cx >= W || cy >= H || w.g.flags[cy * W + cx] & F_SEEN == 0 { continue; }
         let lt = lightf(cx, cy).to_srgba(); let lit = Color::srgb(lt.red, lt.green, lt.blue);
-        let (bw, bh) = (molehill_sim::borer::BORER_W, molehill_sim::borer::BORER_H); let d = b.dir as f32; let flip = b.dir < 0; let on = b.burning.is_some();
-        want.push((120, k, cell_to_world(x, y - bh / 2.), 4.2, sp.borer[on as usize].clone(), Vec2::new(bw * CPX, bh * CPX), flip, lit));
-        let spin = b.steam > 0. && (b.vx.abs() > 0.1 || b.grind > 0.); let f = if spin { (now * 14.) as usize % 3 } else { 0 };
-        want.push((121, k, cell_to_world(x + d * (bw / 2. + 0.5), y - bh / 2. + 0.5), 4.21, sp.borer[2 + f].clone(), Vec2::new(6., 12.), flip, lit));
-        for (j, s) in [-1f32, 1.].into_iter().enumerate() { let id = k * 2 + j; rot.insert((122, id), -x / 1.5);
-            want.push((122, id, cell_to_world(x + s * bw * 0.28, y - 1.5), 4.22, sp.borer[5].clone(), Vec2::splat(6.), false, lit)); }
+        let (bw, bh) = (molehill_sim::borer::BORER_W, molehill_sim::borer::BORER_H); let flip = b.cang.cos() < 0.; let on = b.burning.is_some(); let r = turn(b.cang);
+        rot.insert((120, k), r); want.push((120, k, cell_to_world(cab.0, cab.1), 4.2, sp.borer[on as usize].clone(), Vec2::new(bw * CPX, bh * CPX), flip, lit));
+        let spin = b.steam > 0. && b.v > 0.1; let f = if spin { (now * 14.) as usize % 3 } else { 0 };
+        let hp = frame(cab, b.cang, bw / 2. + 0.5, -0.5); rot.insert((121, k), r);
+        want.push((121, k, cell_to_world(hp.0, hp.1), 4.21, sp.borer[2 + f].clone(), Vec2::new(6., 12.), flip, lit));
         if on {
-            let fl = 0.85 + 0.1 * (now * 11.).sin() + 0.05 * (now * 23.).sin();
-            want.push((123, k, cell_to_world(x - d * 4.5, y - bh + 4.), 4.4, sp.glow.clone(), Vec2::splat(14. * fl), false, Color::srgba(1., 0.6, 0.25, 0.4 * fl)));
+            let fl = 0.85 + 0.1 * (now * 11.).sin() + 0.05 * (now * 23.).sin(); let door = frame(cab, b.cang, -4.5, 0.);
+            want.push((123, k, cell_to_world(door.0, door.1), 4.4, sp.glow.clone(), Vec2::splat(14. * fl), false, Color::srgba(1., 0.6, 0.25, 0.4 * fl)));
+            let stack = frame(cab, b.cang, -1.75, bh / 2.);
             for j in 0..3 { let ff = ((now * 0.7 + j as f32 / 3.) % 1.) as f32; let hh = hash3(k as u32, j, 41) as f32 / u32::MAX as f32;
-                want.push((124, k * 3 + j as usize, cell_to_world(x - d * (1.75 + ff * 2.) + hh - 0.5, y - bh - ff * 2. * CPM as f32), 4.45, sp.glow.clone(), Vec2::splat(4. + 8. * ff), false, Color::srgba(0.42, 0.4, 0.4, 0.45 * (1. - ff)))); }
+                want.push((124, k * 3 + j as usize, cell_to_world(stack.0 + hh - 0.5, stack.1 - ff * 2. * CPM as f32), 4.45, sp.glow.clone(), Vec2::splat(4. + 8. * ff), false, Color::srgba(0.42, 0.4, 0.4, 0.45 * (1. - ff)))); }
         }
     }
-    // wagons (sprite ids 130-134): each kind's own body; two spoked wheels turning with the ground covered; the load heaped
-    // above the rim as a store or coal wagon fills (its height is the fill); the coupling bar to what pulls it
+    // wagons (sprite ids 130-133): each kind's own body; two spoked wheels turning with the ground covered; the load heaped
+    // above the rim as a store or coal wagon fills (its height is the fill); the coupling bar to what pulls it. A coupled
+    // wagon lies along its borer's path (`Wagon::ang`), in the same frame as the cab.
     for (k, wg) in w.tr.wagons.iter().enumerate() {
         use molehill_sim::wagon::{WagonKind, WAGON_H, WAGON_W, GAP};
-        let (x, y) = (wg.px + (wg.x - wg.px) * a, wg.py + (wg.y - wg.py) * a); let (cx, cy) = (x as usize, (y as usize).saturating_sub(2));
+        let (x, y) = (wg.px + (wg.x - wg.px) * a, wg.py + (wg.y - wg.py) * a); let mid = (x, y - WAGON_H / 2.);
+        let (cx, cy) = (x.max(0.) as usize, (y.max(2.) as usize).saturating_sub(2));
         if cx >= W || cy >= H || w.g.flags[cy * W + cx] & F_SEEN == 0 { continue; }
         let lt = lightf(cx, cy).to_srgba(); let lit = Color::srgb(lt.red, lt.green, lt.blue);
-        let kind = wg.kind as usize; let top = y - WAGON_H;
-        want.push((130, k, cell_to_world(x, y - WAGON_H / 2.), 4.2, sp.wagon[kind].clone(), Vec2::new(WAGON_W * CPX, WAGON_H * CPX), false, lit));
-        for (j, s) in [-1f32, 1.].into_iter().enumerate() { let id = k * 2 + j; rot.insert((131, id), -x);
-            want.push((131, id, cell_to_world(x + s * WAGON_W * 0.3, y - 1.), 4.22, sp.borer[5].clone(), Vec2::splat(2. * CPX), false, lit)); }
+        let kind = wg.kind as usize; let r = turn(wg.ang); let flip = wg.ang.cos() < 0.;
+        rot.insert((130, k), r); want.push((130, k, cell_to_world(mid.0, mid.1), 4.2, sp.wagon[kind].clone(), Vec2::new(WAGON_W * CPX, WAGON_H * CPX), flip, lit));
+        for (j, s) in [-1f32, 1.].into_iter().enumerate() { let id = k * 2 + j; rot.insert((131, id), -(x + y));
+            let p = frame(mid, wg.ang, s * WAGON_W * 0.3, -(WAGON_H / 2. - 1.)); want.push((131, id, cell_to_world(p.0, p.1), 4.22, sp.borer[5].clone(), Vec2::splat(2. * CPX), false, lit)); }
         let full = match wg.kind { WagonKind::Store => wg.load() as f32 / molehill_sim::wagon::STORE_CAP as f32, WagonKind::Coal => wg.load() as f32 / molehill_sim::wagon::COAL_CAP as f32, _ => 0. }.clamp(0., 1.);
         if full > 0. { match wg.kind {
             WagonKind::Store | WagonKind::Coal => { let h = (0.5 + 2.5 * full).min(3.); // heaped above the rim, taller as it fills
-                want.push((132, k, cell_to_world(x, top + 2. - h / 2.), 4.21, sp.wload[(wg.kind == WagonKind::Coal) as usize].clone(), Vec2::new(14., h * CPX), false, lit)); }
+                let p = frame(mid, wg.ang, 0., WAGON_H / 2. - 2. + h / 2.); rot.insert((132, k), r);
+                want.push((132, k, cell_to_world(p.0, p.1), 4.21, sp.wload[(wg.kind == WagonKind::Coal) as usize].clone(), Vec2::new(14., h * CPX), flip, lit)); }
             _ => {} } }
-        // the bar is on the side toward the borer that hauls the wagon (its train in the sim: none on a stranded wagon)
-        if let Some(d) = w.hauled_by(k).map(|b| w.tr.borers[b].dir as f32) { want.push((133, k, cell_to_world(x + d * (WAGON_W / 2. + GAP / 2.), y - 2.5), 4.19, sp.coupling.clone(), Vec2::new(GAP * CPX + 2., 3.), false, lit)); }
+        // the bar runs forward to what pulls it (only for a wagon in a train)
+        if w.in_train(k) { let p = frame(mid, wg.ang, WAGON_W / 2. + GAP / 2., -0.5); rot.insert((133, k), r);
+            want.push((133, k, cell_to_world(p.0, p.1), 4.19, sp.coupling.clone(), Vec2::new(GAP * CPX + 2., 3.), false, lit)); }
     }
     // sluice gates: lifted, the leaf is drawn raised out of the opening (its cells are open then); its lever on the head
     // shows which way round it is (up: lifts when pulled; down: shuts when pulled)

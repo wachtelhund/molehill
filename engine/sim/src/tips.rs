@@ -136,7 +136,7 @@ pub fn transport_tip(w: &World, x: usize, y: usize) -> Option<Tip> {
         let b = &w.tr.borers[k];
         let on = w.tr.borer_ride == Some(k);
         return tip("Steam borer", vec![format!("Runs on coal: fuel {} lumps{} · steam {:.0} kJ.", b.lumps(), if b.burning.is_some() { " (lit)" } else { "" }, b.steam),
-            if b.jammed { "Jammed: no room behind it for its spoil. Clear the tunnel behind it.".into() } else if on { "A/D: drive and bore (it bores the way it faces) · Space: get off.".into() } else { "Coal in paw + right mouse: feed it · empty paw: get on · E: rake out its fuel, then pick it up.".into() }]);
+            if on { "A/D/W/S steer it through the rock, diagonals too · Space: climb out.".into() } else { "Coal in paw + right mouse: feed it · empty paw: climb in · E: rake out its fuel, then pick it up.".into() }]);
     }
     if let Some(j) = w.wagon_at(x, y) {
         use crate::wagon::WagonKind; let wg = &w.tr.wagons[j]; let inside = w.tr.wagon_ride == Some(j);
