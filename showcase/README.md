@@ -71,15 +71,20 @@ A `*.workers.dev` preview also appears (`workers_dev = true`) and is sent `X-Rob
 
 Captions and alt text call this a concept illustration, not a screenshot.
 
-**Gameplay screenshots** (existing repo captures only), checksummed in `shots.manifest`:
+**Gameplay screenshots** (repo captures only), checksummed in `shots.manifest`:
 
 | file in `dist/img` | source |
 |---|---|
 | `hud-digging.png` | `docs/wiki/images/hud-digging.png` |
 | `blast-front.png` | `docs/wiki/images/blast-front.png` |
-| `menu-main.png` | `docs/wiki/images/menu-main.png` |
 | `water-flood.png` | `engine/shots/gameplay-water-flood.png` |
-| `torch-tunnel.png` | `engine/shots/gameplay-tnt-collapse.png` |
+| `torch-tunnel.png` | `engine/shots/gameplay-torch-tunnel.png` |
+| `regions.jpg` | `engine/shots/showcase-regions.jpg`: `--dump-wide` of seed 4242, whole window, scaled to 1200 wide |
+| `rope-gun.png` | `engine/shots/showcase-rope-gun.png`: `--scene=climb-rope --dump-wide`, cropped, 3× |
+| `lift.png` | `engine/shots/showcase-lift.png`: `--scene=liftride --dump-wide`, cropped, 3× |
+| `borer-wagons.png` | `engine/shots/showcase-borer-wagons.png`: `--scene=wagons --dump-wide`, cropped, 3× |
+
+The scene stills come from `molehill --fresh --seed=4242 --scene=<name> --shot=x.bmp --shot-at=150 --dump-art=DIR --dump-wide` (`view.bmp`, every cell evenly lit), cropped round the scene and scaled up 3× nearest-neighbour.
 
 Open Graph uses `hud-digging.png` (a real screenshot), not the concept art.
 

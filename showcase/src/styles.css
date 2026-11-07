@@ -309,6 +309,10 @@ strong {
   );
 }
 
+.shot--pixel img {
+  image-rendering: pixelated;
+}
+
 .shot--hud-crop img {
   aspect-ratio: 2.55 / 1;
   object-fit: cover;
