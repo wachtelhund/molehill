@@ -144,3 +144,32 @@ fn regions_line_the_tiles_the_window_brings_in() {
     assert!(lined > 1000 && checked > 1000, "open cave was lined: {lined} ({checked} checked)");
     println!("lined {lined}, of them fungal threads {mycel}");
 }
+
+/// A region's sideways edge wanders as it goes down: of the cells where the region (loam, karst, crags) changes
+/// from one column to the next, few have the same change straight below them 2 m down (a straight seam has all).
+#[test]
+fn sideways_region_edges_wander_with_depth() {
+    let (mut edges, mut straight) = (0u32, 0u32); let dy = 2 * CPM as i64;
+    for seed in SEEDS { let g = Gen::new(seed, W);
+        for d in (-30..70i64).step_by(1) { let wy = d * CPM as i64; for x in X0..X1 {
+            let (a, b) = (g.biome_of(x, wy), g.biome_of(x + 1, wy)); if a == b { continue; }
+            if [a, b].iter().any(|r| matches!(r, Biome::Fungal | Biome::Ashlands)) { continue; } // (their edges are depth edges, wandering already)
+            edges += 1; if g.biome_of(x, wy + dy) == a && g.biome_of(x + 1, wy + dy) == b { straight += 1; }
+        } } }
+    let share = straight as f32 / edges.max(1) as f32;
+    println!("sideways region edges: {edges}, straight 2 m down: {share:.2}");
+    assert!(edges > 100 && share < 0.5, "sideways region edges run straight down: {share:.2} of {edges}");
+}
+
+/// Natural linings come in irregular patches, not a 1 m grid: where the lining changes from one cell to the
+/// next along a row, that change falls on a 1 m block edge about as often as on any other column.
+#[test]
+fn linings_have_no_block_grid() {
+    let (mut changes, mut on_grid) = (0u32, 0u32); let c = CPM as i64;
+    for seed in SEEDS { let g = Gen::new(seed, W);
+        for d in (-40..140i64).step_by(3) { let wy = d * CPM as i64 + 3; let mut prev = natural_at(&g, X0, wy);
+            for x in X0 + 1..X0 + 4000 { let wl = natural_at(&g, x, wy); if wl != prev { changes += 1; if x.rem_euclid(c) == 0 { on_grid += 1; } } prev = wl; } } }
+    let share = on_grid as f32 / changes.max(1) as f32;
+    println!("lining changes: {changes}, on 1 m block edges: {share:.2} (no grid: {:.2})", 1. / CPM as f32);
+    assert!(changes > 1000 && share < 1.6 / CPM as f32, "linings change on the 1 m grid: {share:.2} of {changes}");
+}

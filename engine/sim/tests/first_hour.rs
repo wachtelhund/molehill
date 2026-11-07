@@ -16,6 +16,7 @@ fn dig_down(w: &mut World, secs: u32) -> (bool, bool) {
 #[test]
 fn digging_straight_down_never_kills() {
     let mut rang = vec![];
-    for seed in 0..32 { let mut w = survival(seed); let (ok, r) = dig_down(&mut w, 20); assert!(ok, "seed {seed}: died holding S from the burrow"); if r { rang.push(seed); } }
-    assert!(rang.contains(&9), "seed 9 digs into lava ~37 m down: the floor should have felt hot (rang on {rang:?})");
+    // (35 and 56 dig into lava within the 20 s now that the regions' sideways edges wander; seed 9 did before that)
+    for seed in (0..32).chain([35, 56]) { let mut w = survival(seed); let (ok, r) = dig_down(&mut w, 20); assert!(ok, "seed {seed}: died holding S from the burrow"); if r { rang.push(seed); } }
+    assert!(rang.contains(&35) && rang.contains(&56), "seeds 35 and 56 dig into lava: the floor should have felt hot (rang on {rang:?})");
 }

@@ -220,6 +220,9 @@ impl Biome {
     /// How much lower (more lenses) the loose-lens threshold is here: slumping gravel in the crags, sand washes in the karst.
     fn lens(self) -> f32 { match self { Biome::Crags => 0.04, Biome::Karst => 0.02, _ => 0. } }
 }
+/// How far (m) a region's sideways edge wanders as it goes down (`Gen::biome_of` reads the column leaning this
+/// far off to either side, by depth), so the edge between two columns' regions is never a straight seam.
+pub const REGION_WANDER: f32 = 15.;
 /// Fungal hollows lie between these depths (m, after the region wobble).
 pub const FUNGAL_DEPTH: (f32, f32) = (12., 64.);
 /// Below ASH_DEPTH.0 m every region is Ashlands; an Ashlands-leaning column turns to it from ASH_DEPTH.1 m.
@@ -259,7 +262,10 @@ impl Gen {
     pub fn biome_of(&self, x: i64, wy: i64) -> Biome {
         let (fx, fy) = (x as f32 / SF, wy as f32 / SF);
         let d = fy * 0.25 + (self.n2.fbm(fx + 2100., fy * 1.2, 120., 2) - 0.5) * 30.;
-        let col = self.biome_x(x);
+        // the column leaning, read from up to REGION_WANDER m to either side by depth (slowly along x, so the
+        // edge stays one edge): sideways edges wander down through the rock instead of running straight
+        let wob = (self.n1.fbm(fx * 0.2 + 1700., fy, 90., 2) - 0.5) * 4. * REGION_WANDER * CPM as f32;
+        let col = self.biome_x(x + wob.clamp(-REGION_WANDER * CPM as f32, REGION_WANDER * CPM as f32) as i64);
         if d > ASH_DEPTH.0 || (col == Biome::Ashlands && d > ASH_DEPTH.1) { return Biome::Ashlands; }
         if d > FUNGAL_DEPTH.0 && d < FUNGAL_DEPTH.1 && self.n0.fbm(fx + 3300., fy * 1.5, 90., 2) > 0.6 { return Biome::Fungal; }
         match col {
@@ -268,6 +274,13 @@ impl Gen {
             Biome::Loam if d > 35. => Biome::Karst, // soil gives out deeper down
             b => b,
         }
+    }
+    /// The 1 m patch a lining or other per-patch choice reads at (x, wy): the grid seen through a smooth warp of
+    /// up to about 0.7 m, so patches are irregular blobs instead of squares (and every patch still gets one hash).
+    pub fn patch(&self, x: i64, wy: i64) -> (i64, i64) {
+        let (fx, fy) = (x as f32 / SF, wy as f32 / SF); let a = 1.4 * CPM as f32;
+        let (dx, dy) = ((self.n2.fbm(fx + 4400., fy, 7., 2) - 0.5) * 2. * a, (self.n3.fbm(fx, fy + 5100., 7., 2) - 0.5) * 2. * a);
+        let c = CPM as i64; ((x + dx as i64).div_euclid(c), (wy + dy as i64).div_euclid(c))
     }
     /// Open cave cell? Blobby caverns + thin winding tunnels.
     pub fn open(&self, x: i64, wy: i64) -> bool {
