@@ -221,6 +221,18 @@ Polish only: no new features or concepts. Each entry is one commit.
       `--shot-up`) came out blank on this machine at 00:40 (the display is locked; the existing `--scene=rope`
       is blank too). The ghost, needle and stop marks are unseen in a window, only built.
 
+23. **Lift polish (after #80).** Two dead ends, found with the new scenario `lift_from_under`, which failed on
+    both before the fixes:
+    * With the cursor level with a side passage, the open run in that row was the passage and the shaft
+      together. The cage snapped off-centre and placing failed with "the shaft narrows above". The snap now takes
+      the narrowest open run through the cursor's column within 2 m.
+    * A mole that dropped to the floor of a shaft with no exit at the foot called the cage, which stopped over
+      its head, and then the mole had no way onto it. The cage now rests on a whole row (it had stopped at a
+      fraction of a cell, so a mole standing on it never counted as standing), and `W` under it climbs up
+      through the floor hatch.
+    * Not done live: the `--shot` stills still came out as grey frames at 01:40 (the display is locked). Feel is
+      tuned headless only.
+
 ## Open issues
 * Ropes and rope ladders the world window leaves (a long trip up or down) are lost with it: they aren't kept
   in the 64-row bands. Worth a band record if players rig long routes.
