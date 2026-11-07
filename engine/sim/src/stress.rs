@@ -41,11 +41,11 @@ pub struct Stress {
     /// failure threshold on utilisation (FAIL_U at runtime; gen uses a safety factor)
     pub thr: f32,
     /// scratch for `anchored`: the search a cell was last visited by, and the solve that proved it held
-    vis: Vec<u32>, vis_gen: u32, held: Vec<u32>, epoch: u32,
+    vis: Vec<u32>, vis_gen: u32, held: Vec<u32>, epoch: u32, buckets: Vec<Vec<u32>>,
 }
-/// Most cells an anchor check visits (64k, 1000 m²) before it gives up and trusts the last solve: a bigger mass
+/// Most cells an anchor check visits (256k, 4000 m²) before it gives up and trusts the last solve: a bigger mass
 /// cut free in one go is left to the next solve that covers it, as before.
-const ANCHOR_BUDGET: usize = 1 << 16;
+const ANCHOR_BUDGET: usize = 1 << 18;
 /// Overloaded rock creaks this long (ticks, 0.67 s) before it gives way (the long warning is the strain
 /// before it: see FAIL_U).
 pub const CRACK_TICKS: u8 = 40;
@@ -68,7 +68,7 @@ pub const LOOSE_TICKS: u8 = 8;
 pub const WEDGED_TICKS: u8 = 45;
 
 impl Stress {
-    pub fn new(n: usize) -> Self { Stress { util: vec![0; n], pending: vec![0; n], cracking: vec![], overburden: vec![0.; n], last_fail: 0, reach: vec![], ctop: vec![0; n], vtop: vec![0; n], thr: FAIL_U, vis: vec![], vis_gen: 0, held: vec![], epoch: 0 } }
+    pub fn new(n: usize) -> Self { Stress { util: vec![0; n], pending: vec![0; n], cracking: vec![], overburden: vec![0.; n], last_fail: 0, reach: vec![], ctop: vec![0; n], vtop: vec![0; n], thr: FAIL_U, vis: vec![], vis_gen: 0, held: vec![], epoch: 0, buckets: vec![] } }
 
     /// Full solve. Returns indices with u > 1.
     /// Height of the load-bearing column above any cell (16 m), the pressure-arch height.
@@ -170,7 +170,7 @@ impl Stress {
         // anchor: rock cut free inside the region would otherwise prop itself up on its own edge cells (which
         // still say "held" from before the cut) until some far solve finally saw it, and then dropped whole and
         // unwarned. Anchors that check out seed the search; the rest wait until one of theirs does.
-        let (mut seeds, mut q2) = (vec![], vec![]); self.epoch = self.epoch.wrapping_add(1);
+        let (mut seeds, mut q2) = (vec![], std::mem::take(&mut self.buckets)); self.epoch = self.epoch.wrapping_add(1);
         if dirty.is_some() { q.retain(|&i| { let i = i as usize; let keep = g.mat[i] == Mat::Bedrock as u8 || ((i < w || i >= n - w || i % w == 0 || i % w + 1 == w) && st(i)); if !keep { reach[li(i % w, i / w)] = false; seeds.push(i); } keep }); }
         let mut head = 0;
         let mut k = 0;
@@ -186,8 +186,9 @@ impl Stress {
             // next edge anchor not yet reached from a checked one
             while k < seeds.len() && (reach[li(seeds[k] % w, seeds[k] / w)] || !self.reach[seeds[k]]) { k += 1; }
             let Some(&i) = seeds.get(k) else { break }; k += 1;
-            if Self::anchored(&mut self.reach, &mut self.vis, &mut self.vis_gen, &mut self.held, self.epoch, g, i, &mut q2) { reach[li(i % w, i / w)] = true; q.push(i as u32); }
+            if Self::anchored(&mut self.reach, &mut self.vis, &mut self.vis_gen, &mut self.held, self.epoch, g, i, &mut q2, true) { reach[li(i % w, i / w)] = true; q.push(i as u32); }
         }
+        self.buckets = q2;
         for y in ry0..=ry1 { for x in rx0..=rx1 { if st(y * w + x) && !reach[li(x, y)] { util[li(x, y)] = 9.; } } }
         // 3. bending of roof runs
         for y in ry0..=ry1.min(h - 2) {
@@ -280,30 +281,45 @@ impl Stress {
     /// Does cell `i` have a load path to a real anchor (bedrock, or the window's edge rows and columns), by the
     /// load-path rules of `solve_rect` step 2 searched backwards from it, downward first, so in solid ground it
     /// is a short walk. If not, every cell the search reached is left without one too (`reach` false), which a
-    /// later solve of those cells acts on. Past `ANCHOR_BUDGET` cells it trusts the last solve.
-    fn anchored(reach: &mut [bool], vis: &mut Vec<u32>, vis_gen: &mut u32, held: &mut Vec<u32>, epoch: u32, g: &Grid, i: usize, stack: &mut Vec<u32>) -> bool {
+    /// later solve of those cells acts on. Past `ANCHOR_BUDGET` cells it answers `on_budget` (trusting what the last
+    /// solve said). Within one `epoch`, cells proven held (`held` = epoch) or cut free (`held` = !epoch) stop later
+    /// searches at once.
+    fn anchored(reach: &mut [bool], vis: &mut Vec<u32>, vis_gen: &mut u32, held: &mut Vec<u32>, epoch: u32, g: &Grid, i: usize, heap: &mut Vec<Vec<u32>>, on_budget: bool) -> bool {
         let (w, n) = (g.w, g.mat.len());
         if vis.len() != n { *vis = vec![0; n]; *vis_gen = 0; }
         if held.len() != n { *held = vec![0; n]; }
         *vis_gen = vis_gen.wrapping_add(1); if *vis_gen == 0 { vis.fill(0); *vis_gen = 1; }
-        let gen = *vis_gen;
+        let gen = *vis_gen; let dead = !epoch;
+        if held[i] == dead { return false; }
         let supports = |j: usize| matches!(g.m(j).kind(), Kind::Powder | Kind::Solid);
         let anchor = |j: usize| g.mat[j] == Mat::Bedrock as u8 || ((j < w || j >= n - w || j % w == 0 || j % w + 1 == w) && g.is_static(j));
         // (a cell reached from the start through static rock only is held if the start is: static rock carries
         // static rock both ways; those are remembered for the rest of this solve, so the next search stops there)
         const SYM: u32 = 1 << 31;
         let tag = |k: usize, sym: bool| k as u32 | if sym { SYM } else { 0 };
-        let mut seen: Vec<u32> = vec![tag(i, g.is_static(i))]; stack.clear(); stack.push(seen[0]); vis[i] = gen;
-        while let Some(e) = stack.pop() {
+        // best first: always the cell nearest an edge of the window (all four are anchors), so a held cell finds one
+        // in about as many steps as it is far from it
+        // (a bucket per distance: a step changes it by at most one, so the lowest non-empty bucket is never far)
+        let h = n / w; let near = |k: usize| { let (x, y) = (k % w, k / w); x.min(w - 1 - x).min(y).min(h - 1 - y) };
+        let d0 = near(i); if heap.len() <= w.max(h) { heap.resize(w.max(h) + 1, vec![]); }
+        let mut seen: Vec<u32> = vec![tag(i, g.is_static(i))]; heap[d0].push(seen[0]); vis[i] = gen; let mut lo = d0; let mut hi = d0;
+        let clear = |heap: &mut Vec<Vec<u32>>, lo: usize, hi: usize| for b in &mut heap[lo.min(hi)..=hi] { b.clear(); };
+        loop {
+            while lo < heap.len() && heap[lo].is_empty() { lo += 1; }
+            let Some(e) = heap.get_mut(lo).and_then(|b| b.pop()) else { break };
             let (j, sym) = ((e & !SYM) as usize, e & SYM != 0);
-            // (past the budget it is taken as held for this solve too)
-            if anchor(j) || held[j] == epoch || seen.len() > ANCHOR_BUDGET {
+            if anchor(j) || held[j] == epoch {
                 for &e in &seen { if e & SYM != 0 { held[(e & !SYM) as usize] = epoch; } }
-                return true;
+                clear(heap, lo, hi); return true;
+            }
+            if seen.len() > ANCHOR_BUDGET {
+                // (taken as held for this solve too, when that is the answer)
+                if on_budget { for &e in &seen { if e & SYM != 0 { held[(e & !SYM) as usize] = epoch; } } }
+                clear(heap, lo, hi); return on_budget;
             }
             let (x, y) = (j % w, j / w);
             // what can carry j: for static rock, the static rock beside, above or below it; for anything, solid
-            // or loose ground right under it. Pushed so the way down is tried first.
+            // or loose ground right under it
             let mut next = [(usize::MAX, false); 4];
             let st = g.is_static(j);
             if st {
@@ -312,10 +328,10 @@ impl Stress {
                 if x + 1 < w && g.is_static(j + 1) { next[2] = (j + 1, sym); }
             }
             if j + w < n && supports(j + w) { next[3] = (j + w, sym && st && g.is_static(j + w)); }
-            for (k, ks) in next { if k != usize::MAX && vis[k] != gen { vis[k] = gen; let e = tag(k, ks); stack.push(e); seen.push(e); } }
+            for (k, ks) in next { if k != usize::MAX && vis[k] != gen && held[k] != dead { vis[k] = gen; let e = tag(k, ks); let d = near(k); heap[d].push(e); lo = lo.min(d); hi = hi.max(d); seen.push(e); } }
         }
         // cut free: nothing it rests on reaches an anchor
-        for &e in &seen { reach[(e & !SYM) as usize] = false; }
+        for &e in &seen { let k = (e & !SYM) as usize; reach[k] = false; held[k] = dead; }
         false
     }
 
@@ -336,15 +352,25 @@ impl Stress {
         for &i in fail { let i = i as usize; if self.pending[i] == 0 { self.pending[i] = if self.reach.get(i) == Some(&false) { loose } else { CRACK_TICKS }; self.cracking.push(i as u32); } }
     }
     /// Advance cracks; returns cells that crumble now.
+    /// A cell cut free (no load path) checks it is still so as its countdown ends: rubble from the first part of
+    /// a fall can pile up under the rest while it is wedged, and the solve may not have come round to it since.
+    /// Held after all, it stays (and its crack heals); past the search budget it trusts the solve and drops.
     pub fn tick(&mut self, g: &Grid) -> Vec<u32> {
-        let mut out = vec![]; let mut keep = vec![];
-        for &i in &self.cracking {
+        let mut out = vec![]; let mut keep = vec![]; let mut stack = std::mem::take(&mut self.buckets);
+        self.epoch = self.epoch.wrapping_add(1);
+        let cracking = std::mem::take(&mut self.cracking);
+        for &i in &cracking {
             let iu = i as usize;
             if !g.is_static(iu) { self.pending[iu] = 0; continue; }
             if self.util[iu] < 128 { self.pending[iu] = 0; continue; } // relieved
             self.pending[iu] -= 1;
-            if self.pending[iu] == 0 { out.push(i); } else { keep.push(i); }
+            if self.pending[iu] == 0 {
+                if self.reach.get(iu) == Some(&false) && Self::anchored(&mut self.reach, &mut self.vis, &mut self.vis_gen, &mut self.held, self.epoch, g, iu, &mut stack, false) {
+                    self.reach[iu] = true; self.util[iu] = 0; continue; // resting on something after all
+                }
+                out.push(i);
+            } else { keep.push(i); }
         }
-        self.cracking = keep; out
+        self.cracking = keep; self.buckets = stack; out
     }
 }
