@@ -73,7 +73,7 @@ The pack, the hotbar, the item in the mole's paws and anything lying loose all u
 | Ground lens | a thick round lens in a dull ring, two glints | lies loose as its icon |
 | Rail | a length of copper strap on two sleepers, side on | placed cells of its material |
 | Mine cart | a plank tub with a bronze rim on two wheels | cart sprite on the rails |
-| Rope ladder | ropes and rungs, rolled at the bottom | two twisted fibre side ropes (drawn in half-metre lengths so the twist keeps its scale) with lashed timber rungs every 0.25 m, its head pegged into the stone with a chipped scar (`art::rung`, `art::hook_bite`) |
+| Rope ladder | ropes and rungs, rolled at the bottom | two twisted fibre side ropes (drawn in half-metre lengths so the twist keeps its scale) with lashed timber rungs every 0.25 m (2 px rungs on a 4 px pitch, so the wall shows between them), its head pegged into the stone with a chipped scar (`art::rung`, `art::hook_bite`) |
 | Rope gun | a root-wood bow-spring launcher: the stock down to a grip, the spring bent across its fore end with the cord drawn back to the catch, a brass crank, a stone hook in the muzzle | held: the same gun side on in the paws, a stone hook in its muzzle while a hook rope is ready and none in flight, empty otherwise (`art::Held::RopeGun`) |
 | Hook rope | a coil of twisted fungus-fibre rope, its loose end running out to a barbed stone hook lashed on | the rope: a twisted-fibre length per half-metre segment, turned along it; the stone hook at its head points into the rock it bit, or along its flight while thrown (`art::rope_seg`, `art::rope_hook`); where a fixed rope's hook bit the stone, a chipped scar with cracks behind it (`art::hook_bite`) |
 | Lift | a cage hung from a sheave | lift head frame, rope and cage |

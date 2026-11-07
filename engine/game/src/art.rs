@@ -594,8 +594,9 @@ pub fn hook_bite() -> Image {
     for (x, y) in [(2, 3), (8, 4), (4, 1), (6, 6)] { p.set(x, y, [176, 170, 160]); }
     p.image()
 }
-/// A rope-ladder rung (8×3): a round timber rung, lashed to the side ropes at each end.
-pub fn rung() -> Image { let mut p = Px::new(8, 3); p.rect(1, 1, 6, 1, [150, 108, 64]); p.rect(1, 0, 6, 0, [186, 140, 86]); for x in [0, 7] { p.rect(x, 0, x, 2, [176, 146, 96]); } p.finish(ICON_LINE).image() }
+/// A rope-ladder rung (8×2): a round timber rung (lit top, shaded underside), lashed to the side ropes at each end; no
+/// outline, so with rungs every 0.25 m (4 px) the wall shows between them and the ladder doesn't read solid.
+pub fn rung() -> Image { let mut p = Px::new(8, 2); p.rect(1, 0, 6, 0, [186, 140, 86]); p.rect(1, 1, 6, 1, [118, 84, 50]); for x in [0, 7] { p.rect(x, 0, x, 1, [196, 166, 112]); } p.image() }
 
 /// The boiler over its shell cells (1 px = 1 world unit, `BOILER_W`×`BOILER_H` cells): a riveted iron drum with a
 /// steam dome and a stub chimney over a brick firebox, the fire door in its middle; lit, the fire shows through the door.
