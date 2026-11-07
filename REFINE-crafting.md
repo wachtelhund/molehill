@@ -181,3 +181,14 @@ Raw bills (`craft::raw_bill`, a coal per cold-forge job), against the ladder's d
   keeps a measure for whoever crawls back in (a stash, not magic), once per wake.
 * Glowmite lantern (new item: needs p3 icon).
 * The bot never builds or crafts. A crafting bot that walks the quest line would test pacing directly.
+
+## Phase 2 polish (main c65aa80): the crafting list scrolls
+* Bug, shown by count: 84 recipes (45 workbench, 33 forge, 6 workshop), and the list (`craft_rows`) was cut at
+  `CRAFT_ROWS` = 30. In Creative, which lists every station from the workbench down, no forge or workshop
+  recipe ever showed (no smelter, steam borer or drill to click). In Survival a workbench with more than 29
+  known recipes hid the rest.
+* Fix (game crate, crafting UI): `craft_all` builds every row and `craft_window` shows 30 from `craft_scroll`.
+  A hidden part is named on the first or last line ("... N more below (wheel here scrolls)"), the wheel over
+  the list scrolls it 3 rows a notch instead of changing the hotbar slot, and it resets when the pack opens.
+  Test `every_recipe_can_be_scrolled_to`: in Creative every recipe sits on a craftable row at some scroll.
+* Not live-window tested: the wheel-over-list feel and the hint lines were never seen in the running game.
