@@ -47,6 +47,14 @@ pub const EVENTS: [Event; 18] = [Event::Explode, Event::Crumble, Event::Crack, E
 pub fn cooldown(e: Event) -> (usize, f64) {
     match e { Event::Explode => (0, 0.3), Event::Crumble => (1, 1.2), Event::Crack => (2, 0.8), Event::Dig => (3, 0.07), Event::Place => (4, 0.1), Event::Hurt => (5, 0.3), Event::Death => (6, 1.), Event::Chest => (7, 0.5), Event::Quest => (8, 0.5), Event::Craft => (9, 0.3), Event::Discover => (10, 0.5), Event::Eat => (11, 0.3), Event::Warning => (12, 1.), Event::Quake => (13, 2.), Event::Click => (14, 0.05), Event::Harvest => (15, 0.3), Event::Gasp => (16, 1.5), Event::Lore => (17, 1.) }
 }
+/// When each event last sounded, on the audio clock. Starts long ago: the clock starts at 0 when the sound
+/// opens, so a 0 here would swallow the first of each event in its gap (the click of the very key that opened it).
+pub struct Gaps([f64; 18]);
+impl Gaps {
+    pub fn new() -> Self { Gaps([f64::NEG_INFINITY; 18]) }
+    /// Whether `e` may sound at `now`, and if so note it.
+    pub fn pass(&mut self, e: Event, now: f64) -> bool { let (k, gap) = cooldown(e); if now - self.0[k] < gap { return false; } self.0[k] = now; true }
+}
 /// What an event sounds like, `gain` = spatial attenuation from the listener (camera), `now` = the audio clock.
 pub fn sfx(e: Event, gain: f32, now: f64) -> Vec<Sfx> {
     use Filt as F; use Wave as O;
@@ -117,11 +125,11 @@ mod imp {
     /// The music graph: voices feed `pad_f` (pads, drones) or `pluck` (plucks, bells); both go dry to `bus`
     /// and into the reverb; plucks also into the echo.
     struct Mus { comp: Composer, bus: GainNode, pad_f: BiquadFilterNode, pluck: GainNode, verb_in: GainNode, mood: Option<Mood>, buf: Vec<Note> }
-    pub struct Audio { ctx: Option<AudioContext>, white: Option<AudioBuffer>, brown: Option<AudioBuffer>, last: [f64; 18], master: Option<GainNode>, rumble: Option<GainNode>, vol: f32, mvol: f32, mus: Option<Mus> }
+    pub struct Audio { ctx: Option<AudioContext>, white: Option<AudioBuffer>, brown: Option<AudioBuffer>, last: Gaps, master: Option<GainNode>, rumble: Option<GainNode>, vol: f32, mvol: f32, mus: Option<Mus> }
     fn wave(w: Wave) -> OscillatorType { match w { Wave::Sine => OscillatorType::Sine, Wave::Triangle => OscillatorType::Triangle, Wave::Square => OscillatorType::Square } }
     fn filt(f: Filt) -> BiquadFilterType { match f { Filt::Lowpass => BiquadFilterType::Lowpass, Filt::Bandpass => BiquadFilterType::Bandpass } }
     impl Audio {
-        pub fn new() -> Self { Audio { ctx: None, white: None, brown: None, last: [0.; 18], master: None, rumble: None, vol: 0.8, mvol: 0.35, mus: None } }
+        pub fn new() -> Self { Audio { ctx: None, white: None, brown: None, last: Gaps::new(), master: None, rumble: None, vol: 0.8, mvol: 0.35, mus: None } }
         pub fn set_volume(&mut self, v: f32) { if v == self.vol { return; } self.vol = v; if let Some(m) = &self.master { m.gain().set_value(MASTER * v); } }
         pub fn set_music(&mut self, v: f32) {
             if v == self.mvol { return; } self.mvol = v;
@@ -208,7 +216,7 @@ mod imp {
         /// `gain` = spatial attenuation from the listener (camera).
         pub fn play(&mut self, e: Event, gain: f32) {
             let Some(ctx) = &self.ctx else { return }; let now = ctx.current_time();
-            let (k, gap) = cooldown(e); if now - self.last[k] < gap { return; } self.last[k] = now;
+            if !self.last.pass(e, now) { return; }
             for s in sfx(e, gain, now) { self.sfx(&s); }
         }
     }
@@ -224,9 +232,9 @@ mod imp {
     /// The open sound card: the stream (kept alive), the way to the audio thread, and its clock.
     struct Out { _stream: cpal::Stream, tx: mpsc::Sender<Cmd>, clock: Arc<AtomicU64>, sr: f64 }
     struct Mus { comp: Composer, mood: Option<Mood>, buf: Vec<Note> }
-    pub struct Audio { out: Option<Out>, tried: bool, last: [f64; 18], vol: f32, mvol: f32, mus: Option<Mus> }
+    pub struct Audio { out: Option<Out>, tried: bool, last: Gaps, vol: f32, mvol: f32, mus: Option<Mus> }
     impl Audio {
-        pub fn new() -> Self { Audio { out: None, tried: false, last: [0.; 18], vol: 0.8, mvol: 0.35, mus: None } }
+        pub fn new() -> Self { Audio { out: None, tried: false, last: Gaps::new(), vol: 0.8, mvol: 0.35, mus: None } }
         fn send(&self, c: Cmd) { if let Some(o) = &self.out { let _ = o.tx.send(c); } }
         fn now(&self) -> f64 { self.out.as_ref().map_or(0., |o| o.clock.load(Ordering::Relaxed) as f64 / o.sr) }
         #[cfg(test)] pub fn is_open(&self) -> bool { self.out.is_some() }
@@ -261,7 +269,7 @@ mod imp {
         /// `gain` = spatial attenuation from the listener (camera).
         pub fn play(&mut self, e: Event, gain: f32) {
             if self.out.is_none() { return; } let now = self.now();
-            let (k, gap) = cooldown(e); if now - self.last[k] < gap { return; } self.last[k] = now;
+            if !self.last.pass(e, now) { return; }
             for s in sfx(e, gain, now) { self.send(Cmd::Sfx(s)); }
         }
     }
@@ -302,6 +310,13 @@ mod tests {
         let mut seen = [false; 18];
         for e in EVENTS { let (k, gap) = cooldown(e); assert!(!seen[k], "{e:?} shares slot {k}"); seen[k] = true; assert!(gap > 0.);
             let s = sfx(e, 0.5, 1.); assert!(!s.is_empty(), "{e:?}"); assert!(s.iter().all(|x| x.dur() > 0.)); }
+    }
+    /// The clock starts at 0 when the sound opens: the first of every event sounds then, even inside its gap,
+    /// and a second one inside the gap doesn't.
+    #[test] fn the_first_of_each_event_sounds_at_once() {
+        let mut g = Gaps::new();
+        for e in EVENTS { assert!(g.pass(e, 0.), "{e:?} swallowed at the start"); let (_, gap) = cooldown(e);
+            assert!(!g.pass(e, gap * 0.5), "{e:?} twice in its gap"); assert!(g.pass(e, gap), "{e:?} after its gap"); }
     }
     /// On a machine with speakers: `cargo test --release -p molehill opens_the_sound_card -- --ignored`
     /// opens the default output, plays a blast, a chord and some rumble, and checks the audio clock runs.
