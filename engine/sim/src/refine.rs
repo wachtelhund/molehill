@@ -248,19 +248,19 @@ impl World {
         for c in &self.tr.casts { o.u32(c.cells.len() as u32); for &i in &c.cells { o.u32(i as u32); } o.u8(c.ingot as u8); o.u32(c.left); }
     }
     pub(crate) fn decode_works(&mut self, r: &mut crate::band::Rd) -> Result<(), String> {
-        let (gw, gh) = (self.g.w, self.g.h); let ni = crate::craft::NITEM;
-        let items = |r: &mut crate::band::Rd| -> Result<Vec<(Item, u32)>, String> { let mut v = vec![]; for _ in 0..r.len(ni)? { let (it, n) = (r.u8()?, r.u32()?); if (it as usize) < ni { v.push((crate::craft::ITEMS[it as usize], n)); } } Ok(v) };
+        let (gw, gh) = (self.g.w, self.g.h);
+        let items = |r: &mut crate::band::Rd| -> Result<Vec<(Item, u32)>, String> { let mut v = vec![]; for _ in 0..r.len(4096)? { let (it, n) = (r.u8()?, r.u32()?); if let Some(it) = r.item(it) { v.push((it, n)); } } Ok(v) };
         for _ in 0..r.len(4096)? {
             let kind = match r.u8()? { 0 => WorkKind::Stamp, 1 => WorkKind::Washer, _ => WorkKind::Smelter };
             let (x, y) = (r.u32()? as usize, r.u32()? as usize); let (input, fuel) = (items(r)?, items(r)?);
-            let bi = r.u8()?; let burning = ((bi as usize) < ni).then(|| crate::craft::ITEMS[bi as usize]);
+            let bi = r.u8()?; let burning = r.item(bi);
             let (burn, temp) = (r.u32()?, r.f32()?); let molten = [r.f32()?, r.f32()?, r.f32()?]; let (slag, water) = (r.f32()?, r.f32()?);
             let (w, h) = kind.size();
             if x > w && x + w < gw && y > h + 1 && y < gh - 1 && temp.is_finite() { self.tr.works.push(Works { kind, x, y, input, work: 0, stroke: 0., washed: 0, water, fuel, burning, burn, temp, air: 0., molten, slag }); }
         }
         let n = gw * gh;
         for _ in 0..r.len(4096)? { let mut cells = vec![]; for _ in 0..r.len(64)? { let i = r.u32()? as usize; if i < n { cells.push(i); } }
-            let (it, left) = (r.u8()?, r.u32()?); if (it as usize) < ni && !cells.is_empty() { self.tr.casts.push(Cast { cells, ingot: crate::craft::ITEMS[it as usize], left }); } }
+            let (it, left) = (r.u8()?, r.u32()?); if let Some(ingot) = r.item(it).filter(|_| !cells.is_empty()) { self.tr.casts.push(Cast { cells, ingot, left }); } }
         Ok(())
     }
 }

@@ -6,7 +6,7 @@ It is written in Rust with [Bevy](https://bevyengine.org/). This is an early dev
 
 ![A Survival holt at the start burrow, lit from inside](docs/wiki/images/hud-digging.png)
 
-![A borer hauling five wagons through a tunnel](engine/shots/showcase-borer-wagons.png)
+![A borer hauling wagons through a tunnel](engine/shots/showcase-borer-wagons.png)
 
 ## Download
 

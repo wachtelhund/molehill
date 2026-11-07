@@ -1,4 +1,4 @@
-// A coal wagon doesn't burn its bunker away under a parked borer. Coupled behind a borer standing in a puddle, it
+// A coal wagon doesn't burn its bunker away under a parked borer. Coupled behind a parked borer, it
 // stokes the cold firebox with one lump, and the borer raises steam. With steam over half full, the catch on the
 // stoking chute holds it shut: two minutes on, nobody driving, the bunker has given up just that one lump.
 map
@@ -24,18 +24,6 @@ hold 1-1 right
 place 2 8 0 SteamBorer
 place 3 2 0 CoalWagon
 expect 4 train == 1
-pour 5 10 -3 Water
-pour 5 10 -2 Water
-pour 5 11 -3 Water
-pour 5 11 -2 Water
-pour 5 12 -3 Water
-pour 5 12 -2 Water
-pour 5 13 -3 Water
-pour 5 13 -2 Water
-pour 5 14 -3 Water
-pour 5 14 -2 Water
-pour 5 15 -3 Water
-pour 5 15 -2 Water
 wield 10 Coal
 use 11 2 -1                           // ten lumps into the bunker
 expect 12 inv:Coal == 0

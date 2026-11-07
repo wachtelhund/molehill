@@ -36,9 +36,13 @@ impl Wr {
     pub fn rle(&mut self, b: &[u8]) { let mut out = vec![]; let mut i = 0; while i < b.len() { let v = b[i]; let mut n = 1; while i + n < b.len() && b[i + n] == v && n < 255 { n += 1; } out.push(n as u8); out.push(v); i += n; } self.bytes(&out); }
     pub fn rle16(&mut self, v: &[i16]) { let b: Vec<u8> = v.iter().flat_map(|x| x.to_le_bytes()).collect(); self.rle(&b); }
 }
-pub(crate) struct Rd<'a> { pub b: &'a [u8], pub p: usize }
+/// `old`: item numbers are in the numbering before v13 (`craft::item_from_save`).
+pub(crate) struct Rd<'a> { pub b: &'a [u8], pub p: usize, pub old: bool }
 pub type R<T> = Result<T, String>;
 impl<'a> Rd<'a> {
+    pub fn new(b: &'a [u8]) -> Self { Rd { b, p: 0, old: false } }
+    /// An item by its number as saved (None: not an item this build has).
+    pub fn item(&self, k: u8) -> Option<crate::craft::Item> { crate::craft::item_from_save(k as usize, self.old) }
     pub fn take(&mut self, n: usize) -> R<&'a [u8]> { if n > self.b.len() - self.p { return Err("save is truncated".into()); } let s = &self.b[self.p..self.p + n]; self.p += n; Ok(s) }
     pub fn u8(&mut self) -> R<u8> { Ok(self.take(1)?[0]) }
     pub fn u32(&mut self) -> R<u32> { let t = self.take(4)?; Ok(u32::from_le_bytes([t[0], t[1], t[2], t[3]])) }
@@ -92,7 +96,7 @@ impl Tile {
     /// Read a blob `tw` columns wide.
     pub fn read(blob: &[u8], tw: usize) -> R<Tile> {
         let (nb, na) = ((tw / B) * (BH / B), (tw / AB) * (BH / AB));
-        let mut r = Rd { b: blob, p: 0 };
+        let mut r = Rd::new(blob);
         let (mat, flags) = (r.rle(tw * BH)?, r.rle(tw * BH)?);
         let (wire, dev, dev_s) = (r.rle(nb)?, r.rle(nb)?, r.rle(nb)?); let (dev_p, burn) = (r.rle16(nb)?, r.rle16(nb)?);
         let air = r.rle(na)?;
@@ -188,11 +192,21 @@ pub fn encode(w: &World, x0: usize, y0: usize) -> Vec<u8> { Tile::grab(w, x0, y0
 pub fn decode(w: &mut World, x0: usize, y0: usize, blob: &[u8], remap: Option<&[u8]>) -> R<bool> { Tile::read(blob, tile_w(w.g.w))?.put(w, x0, y0, remap) }
 /// Just the cells of a tile blob `tw` wide (materials, flags), for drawing far rows. `None` if damaged.
 pub fn cells(blob: &[u8], tw: usize) -> Option<(Vec<u8>, Vec<u8>)> {
-    let mut r = Rd { b: blob, p: 0 }; let m = r.rle(tw * BH).ok()?; let f = r.rle(tw * BH).ok()?; Some((m, f))
+    let mut r = Rd::new(blob); let m = r.rle(tw * BH).ok()?; let f = r.rle(tw * BH).ok()?; Some((m, f))
+}
+/// Renumber the items in a tile's drops and furniture from the numbering before v13 (`craft::item_from_save`). A tile
+/// with nothing renumbered comes back as it was, byte for byte.
+pub fn old_items_blob(blob: Vec<u8>, tw: usize) -> R<Vec<u8>> {
+    let mut t = Tile::read(&blob, tw)?; let first = crate::craft::WATER_WAGON_V12 as u8;
+    if !t.drops.iter().any(|d| d.2 >= first) && !t.furn.iter().any(|f| f.0 >= first) { return Ok(blob); }
+    let new = |k: u8| crate::craft::item_from_save(k as usize, true).map(|it| it as u8);
+    t.drops = t.drops.into_iter().filter_map(|(x, y, it, n)| new(it).map(|it| (x, y, it, n))).collect();
+    t.furn = t.furn.into_iter().filter_map(|(it, x, y, c)| new(it).map(|it| (it, x, y, c))).collect();
+    Ok(t.write())
 }
 /// Rewrite a blob's material ids through `remap` (a save from a build with another material table).
 pub fn remap_blob(blob: &[u8], tw: usize, remap: &[u8]) -> R<Vec<u8>> {
-    let mut r = Rd { b: blob, p: 0 }; let mut m = r.rle(tw * BH)?;
+    let mut r = Rd::new(blob); let mut m = r.rle(tw * BH)?;
     for v in m.iter_mut() { *v = *remap.get(*v as usize).unwrap_or(&0); }
     let mut o = Wr(vec![]); o.rle(&m); o.0.extend_from_slice(&blob[r.p..]); Ok(o.0)
 }

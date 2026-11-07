@@ -9,7 +9,6 @@
 //!   (fuel in paw + right mouse). Coupled, its stoking chute feeds the borer's firebox a lump at a time, while the
 //!   borer's steam is below `STOKE_BELOW` of full: with steam up, a catch on the chute holds it shut, so a parked borer
 //!   doesn't burn the bunker away.
-//! * **Water wagon:** a tank. It draws water touching it (as the borer does) and, coupled, tops up the borer's tank.
 //! * **Bunk wagon:** climbing in is going to sleep: you wake there after a death, and the game saves.
 //! * **Workshop wagon:** a saw bench under a roof. Inside it, you work as at a workbench.
 //!
@@ -26,21 +25,24 @@ pub const WAGON_W: f32 = CPM as f32;
 pub const WAGON_H: f32 = (3 * CPM / 4) as f32;
 /// The coupling bar: the gap between a wagon and what pulls it (cells); how close its front must come to couple on.
 pub const GAP: f32 = S as f32; pub const COUPLE_D: f32 = (3 * S) as f32 / 2. + 1.;
-/// What hauling a wagon costs the borer (W); what the stores hold (items, lumps, water cells).
+/// What hauling a wagon costs the borer (W); what the stores hold (items, lumps).
 pub const WAGON_DRIVE_W: f32 = 100.;
 /// The coal wagon stokes only while the borer's steam is below this share of full.
 pub const STOKE_BELOW: f32 = 0.5;
-pub const STORE_CAP: u32 = 200; pub const COAL_CAP: u32 = 40; pub const WATER_CAP: f32 = 48.;
+pub const STORE_CAP: u32 = 200; pub const COAL_CAP: u32 = 40;
 /// How fast the mole can shove a wagon along by hand (cells/s).
 pub const PUSH_V: f32 = 1.5 * CPM as f32;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum WagonKind { Store, Workshop, Bunk, Water, Coal }
-pub const WAGON_KINDS: [WagonKind; 5] = [WagonKind::Store, WagonKind::Workshop, WagonKind::Bunk, WagonKind::Water, WagonKind::Coal];
+pub enum WagonKind { Store, Workshop, Bunk, Coal }
+pub const WAGON_KINDS: [WagonKind; 4] = [WagonKind::Store, WagonKind::Workshop, WagonKind::Bunk, WagonKind::Coal];
 impl WagonKind {
-    pub fn item(self) -> Item { [Item::StoreWagon, Item::WorkshopWagon, Item::BunkWagon, Item::WaterWagon, Item::CoalWagon][self as usize] }
+    pub fn item(self) -> Item { [Item::StoreWagon, Item::WorkshopWagon, Item::BunkWagon, Item::CoalWagon][self as usize] }
     pub fn of(it: Item) -> Option<WagonKind> { WAGON_KINDS.into_iter().find(|k| k.item() == it) }
-    pub fn name(self) -> &'static str { ["store", "workshop", "bunk", "water", "coal"][self as usize] }
+    pub fn name(self) -> &'static str { ["store", "workshop", "bunk", "coal"][self as usize] }
+    /// A wagon kind by its number as saved; `old` for transport blobs before 13, when 3 was the water wagon (it comes
+    /// back as a store wagon, its water gone) and 4 the coal wagon.
+    fn from_save(k: u8, old: bool) -> Option<WagonKind> { if old && k == 3 { return Some(WagonKind::Store); } WAGON_KINDS.get(if old && k > 3 { k as usize - 1 } else { k as usize }).copied() }
 }
 
 #[derive(Clone, Debug)]
@@ -50,8 +52,8 @@ pub struct Wagon {
     pub x: f32, pub y: f32, pub px: f32, pub py: f32, pub vy: f32,
     /// its coupling bar is hooked on; it was uncoupled and won't hook on again until pulled apart
     pub coupled: bool, pub parted: bool,
-    /// what it carries (the store and the coal wagon) and its water (cells, the water wagon)
-    pub cargo: Vec<(Item, u32)>, pub water: f32,
+    /// what it carries (the store and the coal wagon)
+    pub cargo: Vec<(Item, u32)>,
 }
 impl Wagon {
     pub fn rect(&self) -> (f32, f32, f32, f32) { (self.x - WAGON_W / 2., self.y - WAGON_H, self.x + WAGON_W / 2., self.y) }
@@ -100,7 +102,7 @@ impl World {
         if self.wagon_hits(xf, floor) { return Err("needs 1 m by 0.75 m of room"); }
         if self.tr.wagons.iter().any(|w| (w.x - xf).abs() < WAGON_W && (w.y - floor).abs() < WAGON_H) { return Err("there's a wagon there"); }
         if self.tr.borers.iter().any(|b| (b.x - xf).abs() < (BORER_W + WAGON_W) / 2. && (b.y - floor).abs() < crate::borer::BORER_H) { return Err("there's a borer there"); }
-        self.tr.wagons.push(Wagon { kind, x: xf, y: floor, px: xf, py: floor, vy: 0., coupled: false, parted: false, cargo: vec![], water: 0. });
+        self.tr.wagons.push(Wagon { kind, x: xf, y: floor, px: xf, py: floor, vy: 0., coupled: false, parted: false, cargo: vec![] });
         self.events.push(Event::Place); Ok(())
     }
     pub fn wagon_at(&self, x: usize, y: usize) -> Option<usize> { let (xf, yf) = (x as f32 + 0.5, y as f32 + 0.5); self.tr.wagons.iter().position(|w| w.contains(xf, yf)) }
@@ -174,8 +176,7 @@ impl World {
             if self.box_hits(self.pl.px, self.pl.py) { self.pl.px = x0 - BODY_HW - 0.5; self.pl.py = w.y; }
             let (x, y) = (self.pl.px as usize, (self.pl.py - 0.001) as usize); self.moles[0].x = x; self.moles[0].y = y; self.pl.sync = Some((x, y)); }
     }
-    /// `E` on a wagon: its load into the pack; then uncouple it; then, empty and with nobody in it, it comes up itself
-    /// (a water wagon's water pours out where it stood).
+    /// `E` on a wagon: its load into the pack; then uncouple it; then, empty and with nobody in it, it comes up itself.
     pub(crate) fn pick_up_wagon(&mut self, x: usize, y: usize) -> Option<Item> {
         let j = self.wagon_at(x, y)?; let kind = self.tr.wagons[j].kind; let it = kind.item();
         if !self.tr.wagons[j].cargo.is_empty() { let mut got = vec![];
@@ -184,12 +185,8 @@ impl World {
         if self.tr.wagons[j].coupled { let w = &mut self.tr.wagons[j]; w.coupled = false; w.parted = true;
             self.say(format!("Uncoupled the {} wagon.", kind.name())); self.events.push(Event::Click); return Some(it); }
         if self.tr.wagon_ride == Some(j) { return None; }
-        let w = self.tr.wagons.remove(j);
+        self.tr.wagons.remove(j);
         if let Some(r) = self.tr.wagon_ride { if r > j { self.tr.wagon_ride = Some(r - 1); } }
-        // (its water goes on the floor where it stood: a wagon's footprint holds more than its tank)
-        let mut water = w.water.floor() as i32; let (x0, y0, x1, y1) = w.rect();
-        for r in (y0.floor() as i32..y1.ceil() as i32).rev() { for c in x0.floor() as i32..x1.ceil() as i32 {
-            if water > 0 && self.g.in_bounds(c, r) && self.g.get(c as usize, r as usize) == Mat::Empty { let i = self.g.idx(c as usize, r as usize); self.g.set(i, Mat::Water); water -= 1; } } }
         self.inv[it as usize] += 1; Some(it)
     }
 
@@ -218,12 +215,6 @@ impl World {
             // falling
             if !self.wagon_grounded(w.x, w.y) { w.vy = (w.vy + crate::world::TUNE.gravity * dt).min(crate::world::TUNE.terminal);
                 let ny = w.y + w.vy * dt; if !self.wagon_hits(w.x, ny) { w.y = ny; } else { w.vy = 0.; w.y = w.y.floor(); } } else { w.vy = 0.; }
-            // the water wagon draws water touching it
-            if w.kind == WagonKind::Water && w.water + 1. <= WATER_CAP && self.tick % 6 == 0 {
-                let (x0, y0, x1, y1) = w.rect(); let (x0, y0, x1, y1) = (x0 as i32 - 1, y0 as i32 - 1, x1 as i32, y1 as i32);
-                let ring = (x0..=x1).flat_map(|c| [(c, y0), (c, y1)]).chain((y0..=y1).flat_map(|r| [(x0, r), (x1, r)]));
-                if let Some((c, r)) = ring.filter(|&(c, r)| self.g.in_bounds(c, r)).find(|&(c, r)| self.g.get(c as usize, r as usize) == Mat::Water) { let i = self.g.idx(c as usize, r as usize); self.g.set(i, Mat::Empty); w.water += 1.; }
-            }
             // loose things falling in through its top (not a lit charge)
             if matches!(w.kind, WagonKind::Store | WagonKind::Coal) { let (x0, y0, x1, y1) = w.rect(); let mut i = 0;
                 while i < self.drops.len() { let d = &self.drops[i];
@@ -247,12 +238,11 @@ impl World {
                 break; // (one a tick: the next couples to it)
             }
         }
-        // the coal and water wagons feed the borer they're coupled to
+        // a coal wagon feeds the borer it's coupled to
         for (k, t) in trains.iter().enumerate() { for &j in t {
             match self.tr.wagons[j].kind {
                 WagonKind::Coal => if self.tr.borers[k].fuel.is_empty() && self.tr.borers[k].burning.is_none() && self.tr.borers[k].steam < STOKE_BELOW * crate::borer::STEAM_MAX { let w = &mut self.tr.wagons[j];
                     if let Some(c) = w.cargo.first_mut() { let it = c.0; c.1 -= 1; if c.1 == 0 { w.cargo.remove(0); } self.tr.borers[k].fuel.push((it, 1)); } },
-                WagonKind::Water => if self.tick % 6 == 3 && self.tr.wagons[j].water >= 1. && self.tr.borers[k].water + 1. <= crate::borer::TANK { self.tr.wagons[j].water -= 1.; self.tr.borers[k].water += 1.; },
                 _ => {}
             } } }
         self.push_wagons(&hauled);
@@ -283,16 +273,16 @@ impl World {
     pub(crate) fn encode_wagons(&self, o: &mut crate::band::Wr) {
         o.u32(self.tr.wagons.len() as u32);
         for w in &self.tr.wagons { o.u8(w.kind as u8); o.f32(w.x); o.f32(w.y); o.u8(w.coupled as u8 | (w.parted as u8) << 1);
-            o.u32(w.cargo.len() as u32); for &(it, n) in &w.cargo { o.u8(it as u8); o.u32(n); } o.f32(w.water); }
+            o.u32(w.cargo.len() as u32); for &(it, n) in &w.cargo { o.u8(it as u8); o.u32(n); } }
     }
     pub(crate) fn decode_wagons(&mut self, r: &mut crate::band::Rd) -> Result<(), String> {
-        let (gw, gh) = (self.g.w as f32, self.g.h as f32); let ni = crate::craft::NITEM;
+        let (gw, gh) = (self.g.w as f32, self.g.h as f32);
         for _ in 0..r.len(4096)? {
             let (k, x, y, fl) = (r.u8()?, r.f32()?, r.f32()?, r.u8()?);
-            let mut cargo = vec![]; for _ in 0..r.len(ni)? { let (it, n) = (r.u8()?, r.u32()?); if (it as usize) < ni { cargo.push((crate::craft::ITEMS[it as usize], n)); } }
-            let water = r.f32()?;
-            if let Some(&kind) = WAGON_KINDS.get(k as usize) { if x > 2. && x < gw - 2. && y > WAGON_H + 1. && y < gh - 1. && water.is_finite() {
-                self.tr.wagons.push(Wagon { kind, x, y, px: x, py: y, vy: 0., coupled: fl & 1 != 0, parted: fl & 2 != 0, cargo, water: water.clamp(0., WATER_CAP) }); } }
+            let mut cargo = vec![]; for _ in 0..r.len(4096)? { let (it, n) = (r.u8()?, r.u32()?); if let Some(it) = r.item(it) { cargo.push((it, n)); } }
+            if r.old { r.f32()?; } // (before 13: the water wagon's water, now gone)
+            if let Some(kind) = WagonKind::from_save(k, r.old) { if x > 2. && x < gw - 2. && y > WAGON_H + 1. && y < gh - 1. {
+                self.tr.wagons.push(Wagon { kind, x, y, px: x, py: y, vy: 0., coupled: fl & 1 != 0, parted: fl & 2 != 0, cargo }); } }
         }
         Ok(())
     }

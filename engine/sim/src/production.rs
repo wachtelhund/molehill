@@ -24,7 +24,7 @@
 //! gate and the load comes down into the cart one item every `FEED_EVERY` ticks; right mouse holds the gate
 //! open by hand (it then empties onto whatever is under it). Dig away both legs' footing and it falls,
 //! spilling its load.
-use crate::craft::{drop_of, Item, CELLS_PER_ITEM, NITEM};
+use crate::craft::{drop_of, Item, CELLS_PER_ITEM};
 use crate::items::ITEM_HW;
 use crate::mat::{Kind, CHUTE, CPM, SCREEN, BUMPER};
 use crate::transport::{Cart, CART_H, CART_LOAD, CART_W};
@@ -234,7 +234,7 @@ impl World {
         let (w, h) = (self.g.w, self.g.h);
         for _ in 0..r.len(4096)? {
             let (x, y, floor, held) = (r.u32()? as usize, r.u32()? as usize, r.u32()? as usize, r.u8()? != 0);
-            let mut contents = vec![]; for _ in 0..r.len(NITEM)? { let (it, n) = (r.u8()?, r.u32()?); if (it as usize) < NITEM { contents.push((crate::craft::ITEMS[it as usize], n)); } }
+            let mut contents = vec![]; for _ in 0..r.len(4096)? { let (it, n) = (r.u8()?, r.u32()?); if let Some(it) = r.item(it) { contents.push((it, n)); } }
             if x > BIN_W && x + BIN_W < w && y > BIN_H + 1 && floor < h - 1 && floor > y { self.tr.bins.push(OreHopper { x, y, floor, contents, held, open: false, feed: 0, rod_held: false, grit: vec![] }); }
         }
         Ok(())

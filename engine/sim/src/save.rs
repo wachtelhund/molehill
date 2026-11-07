@@ -4,7 +4,7 @@
 //! the save) so the material enum can grow/reorder. Loading regenerates the world from the seed
 //! (biome/surface info, background) and then overwrites all mutable state. Loading never panics:
 //! every read is bounds-checked and returns a readable error; values are sanitised.
-use crate::craft::{Item, Station, NITEM, RECIPES};
+use crate::craft::{Item, Station, NITEM};
 use crate::mat::{Mat, NMAT, PROPS};
 use crate::world::{Building, Chest, Drop, Farm, Mole, World};
 use std::collections::VecDeque;
@@ -13,7 +13,7 @@ use std::collections::VecDeque;
 /// v4: the world as bands (see `band.rs`): a manifest names every band (window and off-window) by start
 /// row and content hash; blobs travel inline (`save`) or as separate keys (`save_parts`). v3: one blob
 /// with a row cache of cells (still loads). Older (surface-world) saves are refused.
-pub const VERSION: u32 = 12; // 12: the window slides sideways too: its column (`ox`), and the world stored as tiles keyed by (column, row); // 11: grottos visited; // 10: background walls (band trailing RLE) and sites visited; // 9: transport (carts and their cargo; see transport.rs); // 8: Ancient relics found and ruins visited; // 7: the Lid journal and the clues found; 6: the items ever picked up (recipes unlock by touch); 5: the game mode, the headlamp's oil, and hunger on/off
+pub const VERSION: u32 = 13; // 13: the water wagon is gone (items after it move down one; an old one loads as a store wagon); // 12: the window slides sideways too: its column (`ox`), and the world stored as tiles keyed by (column, row); // 11: grottos visited; // 10: background walls (band trailing RLE) and sites visited; // 9: transport (carts and their cargo; see transport.rs); // 8: Ancient relics found and ruins visited; // 7: the Lid journal and the clues found; 6: the items ever picked up (recipes unlock by touch); 5: the game mode, the headlamp's oil, and hunger on/off
 const MAGIC: &[u8; 8] = b"MOLEHILL";
 /// The engine tag also names the cell resolution: a save at another cells-per-metre won't load.
 const ENGINE: &str = if crate::mat::CPM == 4 { "bevy-v3" } else if crate::mat::CPM == 8 { "bevy-v3-cpm8" } else { "bevy-v3-cpm?" };
@@ -23,7 +23,7 @@ use std::borrow::Cow;
 
 /// v3 (one blob, row cache of cells only). Read so today's saves still load; never written.
 fn load_v3(b: &[u8]) -> R<World> {
-    let mut r = Rd { b, p: 0 };
+    let mut r = Rd::new(b); r.old = true;
     if r.take(8).map_err(|_| "not a Molehill save".to_string())? != MAGIC { return Err("not a Molehill save".into()); }
     let ver = r.u32()?; if ver > VERSION { return Err(format!("save version {ver} is newer than this build ({VERSION})")); }
     if ver < 3 { return Err("old save from the surface world - start a new holt (N)".into()); }
@@ -43,7 +43,7 @@ fn load_v3(b: &[u8]) -> R<World> {
     w.g.mat = mat; w.g.flags = flags; w.desig = desig.into_iter().map(|d| d.min(4)).collect(); w.tick = tick; w.g.tick = gtick;
     w.logic.wire = wire.into_iter().map(|v| v.min(1)).collect(); w.logic.dev = dev.into_iter().map(|v| if v as usize <= crate::logic::DEVS.len() { v } else { 0 }).collect(); w.logic.dev_s = dev_s;
     w.logic.dev_p = dp.chunks(2).map(|c| i16::from_le_bytes([c[0], c[1]])).collect(); w.logic.invalidate();
-    let ni = r.len(4096)?; let mut inv = [0u32; NITEM]; for k in 0..ni { let v = r.u32()?; if k < NITEM { inv[k] = v; } } w.inv = inv;
+    let ni = r.len(4096)?; let mut inv = [0u32; NITEM]; for k in 0..ni { let v = r.u32()?; if let Some(it) = crate::craft::item_from_save(k, true) { inv[it as usize] += v; } } w.inv = inv;
     let tmpl = w.moles[0].clone(); w.moles.clear();
     for _ in 0..r.len(1000)? {
         let name = r.str()?; let name: &'static str = Box::leak(name.into_boxed_str());
@@ -52,13 +52,13 @@ fn load_v3(b: &[u8]) -> R<World> {
         w.moles.push(Mole { name, x, y, hp: hp.clamp(0., 100.), breath: breath.clamp(0., 100.), hunger: hunger.clamp(0., 100.), sleep: sleep.clamp(0., 100.), alive, facing: facing.signum().max(-1), path: VecDeque::new(), job: None, work: 0, work_cell: None, carry: None, ..tmpl.clone() });
     }
     w.moles.truncate(1); if w.moles.is_empty() { w.moles.push(tmpl.clone()); } // one mole: the player
-    w.drops.clear(); for _ in 0..r.len(1 << 20)? { let (x, y, it, nn) = (r.u32()? as usize, r.u32()? as usize, r.u8()?, r.u32()?); if x < gw && y < gh && (it as usize) < NITEM { w.drops.push(Drop::at(x as f32 + 0.5, y as f32 + 0.5, crate::craft::ITEMS[it as usize], nn)); } }
+    w.drops.clear(); for _ in 0..r.len(1 << 20)? { let (x, y, it, nn) = (r.u32()? as usize, r.u32()? as usize, r.u8()?, r.u32()?); if let Some(it) = r.item(it).filter(|_| x < gw && y < gh) { w.drops.push(Drop::at(x as f32 + 0.5, y as f32 + 0.5, it, nn)); } }
     w.chests.clear(); for _ in 0..r.len(1 << 16)? { let (x, y, o) = (r.u32()? as usize, r.u32()? as usize, r.u8()? != 0); if x < gw && y < gh { w.chests.push(Chest { x, y, opened: o, ancient: None }); } }
     w.buildings.clear(); for _ in 0..r.len(1 << 16)? { let (k, x, y, b) = (r.u8()?, r.u32()? as usize, r.u32()? as usize, r.u8()? != 0); if let Some(kind) = band::station_from_code(k) { if x + Station::W < gw && y < gh { w.buildings.push(Building { kind, x, y, built: b, claimed: false }); } } }
     w.torches.clear(); for _ in 0..r.len(1 << 20)? { let (x, y) = (r.u32()? as usize, r.u32()? as usize); if x < gw && y < gh { w.torches.push((x, y)); } }
     w.quest = (r.u32()? as usize).min(crate::craft::QUESTS.len()); w.chests_opened = r.u32()?; w.pillars = r.u32()?; w.max_depth = r.f32()?; w.crumbled = r.u64()?;
     let sp: Vec<usize> = (0..4).map(|_| r.u32().map(|v| v as usize)).collect::<R<_>>()?; w.stockpile = (sp[0].min(gw - 1), sp[1].min(gh - 1), sp[2].min(gw - 1), sp[3].min(gh - 1));
-    w.craft_queue = (0..r.len(64)?).map(|_| r.u32().map(|v| v as usize)).collect::<R<Vec<_>>>()?.into_iter().filter(|&k| k < RECIPES.len()).collect();
+    w.craft_queue = (0..r.len(64)?).map(|_| r.u32().map(|v| v as usize)).collect::<R<Vec<_>>>()?.into_iter().filter_map(|k| crate::craft::recipe_from_save(k, true)).collect();
     for k in 0..nm { let v = r.u8()? != 0; w.discovered[remap[k] as usize] |= v; } // by name: saves from before a material was added still load
     w.disasters.rng = r.u64()? | 1; w.disasters.ticks_left = r.u32()?; w.disasters.enabled = r.u8()? != 0;
     w.log.clear(); for _ in 0..r.len(1000)? { let t = r.u64()?; let s = r.str()?; w.log.push((t, s)); }
@@ -142,7 +142,7 @@ pub fn load(b: &[u8]) -> R<World> { load_with(b, &mut |_| None) }
 /// Load from a manifest; bands not inline are fetched by key (`band_key`). A missing or damaged band
 /// in the window fails the load; one off-window is dropped (the generator makes it again).
 pub fn load_with(b: &[u8], fetch: &mut dyn FnMut(&str) -> Option<Vec<u8>>) -> R<World> {
-    let mut r = Rd { b, p: 0 };
+    let mut r = Rd::new(b);
     if r.take(8).map_err(|_| "not a Molehill save".to_string())? != MAGIC { return Err("not a Molehill save".into()); }
     let ver = r.u32()?; if ver > VERSION { return Err(format!("save version {ver} is newer than this build ({VERSION})")); }
     if ver < 4 { return load_v3(b); }
@@ -154,7 +154,9 @@ pub fn load_with(b: &[u8], fetch: &mut dyn FnMut(&str) -> Option<Vec<u8>>) -> R<
     let nm = r.len(256)?; let mut remap = vec![0u8; nm];
     for k in 0..nm { let name = r.str()?; remap[k] = PROPS.iter().position(|p| p.name == name).ok_or(format!("unknown material '{name}'"))? as u8; }
     let same_mats = nm == NMAT && remap.iter().enumerate().all(|(k, &v)| k == v as usize);
-    let ni = r.len(4096)?; let mut inv = [0u32; NITEM]; for k in 0..ni { let v = r.u32()?; if k < NITEM { inv[k] = v; } }
+    // before v13 the items were numbered with the water wagon among them (`craft::item_from_save`)
+    let old = ver < 13;
+    let ni = r.len(4096)?; let mut inv = [0u32; NITEM]; for k in 0..ni { let v = r.u32()?; if let Some(it) = crate::craft::item_from_save(k, old) { inv[it as usize] += v; } }
     struct M { name: String, x: usize, y: usize, hp: f32, breath: f32, hunger: f32, sleep: f32, alive: bool, facing: i8 }
     let mut moles = vec![]; for _ in 0..r.len(1000)? { moles.push(M { name: r.str()?, x: r.u32()? as usize, y: r.u32()? as usize, hp: r.f32()?, breath: r.f32()?, hunger: r.f32()?, sleep: r.f32()?, alive: r.u8()? != 0, facing: r.u8()? as i8 - 1 }); }
     let (quest, chests_opened, pillars, max_depth, crumbled) = (r.u32()? as usize, r.u32()?, r.u32()?, r.f32()?, r.u64()?);
@@ -169,7 +171,7 @@ pub fn load_with(b: &[u8], fetch: &mut dyn FnMut(&str) -> Option<Vec<u8>>) -> R<
     let (harvested, deaths) = (r.u32()?, r.u32()?); let (spx, spy) = (xcol(&mut r)?, r.u64()? as i64);
     let (mode, lamp_oil, no_hunger) = if ver >= 5 { (crate::survival::Mode::from_u8(r.u8()?), r.f32()?, r.u8()? != 0) } else { (crate::survival::Mode::Plain, 0., false) };
     // v6: items ever picked up; before that, what is in the pack counts as known
-    let known = if ver >= 6 { let n = r.len(4096)?; let mut k = [false; NITEM]; for j in 0..n { let v = r.u8()? != 0; if j < NITEM { k[j] = v; } } Some(k) } else { None };
+    let known = if ver >= 6 { let n = r.len(4096)?; let mut k = [false; NITEM]; for j in 0..n { let v = r.u8()? != 0; if let Some(it) = crate::craft::item_from_save(j, old) { k[it as usize] |= v; } } Some(k) } else { None };
     // v7: the journal (fragment ids, in reading order) and the clues found
     let (journal, found_clues) = if ver >= 7 {
         let j: Vec<u16> = (0..r.len(4096)?).map(|_| r.u32().map(|v| v as u16)).collect::<R<_>>()?;
@@ -200,6 +202,7 @@ pub fn load_with(b: &[u8], fetch: &mut dyn FnMut(&str) -> Option<Vec<u8>>) -> R<
         // a band from before v12 is the home columns' full width: cut it into tiles
         let tiles: Vec<(i64, Vec<u8>)> = match x0 { Some(x0) => vec![(x0, blob)], None => band::split_legacy(&blob, gw, tw)?.into_iter().enumerate().map(|(k, b)| ((k * tw) as i64, b)).collect() };
         for (x0, blob) in tiles {
+            let blob = if old { band::old_items_blob(blob, tw)? } else { blob };
             let (x, y) = (x0 - ox, wy0 - oy);
             if (wy0 - oy).rem_euclid(BH as i64) != 0 || (x0 - ox).rem_euclid(tw as i64) != 0 { continue; }
             if y >= 0 && y < gh as i64 && x >= 0 && x < gw as i64 {
@@ -219,7 +222,7 @@ pub fn load_with(b: &[u8], fetch: &mut dyn FnMut(&str) -> Option<Vec<u8>>) -> R<
     w.moles.truncate(1); if w.moles.is_empty() { w.moles.push(tmpl); }
     w.quest = quest.min(crate::craft::QUESTS.len()); w.chests_opened = chests_opened; w.pillars = pillars; w.max_depth = max_depth; w.crumbled = crumbled;
     w.stockpile = (sp[0].min(gw - 1), sp[1].min(gh - 1), sp[2].min(gw - 1), sp[3].min(gh - 1));
-    w.craft_queue = craft_queue.into_iter().filter(|&k| k < RECIPES.len()).collect(); w.discovered = discovered;
+    w.craft_queue = craft_queue.into_iter().filter_map(|k| crate::craft::recipe_from_save(k, old)).collect(); w.discovered = discovered;
     w.disasters.rng = drng; w.disasters.ticks_left = dleft; w.disasters.enabled = den; w.log = log; w.opened = opened;
     w.known = known.unwrap_or_else(|| std::array::from_fn(|k| w.inv[k] > 0));
     w.harvested = harvested; w.pl.deaths = deaths; w.pl.spawn = (spx, spy);

@@ -1,12 +1,12 @@
-//! The steam borer: a rideable boring machine. It carries its own firebox and water tank (as a boiler does, steam.rs),
+//! The steam borer: a rideable boring machine. It carries its own coal-fired firebox and boiler (steam.rs),
 //! drives on its wheels, and grinds the rock in front of its bore head. What it cuts goes back along its spoil belt and
 //! is dropped as loose rubble in the open tunnel behind it. With no room behind it for its spoil it jams; in a dead end
 //! it bores on only as fast as it frees room behind it, backfilling its own tunnel solid and sealing itself in (the way
-//! back has to be dug out). Nothing is stored in it but its fuel, its water and its steam.
+//! back has to be dug out). Nothing is stored in it but its fuel and its steam.
 //!
 //! * **Fuel:** right mouse with coal, charcoal or wood in the paw puts a lump from the pack into its firebox; a lump
-//!   burns at a time (`steam::burn_ticks`) giving `FIRE_W`, raising steam while it has water.
-//! * **Water:** it draws water cells touching it into its tank (`TANK` cells), so it fills up standing in or by water.
+//!   burns at a time (`steam::burn_ticks`) giving `FIRE_W`, raising steam. It runs on fuel alone: it has no water tank
+//!   to fill (it used to; saves from then load with the tank's water gone).
 //! * **Riding:** right mouse with an empty paw gets in; Space gets out. A/D drive it (`DRIVE_W`, up to `BORER_V`), and it
 //!   climbs a step of up to a tile. It bores the way it faces (set when it's put down): driving into rock, its head grinds
 //!   the face (`GRIND_W`; a column of the face in `GRIND_S`·the rock's dig time seconds, so dirt goes fast and basalt
@@ -16,12 +16,11 @@
 //! * Ash from its firebox drops behind it as loose items.
 use crate::craft::Item;
 use crate::mat::{Kind, Mat, CPM, S};
-use crate::steam::{burn_ticks, BOILER_EFF, FIRE_W, WATER_KJ};
+use crate::steam::{burn_ticks, BOILER_EFF, FIRE_W};
 use crate::world::{Drop, Event, World, BODY_H};
 
 pub const BORER_W: f32 = (3 * CPM / 2) as f32;
 pub const BORER_H: f32 = CPM as f32;
-pub const TANK: f32 = 16.;
 pub const STEAM_MAX: f32 = 300.;
 /// Driving (W) and its top speed (cells/s, 0.5 m/s); grinding (W) and seconds per column of face per unit of dig time.
 pub const DRIVE_W: f32 = 300.; pub const BORER_V: f32 = 0.5 * CPM as f32;
@@ -35,8 +34,8 @@ pub struct Borer {
     /// the way its bore head faces
     pub dir: i8,
     pub fuel: Vec<(Item, u32)>, pub burning: Option<Item>, pub burn: u32,
-    /// water in its tank (cells), steam held (kJ), progress through the face column in front (0..1), jammed
-    pub water: f32, pub steam: f32, pub grind: f32, pub jammed: bool,
+    /// steam held (kJ), progress through the face column in front (0..1), jammed
+    pub steam: f32, pub grind: f32, pub jammed: bool,
 }
 impl Borer {
     pub fn rect(&self) -> (f32, f32, f32, f32) { (self.x - BORER_W / 2., self.y - BORER_H, self.x + BORER_W / 2., self.y) }
@@ -68,7 +67,7 @@ impl World {
         if self.borer_hits(xf, floor) { return Err("needs 1.5 m by 1 m of room"); }
         if self.tr.wagons.iter().any(|w| (w.x - xf).abs() < (BORER_W + crate::wagon::WAGON_W) / 2. && (w.y - floor).abs() < BORER_H) { return Err("there's a wagon there"); }
         let dir = self.moles.first().map_or(1, |m| m.facing);
-        self.tr.borers.push(Borer { x: xf, y: floor, px: xf, py: floor, vx: 0., vy: 0., dir, fuel: vec![], burning: None, burn: 0, water: 0., steam: 0., grind: 0., jammed: false });
+        self.tr.borers.push(Borer { x: xf, y: floor, px: xf, py: floor, vx: 0., vy: 0., dir, fuel: vec![], burning: None, burn: 0, steam: 0., grind: 0., jammed: false });
         self.events.push(Event::Place); Ok(())
     }
     pub fn borer_at(&self, x: usize, y: usize) -> Option<usize> { let (xf, yf) = (x as f32 + 0.5, y as f32 + 0.5); self.tr.borers.iter().position(|b| b.contains(xf, yf)) }
@@ -131,17 +130,11 @@ impl World {
             let riding = self.tr.borer_ride == Some(k);
             // its train of wagons (wagon.rs): they cost more to drive, and its spoil belt runs back over them to the tail
             let train = self.train(k); let (tail, _) = self.train_tail(k, &train); let (ox, oy) = (b.x, b.y);
-            // the firebox and the tank
+            // the firebox
             if b.burning.is_none() { if let Some(f) = b.fuel.first_mut() { let it = f.0; f.1 -= 1; if f.1 == 0 { b.fuel.remove(0); } b.burning = Some(it); b.burn = burn_ticks(it).unwrap_or(0); } }
             if let Some(_) = b.burning { b.burn = b.burn.saturating_sub(1);
-                if b.water > 0. && b.steam < STEAM_MAX { let kj = FIRE_W * BOILER_EFF * dt / 1000.; b.steam = (b.steam + kj).min(STEAM_MAX); b.water = (b.water - kj / WATER_KJ).max(0.); }
+                if b.steam < STEAM_MAX { let kj = FIRE_W * BOILER_EFF * dt / 1000.; b.steam = (b.steam + kj).min(STEAM_MAX); }
                 if b.burn == 0 { b.burning = None; let (x0, _, x1, y1) = b.rect(); let ax = if b.dir > 0 { x0 - 1.5 } else { x1 + 1.5 }; self.drops.push(Drop::at(ax, y1 - 1.5, Item::Ash, 1)); } }
-            if b.water + 1. <= TANK && self.tick % 6 == 0 {
-                // (round its body and along the floor under its wheels)
-                let (x0, y0, x1, y1) = b.rect(); let (x0, y0, x1, y1) = (x0 as i32 - 1, y0 as i32 - 1, x1 as i32, y1 as i32);
-                let ring = (x0..=x1).flat_map(|c| [(c, y0), (c, y1)]).chain((y0..=y1).flat_map(|r| [(x0, r), (x1, r)]));
-                if let Some((c, r)) = ring.filter(|&(c, r)| self.g.in_bounds(c, r)).find(|&(c, r)| self.g.get(c as usize, r as usize) == Mat::Water) { let i = self.g.idx(c as usize, r as usize); self.g.set(i, Mat::Empty); b.water += 1.; }
-            }
             // falling
             if !self.borer_grounded(b.x, b.y) { b.vy = (b.vy + crate::world::TUNE.gravity * dt).min(crate::world::TUNE.terminal);
                 let ny = b.y + b.vy * dt; if !self.borer_hits(b.x, ny) { b.y = ny; } else { b.vy = 0.; b.y = b.y.floor(); } }
@@ -222,17 +215,17 @@ impl World {
     pub(crate) fn encode_borers(&self, o: &mut crate::band::Wr) {
         o.u32(self.tr.borers.len() as u32);
         for b in &self.tr.borers { o.f32(b.x); o.f32(b.y); o.u8((b.dir + 1) as u8); o.u32(b.fuel.len() as u32); for &(it, n) in &b.fuel { o.u8(it as u8); o.u32(n); }
-            o.u8(b.burning.map_or(255, |it| it as u8)); o.u32(b.burn); o.f32(b.water); o.f32(b.steam); }
+            o.u8(b.burning.map_or(255, |it| it as u8)); o.u32(b.burn); o.f32(b.steam); }
     }
     pub(crate) fn decode_borers(&mut self, r: &mut crate::band::Rd) -> Result<(), String> {
-        let (gw, gh) = (self.g.w as f32, self.g.h as f32); let ni = crate::craft::NITEM;
+        let (gw, gh) = (self.g.w as f32, self.g.h as f32);
         for _ in 0..r.len(4096)? {
             let (x, y, dir) = (r.f32()?, r.f32()?, r.u8()? as i8 - 1);
-            let mut fuel = vec![]; for _ in 0..r.len(ni)? { let (it, n) = (r.u8()?, r.u32()?); if (it as usize) < ni { fuel.push((crate::craft::ITEMS[it as usize], n)); } }
-            let bi = r.u8()?; let burning = ((bi as usize) < ni).then(|| crate::craft::ITEMS[bi as usize]);
-            let (burn, water, steam) = (r.u32()?, r.f32()?, r.f32()?);
-            if x > 2. && x < gw - 2. && y > BORER_H + 1. && y < gh - 1. && water.is_finite() && steam.is_finite() {
-                self.tr.borers.push(Borer { x, y, px: x, py: y, vx: 0., vy: 0., dir: if dir < 0 { -1 } else { 1 }, fuel, burning, burn, water: water.clamp(0., TANK), steam: steam.clamp(0., STEAM_MAX), grind: 0., jammed: false }); }
+            let mut fuel = vec![]; for _ in 0..r.len(4096)? { let (it, n) = (r.u8()?, r.u32()?); if let Some(it) = r.item(it) { fuel.push((it, n)); } }
+            let bi = r.u8()?; let burning = r.item(bi);
+            let burn = r.u32()?; if r.old { r.f32()?; } let steam = r.f32()?; // (before 13: its tank's water, now gone)
+            if x > 2. && x < gw - 2. && y > BORER_H + 1. && y < gh - 1. && steam.is_finite() {
+                self.tr.borers.push(Borer { x, y, px: x, py: y, vx: 0., vy: 0., dir: if dir < 0 { -1 } else { 1 }, fuel, burning, burn, steam: steam.clamp(0., STEAM_MAX), grind: 0., jammed: false }); }
         }
         Ok(())
     }

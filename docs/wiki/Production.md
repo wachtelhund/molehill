@@ -162,14 +162,14 @@ A **linkage** is pull-rod cells and the sensors and actuators touching them. Whe
 
 A rideable boring machine with its own firebox (`borer.rs`): it carries steam to the rock face instead of the mole carrying a drill.
 
-* **Fuel and water:** right mouse with coal, charcoal or wood in the paw puts a lump from the pack into its firebox. A lump burns at a time, as in a boiler (6 kW, 70 % to steam, 40 kJ boils a cell). It draws water cells touching its body or under its wheels into a 16-cell tank, and holds up to 300 kJ of steam. Ash drops out behind it.
+* **Fuel:** it runs on coal alone (charcoal and wood burn in it too). Right mouse with fuel in the paw puts a lump from the pack into its firebox. A lump burns at a time, as in a boiler (6 kW, 70 % to steam), and it holds up to 300 kJ of steam. It has no water tank to fill: a save from when it had one loads with the tank's water gone. Ash drops out behind it.
 * **Riding:** right mouse with an empty paw gets on, and Space gets off. A/D drive it, at up to 0.5 m/s for 300 W of steam. It starts and stops at once, as everything driven does. It climbs a step of up to a tile. With nothing under its middle half and a real drop (deeper than a tile) on one side, its weight takes it over the edge and it falls; a step under it is no drop (`borer_left_step_fall`).
 * **Boring:** it bores the way it faces, which is the way the mole faced when it was set down. Driving into rock, its head grinds the column in front for 3 kW. A column takes 0.03 s per unit of the rock's dig time: granite takes about 0.7 s a column, about 0.2 m a second, and a lump of coal bores about 10 m of it. Soft ground goes as fast as it drives (0.5 m/s). The firebox raises 4.2 kW, more than grinding and driving together use (3.3 kW). Nothing cuts bedrock.
 * **Spoil:** every cell it cuts becomes loose rubble of what that rock crumbles to (ore stays ore). Its spoil belt drops it in the nearest open cell from half a metre to 4 m behind it. With no room there it jams and says so. In a dead end it bores on only as fast as it frees room behind it, since each column cut is a column vacated. It backfills its own tunnel solid and seals itself in, so the way back has to be dug out. Loose grains it rolls over are shoved back the same way.
 * Scenarios:
-  * `borer_bores`: fed, filled from a puddle and ridden into granite, it bores in. Its spoil lies behind it as much gravel as it cut, and it is saved.
-  * `borer_needs_steam`: with no fuel it doesn't move.
-  * `borer_jams`: in a dead end it jams once the room behind it fills, then backfills its own tunnel solid.
+  * `borer_bores`: fed coal in a dry chamber and ridden into granite, it bores in. Its spoil lies behind it as much gravel as it cut, and it is saved.
+  * `borer_needs_steam`: with no coal it raises no steam and doesn't move.
+  * `borer_jams`: in a dead end (a heap of sand on its floor), it jams once the room behind it fills, then backfills its own tunnel solid.
 
 ### Wagons
 
@@ -178,14 +178,13 @@ A borer hauls a train of wagons behind it, a mobile base for deep expeditions (`
 * **Coupling:** a wagon set down, or shoved by hand (walk into a loose one, up to 1.5 m/s), so that its front comes within about 0.6 m of a borer's tail or the last wagon of its train couples on with a clank. The borer backing up to a loose wagon couples it the same way. A coupling bar then holds it 0.25 m behind what pulls it, and it follows wherever the borer drives, a step of up to a tile included. If any wagon can't follow (a wall, a taller step), the whole train stops and says so. Each wagon costs the borer another 100 W to drive. A wagon can't be set down overlapping a borer, nor a borer over a wagon. The borer's spoil belt runs back over the wagons: spoil drops from half a metre to 4 m behind the train's tail, never under a wagon.
 * **E on a wagon** takes its load out into the pack, then uncouples it, then (empty, nobody in it) picks it up. An uncoupled wagon won't couple again until it has been pulled apart; wagons behind it stay coupled to it. Driven off, the borer leaves them standing.
 * **Climbing in:** right mouse with an empty paw climbs into a wagon and Space gets out. The borer is driven only from its cab. The camera follows the mole in a wagon as anywhere.
-* **Kinds** (each 1 m long, 0.75 m tall):
+* **Kinds** (each 1 m long, 0.75 m tall). There is no water wagon (the borer needs no water): one in a save from before (v12 or older) loads as a store wagon, its water gone, and one in the pack, a cargo or on the floor as a store wagon item (`old_water_wagon_save_loads`).
   * Store wagon: up to 200 items. Loose things that fall in ride along; inside it, right mouse stows the whole stack in paw.
   * Coal wagon: up to 40 lumps of coal, charcoal or wood, thrown in or shovelled in (fuel in paw, right mouse). Coupled, its stoking chute feeds the borer's firebox a lump at a time, but only while the borer's steam is below half full. With steam up, a catch holds the chute shut, so a parked borer doesn't burn the bunker away (`wagon_stoker_waits`).
-  * Water wagon: a 48-cell tank. It draws water touching it, as the borer does, and coupled it tops up the borer's tank. Picked up, its water pours out where it stood.
   * Bunk wagon: climbing in is going to sleep. You wake there after a death, and the game saves.
   * Workshop wagon: inside it you work as at a workbench.
 * Scenarios:
-  * `wagon_train`: a coal wagon and a water wagon couple behind a borer and feed it, and follow it through the face. The spoil lies behind the tail, and the train is saved coupled.
+  * `wagon_train`: a coal wagon and a store wagon couple behind a borer, the coal wagon feeds it, and they follow it through the face. The spoil lies behind the tail, and the train is saved coupled.
   * `wagon_couple`: backing up couples, E uncouples, the borer drives off without it and couples again. A wagon at the tunnel's end stops the train, and it is taken up.
   * `wagon_stoker_waits`: under a parked borer, the coal wagon gives up one lump and then holds its chute shut once steam is up.
   * `wagon_kinds`: the store wagon catches what falls in and stows the paw's stack. The workshop wagon is a workbench, and the bunk wagon moves the wake point.
@@ -220,7 +219,6 @@ The chute, screen (shaking or not) and bumper say what moves things along them. 
 | Workbench | store wagon | 6 wood + 2 iron ingot |
 | Workbench | workshop wagon | 8 wood + 4 stone + 2 iron ingot |
 | Workbench | bunk wagon | 6 wood + 4 fungus + 2 iron ingot |
-| Forge | water wagon | 5 iron ingot + 2 wood |
 | Forge | coal wagon | 4 iron ingot + 2 wood |
 | Workbench | sluice gate | 4 wood + 1 stone |
 | Workbench | 2 gear | 2 wood |

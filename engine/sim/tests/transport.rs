@@ -134,3 +134,28 @@ fn reachable() -> [bool; NITEM] {
     w.gear.held = None; assert!(w.use_transport(hx, my - c / 2));
     let said = &w.log.last().unwrap().1; assert!(said.contains("tube hopper"), "said: {said}");
 }
+
+/// The borer runs on coal alone and the water wagon is gone (save v13). A save from before (`data/v12_water_wagon.bin`,
+/// written by the last build with the water wagon) still loads: water wagons in the pack, in a store wagon or a cart,
+/// on the floor in the window or in a tile off it come back as store wagons; a placed water wagon is a store wagon
+/// (its water gone); the coal wagon (numbered after the water wagon then) is still a coal wagon; the borer keeps its
+/// fuel and steam and drops its tank; the queued "Water wagon" is dropped from the craft queue and the rest kept.
+#[test] fn old_water_wagon_save_loads() {
+    use molehill_sim::{band::BH, craft::RECIPES, save, wagon::WagonKind};
+    let mut w = save::load(include_bytes!("data/v12_water_wagon.bin")).expect("a v12 save with water wagons loads");
+    assert_eq!((w.inv[Item::StoreWagon as usize], w.inv[Item::CoalWagon as usize], w.inv[Item::Drill as usize]), (2, 3, 1), "pack");
+    assert!(w.known[Item::StoreWagon as usize] && w.known[Item::CoalWagon as usize]);
+    let kinds: Vec<(WagonKind, f32)> = w.tr.wagons.iter().map(|g| (g.kind, g.x)).collect();
+    assert_eq!(kinds, vec![(WagonKind::Store, 100.), (WagonKind::Coal, 120.), (WagonKind::Store, 140.)], "placed wagons");
+    assert_eq!(w.tr.wagons[1].cargo, vec![(Item::Coal, 5)]);
+    assert_eq!(w.tr.wagons[2].cargo, vec![(Item::StoreWagon, 1), (Item::CoalWagon, 1), (Item::Stone, 4)], "a store wagon's load");
+    assert_eq!(w.tr.carts[0].cargo, vec![(Item::StoreWagon, 1), (Item::CoalWagon, 2)], "a cart's load");
+    let b = &w.tr.borers[0]; assert_eq!((b.fuel.clone(), b.burning, b.burn, b.steam), (vec![(Item::Coal, 2)], Some(Item::Coal), 100, 50.), "the borer");
+    let names: Vec<&str> = w.craft_queue.iter().map(|&k| RECIPES[k].name).collect(); assert_eq!(names, ["Coal wagon", "Drill"], "craft queue");
+    let at = |w: &World, x: usize, it: Item| w.drops.iter().any(|d| d.x == x && d.item == it);
+    assert!(at(&w, 300, Item::StoreWagon) && at(&w, 310, Item::CoalWagon), "drops in the window");
+    w.shift(-(BH as i64)); assert!(at(&w, 320, Item::StoreWagon), "a drop in a tile that was off the window");
+    let l = save::load(&save::save(&w)).expect("saves again as v13");
+    assert_eq!(l.tr.wagons.iter().map(|g| g.kind).collect::<Vec<_>>(), [WagonKind::Store, WagonKind::Coal, WagonKind::Store]);
+    assert_eq!((l.inv[Item::StoreWagon as usize], l.inv[Item::CoalWagon as usize]), (2, 3));
+}

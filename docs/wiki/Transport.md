@@ -18,7 +18,7 @@ The deeper the holt goes, the further its Delvers haul, so getting about is a la
 * **Tube hopper:** blowing (drop items in to send, ride with an empty paw) or receiving only; which hopper it sends to.
 * **Track and pipe:** whether the track is powered; that a line needs hoppers.
 
-Carts also tip their load at a **bumper**, and ore hoppers fill them: see [Production](Production.md). The rideable **steam borer** bores its own tunnel and hauls a train of wagons (store, workshop, bunk, water, coal): see [Production: steam borer](Production.md#steam-borer).
+Carts also tip their load at a **bumper**, and ore hoppers fill them: see [Production](Production.md). The rideable **steam borer** bores its own tunnel and hauls a train of wagons (store, workshop, bunk, coal; the borer runs on coal alone): see [Production: steam borer](Production.md#steam-borer).
 
 The Ancients' tube stations and waygates in the ruins stay broken: they are endgame finds, not working lines (see [World and Generation](World-and-Generation.md#ruins-of-the-ancients)).
 
