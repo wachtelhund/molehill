@@ -1741,9 +1741,9 @@ fn found_places_have_open_silhouettes_not_filled_boxes() {
 /// Every way into a found place reaches its chest (or the fissure floor) and the rest of its
 /// rooms, with starting movement only: the mole's collision box flood-fills the stamped layout
 /// (gravity off, as the mole climbs walls and rope ladders). Chests stand in open space so they
-/// open. Walked across seeds, layout variants and both halt sides. Coordinate with the movement
-/// agent's `site_*_traverse` scenarios: this test owns the positive layout check; those own the
-/// climb feel.
+/// open. Walked across seeds, layout variants and both halt sides. It pairs with the
+/// `site_*_traverse` scenarios: this test owns the positive layout check; those own the climb
+/// feel.
 #[test]
 fn found_places_entrances_reach_every_room_and_the_chest() {
     use molehill_sim::mat::{Mat, CPM};
