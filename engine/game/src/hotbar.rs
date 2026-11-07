@@ -97,6 +97,25 @@ mod tests {
         }
     }
 
+    /// The crafting list scrolls: in Creative (every station, every recipe: far more than `CRAFT_ROWS`) each
+    /// recipe is on a craftable row at some scroll, the window never shows more than `CRAFT_ROWS`, and the hint
+    /// lines craft nothing. (It used to cut the list at 30 rows: no forge or workshop recipe showed in Creative.)
+    #[test] fn every_recipe_can_be_scrolled_to() {
+        use molehill_sim::{world::World, survival::Mode, craft::RECIPES};
+        use crate::{craft_all, craft_window, craft_scroll_max, CRAFT_ROWS};
+        let mut w = World::new(512 * molehill_sim::mat::S, 256 * molehill_sim::mat::S, 7); w.set_mode(Mode::Creative);
+        let all = craft_all(&w); assert!(all.len() > CRAFT_ROWS, "the test wants a long list: {}", all.len());
+        let mut seen = vec![false; RECIPES.len()];
+        for s in 0..=craft_scroll_max(all.len()) + 2 {
+            let v = craft_window(craft_all(&w), s); assert!(v.len() <= CRAFT_ROWS);
+            for r in &v { if let Some(k) = r.recipe { seen[k] = true; } else if r.text.contains("more") { assert!(r.recipe.is_none()); } }
+        }
+        let missing: Vec<&str> = RECIPES.iter().enumerate().filter(|(k, _)| !seen[*k]).map(|(_, r)| r.name).collect();
+        assert!(missing.is_empty(), "never shown: {missing:?}");
+        let top = craft_window(craft_all(&w), 0); assert!(top.last().unwrap().text.contains("more below"));
+        let end = craft_window(craft_all(&w), usize::MAX); assert!(end[0].text.contains("more above") && end.last().unwrap().recipe.is_some());
+    }
+
     /// Every thing there is has a slot: every device and station, and every item (the dig tools as their
     /// slots), so nothing new gets cut off the end of the pack; and Creative holds 999 of each item.
     #[test] fn the_pack_holds_everything_and_creative_has_999() {

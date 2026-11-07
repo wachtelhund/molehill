@@ -44,7 +44,7 @@ const BG_RES: usize = S;
 const FAR: usize = 4; // chunk rows drawn beyond each end of the simulated window (the camera roams there; nothing simulates)
 
 #[derive(Resource)] pub struct Game { pub w: World, /// a holt is in play (false over the empty window before the first one)
-    pub live: bool, chunks: Vec<Handle<Image>>, buf: Vec<u8>, /** per drive train, how far it has run (cells of belt travel), and the tick it was advanced to */ turn: Vec<f32>, turn_tick: u64, pub uploads: usize, acc: f32, pub paused: bool, speed: u32, pub frame: u64, last_light: u64, msg: String, pub help: bool, ev: Vec<sw::Event>, shake_off: Vec2, autosave: f32, last_oy: i64, last_ox: i64, far: Vec<Handle<Image>>, far_done: Vec<bool>, far_cells: std::collections::HashMap<(i64, i64), Option<(Vec<u8>, Vec<u8>)>>, pub inv_open: bool, pub aim: Option<(usize, usize, bool)>,
+    pub live: bool, chunks: Vec<Handle<Image>>, buf: Vec<u8>, /** per drive train, how far it has run (cells of belt travel), and the tick it was advanced to */ turn: Vec<f32>, turn_tick: u64, pub uploads: usize, acc: f32, pub paused: bool, speed: u32, pub frame: u64, last_light: u64, msg: String, pub help: bool, ev: Vec<sw::Event>, shake_off: Vec2, autosave: f32, last_oy: i64, last_ox: i64, far: Vec<Handle<Image>>, far_done: Vec<bool>, far_cells: std::collections::HashMap<(i64, i64), Option<(Vec<u8>, Vec<u8>)>>, pub inv_open: bool, /** the crafting list scrolled this many rows down (`craft_window`) */ pub craft_scroll: usize, pub aim: Option<(usize, usize, bool)>,
     pub slots: Vec<Option<Thing>>, pub held: Option<Thing>, /** lay the hotbar out afresh for this holt (`hotbar.rs`) */ pub relayout: bool, pub hot: usize, pub sel_t: f32, pub toasts: Vec<(String, f32)>, log_seen: u64, pub show_dev: bool, disp: Vec2, pub seed: u32,
     /// brush size per brush item and grid snap (`view::BrushSizes`)
     pub sizes: sv::BrushSizes,
@@ -95,12 +95,28 @@ pub fn thing_controls(t: Thing) -> &'static str { match t {
 } }
 /// Crafting list (pack open): for each station the mole stands at (Creative: every station, free), a header
 /// with the station's state, then the recipes known so far with their inputs. Clicking a bright row crafts it.
+/// The list shows `CRAFT_ROWS` at a time; with more, the wheel over it scrolls (`craft_window`).
 pub struct CraftRow { pub text: String, pub recipe: Option<usize>, pub ok: bool, pub head: bool }
 pub const CRAFT_ROWS: usize = 30;
 const CRAFT_X: f32 = 18.; const CRAFT_Y: f32 = 96.; const CRAFT_H: f32 = 19.; const CRAFT_W: f32 = 380.;
 pub fn craft_row_pos(k: usize) -> Vec2 { Vec2::new(CRAFT_X, CRAFT_Y + k as f32 * CRAFT_H) }
-pub fn craft_rows(g: &Game) -> Vec<CraftRow> {
-    let w = &g.w; let mut v = vec![]; if !g.inv_open { return v; } let free = !w.rules.crafting;
+pub fn craft_rows(g: &Game) -> Vec<CraftRow> { if !g.inv_open { return vec![]; } craft_window(craft_all(&g.w), g.craft_scroll) }
+/// The furthest the list scrolls: the last row just shows at the bottom.
+pub fn craft_scroll_max(n: usize) -> usize { n.saturating_sub(CRAFT_ROWS - 1) }
+/// `CRAFT_ROWS` of the list from row `scroll`: when rows are hidden above or below, the first or last line says
+/// how many and that the wheel scrolls (those lines craft nothing).
+pub fn craft_window(all: Vec<CraftRow>, scroll: usize) -> Vec<CraftRow> {
+    if all.len() <= CRAFT_ROWS { return all; }
+    let s = scroll.min(craft_scroll_max(all.len())); let n = all.len();
+    let hint = |t: String| CraftRow { text: t, recipe: None, ok: false, head: true };
+    let mut v: Vec<CraftRow> = all.into_iter().skip(s).take(CRAFT_ROWS).collect();
+    if s > 0 { v[0] = hint(format!("  ... {} more above (wheel here scrolls)", s + 1)); }
+    if s + CRAFT_ROWS < n { let k = v.len() - 1; v[k] = hint(format!("  ... {} more below (wheel here scrolls)", n - (s + CRAFT_ROWS) + 1)); }
+    v
+}
+/// Every row of the crafting list, unscrolled.
+pub fn craft_all(w: &molehill_sim::world::World) -> Vec<CraftRow> {
+    let mut v = vec![]; let free = !w.rules.crafting;
     for st in STATIONS {
         let here = w.station_here(st); if !free && here.is_none() { continue; }
         let ready = if free { Ok(()) } else { here.map_or(Ok(()), |b| w.station_ready(b)) };
@@ -114,7 +130,7 @@ pub fn craft_rows(g: &Game) -> Vec<CraftRow> {
         }
     }
     if v.is_empty() { v.push(CraftRow { text: "Stand at a workbench, forge or workshop to craft".into(), recipe: None, ok: false, head: true }); }
-    v.truncate(CRAFT_ROWS); v
+    v
 }
 pub fn craft_row_at(g: &Game, c: Vec2) -> Option<usize> {
     if !g.inv_open || c.x < CRAFT_X || c.x > CRAFT_X + CRAFT_W || c.y < CRAFT_Y { return None; }
@@ -837,7 +853,7 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, mut fonts: R
         if let Some(k) = slots.iter().position(|s| *s == Some(Thing::Item(Item::TimberWall))) { slots.swap(0, k); hot = 0; }
         relayout = false;
     }
-    commands.insert_resource(Game { w, chunks, buf: vec![1; W * H * 4], turn: vec![], turn_tick: 0, uploads: 0, acc: 0., paused: true, speed: 1, frame: 0, last_light: 0, msg: String::new(), help: false, ev: vec![], shake_off: Vec2::ZERO, autosave: 0., last_oy: oy0, last_ox: 0, far, far_done, far_cells: Default::default(), inv_open: false, aim: None, slots, held: None, relayout, hot, sel_t: 0., toasts: vec![], log_seen: 0, show_dev: false, disp, seed, sizes: Default::default(), drag: None, brush_tag: None, demo_right: false, demo_up: false, demo_down: false, demo_aim: None, wheel: Default::default(), mouse_latch: false, jump_tap: false, jump_key: false, w_jump: false, charge: None, throw_aim: (1., -1.), e_latch: false, pops: vec![], look: Vec2::ZERO, live });
+    commands.insert_resource(Game { w, chunks, buf: vec![1; W * H * 4], turn: vec![], turn_tick: 0, uploads: 0, acc: 0., paused: true, speed: 1, frame: 0, last_light: 0, msg: String::new(), help: false, ev: vec![], shake_off: Vec2::ZERO, autosave: 0., last_oy: oy0, last_ox: 0, far, far_done, far_cells: Default::default(), inv_open: false, craft_scroll: 0, aim: None, slots, held: None, relayout, hot, sel_t: 0., toasts: vec![], log_seen: 0, show_dev: false, disp, seed, sizes: Default::default(), drag: None, brush_tag: None, demo_right: false, demo_up: false, demo_down: false, demo_aim: None, wheel: Default::default(), mouse_latch: false, jump_tap: false, jump_key: false, w_jump: false, charge: None, throw_aim: (1., -1.), e_latch: false, pops: vec![], look: Vec2::ZERO, live });
 }
 
 /// Saves only write a holt in play: Quit on the main menu before Continue never puts the empty window over the autosave.
@@ -915,7 +931,10 @@ fn input(mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<Button
     // [ / ]: by the character typed (Option+8 / Option+9 on a Swedish Mac) or the US key position
     let typed = |c: &str| lkeys.just_pressed(Key::Character(c.into()));
     let mut resize = sv::brush_key_steps(typed("["), typed("]"), keys.just_pressed(KeyCode::BracketLeft), keys.just_pressed(KeyCode::BracketRight)) as f32;
-    if notch != 0. {
+    let on_list = g.inv_open && !(mods.ctrl || mods.cmd || mods.alt) && win.cursor_position().is_some_and(|c| craft_row_at(&g, c).is_some());
+    if notch != 0. && on_list {
+        let n = craft_all(&g.w).len(); g.craft_scroll = (g.craft_scroll as i32 - notch as i32 * 3).clamp(0, craft_scroll_max(n) as i32) as usize;
+    } else if notch != 0. {
         match sv::wheel_use(mods, held_brush.is_some()) {
             sv::WheelUse::Brush => resize += notch,
             sv::WheelUse::Zoom => menu.zoom_by(notch, &mut ct),
@@ -934,7 +953,7 @@ fn input(mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<Button
     if keys.just_pressed(KeyCode::KeyF) { g.speed = if g.speed >= 4 { 1 } else { g.speed * 2 }; }
     if keys.just_pressed(KeyCode::KeyE) && g.inv_open { g.e_latch = true; }
     if !keys.pressed(KeyCode::KeyE) { g.e_latch = false; }
-    if keys.just_pressed(KeyCode::KeyI) || keys.just_pressed(KeyCode::KeyE) && g.inv_open { g.inv_open = !g.inv_open; }
+    if keys.just_pressed(KeyCode::KeyI) || keys.just_pressed(KeyCode::KeyE) && g.inv_open { g.inv_open = !g.inv_open; g.craft_scroll = 0; }
     if !g.inv_open { if let Some(t) = g.held.take() { if let Some(k) = g.slots.iter().position(|s| s.is_none()) { g.slots[k] = Some(t); } } }
     if keys.just_pressed(KeyCode::KeyH) { g.help = !g.help; }
     if keys.just_pressed(KeyCode::F3) { g.show_dev = !g.show_dev; }
