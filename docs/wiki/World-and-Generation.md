@@ -24,21 +24,32 @@ The Deepholt has no top, no bottom and no sides, so the game never holds "the wo
 Generation works on an **effective depth** `dd` rather than the raw depth, so layer boundaries wander:
 
 ```
-dd = depth_m + (fbm noise − 0.5) × 10 m + biome offset
+dd = depth_m + (fbm noise − 0.5) × 10 m + region offset
 ```
 
-The biome offset is −4 m for Loamlands, +2 m for Karst caverns, +8 m for Granite crags and +4 m for the Ashlands. A crag column is "deeper" than its depth suggests, so hard rock rises closer to the start there.
+The region offset (`Biome::strata`) is −4 m in the Loamlands, +2 m in the Karst caverns, +8 m in the Granite crags, +4 m in the Ashlands and 0 in the Fungal hollows. A crag is "deeper" than its depth suggests, so hard rock rises closer to the start there.
 
-## Biomes
+## Biomes (regions)
 
-Biomes vary along x only (a 2-octave fbm at scale 65 m). Generation noise is sampled in 0.25 m tiles, so every feature keeps its size in metres at any resolution. so each one is a tall column you can dig straight down through.
+Each world column has a **leaning** (`Gen::biome_x`, a 2-octave fbm at scale 65 m along x; it runs on east and west forever, as the window does). The region a cell actually lies in (`Gen::biome_of(x, wy)`, in world cells) bends that leaning by depth, wetter up and hotter down. Region edges wander up to 15 m up or down (a 2-octave fbm), so a band is never a ruled line. It is a pure function of the seed and the cell, so a region is the same whichever way the sliding window comes onto it (`regions_line_the_tiles_the_window_brings_in`). Generation noise is sampled in 0.25 m tiles, so every feature keeps its size in metres at any resolution.
 
-| biome | share of noise | character |
-|---|---|---|
-| Loamlands | < 0.36 | Soft and shallow-feeling: more dirt and clay, ordinary caves |
-| Karst caverns | 0.36–0.52 | More and larger caverns (cave threshold +0.04) |
-| Granite crags | 0.52–0.66 | Granite from depth 0; fewer caves (−0.03) |
-| Ashlands | ≥ 0.66 | Basalt below 70 m everywhere; hot and deep-feeling |
+| leaning (share of noise) | region it gives |
+|---|---|
+| Loamlands (< 0.36) | Loamlands; Karst caverns below 35 m |
+| Karst caverns (0.36–0.52) | Karst caverns |
+| Granite crags (0.52–0.66) | Granite crags; Karst caverns above −25 m (the wet layers wash them out) |
+| Ashlands (≥ 0.66) | Granite crags; Ashlands below 50 m |
+| any | **Ashlands** below 80 m; **Fungal hollows** in pockets between 12 and 64 m (a 2-octave fbm above 0.6, about 15 % of the middle layers) |
+
+| region | ground | caves and pockets | growth | back walls | hazard |
+|---|---|---|---|---|---|
+| Loamlands | the most soil: dirt, more clay lenses (to 12 m), root tangles down to 10 m | ordinary caves, water pockets a little more likely | fungus on floors above 9 m, roots | roots, damp, the odd missing panel | soft ground, water |
+| Karst caverns | pale limestone through and through (also in the 30–70 m granite layer), wet sand washes | wider caves (+0.04), the most fluid pockets, water first | seep moss on floors above 30 m | damp stain, salt crust | flooding |
+| Granite crags | granite from 15 m (effective), more sandstone than limestone, loose gravel lenses | narrow (−0.03), the fewest pockets | little | cracks, missing panels | gravel slumps when cut; hard rock early |
+| Fungal hollows | as around it | the widest hollows (+0.05) | fungus banks (lamp oil) on the floors with moss under them, glowing mycelium up the side walls (never hanging from a roof) | mycelium threads (`Wall::Mycel`), damp | none of its own yet |
+| Ashlands | basalt (from 55 m effective, all of it below 70 m) | lava first in the pockets | nothing grows | split basalt, crystal and salt crust | lava |
+
+The start rules hold whatever region the burrow is in: the start zone is softened afterwards (see [The start burrow](#the-start-burrow)), the settled ground round the burrow keeps its lenses rare (a region's extra lenses fade out with it), and the ore bands depend on depth only. Tests: `sim/tests/biomes.rs` (`regions_follow_the_layers`, `each_region_has_its_own_ground`, `each_region_lines_its_caves`, `hard_ground_lies_just_past_the_start_zone`, `regions_line_the_tiles_the_window_brings_in`), sampled over world columns from a home width west of home to two east of it; `--example biomediag -- SEED` prints the regions and materials round a fresh holt's burrow.
 
 ## Strata
 
@@ -46,11 +57,11 @@ Biomes vary along x only (a 2-octave fbm at scale 65 m). Generation noise is sam
 |---|---|
 | above −30 m | dirt, with clay lenses |
 | −30 to 0 m | dirt, clay and limestone patches |
-| 0 to 30 m | limestone and soft rock (granite in the crags) |
-| 30 to 70 m | granite and soft rock |
+| 0 to 30 m | limestone and soft rock (granite from 15 m in the crags, mostly limestone in the karst) |
+| 30 to 70 m | granite and soft rock (limestone instead of soft rock in the karst; basalt from 55 m in the Ashlands) |
 | below 70 m | mostly basalt, some granite (all basalt in the Ashlands) |
 
-Above 35 m, lenses of **sand** and **gravel** form in the rock where the lens noise is above 0.67 (`gen::LENS`; 0.012 more in the upper layers, above 10 m effective depth). The wettest (0.04 over that) are aquifer-saturated (`F_WET`): they seep water when you dig into them, and they make a mushroom farm damp.
+Above 35 m, lenses of **sand** and **gravel** form in the rock where the lens noise is above 0.67 (`gen::LENS`; 0.012 more in the upper layers, above 10 m effective depth; 0.04 less in the crags, where they are all gravel, and 0.02 less in the karst, sand washes; `Biome::lens`). The wettest (0.04 over that) are aquifer-saturated (`F_WET`): they seep water when you dig into them, and they make a mushroom farm damp.
 
 **Settled ground round the burrow** (`gen::SETTLED`, `settled_at`): within 40 m of the burrow, easing off by 70 m, the lens threshold is up to 0.14 higher, so lenses there are rare and small. None of them are soaked, and sand within 1 m of a natural cave is cemented into sandstone. A new holt's first tunnels then don't run into a steady rain of loose ground, while further out and deeper (10–35 m) the lenses are as common as ever. Measured over 16 seeds (`--example loosesurvey`), within 30 m of the burrow the loose share (sand, gravel, fungus, knocked-loose ground) went from 7.5 % to 0.7 % of the ground, and the soaked share from 7.7 % to 0.2 % (the near grotto's moss and roots). Tests: `loose_lenses_are_rare_round_the_burrow_but_not_beyond`, `a_new_holt_starts_on_settled_ground` (`sim/tests/settled_ground.rs`).
 
@@ -68,7 +79,7 @@ Copper ore's base colour is a bright copper-orange (`mat.rs`, used wherever a ce
 
 Deep down (below 70 m) the rock is mostly **basalt**, with crystal and quartz on the cave walls and lava in the pockets: the heat layer of tier 5. All of it comes from seeded noise, so it's the same for a seed every time (`ore_sits_in_its_depth_bands`).
 
-**Cave walls** are decorated: **crystal** (which glows) below 45 m, **quartz** below 35 m, **glowing fungus** on cave floors above 9 m, and **roots** above −10 m.
+**Cave walls** are decorated: **crystal** (which glows) below 45 m, **quartz** below 35 m (both commoner in the Ashlands), **glowing fungus** on cave floors above 9 m, and **roots** above −10 m (10 m in the Loamlands). The Fungal hollows and the karst grow their own (see [Biomes](#biomes-regions)); nothing grows in the Ashlands.
 
 ## Grottos
 
@@ -103,6 +114,7 @@ A **background wall** is a Terraria-style lining behind the player and the falli
 
 * **Storage:** one byte per window cell, packed as an optional trailing RLE on each band (save format 10). Older saves load and then `infer_back`: open cave is lined the way a fresh holt would be, and the start burrow is timbered.
 * **Look:** darker and flatter than a real block under the same light (`WALL_K` = 0.78, floor `WALL_AMIN` = 0.34 so a lined room in the dark is still timber or rock, not a hole). Found places also use five linings of their own that no pack item makes: soot, wet stone, basalt, ashlar and ironclad. Damp stains, cracks, roots and missing panels let a little of the far rock through. Crystal lining does not glow; crystal *blocks* still do.
+* **Natural lining** (`walls::natural_at`, world cells) follows the region, in patches about a metre across: roots and damp in the Loamlands, damp and salt crust in the karst, cracks and missing panels in the crags, **mycelium threads** (`Wall::Mycel`, a lining only the Fungal hollows have) in the fungal hollows, split basalt, crystal and salt in the Ashlands.
 * **Lining a bite:** digging a solid cell that has no lining leaves one that matches what you cut (rock, timber, masonry, pipes).
 * **Placing and scraping:** with a wall item in hand, left mouse panels the back (hold; `X` snaps a line). Right mouse scrapes lining back into the pack. Neither edits the rock in front. Shift is sprint, never a wall modifier. Bedrock cannot be panelled.
 * **Creative** has 999 of every wall; **Survival** crafts them at the workbench (rock, timber, carved, beams) or the forge (masonry, pipes).
@@ -163,19 +175,19 @@ One still of each family, stamped with `--scene=<family>` on seed 4242 and lit b
 
 A cell is open when either test passes:
 
-* **caverns:** a 3-octave fbm (scale 46, stretched 1.6× vertically) plus the biome band is above 0.66: big blobby halls;
+* **caverns:** a 3-octave fbm (scale 46, stretched 1.6× vertically) plus the region's openness (`Biome::openness`) is above 0.66: big blobby halls;
 * **worm tunnels:** a ridged fbm at scale 110 is within 0.012 of its midline: thin winding passages that link the halls.
 
 ## Fluid pockets: wetter up, hotter down
 
-Open cells inside a separate pocket-noise field (`> 0.63`) are filled with fluid. Each 6 m × 6 m patch picks **one** fluid with a hash, so a pocket never mixes:
+Open cells inside a separate pocket-noise field are filled with fluid: above 0.63 in most regions, 0.60 in the karst (more pockets), 0.66 in the crags (fewer), 0.62 in the Ashlands. Each 6 m × 6 m patch picks **one** fluid with a hash, so a pocket never mixes:
 
 ```
 lava share  = clamp((dd − 10) / 60, 0, 0.92)
 water share = clamp((40 − dd) / 60, 0.08, 1) of what is left
 ```
 
-At the start layer pockets are almost all water. By 40 m half of them are lava, and from 70 m on lava dominates. A little water survives at every depth. This is the lore's "cooler and wetter up, hotter and drier down" written as two clamps.
+The karst adds 0.25 to the water share and the loam and fungal hollows 0.1; the Ashlands add 0.25 to the lava share. At the start layer pockets are almost all water. By 40 m half of them are lava, and from 70 m on lava dominates. A little water survives at every depth. This is the lore's "cooler and wetter up, hotter and drier down" written as two clamps.
 
 ## The start burrow
 

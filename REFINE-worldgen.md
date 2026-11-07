@@ -80,6 +80,31 @@ in `a_fall_carries_through_a_slide_down`) and the height fallen before the slide
 landing. `World::shift` now carries the body as `shift_x` does (`py`, `ppy`, `fall_from` move with the rock;
 `sync` follows the mole).
 
+## Biomes v2 (Hampus 03:41 "Kör biomerna härnäst"; branch `refine/biomes-v2`, successor of draft #10)
+Redone on main `c3942b1` rather than rebased (#10's branch is pushed and predates infinite-x and the settled ground;
+a rebase would need a force-push). Same design as #10: `Gen::biome_of(x, wy)` (2D: the column's leaning bent by
+depth, edges wandering 15 m), five regions (Loamlands, Karst caverns, Granite crags, Fungal hollows, Ashlands) each
+with strata offset, cave openness, fluid pockets, host rock, lenses, growth and natural lining; `Wall::Mycel`.
+* **Under infinite x:** everything takes world columns (`i64`); the leaning is `biome_x`, defined forever east and
+  west. Tests sample from a home width west of home to two east of it, and
+  `regions_line_the_tiles_the_window_brings_in` checks tiles slid in from the west and from below.
+* **With the settled ground:** a region's extra lenses (crags 0.04, karst 0.02, `Biome::lens`) fade out with
+  `settled_at`, so the burrow's surroundings keep their lens rule (the first try failed `settled_ground`: 1.52 % near,
+  seed 11 2.17 %).
+* **The scenario flake** (why #10 stayed a draft): scenario `crumbled` was `World::crumbled`, world-wide. The
+  generated world round the frame settles a cell or two (here a moss and a basalt cell 42 m east of the map, 2 s
+  in), which failed 18 scenarios once the generator changed round the default seed's burrow, and made them flaky
+  under rayon's run-to-run differences. It now counts the map and its frame only (`World::crumble_box`,
+  `crumbled_in`; kept through slides and the harness's save/load). `tree_regrow`, `water_levels` and three more:
+  8 of 8 parallel runs under load pass.
+* **Hitches** (`digbench`, seed 4242, worker, paced 60 Hz; main `c3942b1` in brackets): down 200 m p99 67.5
+  (67.0), worst slide 54.7 (62.7); west 300 m p99 53.1 (47.2), worst slide 49.0 (49.9); east 300 m p99 371.5
+  (384.6), worst slide 83.7 (110.9). Slides are as cheap as on main. The east route's slow ticks are not
+  slides on either: the bench's 4 m-tall tunnel brings ~44 000 cells of roof down and each stress pass then
+  costs ~350 ms. That is main's physics (#81), passed to p2, not changed here.
+* **Art is ui-graphics' (p3):** only a `Biome::Fungal` arm in `art::biome_tint` so the game builds. API for them:
+  `Biome` (+ `name`, `NBIOME`), `Gen::biome_of(x, wy)` in world cells, `Wall::Mycel` (colour and pattern in walls.rs).
+
 ## Open / for others
 * **p2:** the parallel CA (rayon) isn't deterministic on the first run after a rebuild. Seen on
   `digging_straight_down_never_kills` seed 6 (a limestone clump falls into a flooded shaft onto the mole on some runs),

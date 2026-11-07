@@ -224,7 +224,10 @@ pub struct World {
     pub quest: usize, pub log: Vec<(u64, String)>, pub discovered: [bool; NMAT], pub chests_opened: u32, pub pillars: u32,
     pub max_depth: f32, pub craft_queue: Vec<usize>, pub gear: Gear,
     /// Items that have ever been in the pack: a recipe appears once any of its inputs is known.
-    pub known: [bool; NITEM], pub crumbled: u64, pub light_rect: (usize, usize, usize, usize),
+    pub known: [bool; NITEM], pub crumbled: u64,
+    /// Tests: a window box `[x0, x1) × [y0, y1)` whose crumbling is also counted apart, in `crumbled_in` (a
+    /// scenario counts its own map's, not the rest of the generated world settling a cell or two far off).
+    pub crumble_box: Option<(usize, usize, usize, usize)>, pub crumbled_in: u64, pub light_rect: (usize, usize, usize, usize),
     pub events: Vec<Event>, pub react_pending: bool,
     /// where this tick's feedback happened, for in-world pops: (kind, x, y, radius in cells); kind 0 = a bite
     /// cleared, 1 = a block placed. Cleared every step like `events`.
@@ -299,7 +302,7 @@ impl World {
         World {
             st: Stress::new(w * h), light: Light::new(w, h), tick: 0, inv: [0; NITEM], dig_acc: [0; NMAT], place_acc: [0; NBUILD], desig: vec![0; w * h],
             moles: vec![], drops: vec![], stockpile: (0, 0, 0, 0), buildings: vec![], torches: vec![], chests: vec![], furniture: vec![], paint_acc: 0,
-            quest: 0, log: vec![], discovered: [false; NMAT], chests_opened: 0, pillars: 0, max_depth: 0., craft_queue: vec![], gear: Gear::default(), known: [false; NITEM], mode: Default::default(), rules: Default::default(), lamp_oil: 0., lamp_dry: false, lamp_low: false, ruins: vec![], ruins_seen: Default::default(), relics: 0, crumbled: 0,
+            quest: 0, log: vec![], discovered: [false; NMAT], chests_opened: 0, pillars: 0, max_depth: 0., craft_queue: vec![], gear: Gear::default(), known: [false; NITEM], mode: Default::default(), rules: Default::default(), lamp_oil: 0., lamp_dry: false, lamp_low: false, ruins: vec![], ruins_seen: Default::default(), relics: 0, crumbled: 0, crumble_box: None, crumbled_in: 0,
             light_rect: (0, 0, w - 1, h - 1), events: vec![], marks: vec![], react_pending: false, logic: Logic::new(w, h), disasters: Disasters::new(seed), shake: 0., air: Air::new(w, h), farms: vec![], harvested: 0, input: Input::default(), pl: Player::default(), gen: gn, ox: 0, oy, bands: Default::default(), opened: Default::default(), clues: vec![], found_clues: Default::default(), journal: vec![], grottos: vec![], caught: Default::default(), keep_blast_field: false, blast_field: vec![], debris: vec![], waves: vec![], strain: vec![], strain_creak: 0, tr: Default::default(), blasts_run: 0, info, g,
             walls: crate::walls::Walls::new(w, h), sites: vec![], sites_seen: Default::default(), grottos_seen: Default::default(), stream: Default::default(),
         }
@@ -410,6 +413,7 @@ impl World {
             self.g.mat.copy_within(..w * h - d, d); self.g.flags.copy_within(..w * h - d, d); self.g.shade.copy_within(..w * h - d, d); self.desig.copy_within(..w * h - d, d); self.walls.cell.copy_within(..w * h - d, d);
         }
         self.oy += rows; self.st.shift_rows(rows, w);
+        if let Some((x0, y0, x1, y1)) = self.crumble_box { let m = |v: usize| (v as i64 - rows).clamp(0, h as i64) as usize; self.crumble_box = Some((x0, m(y0), x1, m(y1))); }
         for y in en..en + s { for x in 0..w { self.desig[y * w + x] = 0; self.walls.cell[y * w + x] = 0; } }
         // entities and block layers move with the rock; what was in the leaving rows is in its tile now
         let dy = |y: usize| -> Option<usize> { let v = y as i64 - rows; if v >= 0 && v < h as i64 { Some(v as usize) } else { None } };
@@ -466,6 +470,7 @@ impl World {
         shift_cols(&mut self.g.mat, w, cols, 0); shift_cols(&mut self.g.flags, w, cols, 0); shift_cols(&mut self.g.shade, w, cols, 0); shift_cols(&mut self.g.life, w, cols, 0);
         shift_cols(&mut self.desig, w, cols, 0); shift_cols(&mut self.walls.cell, w, cols, 0);
         self.ox += cols; self.st.shift_cols(cols, w);
+        if let Some((x0, y0, x1, y1)) = self.crumble_box { let m = |v: usize| (v as i64 - cols).clamp(0, w as i64) as usize; self.crumble_box = Some((m(x0), y0, m(x1), y1)); }
         let dx = |x: usize| -> Option<usize> { let v = x as i64 - cols; if v >= 0 && v < w as i64 { Some(v as usize) } else { None } };
         let fx = cols as f32;
         for m in self.moles.iter_mut() { if let Some(v) = dx(m.x) { m.x = v; } else { m.alive = false; } m.path.clear(); m.job = None; m.work_cell = None; }
@@ -660,7 +665,7 @@ impl World {
         // cracked face (as round a fresh crater, for seconds after the blast) falls without a boom.
         if crumble.len() >= CRUMBLE_LOUD { self.events.push(Event::Crumble); }
         let mut bulk = vec![];
-        for &i in &crumble { let i = i as usize; let was = self.g.m(i); let c = was.p().crumbles_to; self.g.set(i, c); if c.kind() == Kind::Solid { self.g.set_loose(i); } self.crumbled += 1;
+        for &i in &crumble { let i = i as usize; let was = self.g.m(i); let c = was.p().crumbles_to;  self.g.set(i, c); if c.kind() == Kind::Solid { self.g.set_loose(i); } self.crumbled += 1; if self.crumble_box.is_some_and(|(x0, y0, x1, y1)| { let (x, y) = (i % self.g.w, i / self.g.w); x >= x0 && x < x1 && y >= y0 && y < y1 }) { self.crumbled_in += 1; }
             if !was.has(BUILT) && hash3(i as u32, 77, self.tick as u32) % 10 < BULK_IN_10 { bulk.push((i, c)); } }
         // broken ground bulks: rubble takes ~1.3× the room the solid did, so a cave-in fills its own
         // void and chokes off instead of climbing as a chimney through the whole layer. The extra
