@@ -41,7 +41,9 @@ pub struct Stress {
     /// failure threshold on utilisation (FAIL_U at runtime; gen uses a safety factor)
     pub thr: f32,
     /// scratch for `anchored`: the search a cell was last visited by, and the solve that proved it held
-    vis: Vec<u32>, vis_gen: u32, held: Vec<u32>, epoch: u32, buckets: Vec<Vec<u32>>,
+    vis: Vec<u32>, vis_gen: u32, held: Vec<u32>, epoch: u32, buckets: Vec<Vec<u32>>, par: Vec<u32>,
+    /// between `begin_pass` and `end_pass` (region solves of one unchanged grid) the anchor memo is kept
+    in_pass: bool,
 }
 /// Most cells an anchor check visits (256k, 4000 m²) before it gives up and trusts the last solve: a bigger mass
 /// cut free in one go is left to the next solve that covers it, as before.
@@ -68,7 +70,7 @@ pub const LOOSE_TICKS: u8 = 8;
 pub const WEDGED_TICKS: u8 = 45;
 
 impl Stress {
-    pub fn new(n: usize) -> Self { Stress { util: vec![0; n], pending: vec![0; n], cracking: vec![], overburden: vec![0.; n], last_fail: 0, reach: vec![], ctop: vec![0; n], vtop: vec![0; n], thr: FAIL_U, vis: vec![], vis_gen: 0, held: vec![], epoch: 0, buckets: vec![] } }
+    pub fn new(n: usize) -> Self { Stress { util: vec![0; n], pending: vec![0; n], cracking: vec![], overburden: vec![0.; n], last_fail: 0, reach: vec![], ctop: vec![0; n], vtop: vec![0; n], thr: FAIL_U, vis: vec![], vis_gen: 0, held: vec![], epoch: 0, buckets: vec![], par: vec![], in_pass: false } }
 
     /// Full solve. Returns indices with u > 1.
     /// Height of the load-bearing column above any cell (16 m), the pressure-arch height.
@@ -170,8 +172,11 @@ impl Stress {
         // anchor: rock cut free inside the region would otherwise prop itself up on its own edge cells (which
         // still say "held" from before the cut) until some far solve finally saw it, and then dropped whole and
         // unwarned. Anchors that check out seed the search; the rest wait until one of theirs does.
-        let (mut seeds, mut q2) = (vec![], std::mem::take(&mut self.buckets)); self.epoch = self.epoch.wrapping_add(1);
+        let (mut seeds, mut q2) = (vec![], std::mem::take(&mut self.buckets)); if !self.in_pass { self.epoch = self.epoch.wrapping_add(1); }
         if dirty.is_some() { q.retain(|&i| { let i = i as usize; let keep = g.mat[i] == Mat::Bedrock as u8 || ((i < w || i >= n - w || i % w == 0 || i % w + 1 == w) && st(i)); if !keep { reach[li(i % w, i / w)] = false; seeds.push(i); } keep }); }
+        // (lowest first: a column of loose ground on the region's edge is then checked once, at its foot, and the
+        // search climbs it from there)
+        seeds.reverse();
         let mut head = 0;
         let mut k = 0;
         loop {
@@ -186,7 +191,7 @@ impl Stress {
             // next edge anchor not yet reached from a checked one
             while k < seeds.len() && (reach[li(seeds[k] % w, seeds[k] / w)] || !self.reach[seeds[k]]) { k += 1; }
             let Some(&i) = seeds.get(k) else { break }; k += 1;
-            if Self::anchored(&mut self.reach, &mut self.vis, &mut self.vis_gen, &mut self.held, self.epoch, g, i, &mut q2, true) { reach[li(i % w, i / w)] = true; q.push(i as u32); }
+            if Self::anchored(&mut self.reach, &mut self.vis, &mut self.vis_gen, &mut self.held, &mut self.par, self.epoch, g, i, &mut q2, true) { reach[li(i % w, i / w)] = true; q.push(i as u32); }
         }
         self.buckets = q2;
         for y in ry0..=ry1 { for x in rx0..=rx1 { if st(y * w + x) && !reach[li(x, y)] { util[li(x, y)] = 9.; } } }
@@ -284,10 +289,11 @@ impl Stress {
     /// later solve of those cells acts on. Past `ANCHOR_BUDGET` cells it answers `on_budget` (trusting what the last
     /// solve said). Within one `epoch`, cells proven held (`held` = epoch) or cut free (`held` = !epoch) stop later
     /// searches at once.
-    fn anchored(reach: &mut [bool], vis: &mut Vec<u32>, vis_gen: &mut u32, held: &mut Vec<u32>, epoch: u32, g: &Grid, i: usize, heap: &mut Vec<Vec<u32>>, on_budget: bool) -> bool {
+    fn anchored(reach: &mut [bool], vis: &mut Vec<u32>, vis_gen: &mut u32, held: &mut Vec<u32>, par: &mut Vec<u32>, epoch: u32, g: &Grid, i: usize, heap: &mut Vec<Vec<u32>>, on_budget: bool) -> bool {
         let (w, n) = (g.w, g.mat.len());
         if vis.len() != n { *vis = vec![0; n]; *vis_gen = 0; }
         if held.len() != n { *held = vec![0; n]; }
+        if par.len() != n { *par = vec![0; n]; }
         *vis_gen = vis_gen.wrapping_add(1); if *vis_gen == 0 { vis.fill(0); *vis_gen = 1; }
         let gen = *vis_gen; let dead = !epoch;
         if held[i] == dead { return false; }
@@ -310,6 +316,8 @@ impl Stress {
             let (j, sym) = ((e & !SYM) as usize, e & SYM != 0);
             if anchor(j) || held[j] == epoch {
                 for &e in &seen { if e & SYM != 0 { held[(e & !SYM) as usize] = epoch; } }
+                // and the way it found: each cell on it rests on the next one, down to the anchor
+                let mut k = j; while k != i { held[k] = epoch; k = par[k] as usize; } held[i] = epoch;
                 clear(heap, lo, hi); return true;
             }
             if seen.len() > ANCHOR_BUDGET {
@@ -328,12 +336,17 @@ impl Stress {
                 if x + 1 < w && g.is_static(j + 1) { next[2] = (j + 1, sym); }
             }
             if j + w < n && supports(j + w) { next[3] = (j + w, sym && st && g.is_static(j + w)); }
-            for (k, ks) in next { if k != usize::MAX && vis[k] != gen && held[k] != dead { vis[k] = gen; let e = tag(k, ks); let d = near(k); heap[d].push(e); lo = lo.min(d); hi = hi.max(d); seen.push(e); } }
+            for (k, ks) in next { if k != usize::MAX && vis[k] != gen && held[k] != dead { vis[k] = gen; par[k] = j as u32; let e = tag(k, ks); let d = near(k); heap[d].push(e); lo = lo.min(d); hi = hi.max(d); seen.push(e); } }
         }
         // cut free: nothing it rests on reaches an anchor
         for &e in &seen { let k = (e & !SYM) as usize; reach[k] = false; held[k] = dead; }
         false
     }
+
+    /// Several region solves of the same grid follow (`World::solve_regions`): what one proves held or cut free
+    /// stays known for the next, so a stretch of rock is searched once a pass, not once a box.
+    pub fn begin_pass(&mut self) { self.epoch = self.epoch.wrapping_add(1); self.in_pass = true; }
+    pub fn end_pass(&mut self) { self.in_pass = false; }
 
     /// Start crack timers on failing cells.
     pub fn crack(&mut self, g: &Grid, fail: &[u32]) {
@@ -365,7 +378,7 @@ impl Stress {
             if self.util[iu] < 128 { self.pending[iu] = 0; continue; } // relieved
             self.pending[iu] -= 1;
             if self.pending[iu] == 0 {
-                if self.reach.get(iu) == Some(&false) && Self::anchored(&mut self.reach, &mut self.vis, &mut self.vis_gen, &mut self.held, self.epoch, g, iu, &mut stack, false) {
+                if self.reach.get(iu) == Some(&false) && Self::anchored(&mut self.reach, &mut self.vis, &mut self.vis_gen, &mut self.held, &mut self.par, self.epoch, g, iu, &mut stack, false) {
                     self.reach[iu] = true; self.util[iu] = 0; continue; // resting on something after all
                 }
                 out.push(i);

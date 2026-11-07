@@ -728,12 +728,14 @@ impl World {
         boxes.sort_by_key(|b| dist(b));
         let work = |b: &(usize, usize, usize, usize)| ((b.2 - b.0 + 1 + 2 * crate::stress::SIDE + 8 * CPM).min(w)) * ((b.3 - b.1 + 1 + 28 * CPM).min(h));
         let (mut f, mut spent) = (vec![], 0usize);
+        self.st.begin_pass();
         for b in boxes {
             if spent > 0 && spent + work(&b) > w * h / 8 { // over budget: leave it flagged
                 for y in (b.1..=b.3).step_by(crate::grid::CHUNK) { for x in (b.0..=b.2).step_by(crate::grid::CHUNK) { self.g.note_struct(y * w + x, 1); } }
                 continue; }
             spent += work(&b); f.extend(self.st.solve_rect(&self.g, Some(b)));
         }
+        self.st.end_pass();
         f
     }
     pub fn vents(&self) -> Vec<(usize, usize)> { self.logic.dev_list.iter().filter(|&&b| self.logic.dev[b] == Dev::Vent as u8).map(|&b| self.logic.centre(b)).collect() }
