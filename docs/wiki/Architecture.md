@@ -14,6 +14,7 @@ Molehill is written in **Rust** with **Bevy 0.20**. The code is split so that th
 | `engine/shots` | screenshots |
 | `legacy/` | the TypeScript v2 prototype that the v3 engine was ported from, plus screenshot scripts |
 | `docs/wiki/` | this wiki |
+| `.github/workflows/release.yml` | native release builds on GitHub-hosted runners ([Release builds](#release-builds)) |
 
 ## The split: sim and engine
 
@@ -131,6 +132,17 @@ Rebuild the committed web copy with:
 ```bash
 cd engine && ./build-web.sh && cd .. && rm -rf site && cp -r dist site
 ```
+
+### Release builds
+
+`.github/workflows/release.yml` builds the native game on GitHub-hosted runners: a macOS universal binary (arm64 and x86_64 joined with `lipo`, zipped), Windows x86_64 (`.zip`) and Linux x86_64 (`.tar.gz`, built against the ALSA, udev, X11 and Wayland headers). Each archive holds the binary and the README. Nothing else is needed, because the font and site templates are compiled in and sound is synthesised. The builds are unsigned.
+
+* **Run it by hand** (`workflow_dispatch`, from the Actions tab or `gh workflow run release.yml`): all three builds, uploaded as run artifacts.
+* **Push a `v*` tag:** the same builds, then a GitHub Release with the three archives attached.
+
+The asset names carry no version (`molehill-macos-universal.zip`, `molehill-windows-x86_64.zip`, `molehill-linux-x86_64.tar.gz`), so `https://github.com/wachtelhund/molehill/releases/latest/download/<asset>` always points at the newest release.
+
+Windows release builds use the `windows` subsystem, so no console window opens beside the game. Anything the game prints, such as from the `--shot=` dev flags, is not shown there. Use a debug build for those.
 
 ## Saves
 
