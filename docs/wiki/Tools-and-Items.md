@@ -182,7 +182,7 @@ The [steam borer](Production.md#steam-borer) cuts by the same `dig` numbers: a c
 
 ## Stations
 
-Stations, not menus: you craft standing at one you have built. Open the pack (`I`) there and its recipes are listed down the left; click a bright one to make it. A dim recipe is missing something.
+Stations, not menus: you craft standing at one you have built. Open the pack (`I`) there and its recipes are listed down the left; click a bright one to make it. The list shows 30 rows at a time: with more (Creative lists every station's recipes), its first or last line says how many more there are, and the wheel over the list scrolls it, three rows a notch (test `every_recipe_can_be_scrolled_to`). It starts at the top each time the pack opens. A dim recipe is missing something.
 
 | station | cost | works when | makes |
 |---|---|---|---|
