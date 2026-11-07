@@ -2041,3 +2041,29 @@ fn mat_cpm() -> f32 { molehill_sim::mat::CPM as f32 }
     assert!(run(false) > 0, "with nothing under it, it drops");
     assert_eq!(run(true), 0, "resting on rubble that landed under it, it stays");
 }
+
+/// The window slides sideways while the mole hangs on a rope gun's rope (it swung or climbed past the window's
+/// side margin): the rope moves with the rock and the mole keeps its hold, as on a slide up or down.
+#[test]
+fn a_sideways_window_slide_keeps_the_mole_on_its_rope() {
+    let mut w = World::new(512 * S, 512 * S, 11); w.disasters.enabled = false;
+    let (x0, y0) = (w.moles[0].x, w.moles[0].y);
+    for y in y0 - 30 * S..=y0 + 3 * S { for x in x0 - 40 * S..=x0 + 40 * S { let i = w.g.idx(x, y); w.g.set(i, if y > y0 || y < y0 - 28 * S || x < x0 - 30 * S || x > x0 + 30 * S { Mat::Bedrock } else { Mat::Empty }); w.g.flags[i] = 0; } }
+    w.drops.clear(); w.torches.clear(); w.farms.clear();
+    for _ in 0..10 { w.step(); }
+    w.inv[Item::RopeGun as usize] = 1; w.inv[Item::HookRope as usize] = 1;
+    let (hx, hy) = molehill_sim::ropes::hand(w.pl.px, w.pl.py);
+    w.fire_rope_gun((hx, hy - 40. * S as f32)).unwrap();
+    for _ in 0..60 { w.step(); }
+    assert_eq!(w.tr.ropes.len(), 1, "the hook bit the ceiling");
+    press(&mut w, 60, |i| i.up = true);
+    assert!(w.tr.on_rope.is_some(), "climbing the rope");
+    let tw = molehill_sim::band::TW as i64; let cols = if x0 > w.g.w / 2 { tw } else { -tw };
+    let (px, py) = (w.pl.px - cols as f32, w.pl.py); let hp = w.moles[0].hp;
+    w.shift_x(cols);
+    assert_eq!(w.tr.ropes.len(), 1, "the rope moved with the window");
+    press(&mut w, 30, |i| { i.up = false; });
+    assert!(w.tr.on_rope.is_some(), "still holding the rope after the slide");
+    assert!((w.pl.py - py).abs() < 1. * S as f32 && (w.pl.px - px).abs() < 1. * S as f32, "hanging where it was ({}, {} vs {px}, {py})", w.pl.px, w.pl.py);
+    assert_eq!(w.moles[0].hp, hp);
+}
