@@ -96,15 +96,17 @@ impl Run {
             "boilers" => self.w.tr.boilers.len() as f64,
             // refinement: works; the first stamp mill's / washer's load waiting; the first smelter's heat (°C), air (0..1) and molten metal (ingots); casts setting
             // linkages: gates and scales; the first gate lifted, the first scale tipped; pulled:DX,DY whether the tile's linkage is pulled
-            // steam borers: how many; the first one's middle (tiles from the map's left) and its wheels' row (borery, tiles from the map top), steam (kJ), water (cells), fuel (lumps); whether the mole rides one
+            // steam borers: how many; the first one's head middle (tiles from the map's left, borery from the map top), heading
+            // (borerang, degrees: 0 east, 90 down, 180 west, 270 up), speed (borerv, m/s), steam (kJ), fuel (lumps); whether the mole rides one
+            "borerang" => self.w.tr.borers.first().map_or(-1., |b| b.ang.to_degrees() as f64), "borerv" => self.w.tr.borers.first().map_or(0., |b| (b.v / molehill_sim::mat::CPM as f32) as f64),
             "borers" => self.w.tr.borers.len() as f64, "borerx" => self.w.tr.borers.first().map_or(-1., |b| (b.x - self.ox as f32) as f64 / kf), "borery" => self.w.tr.borers.first().map_or(-1., |b| (b.y - self.oy as f32) as f64 / kf),
             "borersteam" => self.w.tr.borers.first().map_or(0., |b| b.steam as f64),
             "borerfuel" => self.w.tr.borers.first().map_or(0., |b| b.lumps() as f64), "onborer" => self.w.tr.borer_ride.is_some() as u8 as f64,
-            // wagons: how many; how many the first borer hauls; the first wagon's middle (tiles from the map's left), load
-            // (items or lumps) and water (cells); whether the mole is in one; whether it can work as at a workbench there;
+            // wagons: how many; how many the first borer hauls; the first wagon's middle (tiles from the map's left; wagony
+            // from the map top), load (items or lumps); whether the mole is in one; whether it can work as at a workbench there;
             // the mole's wake point (tiles from the map's left)
             "wagons" => self.w.tr.wagons.len() as f64, "train" => self.w.train(0).len() as f64,
-            "wagonx" => self.w.tr.wagons.first().map_or(-1., |w| (w.x - self.ox as f32) as f64 / kf), "wagonload" => self.w.tr.wagons.first().map_or(0., |w| w.load() as f64),
+            "wagonx" => self.w.tr.wagons.first().map_or(-1., |w| (w.x - self.ox as f32) as f64 / kf), "wagony" => self.w.tr.wagons.first().map_or(-1., |w| ((w.y - molehill_sim::wagon::WAGON_H / 2.) - self.oy as f32) as f64 / kf), "wagonload" => self.w.tr.wagons.first().map_or(0., |w| w.load() as f64),
             "inwagon" => self.w.tr.wagon_ride.is_some() as u8 as f64,
             "atbench" => self.w.station_here(molehill_sim::craft::Station::Workbench).is_some() as u8 as f64, "slept" => self.w.tr.slept as u8 as f64,
             "spawnx" => ((self.w.pl.spawn.0 - self.w.ox) as f64 - self.ox as f64) / kf,

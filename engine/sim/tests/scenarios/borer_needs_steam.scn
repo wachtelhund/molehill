@@ -1,17 +1,19 @@
 // A borer needs steam, and its steam comes from coal. The same borer, ridden into the same face with no fuel in its
-// firebox: it raises no steam, can't drive, and the granite is untouched.
+// firebox: it raises no steam, can't move, says so, and the granite is untouched.
 map
 ########################################
 ########################################
 ########################################
+#.............##########################
+#.............##########################
+#.............##########################
+#.............##########################
+#.............##########################
+#.............##########################
+#.............##########################
+#..@..........##########################
 ########################################
 ########################################
-########################################
-#............###########################
-#............###########################
-#............###########################
-#............###########################
-#..@.........###########################
 ########################################
 ########################################
 ########################################
@@ -19,9 +21,12 @@ end
 give SteamBorer 1
 hold 1-1 right
 place 2 5 0 SteamBorer
-use 14 5 -1                           // get on (empty paw)
+use 14 5 -2                           // climb in (empty paw)
 expect 15 onborer == 1
+expect 15 borerx == 8.75
+expect 3 static:Granite == 536
 hold 300-900 right
 expect 900 borersteam == 0
-expect 900 borerx < 8.8               // it never moved (it stands at 8.75)
-expect 900 static:Granite == 500
+expect 900 borerx == 8.75             // it never moved
+expect 900 static:Granite == 536
+expect 900 log:steam >= 1            // "The borer has no steam: feed its firebox."

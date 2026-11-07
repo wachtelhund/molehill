@@ -1,59 +1,62 @@
-// Coupling is physical. A store wagon stands loose in the tunnel a way behind a borer: nothing couples. The borer backs
-// up to it and its tail meets the wagon's front: clank, it couples on, and is shoved back as the borer backs on. E on
-// it (empty) uncouples it: the borer drives off without it, and the wagon stays where it was left. Backed up to again,
-// it couples again. Backed into the tunnel's end, the wagon can't go further, and the borer stops with it (the train is
-// stuck). Off the borer, E uncouples it and E again takes it up.
+// Coupling is physical, and a train comes apart from its tail. A store wagon set down where the borer's first segment
+// rides couples on (clank), and a bunk wagon set down where the next one rides couples on behind it. E on the store
+// wagon, in the middle, uncouples nothing ("Uncouple the wagons behind it first"); E on the bunk wagon, the last,
+// uncouples it, and it stays loose where it is (it won't hook straight back on), so E again takes it up. The borer bores
+// on a little; out of the cab, the bunk wagon set down again at the train's new tail couples on again; then E, E takes
+// it up again.
 map
-##################################################
-##################################################
-##################################################
-##################################################
-##################################################
-##################################################
-#.................................................
-#.................................................
-#.................................................
-#.................................................
-#...........@.....................................
-##################################################
-##################################################
-##################################################
+############################################################
+############################################################
+############################################################
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#..........................................................#
+#...........@..............................................#
+############################################################
+############################################################
+############################################################
+############################################################
+############################################################
 end
 give SteamBorer 1
 give StoreWagon 1
-give Coal 6
+give BunkWagon 1
+give Coal 3
 hold 1-1 right
 place 2 8 0 SteamBorer
-place 3 -3 0 StoreWagon               // its front 4 tiles short of the borer's tail
-expect 8 wagons == 1
-expect 8 train == 0
+place 3 -2 0 StoreWagon               // where its first segment rides: couples on
+place 4 -7 0 BunkWagon                // where the next rides: couples on behind it
+expect 8 train == 2
+expect 8 log:couples == 2
 wield 10 Coal
-use 11 8 -1
-use 12 8 -1
-use 13 8 -1
+use 11 8 -2
+use 12 8 -2
+use 13 8 -2
 wield 14 none
-use 15 8 -1                           // on
-expect 200 borersteam > 2
-hold 220-420 left                     // back up into it
-expect 420 train == 1
-expect 420 log:couples == 1
-expect 420 wagonx < 9                 // shoved back from 9
-pickup 425 -5 0                       // E: uncouple
-expect 426 train == 0
-expect 426 log:Uncoupled == 1
-hold 430-700 right                    // drive off without it
-expect 700 borerx > 18
-expect 700 train == 0
-expect 700 wagonx < 9
-hold 710-1100 left                    // back up to it again: it couples again
-expect 1100 train == 1
-expect 1100 log:couples == 2
-hold 1100-1900 left                   // into the end of the tunnel
-expect 1900 wagonx > 2                // the wagon is at the wall...
-expect 1900 borerx > 9                // ...and the borer stopped behind it
-expect 1900 log:stuck >= 1
-hold 1905-1907 jump
-pickup 1920 -9 0                      // E: uncouple
-pickup 1925 -9 0                      // E: take it up
-expect 1926 wagons == 0
-expect 1926 inv:StoreWagon == 1
+pickup 20 -1 -2                       // E on the store wagon: not the last
+expect 21 train == 2
+expect 21 log:behind == 1
+pickup 22 -6 -2                       // E on the bunk wagon: the last, uncoupled
+expect 23 train == 1
+expect 23 log:Uncoupled == 1
+expect 60 train == 1                  // loose: it doesn't hook straight back on
+pickup 62 -6 0                        // E: take it up
+expect 63 wagons == 1
+expect 63 inv:BunkWagon == 1
+use 70 8 -2                           // climb in
+hold 300-320 right                    // on a little
+expect 330 borerx > 25
+expect 330 train == 1
+hold 335-337 jump                     // out
+place 360 0 0 BunkWagon               // at the train's new tail: couples on again
+expect 361 train == 2
+expect 361 log:couples == 3
+pickup 370 0 -2                       // E, E: uncouple it and take it up again
+expect 371 train == 1
+pickup 372 0 -2
+expect 373 wagons == 1
+expect 373 inv:BunkWagon == 1

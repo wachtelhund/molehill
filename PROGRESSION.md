@@ -48,7 +48,7 @@ Each tier is gated by a material from a deeper or harder band, and unlocks the n
 | **5. Heat-proof** | basalt and a heat-resistant alloy (working name *emberiron*) from the lava layer | basalt (**Bore**) | the Bore, lava-proof walls and pipes, deep outposts | below ~70 m, where lava dominates |
 | **6. Ancient relics** | found, never made | – | nothing: relics are unique and **can't be crafted** | Ancient facilities and ruins (see below) |
 
-The tool ladder matches the rock: the **Pickaxe** for soft ground, the **Drill** (a bronze-toothed auger driven by copperline) for granite, and the **Bore** (a heavy heat-bore) for basalt. The digging model already gates material by tool tier (see [Tools and Items](docs/wiki/Tools-and-Items.md)).
+The tool ladder matches the rock: the **Pickaxe** for soft ground, the **Drill** (a bronze-toothed auger driven by copperline) for granite, and the **Bore** (a heavy heat-bore) for basalt. Past them, once you have been down to **80 m**, the **steam borer** is the deep's machine: a coal-fired cab with a round bore head set with crystal and quartz cutters, that you steer through the rock like a worm with its wagons following as a travelling base (built: see [Production](docs/wiki/Production.md#steam-borer)). The digging model already gates material by tool tier (see [Tools and Items](docs/wiki/Tools-and-Items.md)).
 
 ### Crafting
 

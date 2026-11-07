@@ -328,7 +328,7 @@ impl World {
     }
     /// Save: the carts (window-relative cells) and their cargo.
     pub fn encode_transport(&self) -> Vec<u8> {
-        let mut o = crate::band::Wr(vec![]); o.u8(13);
+        let mut o = crate::band::Wr(vec![]); o.u8(14);
         o.u32(self.tr.carts.len() as u32);
         for c in &self.tr.carts { o.f32(c.x); o.f32(c.y); o.f32(c.v); o.u8((c.dir + 1) as u8); o.u32(c.cargo.len() as u32); for &(it, n) in &c.cargo { o.u8(it as u8); o.u32(n); } }
         // v2: ladders and lifts
@@ -348,16 +348,16 @@ impl World {
         self.encode_works(&mut o);
         // v9: sluice gates and tipping scales
         self.encode_linkage(&mut o);
-        // v10: steam borers
+        // v10: steam borers (v14: heading, path and train)
         self.encode_borers(&mut o);
-        // v11: wagons
+        // v11: wagons (v14: their ids)
         self.encode_wagons(&mut o);
         // v12: lift cages' widths (built to their shafts)
         o.u32(self.tr.lifts.len() as u32); for l in &self.tr.lifts { o.f32(l.w); }
         o.0
     }
     pub fn decode_transport(&mut self, b: &[u8]) -> Result<(), String> {
-        let mut r = crate::band::Rd::new(b); let ver = r.u8()?; r.old = ver < 13; // 13: the water wagon and the borer's tank are gone
+        let mut r = crate::band::Rd::new(b); let ver = r.u8()?; r.old = ver < 13; // 13: the water wagon and the borer's tank are gone; 14: the borer is a worm (its heading, path and train)
         let (gw, gh) = (self.g.w as f32, self.g.h as f32);
         for _ in 0..r.len(4096)? {
             let (x, y, v, dir) = (r.f32()?, r.f32()?, r.f32()?, r.u8()? as i8 - 1);
@@ -377,8 +377,9 @@ impl World {
         if ver >= 7 { self.decode_boilers(&mut r)?; }
         if ver >= 8 { self.decode_works(&mut r)?; }
         if ver >= 9 { self.decode_linkage(&mut r)?; }
-        if ver >= 10 { self.decode_borers(&mut r)?; }
-        if ver >= 11 { self.decode_wagons(&mut r)?; }
+        if ver >= 10 { self.decode_borers(&mut r, ver)?; }
+        if ver >= 11 { self.decode_wagons(&mut r, ver)?; }
+        if ver < 14 { self.adopt_old_trains(); }
         if ver >= 12 { let n = r.len(4096)?; let ws: Vec<f32> = (0..n).map(|_| r.f32()).collect::<Result<_, _>>()?;
             if ws.len() == self.tr.lifts.len() { for k in 0..ws.len() { if ws[k].is_finite() && ws[k] >= 1. && ws[k] <= crate::lifts::CAGE_MAX { let l = &self.tr.lifts[k]; let st = self.lift_stops(l.x, ws[k], l.head, l.bottom); self.tr.lifts[k].w = ws[k]; self.tr.lifts[k].stops = st; } } } }
         Ok(())

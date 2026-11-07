@@ -17,9 +17,9 @@ impl World {
         let riding = self.tr.riding; let (mut keep, mut nr) = (vec![], None);
         for (k, mut c) in std::mem::take(&mut self.tr.carts).into_iter().enumerate() { c.x -= dx; c.px -= dx; if !inx(c.x, 2.) { continue; } if riding == Some(k) { nr = Some(keep.len()); } keep.push(c); }
         self.tr.carts = keep; self.tr.riding = nr;
-        // the borer and its wagons move together in this one pass (a train is found by spacing, so it stays coupled)
+        // the borer (its head, cab and path) and its wagons move together in this one pass
         let riding = self.tr.borer_ride; let (mut keep, mut nr) = (vec![], None);
-        for (k, mut b) in std::mem::take(&mut self.tr.borers).into_iter().enumerate() { b.x -= dx; b.px -= dx; if !inx(b.x, 2.) { continue; } if riding == Some(k) { nr = Some(keep.len()); } keep.push(b); }
+        for (k, mut b) in std::mem::take(&mut self.tr.borers).into_iter().enumerate() { b.shift(dx, 0.); if !inx(b.x, 2.) { continue; } if riding == Some(k) { nr = Some(keep.len()); } keep.push(b); }
         self.tr.borers = keep; self.tr.borer_ride = nr;
         let riding = self.tr.wagon_ride; let (mut keep, mut nr) = (vec![], None);
         for (j, mut wg) in std::mem::take(&mut self.tr.wagons).into_iter().enumerate() { wg.x -= dx; wg.px -= dx; if !inx(wg.x, 2.) { continue; } if riding == Some(j) { nr = Some(keep.len()); } keep.push(wg); }

@@ -86,8 +86,8 @@ One row per item in the item registry (`ITEM_DEFS` in `craft.rs`, read through `
 | Pull-rod, tread plate, float, clutch | left mouse (brush; `X` snaps a rod line): rods run from a plate, scale or float to a gate, clutch or ore hopper; a tread plate goes into a floor, a float where the water should reach, a clutch into a drive line | no | no (dig it) |
 | Sluice gate | left mouse in an opening up to 2 m tall, joined to pull-rods; right mouse turns it round (pulled shuts instead of opens) | no | yes (`E` takes it up) |
 | Tipping scale | left mouse on a floor; right mouse puts a stone on its counter-pan (stone in paw) or takes one off | no | yes (`E` takes it up) |
-| Steam borer | left mouse: set it down facing your way; right mouse with coal, charcoal or wood in paw feeds it, with an empty paw gets on; `A`/`D` drive and bore, `Space` gets off | no | `E` rakes out its fuel, then picks it up |
-| Store, workshop, bunk or coal wagon | left mouse: set it down (behind a borer it couples on); right mouse climbs in or out; walk into a loose one to shove it; see [Production](Production.md#wagons) for what each does | no | `E` unloads it, then uncouples it, then picks it up |
+| Steam borer | left mouse: set it down heading your way; right mouse with coal, charcoal or wood in paw feeds it, with an empty paw climbs into its cab; in the cab `A`/`D`/`W`/`S` (and diagonals) steer it through the rock, `Space` climbs out | no | `E` rakes out its fuel, then picks it up |
+| Store, workshop, bunk or coal wagon | left mouse: set it down (at a borer train's tail it couples on); right mouse climbs in or out; walk into a loose one to shove it; see [Production](Production.md#wagons) for what each does | no | `E` unloads it, then uncouples it (the last of a train), then picks it up |
 | Ore hopper | left mouse over the track: both legs need a floor | no | `E` empties its load into the pack, then picks up the empty hopper |
 | Tube hopper | left mouse on a tube (drop items in to send; right mouse: ride, or pick where it sends) | no | yes |
 | Lift | left mouse in a shaft: snaps to the shaft (a ghost shows the cage, its stops and the counterweight); `W` / `S` ride or call it; right mouse on head or cage balances it with stone | no | yes, with its ballast |
@@ -178,7 +178,7 @@ In Survival a dig tool you don't own sits faint in the hotbar (see [The pack](#t
 
 Each better tool clears about twice the room a second of the one before, or more, and the kit's pickaxe bites any rock it can cut in half a second or less, with all the rock within 25 m of a new burrow its own (test `dig_tempo_is_earned_but_the_first_hour_is_open`).
 
-The [steam borer](Production.md#steam-borer) cuts by the same `dig` numbers: a column of its face takes a fixed time per unit of dig, and in soft ground it goes as fast as it drives. The `digtempo` example's last column prints, from the borer's own constants, how long it takes to bore the same room as 12 m of its 1 m tall tunnel, and how many metres of each rock a lump of coal's steam bores.
+The [steam borer](Production.md#steam-borer) cuts by the same `dig` numbers: each cell of its round face costs its head a fixed amount of steam per unit of dig, so it goes as fast as its cutting power grinds (granite about 2 m/s), and in soft ground at its top speed (5 m/s). The `digtempo` example's last columns print, from the borer's own constants, its speed through each rock and how many metres of its 1.5 m tunnel a lump of coal's steam bores.
 
 ## Stations
 
@@ -259,7 +259,7 @@ Chains are short: nothing is more than two steps from the ground (ore → ingot 
 | | thrummer | 2 crystal + 2 copper ingots + 1 glass |
 | | lift | 2 iron ingots + 4 wood + 1 copper ingot |
 | | tube hopper | 2 iron ingots + 2 copper ingots + 1 glass |
-| | steam borer | 8 iron ingots + 4 bronze ingots + 4 brick |
+| | steam borer (listed once you've been down to 80 m) | 20 iron ingots + 10 bronze ingots + 8 brick + 6 crystal + 4 quartz |
 
 The chain is the design: wood and stone give a bench and a pickaxe; heat (fire at first, lava deeper) lights a forge for copper and iron; copper and tin alloy into bronze, and copperline and a lever power a workshop to make the bronze drill; and iron, copper and crystal from the deep make the bore.
 
