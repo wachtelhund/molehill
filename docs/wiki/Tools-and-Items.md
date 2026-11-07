@@ -178,6 +178,8 @@ In Survival a dig tool you don't own sits faint in the hotbar (see [The pack](#t
 
 Each better tool clears about twice the room a second of the one before, or more, and the kit's pickaxe bites any rock it can cut in half a second or less, with all the rock within 25 m of a new burrow its own (test `dig_tempo_is_earned_but_the_first_hour_is_open`).
 
+The [steam borer](Production.md#steam-borer) cuts by the same `dig` numbers: a column of its face takes a fixed time per unit of dig, and in soft ground it goes as fast as it drives. The `digtempo` example's last column prints, from the borer's own constants, how long it takes to bore the same room as 12 m of its 1 m tall tunnel, and how many metres of each rock a lump of coal's steam bores.
+
 ## Stations
 
 Stations, not menus: you craft standing at one you have built. Open the pack (`I`) there and its recipes are listed down the left; click a bright one to make it. A dim recipe is missing something.

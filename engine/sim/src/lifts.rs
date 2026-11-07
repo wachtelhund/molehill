@@ -136,9 +136,13 @@ impl World {
     /// column; the head hangs under the ceiling above that, and the cage runs down to the shaft's floor.
     pub fn lift_plan(&self, x: usize, y: usize) -> Result<LiftPlan, &'static str> {
         if x >= self.g.w || y >= self.g.h || !self.passable(x, y) { return Err("aim into the open shaft"); }
-        let reach = CAGE_MAX as usize;
-        let a = (x.saturating_sub(reach)..=x).rev().take_while(|&c| self.passable(c, y)).last().unwrap_or(x);
-        let b = (x..(x + reach + 1).min(self.g.w)).take_while(|&c| self.passable(c, y)).last().unwrap_or(x);
+        // the shaft's walls: the narrowest open run through the cursor's column within 2 m above or below (so a
+        // cursor level with a side passage still finds the shaft, not the passage)
+        let reach = CAGE_MAX as usize + CPM;
+        let run = |r: usize| { let a = (x.saturating_sub(reach)..=x).rev().take_while(|&c| self.passable(c, r)).last().unwrap_or(x);
+            let b = (x..(x + reach + 1).min(self.g.w)).take_while(|&c| self.passable(c, r)).last().unwrap_or(x); (a, b) };
+        let (a, b) = (y.saturating_sub(2 * CPM)..=(y + 2 * CPM).min(self.g.h - 1)).filter(|&r| self.passable(x, r)).map(run)
+            .filter(|&(a, b)| (b + 1 - a) as f32 >= CAGE_W).min_by_key(|&(a, b)| b - a).unwrap_or_else(|| run(y));
         let span = b + 1 - a;
         if (span as f32) < CAGE_W { return Err("the shaft is too narrow for the cage (1.5 m)"); }
         // an odd number of cells wide, so the cage sits square on its middle column
@@ -223,8 +227,16 @@ impl World {
             Some((k, s))
         })
     }
-    /// `W` here hauls a lift (so it doesn't jump): on a cage with a stop above, or calling one.
-    pub fn lift_takes_up(&self) -> bool { self.lift_ridden().is_some_and(|k| self.tr.lifts[k].next_stop(-1).is_some()) || self.lift_callable().is_some() }
+    /// A cage standing still just over the head of a mole on the floor under it (it came down onto the mole and
+    /// stopped), with room on it for the mole: `W` climbs up through its floor hatch.
+    pub fn lift_over_head(&self) -> Option<usize> {
+        if !self.moles.first().is_some_and(|m| m.alive) || !self.pl.grounded || self.lift_ridden().is_some() { return None; }
+        let (px, py) = (self.pl.px, self.pl.py); let head = py - BODY_H;
+        self.tr.lifts.iter().position(|l| { let (x0, _, x1, _) = l.cage();
+            l.v == 0. && px + BODY_HW > x0 && px - BODY_HW < x1 && l.y + 1. <= head + 0.01 && l.y + 1. >= head - S as f32 && !self.box_hits(px, l.y) })
+    }
+    /// `W` here hauls a lift (so it doesn't jump): on a cage with a stop above, calling one, or under one to climb on.
+    pub fn lift_takes_up(&self) -> bool { self.lift_ridden().is_some_and(|k| self.tr.lifts[k].next_stop(-1).is_some()) || self.lift_callable().is_some() || self.lift_over_head().is_some() }
     /// `S` here hauls a lift (so it doesn't dig): on a cage with a stop below, or calling one.
     pub fn lift_takes_down(&self) -> bool { self.lift_ridden().is_some_and(|k| self.tr.lifts[k].next_stop(1).is_some()) || self.lift_callable().is_some() }
     /// `W` / `S` on the lifts this tick: a rider hauls to the next stop that way (held: on to the next);
@@ -238,6 +250,10 @@ impl World {
             if dir != 0 && going != Some(dir) { if let Some(t) = l.next_stop(dir) { self.lift_haul(k, t); } }
             return;
         }
+        // under the cage that came down over its head: W climbs up through the floor hatch onto it
+        if up && !uw { if let Some(k) = self.lift_over_head() { let y = self.tr.lifts[k].y; self.pl.py = y; self.pl.vy = 0.;
+            let (x, yy) = (self.pl.px as usize, (y - 0.001) as usize); self.moles[0].x = x; self.moles[0].y = yy; self.pl.sync = Some((x, yy)); self.pl.fall_from = yy;
+            self.say("You climb up through the cage's floor hatch.".into()); self.events.push(Event::Click); return; } }
         if (up && !uw) || (down && !dw) { if let Some((k, s)) = self.lift_callable() { self.lift_haul(k, s); if self.tr.lifts[k].target.is_some() { self.say("You haul on the hand rope: the cage is coming.".into()); } } }
     }
     /// Start lift `k` toward stop row `t`, if it can be hauled (else say why, once).
@@ -362,10 +378,12 @@ impl World {
                 let clear = (x0.floor() as i32..x1.ceil() as i32).all(|c| self.g.in_bounds(c, row) && self.passable(c as usize, row as usize));
                 let mole = dy > 0. && under && ny + 1. > my - BODY_H && l.y + 1. <= my - BODY_H + 0.01;
                 if ny < l.top() - 1e-3 || ny > (l.bottom - 1) as f32 + 1e-3 || !clear || mole {
-                    if mole { self.say("The cage stops above you: step out from under it.".into()); }
-                    l.v = 0.; l.target = None; arrive = false; l.y = l.y.clamp(l.top(), (l.bottom - 1) as f32); break; }
-                moved += ny - l.y; l.y = ny;
+                    if mole { self.say("The cage stops over your head: W climbs up through its hatch.".into()); }
+                    // (it rests on a whole row, so whoever stands on it stands square)
+                    l.v = 0.; l.target = None; arrive = false; l.y = if dy > 0. { l.y.floor() } else { l.y.ceil() }.clamp(l.top(), (l.bottom - 1) as f32); break; }
+                l.y = ny;
             }
+            moved = l.y - l.py;
             if arrive { if let Some(t) = l.target.take() { l.y = t as f32; moved = l.y - l.py;
                 // a key still held runs on to the next stop that way, without stopping
                 let dir = if self.input.up { -1 } else if self.input.down { 1 } else { 0 };

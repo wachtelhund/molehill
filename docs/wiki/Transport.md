@@ -94,7 +94,7 @@ The way up a face: the mole **can't climb bare walls** (Hampus, 2026-11-06; scen
 
 A **lift** is a cage on a rope over a head frame, balanced by a counterweight. Code: `lifts.rs`.
 * **Placing.** With the lift in hand, the cursor anywhere in a shaft shows a ghost of where it goes:
-  * The cage is built to the shaft's width (1.5 to 3 m, an odd number of cells, centred). In a cave wider than 3 m, a 3 m cage is set under the cursor.
+  * The cage is built to the shaft's width (1.5 to 3 m, an odd number of cells, centred). The width is the narrowest open run through the cursor's column within 2 m, so a cursor level with a side passage still finds the shaft. In a cave wider than 3 m, a 3 m cage is set under the cursor.
   * The head frame hangs under the ceiling above it, as far up as the 32 m rope reaches.
   * The ghost shows the cage at the foot, a mark at every stop, and the counterweight up top. It's pale where the lift fits and amber when it's out of reach. Where it can't go, a red cross shows and the tip says why ("the shaft is too narrow for the cage (1.5 m)", "needs a ceiling to hang from"). `tips::place_tip`, scenario `lift_ride_stops`.
 * **Stops.** The cage stops at three kinds of place, marked in brass on the shaft's side:
@@ -104,7 +104,7 @@ A **lift** is a cage on a rope over a head frame, balanced by a counterweight. C
 
   The stops follow the rock: dig a passage off the shaft and it becomes one. Between rides the head's brake holds the cage still.
 * **Riding.** The same keys as walking. On the cage, a tap on `W` / `S` hauls the hand rope to the next stop up or down, and the cage stops there, level with its floor. Held, it runs on through each stop without slowing (`lift_ride_stops`). On the cage, `W` doesn't jump and `S` doesn't dig.
-* **Calling.** Standing at a stop beside the shaft (within 1 m of the cage's side) or on its floor, a fresh `W` or `S` hauls the cage to you (`lift_call`). A cage coming down stops above a mole standing under it ("step out from under it").
+* **Calling.** Standing at a stop beside the shaft (within 1 m of the cage's side) or on its floor, a fresh `W` or `S` hauls the cage to you (`lift_call`). A cage coming down stops on a whole row over the head of a mole standing under it. `W` there climbs up through the cage's floor hatch onto it, so a mole that drops into a shaft with no way out at the foot can still call the cage and ride (`lift_from_under`).
 * **Balance.** The mole's arms haul up to 60 kg out of balance either way. That covers the bare 40 kg counterweight against the 60 kg cage and a 30 kg rider (50 kg), plus a couple of things besides.
   * A heavier load is refused: "Too heavy to haul … right mouse on the lift balances it", and the brake holds.
   * **Right mouse on the head or the cage balances it in one go.** It puts stone from the pack on the counterweight, or hands spare stone back, until the weight matches what's on the cage now, a rider counted (at the least the cage and a rider). It then says how it stands ("Balanced: counterweight 110 kg against the cage's 110 kg", or how many more stones it would need) (`lift_balance`).

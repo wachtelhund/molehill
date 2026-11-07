@@ -1,0 +1,56 @@
+// A mole that drops into a lift's shaft under its cage (no way out at the foot) isn't stuck: called, the cage
+// comes down and stops just over its head (the log says W climbs through its hatch), and W then climbs up
+// through the cage's floor hatch onto it, and it rides up. A 2 m shaft 6.75 m deep with a passage off its left near the top and another
+// halfway, joined by a drop at their far end; nothing at the foot. Bedrock, so the rock between the passages stands.
+map
+BBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+BBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+BBBBBBBBBBBBBB........BBBBBBBB
+BBBBBBBBBBBBBB........BBBBBBBB
+BBBBBBBBBBBBBB........BBBBBBBB
+BBBBBBBBBBBBBB........BBBBBBBB
+BB....................BBBBBBBB
+BB....................BBBBBBBB
+BB....................BBBBBBBB
+BB.........@..........BBBBBBBB
+BB...BBBBBBBBB........BBBBBBBB
+BB...BBBBBBBBB........BBBBBBBB
+BB...BBBBBBBBB........BBBBBBBB
+BB...BBBBBBBBB........BBBBBBBB
+BB...BBBBBBBBB........BBBBBBBB
+BB....................BBBBBBBB
+BB....................BBBBBBBB
+BB....................BBBBBBBB
+BB....................BBBBBBBB
+BBBBBBBBBBBBBB........BBBBBBBB
+BBBBBBBBBBBBBB........BBBBBBBB
+BBBBBBBBBBBBBB........BBBBBBBB
+BBBBBBBBBBBBBB........BBBBBBBB
+BBBBBBBBBBBBBB........BBBBBBBB
+BBBBBBBBBBBBBB........BBBBBBBB
+BBBBBBBBBBBBBB........BBBBBBBB
+BBBBBBBBBBBBBB........BBBBBBBB
+BBBBBBBBBBBBBB........BBBBBBBB
+BBBBBBBBBBBBBB........BBBBBBBB
+BBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+BBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+end
+give Lift 1
+place 2 5 6 Lift                   // from the top passage, the cursor down in the shaft: the cage starts at the foot
+expect 3 stops == 4
+hold 10-12 up                      // call it up to this passage
+expect 220 liftstop == 1
+hold 230-320 left                  // along the passage, down the drop into the lower passage
+expect 320 py == 19
+hold 330-460 right                 // off the lower passage's edge into the shaft, past the cage up top
+expect 460 py == 29                // at the foot, under the cage
+hold 470-472 up                    // call: it comes down and stops over the mole's head
+expect 640 liftv == 0
+expect 640 log:hatch > 0
+expect 640 py == 29                // (still under it)
+hold 650-650 up                    // W under it: up through the hatch
+expect 660 grounded == 1
+expect 660 py < 26                 // on the cage
+hold 670-673 up                    // and it rides up one stop
+expect 800 liftstop == 2
+expect 800 hp > 90
