@@ -447,6 +447,16 @@ art predated the endless sideways world and was redone.
 * Not done: no live window (the `--shot` frame is still grey); the stills are CPU composites, evenly lit by the dev
   flag, so how the wash reads under headlamp light was not seen.
 
+## Biome art: polish (branch `refine/biome-art-polish`)
+
+* The remembered rows past the window's ends (`render_far`) drew natural ground without the wash, so a region's colour
+  stopped at the window's top and bottom edge (in the Ashlands green and blue jump 12% and 17%; seed 4242 has ashlands
+  on the bottom edge). Each far chunk now builds its own small `RegionMap` and takes the same wash; the map is the same
+  whichever span built it, so it meets the window's with no seam (`regions_wash_softly_and_stay_put` checks a
+  chunk-sized map against the window's).
+* Not done: far rows only reach the GPU, not `--dump-art`'s CPU still, and the window frame is still grey, so the edge
+  was not seen; the evidence is the colour arithmetic and the test.
+
 ## Open issues
 * `--shot` writes an empty frame on macOS when the game is launched from a background shell (the surface is
   never presented). It needs a visible window, or Linux with Xvfb.
