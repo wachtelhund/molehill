@@ -81,6 +81,8 @@ pub struct Transport {
     /// rope-gun ropes fixed in the rock, the hook in flight, and the rope the mole hangs on with the length
     /// of rope above its hands (see ropes.rs)
     pub ropes: Vec<crate::ropes::Rope>, pub hook: Option<crate::ropes::Hook>, pub on_rope: Option<(usize, f32)>,
+    /// `W` / `S` a tick ago, for calling a lift on a fresh press (see lifts.rs)
+    pub lift_keys_was: (bool, bool),
     /// drive trains and counterweights (see power.rs)
     pub power: crate::power::Power,
     /// boilers (see steam.rs)
@@ -326,7 +328,7 @@ impl World {
     }
     /// Save: the carts (window-relative cells) and their cargo.
     pub fn encode_transport(&self) -> Vec<u8> {
-        let mut o = crate::band::Wr(vec![]); o.u8(11);
+        let mut o = crate::band::Wr(vec![]); o.u8(12);
         o.u32(self.tr.carts.len() as u32);
         for c in &self.tr.carts { o.f32(c.x); o.f32(c.y); o.f32(c.v); o.u8((c.dir + 1) as u8); o.u32(c.cargo.len() as u32); for &(it, n) in &c.cargo { o.u8(it as u8); o.u32(n); } }
         // v2: ladders and lifts
@@ -350,6 +352,8 @@ impl World {
         self.encode_borers(&mut o);
         // v11: wagons
         self.encode_wagons(&mut o);
+        // v12: lift cages' widths (built to their shafts)
+        o.u32(self.tr.lifts.len() as u32); for l in &self.tr.lifts { o.f32(l.w); }
         o.0
     }
     pub fn decode_transport(&mut self, b: &[u8]) -> Result<(), String> {
@@ -364,7 +368,7 @@ impl World {
             let (w, h) = (self.g.w, self.g.h);
             for _ in 0..r.len(4096)? { let (x, top, len, ax, ay) = (r.u32()? as usize, r.u32()? as usize, r.u32()? as usize, r.u32()? as usize, r.u32()? as usize); if x < w && ax < w && top > 0 && top + len < h && ay < h { self.tr.ladders.push(crate::lifts::Ladder { x, top, len, ax, ay }); } }
             for _ in 0..r.len(4096)? { let (x, head, y, bottom, ballast) = (r.u32()? as usize, r.u32()? as usize, r.f32()?, r.u32()? as usize, r.u32()?);
-                if x < w && head > 0 && bottom < h - 1 && y.is_finite() { self.tr.lifts.push(crate::lifts::Lift { x, head, y, py: y, v: 0., bottom, ballast }); } }
+                if x < w && head > 0 && bottom < h - 1 && y.is_finite() { let mut l = crate::lifts::Lift::new(x, head, y, bottom, ballast, crate::lifts::CAGE_W.floor() - 1.); l.stops = self.lift_stops(x, l.w, head, bottom); self.tr.lifts.push(l); } }
         }
         if ver >= 3 { self.decode_tubes(&mut r)?; }
         if ver >= 4 { self.decode_bins(&mut r)?; }
@@ -375,6 +379,8 @@ impl World {
         if ver >= 9 { self.decode_linkage(&mut r)?; }
         if ver >= 10 { self.decode_borers(&mut r)?; }
         if ver >= 11 { self.decode_wagons(&mut r)?; }
+        if ver >= 12 { let n = r.len(4096)?; let ws: Vec<f32> = (0..n).map(|_| r.f32()).collect::<Result<_, _>>()?;
+            if ws.len() == self.tr.lifts.len() { for k in 0..ws.len() { if ws[k].is_finite() && ws[k] >= 1. && ws[k] <= crate::lifts::CAGE_MAX { let l = &self.tr.lifts[k]; let st = self.lift_stops(l.x, ws[k], l.head, l.bottom); self.tr.lifts[k].w = ws[k]; self.tr.lifts[k].stops = st; } } } }
         Ok(())
     }
 }

@@ -54,7 +54,7 @@ The rule is simple: **gameplay goes in the sim.** If it changes what happens in 
 | `borer.rs` | the steam borer: a rideable machine with its own firebox and water tank that grinds a tunnel and drops its spoil as loose rubble behind it, so it jams in a dead end (see [Production](Production.md#steam-borer)) |
 | `wagon.rs` | the borer's wagons: store, workshop, bunk, water and coal wagons that couple behind a borer and are hauled with everything in them (see [Production](Production.md#wagons)) |
 | `sluice.rs` | sluicing: the current read from the water surface's slope, which washes light loose items and grains downstream and leaves heavy lumps behind riffle bars (see [Production](Production.md)) |
-| `lifts.rs` | rope ladders and counterweighted lifts, balanced with stone or wound up by current |
+| `lifts.rs` | rope ladders and counterweighted lifts: placing plans (the game's ghosts), stops, riding and calling on `W` / `S`, balance with stone, the winch on current |
 | `ropes.rs` | the rope gun: a thrown hook that bites solid rock or a block, and its 16 m verlet rope to climb and swing on (the way up, since there is no wall climbing) |
 | `tubes.rs` | pressure tubes: hoppers whose current-driven blowers send capsules of items or the mole along the pipe; a breach stops and spills them |
 | `ruins.rs` | ruins of the Ancients: pumping halls, sealed vaults and tube stations placed per 160 × 80 m cell from the seed, their carvings, and the relics in vault chests |

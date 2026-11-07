@@ -1,0 +1,41 @@
+// Hanging a rope ladder snaps to the ledge: aimed into the rock it's refused; aimed 1 m out from a 4 m cliff's
+// face, it ties on at the lip and hangs against the face (not out in the air where the cursor was), unrolled
+// to the floor: 4.5 m, tied 0.5 m back from the lip's top (tiles from the map's corner).
+map
+##############################
+#............................#
+#............................#
+#............................#
+#............................#
+#............................#
+#............................#
+############.................#
+############.................#
+############.................#
+############.................#
+############.................#
+############.................#
+############.................#
+############.................#
+############.................#
+############.................#
+############.................#
+############.................#
+############.................#
+############.................#
+############.................#
+############.@...............#
+##############################
+##############################
+##############################
+end
+give RopeLadder 2
+place 2 -3 -6 RopeLadder           // into the cliff: no
+expect 3 ladders == 0
+place 4 2 -6 RopeLadder            // 1 m out from the face
+expect 5 ladders == 1
+expect 5 ladderx == 12             // against the face (the cliff's last column is 11)
+expect 5 laddertop == 5
+expect 5 ladderlen == 18           // to the floor
+hold 10-40 up                      // and it climbs as ever
+expect 12 climbing == 1

@@ -1,0 +1,71 @@
+// Riding a lift with the walking keys: from the foot, a tap on W hauls the cage to the next stop up (the
+// right-hand passage) and it stops there, level; W held runs on through the left passage's stop to the top
+// without stopping; a tap on S takes it back down one stop, and the mole walks off into the left passage.
+// A 2 m shaft 6.75 m deep with side passages: one on the left 1.5 m under the head, one on the right
+// halfway down, and one at the foot on the right. The lift built in it is a 1.875 m cage (the shaft's width,
+// an odd number of cells) and stops at the top, at each passage's floor and at the shaft's floor (tile rows
+// 5.5, 10, 19 and 28.5 from the map's top).
+map
+##############################
+##############################
+##########........############
+##########........############
+##########........############
+##########........############
+##................############
+##................############
+##................############
+##................############
+##########........############
+##########........############
+##########........############
+##########........############
+##########........############
+##########.................###
+##########.................###
+##########.................###
+##########.................###
+##########........############
+##########........############
+##########........############
+##########........############
+##########........############
+##########........############
+##########.................###
+##########.................###
+##########.................###
+##########............@....###
+##############################
+##############################
+end
+give Lift 1
+place 2 -8 -4 Lift                // the cursor anywhere in the shaft: the cage snaps to the shaft's width and middle
+expect 3 lifts == 1
+expect 3 stops == 4
+expect 3 liftw == 7.5             // 15 cells: the shaft's 2 m less a cell
+expect 3 liftx == 13.5            // its middle column (cells 27; the shaft runs from column 10 to 17)
+expect 3 liftstop == 3            // at the foot
+hold 5-60 left                    // step onto the cage from the foot passage
+expect 60 grounded == 1
+hold 70-73 up                     // a tap: to the next stop up
+expect 75 liftv < 0
+expect 75 rise < 1                // W hauls the rope on the cage: no jump
+expect 200 liftstop == 2
+expect 200 lifty == 19
+expect 200 liftv == 0             // the brake holds it at the stop
+expect 200 py == 19               // the mole on it, level with the passage floor
+expect 260 liftstop == 2          // and it stays
+hold 270-420 up                   // held: up past the left passage's stop...
+expect 330 liftv < -7             // ...at full speed through it (2 m/s = 8 tiles/s)
+expect 420 liftstop == 0          // ...to the top
+hold 430-433 down                 // a tap on S: one stop down (S on the cage doesn't dig)
+expect 520 liftstop == 1
+expect 520 py == 10
+hold 530-600 left                 // walk off into the left passage
+expect 600 px < 9
+expect 600 py == 10
+expect 600 hp == 100
+saveload 601                      // the lift, its width and its stops are saved
+expect 602 lifts == 1
+expect 602 liftw == 7.5
+expect 602 stops == 4

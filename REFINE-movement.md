@@ -201,6 +201,26 @@ Polish only: no new features or concepts. Each entry is one commit.
     * Not done live: no in-window playtest of rope feel, swing or the placeholder rope art this round (headless
       tests and scenarios only); p3's unique rope-gun art is still to come.
 
+22. **Lift and ladder UX (Hampus's playtest, 23:53/23:54).** "Janky and hard to understand": the controls were
+    unclear, ballast was one stone per click with stone in the paw, and placing had no preview. Redesigned, still
+    physical:
+    * Placing snaps. The cage is built to the shaft's width and centred, and the head hangs under the ceiling.
+      A ladder ties on a ledge's lip within 1 m and hangs against the face. A ghost shows the cage, the stops
+      and the counterweight (or the ladder's whole length and knot), and a tip says what it would do or why not.
+    * Riding and calling use `W` / `S`, with clear stops (the top, each flush side passage, the floor). A tap
+      goes one stop, held runs through. The brake holds the cage between rides, so it no longer drifts with the
+      balance.
+    * Balance takes one right click (stone from the pack to match the load), with a needle on the head. The
+      arms haul up to 60 kg out of balance; current at the head hauls any load.
+    * The old `lift_counterweight` is gone. Scenarios: `lift_ride_stops`, `lift_call`, `lift_balance`,
+      `lift_powered` and `ladder_place_snap`.
+    * Found on the way: copperline in the head frame's block beside its middle column didn't power it. Now any
+      block the head frame spans counts. A ladder that fell against its face hung stuck in the rock; it now
+      drops clear of it.
+    * Not done live: the `--shot` stills (`--scene=lift|liftride|liftheavy`, `--shot-hold`, `--shot-aim`,
+      `--shot-up`) came out blank on this machine at 00:40 (the display is locked; the existing `--scene=rope`
+      is blank too). The ghost, needle and stop marks are unseen in a window, only built.
+
 ## Open issues
 * Ropes and rope ladders the world window leaves (a long trip up or down) are lost with it: they aren't kept
   in the 64-row bands. Worth a band record if players rig long routes.
