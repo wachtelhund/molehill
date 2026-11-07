@@ -106,6 +106,10 @@ with strata offset, cave openness, fluid pockets, host rock, lenses, growth and 
   `Biome` (+ `name`, `NBIOME`), `Gen::biome_of(x, wy)` in world cells, `Wall::Mycel` (colour and pattern in walls.rs).
 
 ## Open / for others
+* **For the next polish round (p3's stills, seed 4242, PR #96):** (1) region edges between columns are straight
+  verticals (`biome_x` switches on a hard line; only depth edges wander) and show as a rock seam, e.g. granite against
+  limestone at window x ≈ 770, rows 580-800: wobble the column lookup by depth. (2) `natural_at` picks one wall per 1 m
+  block, so linings read as a quilt of 1 m squares: noise-shaped patches or edge blending.
 * **p2:** the parallel CA (rayon) isn't deterministic on the first run after a rebuild. Seen on
   `digging_straight_down_never_kills` seed 6 (a limestone clump falls into a flooded shaft onto the mole on some runs),
   and on `tree_regrow` / `water_levels` on the biomes branch. Repeat runs of the same binary pass.
