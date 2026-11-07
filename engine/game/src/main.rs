@@ -307,13 +307,14 @@ fn dev_dump(n: Local<u32>, g: Res<Game>, sp: Res<Sprites>, images: Res<Assets<Im
             for (ly, f) in &bg.layers { let u = (((x0 + x) as f32 - camx * f + PAD as f32) / BG_RES as f32).floor().clamp(0., (bw / BG_RES) as f32 - 1.) as usize; let q = (((y0 + y) / BG_RES) * (bw / BG_RES) + u) * 4; let la = ly[q + 3] as f32 / 255.;
                 for j in 0..3 { c[j] = c[j] + (ly[q + j] as f32 - c[j]) * la; } }
             for j in 0..3 { v[o + j] = srgb(lin(c[j]) * (1. - a) + lin(v[o + j] as f32) * a).min(255.) as u8; } v[o + 3] = 255; } }
-        // mark the mole's body cells so the crop can be read without sprites
+        // mark the mole's body cells so the crop can be read without sprites (view.bmp below starts from the unmarked copy)
+        let clean = v.clone();
         for dy in 0..3 * S { let (x, y) = (mx - x0, my - dy - y0); let o = (y * cw + x) * 4; v[o..o + 4].copy_from_slice(&[255, 0, 255, 255]); }
         bmp(&format!("{dir}/view_cells.bmp"), cw, chh, &v, false, 4 / S.min(4));
         // view.bmp: the same at one pixel per world unit with every visible world sprite blitted on in depth
         // order (furniture, found-place props, chests, torches, carts, the mole, copperline, ropes); rotated ones are sampled back through their rotation
         { let k = (1. / CPX).recip() as usize; let (ww, wh) = (cw * k, chh * k); let mut u = vec![0u8; ww * wh * 4];
-            for y in 0..wh { for x in 0..ww { let s = ((y / k) * cw + x / k) * 4; u[(y * ww + x) * 4..(y * ww + x) * 4 + 4].copy_from_slice(&v[s..s + 4]); } }
+            for y in 0..wh { for x in 0..ww { let s = ((y / k) * cw + x / k) * 4; u[(y * ww + x) * 4..(y * ww + x) * 4 + 4].copy_from_slice(&clean[s..s + 4]); } }
             let mut list: Vec<(&Transform, &Sprite)> = wires.iter().filter(|(_, _, v)| **v != Visibility::Hidden).map(|(t, s, _)| (t, s)).collect(); list.sort_by(|a, b| a.0.translation.z.partial_cmp(&b.0.translation.z).unwrap());
             for (t, spr) in list { let Some(im) = images.get(&spr.image) else { continue }; let Some(d) = im.data.as_ref() else { continue };
                 let (iw, ih) = (im.width() as usize, im.height() as usize); let size = spr.custom_size.unwrap_or(Vec2::new(iw as f32, ih as f32));
