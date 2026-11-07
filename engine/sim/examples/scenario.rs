@@ -107,7 +107,7 @@ impl Run {
             "wagonx" => self.w.tr.wagons.first().map_or(-1., |w| (w.x - self.ox as f32) as f64 / kf), "wagonload" => self.w.tr.wagons.first().map_or(0., |w| w.load() as f64),
             "wagonwater" => self.w.tr.wagons.first().map_or(0., |w| w.water as f64), "inwagon" => self.w.tr.wagon_ride.is_some() as u8 as f64,
             "atbench" => self.w.station_here(molehill_sim::craft::Station::Workbench).is_some() as u8 as f64, "slept" => self.w.tr.slept as u8 as f64,
-            "spawnx" => (self.w.pl.spawn.0 as f64 - self.ox as f64) / kf,
+            "spawnx" => ((self.w.pl.spawn.0 - self.w.ox) as f64 - self.ox as f64) / kf,
             "gates" => self.w.tr.links.gates.len() as f64, "scales" => self.w.tr.links.scales.len() as f64,
             "gateopen" => self.w.tr.links.gates.first().map_or(0., |g| g.open as u8 as f64), "tipped" => self.w.tr.links.scales.first().map_or(0., |s| s.tipped as u8 as f64),
             _ if v.starts_with("pulled:") => { let a: Vec<&str> = v[7..].split(',').collect(); let (x, y) = self.at(a.get(0)?.parse().ok()?, a.get(1)?.parse().ok()?); self.w.pulled(y * self.w.g.w + x) as u8 as f64 }
@@ -169,7 +169,7 @@ impl Run {
             "journal" => self.w.journal.len() as f64,
             // clues_bands:A,B  how many clues the world places in 32 m bands A..=B (absolute; negative = higher up)
             _ if v.starts_with("clues_bands:") => { let a: Vec<i64> = v[12..].split(',').filter_map(|t| t.parse().ok()).collect(); let (b0, b1) = (*a.first()?, *a.get(1)?);
-                (b0..=b1).map(|b| molehill_sim::lore::clues_in_band(&self.w.gen, self.w.gen.seed, b, self.w.g.w).len()).sum::<usize>() as f64 }
+                (b0..=b1).map(|b| molehill_sim::lore::clues_in_band(&self.w.gen, self.w.gen.seed, 0, b).len()).sum::<usize>() as f64 }
             "clues" => self.w.clues.iter().filter(|c| !c.found && c.x >= self.ox && c.x < self.ox + self.mw && c.y >= self.oy && c.y < self.oy + self.mh).count() as f64,
             "clues_upper" => self.w.clues.iter().filter(|c| c.y < self.w.g.h / 2).count() as f64,
             "clues_lower" => self.w.clues.iter().filter(|c| c.y >= self.w.g.h / 2).count() as f64,
@@ -370,7 +370,7 @@ fn run_file(path: &str, json: bool) -> bool {
     // the mole stands centred on the '@' tile, feet on its bottom edge
     let (ax, ay) = (ox + ax * K, oy + ay * K); // '@' tile's top-left cell
     let (fx, fy) = (ax + K / 2, ay + K - 1); // feet cell
-    w.moles[0].x = fx; w.moles[0].y = fy; w.pl = Default::default(); w.pl.fall_from = fy; w.moles[0].hp = 100.; w.pl.spawn = (fx, w.oy + fy as i64);
+    w.moles[0].x = fx; w.moles[0].y = fy; w.pl = Default::default(); w.pl.fall_from = fy; w.moles[0].hp = 100.; w.pl.spawn = (w.ox + fx as i64, w.oy + fy as i64);
     w.pl.px = (ax as f32) + K as f32 / 2.; w.pl.py = (ay + K) as f32; w.pl.ppx = w.pl.px; w.pl.ppy = w.pl.py; w.pl.grounded = true; w.pl.sync = Some((fx, fy));
     let (mw, mh) = (mw * K, mh * K);
     let mut r = Run { sizes: Default::default(), held: molehill_sim::world::Brush::Dig(1), ox, oy, mw, mh, ax, ay, sx: 0., sy: 0., top: f32::MAX, events: vec![], w };
@@ -387,9 +387,9 @@ fn run_file(path: &str, json: bool) -> bool {
                 Act::Ruin(t, kind, dx, dy, left) if *t == tick => { use molehill_sim::ruins::{Kind, Ruin};
                     let kd = match kind.as_str() { "hall" => Kind::PumpingHall, "vault" => Kind::SealedVault, "tube" => Kind::TubeStation, o => panic!("{path}: unknown ruin {o}") };
                     let (x0, y0) = (r.ax as i32 + dx * K as i32, r.ay as i32 + dy * K as i32); let oy = r.w.oy;
-                    let ru = Ruin::new(0x5EED + tick as u32 * 7 + (*dx as u32) * 131, kd, x0 as usize, oy + y0 as i64, *left, 1, 12);
-                    for y in 0..ru.h { for x in 0..ru.w { if let Some(m) = ru.cell(ru.x0 + x, ru.y0 + y as i64) { let i = r.w.g.idx(ru.x0 + x, y0 as usize + y); r.w.g.set(i, m); r.w.g.flags[i] = 0; } } }
-                    if let Some((cx, cwy)) = ru.chest { r.w.chests.push(molehill_sim::world::Chest { x: cx, y: (cwy - oy) as usize, opened: false, ancient: Some(ru.id) }); }
+                    let ru = Ruin::new(0x5EED + tick as u32 * 7 + (*dx as u32) * 131, kd, r.w.ox + x0 as i64, oy + y0 as i64, *left, 1, 12);
+                    for y in 0..ru.h { for x in 0..ru.w { if let Some(m) = ru.cell(ru.x0 + x as i64, ru.y0 + y as i64) { let i = r.w.g.idx(x0 as usize + x, y0 as usize + y); r.w.g.set(i, m); r.w.g.flags[i] = 0; } } }
+                    if let Some((cx, cwy)) = ru.chest { r.w.chests.push(molehill_sim::world::Chest { x: (cx - r.w.ox) as usize, y: (cwy - oy) as usize, opened: false, ancient: Some(ru.id) }); }
                     r.w.ruins.push(ru); }
                 Act::Set(t, v, x) if *t == tick => { let m = &mut r.w.moles[0]; match v.as_str() { "hp" => m.hp = *x, "hunger" => m.hunger = *x, "breath" => m.breath = *x, "oil" => r.w.lamp_oil = *x, "quest" => r.w.quest = *x as usize, "weight" => { if let Some(w) = r.w.tr.power.weights.first_mut() { w.y = (w.y + *x * K as f32).min(w.bottom); w.py = w.y; } }
                     // set T inv:ITEM N: the pack's count of an item, mid-run (`give` is at the start)
@@ -442,7 +442,7 @@ fn run_file(path: &str, json: bool) -> bool {
                 Act::Grotto(t, dx, dy, rx, ry) if *t == tick => { // a glowmite swarm of a grotto centred on that tile (radii in tiles)
                     let (x, y) = r.at(*dx, *dy); let (rx, ry) = ((*rx * K as f32) as usize, (*ry * K as f32) as usize);
                     let id = 0x5CE7 + r.w.grottos.len() as u32; let cy = r.w.oy + y as i64;
-                    r.w.grottos.push(molehill_sim::gen::Grotto { id, cx: x, cy, rx, ry, floor: ry as i64 / 2, pool: (0, 0), trees: [(0, 0); 3], ntrees: 0 }); }
+                    r.w.grottos.push(molehill_sim::gen::Grotto { id, cx: r.w.ox + x as i64, cy, rx, ry, floor: ry as i64 / 2, pool: (0, 0), trees: [(0, 0); 3], ntrees: 0 }); }
                 Act::Catch(t, dx, dy) if *t == tick => { let (x, y) = r.at(*dx, *dy); if !r.w.catch_glowmite(x, y) { println!("  NOTE {path} tick {tick}: no glowmite to catch at {dx},{dy}"); } }
                 Act::Pickup(t, dx, dy) if *t == tick => { let (x, y) = r.at(*dx, *dy); r.w.pick_up(x, y); }
                 Act::Wire(t, x0, y0, x1, y1) if *t == tick => { // a straight run of copperline, one per 1 m block

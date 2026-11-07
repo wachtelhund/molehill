@@ -70,9 +70,9 @@ fn routes(seed: u32) {
     let stone = (0..NMAT).filter(|&k| drop_of(Mat::from_u8(k as u8)) == Some(Item::Stone)).map(|k| near[k]).fold((f32::MAX, 0, 0), |a, b| if b.0 < a.0 { b } else { a });
     add("stone", Some(stone));
     for (name, m) in [("roots", Mat::Roots), ("copper", Mat::CopperOre), ("tin", Mat::TinOre), ("clay", Mat::Clay), ("coal", Mat::Coal), ("fungus", Mat::Fungus), ("iron", Mat::IronOre), ("lava", Mat::Lava)] { add(name, Some(near[m as usize])); }
-    let g = w.grottos.iter().map(|g| { let (x, y) = (g.cx, (g.cy - w.oy).max(0) as usize); ((((x as i64 - mx).pow(2) + (y as i64 - my).pow(2)) as f32).sqrt() / c, x, y) }).fold((f32::MAX, 0, 0), |a, b| if b.0 < a.0 { b } else { a });
+    let g = w.grottos.iter().map(|g| { let (x, y) = ((g.cx - w.ox).max(0) as usize, (g.cy - w.oy).max(0) as usize); ((((x as i64 - mx).pow(2) + (y as i64 - my).pow(2)) as f32).sqrt() / c, x, y) }).fold((f32::MAX, 0, 0), |a, b| if b.0 < a.0 { b } else { a });
     add("grotto", Some(g));
-    let s = w.sites.iter().map(|s| { let (x, y) = (s.x0 + s.w / 2, (s.y0 - w.oy).max(0) as usize + s.h / 2); ((((x as i64 - mx).pow(2) + (y as i64 - my).pow(2)) as f32).sqrt() / c, x, y) }).fold((f32::MAX, 0, 0), |a, b| if b.0 < a.0 { b } else { a });
+    let s = w.sites.iter().map(|s| { let (x, y) = ((s.x0 - w.ox).max(0) as usize + s.w / 2, (s.y0 - w.oy).max(0) as usize + s.h / 2); ((((x as i64 - mx).pow(2) + (y as i64 - my).pow(2)) as f32).sqrt() / c, x, y) }).fold((f32::MAX, 0, 0), |a, b| if b.0 < a.0 { b } else { a });
     add("site", Some(s));
     println!("{line}");
 }

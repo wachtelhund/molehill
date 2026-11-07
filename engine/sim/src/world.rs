@@ -20,6 +20,9 @@ pub const TREE_EVERY: u64 = 120; pub const TREE_GROW_1_IN: u32 = 3;
 pub const GLOWMITES_MIN: u32 = 4; pub const GLOWMITE_BACK: u64 = 5 * 60 * 60;
 /// Rows the window slides by when the colony nears its edge (32 m).
 pub const SLIDE: usize = 32 * CPM;
+/// How near a side of the window (80 m) the colony comes before the window slides a tile sideways: far
+/// enough that the camera, which stops at the window's side, rarely has to.
+pub const SIDE_MARGIN: usize = 80 * CPM;
 /// Cells of a placed block one pack item makes (a legacy tile is S×S cells, and an item made 4 of them).
 pub const CELLS_PER_BLOCK: u16 = 4 * (S * S) as u16;
 /// Lava cooling sweep period (ticks), and the chance per sweep (1 in N) that a thin bit of lava freezes.
@@ -73,7 +76,7 @@ pub struct Input { pub left: bool, pub right: bool, pub jump: bool, pub up: bool
     pub brush: f32 }
 /// The player mole's platformer state (cells; velocities in cells/s).
 #[derive(Clone, Default, Debug)]
-pub struct Player { pub px: f32, pub py: f32, pub ppx: f32, pub ppy: f32, pub sync: Option<(usize, usize)>, pub coyote: f32, pub buffer: f32, pub lock: f32, pub cling: i8, pub jump_was: bool, /** W was held last tick (a rope is grabbed from the floor on a fresh press) */ pub up_was: bool, pub vx: f32, pub vy: f32, pub ax: f32, pub ay: f32, pub grounded: bool, pub fall_from: usize, pub mine: Option<(usize, u32, u32)>, pub spawn: (usize, i64), pub dead_t: u32, pub deaths: u32,
+pub struct Player { pub px: f32, pub py: f32, pub ppx: f32, pub ppy: f32, pub sync: Option<(usize, usize)>, pub coyote: f32, pub buffer: f32, pub lock: f32, pub cling: i8, pub jump_was: bool, /** W was held last tick (a rope is grabbed from the floor on a fresh press) */ pub up_was: bool, pub vx: f32, pub vy: f32, pub ax: f32, pub ay: f32, pub grounded: bool, pub fall_from: usize, pub mine: Option<(usize, u32, u32)>, pub spawn: (i64, i64), pub dead_t: u32, pub deaths: u32,
     /// hit flash (s left) after taking a knock; `hp_was` = hp after the last tick, to spot the knock
     pub flash: f32, pub hp_was: f32,
     /// the material a dig was refused on during this press (too hard for the tools owned): clinks once per
@@ -230,11 +233,14 @@ pub struct World {
     pub air: Air, pub farms: Vec<Farm>, pub harvested: u32,
     /// Endless vertical world: the grid is a window; `oy` = absolute row of window row 0.
     pub input: Input, pub pl: Player,
-    pub gen: Gen, pub oy: i64,
+    pub gen: Gen,
+    /// absolute column and row of window cell (0, 0): the window slides both ways over an endless Deepholt
+    pub ox: i64, pub oy: i64,
     /// Bands that left the window, by the world row they start at (see `band.rs`): everything in them, packed.
-    pub bands: std::collections::BTreeMap<i64, crate::band::Stored>, pub opened: std::collections::HashSet<(usize, i64)>,
+    /// the tiles off-window, by absolute (first column, first row)
+    pub bands: std::collections::BTreeMap<(i64, i64), crate::band::Stored>, pub opened: std::collections::HashSet<(i64, i64)>,
     /// The Lid thread (`lore.rs`): clues in the window, the ones found (x, absolute row), and the journal (fragment ids, in the order read).
-    pub clues: Vec<crate::lore::Clue>, pub found_clues: std::collections::HashSet<(usize, i64)>, pub journal: Vec<u16>,
+    pub clues: Vec<crate::lore::Clue>, pub found_clues: std::collections::HashSet<(i64, i64)>, pub journal: Vec<u16>,
     /// grottos touching the window (from the generator; refreshed with the chests)
     pub grottos: Vec<gen::Grotto>,
     /// keep the last blast's overpressure field (kPa per cell) in `blast_field` (tests and the harness)
@@ -287,14 +293,14 @@ impl World {
         let oy = -(h as i64 / 2); let (gn, info) = gen::info_only(seed, w, h);
         let mut wd = World::shell(Grid::new(w, h), w, h, seed, oy, gn, info);
         wd.moles.push(Mole { name: NAMES[0], x: w / 2, y: h / 2, hp: 100., breath: 100., path: VecDeque::new(), job: None, work: 0, work_cell: None, carry: None, hunger: 80., sleep: 70., facing: 1, fall: 0, idle: 0, anim: 0, alive: true });
-        wd.pl.spawn = (w / 2, 0); wd
+        wd.pl.spawn = ((w / 2) as i64, 0); wd
     }
     fn shell(g: Grid, w: usize, h: usize, seed: u32, oy: i64, gn: Gen, info: gen::GenInfo) -> World {
         World {
             st: Stress::new(w * h), light: Light::new(w, h), tick: 0, inv: [0; NITEM], dig_acc: [0; NMAT], place_acc: [0; NBUILD], desig: vec![0; w * h],
             moles: vec![], drops: vec![], stockpile: (0, 0, 0, 0), buildings: vec![], torches: vec![], chests: vec![], furniture: vec![], paint_acc: 0,
             quest: 0, log: vec![], discovered: [false; NMAT], chests_opened: 0, pillars: 0, max_depth: 0., craft_queue: vec![], gear: Gear::default(), known: [false; NITEM], mode: Default::default(), rules: Default::default(), lamp_oil: 0., lamp_dry: false, lamp_low: false, ruins: vec![], ruins_seen: Default::default(), relics: 0, crumbled: 0,
-            light_rect: (0, 0, w - 1, h - 1), events: vec![], marks: vec![], react_pending: false, logic: Logic::new(w, h), disasters: Disasters::new(seed), shake: 0., air: Air::new(w, h), farms: vec![], harvested: 0, input: Input::default(), pl: Player::default(), gen: gn, oy, bands: Default::default(), opened: Default::default(), clues: vec![], found_clues: Default::default(), journal: vec![], grottos: vec![], caught: Default::default(), keep_blast_field: false, blast_field: vec![], debris: vec![], waves: vec![], strain: vec![], strain_creak: 0, tr: Default::default(), blasts_run: 0, info, g,
+            light_rect: (0, 0, w - 1, h - 1), events: vec![], marks: vec![], react_pending: false, logic: Logic::new(w, h), disasters: Disasters::new(seed), shake: 0., air: Air::new(w, h), farms: vec![], harvested: 0, input: Input::default(), pl: Player::default(), gen: gn, ox: 0, oy, bands: Default::default(), opened: Default::default(), clues: vec![], found_clues: Default::default(), journal: vec![], grottos: vec![], caught: Default::default(), keep_blast_field: false, blast_field: vec![], debris: vec![], waves: vec![], strain: vec![], strain_creak: 0, tr: Default::default(), blasts_run: 0, info, g,
             walls: crate::walls::Walls::new(w, h), sites: vec![], sites_seen: Default::default(), grottos_seen: Default::default(), stream: Default::default(),
         }
     }
@@ -311,7 +317,7 @@ impl World {
         let mut fy = sy.min(h - 6 * S); while fy < h - 5 * S && !wd.g.is_solidish(wd.g.idx(sx, fy + 1)) { fy += 1; }
         wd.stockpile = (sx + 6 * S, fy - 2 * S, sx + 16 * S, fy);
         for k in 0..1 { wd.moles.push(Mole { name: NAMES[k], x: sx, y: fy, hp: 100., breath: 100., path: VecDeque::new(), job: None, work: 0, work_cell: None, carry: None, hunger: 80. + k as f32 * 4., sleep: 70. + k as f32 * 7., facing: 1, fall: 0, idle: 0, anim: k as u32 * 7, alive: true }); }
-        wd.pl.spawn = (sx, wd.oy + fy as i64); wd.pl.fall_from = fy;
+        wd.pl.spawn = (wd.ox + sx as i64, wd.oy + fy as i64); wd.pl.fall_from = fy;
         // the colony knows its own burrow, not the rock around it: what a mole sees from inside the chamber
         // (rays stop at the first rock) and a 1 m skin of its walls. Everything else waits to be found.
         for (dx, up) in [(-3i64, 1i64), (0, 2), (3, 1)] {
@@ -332,32 +338,37 @@ impl World {
     pub fn depth_m(&self, _x: usize, y: usize) -> f32 { (self.oy + y as i64) as f32 * CELL_M }
     /// Chests for every chest band overlapping the window (opened ones stay opened).
     pub fn refresh_chests(&mut self) {
-        self.grottos = self.gen.grottos_in_rows(self.oy, self.oy + self.g.h as i64);
-        self.ruins = self.gen.ruins_in_rows(self.oy, self.oy + self.g.h as i64);
-        let h = self.g.h as i64; self.chests.clear(); let bh = gen::CHEST_BAND as i64; let mg = 4 * S as i64;
-        for band in self.oy.div_euclid(bh)..=(self.oy + h).div_euclid(bh) {
-            for (x, wy) in self.gen.chests_in_band(band, self.g.w) {
-                let y = wy - self.oy; if y < mg || y >= h - mg { continue; }
-                self.chests.push(Chest { x, y: y as usize, opened: self.opened.contains(&(x, wy)), ancient: None });
+        let (ox, oy, w, h) = (self.ox, self.oy, self.g.w as i64, self.g.h as i64);
+        self.grottos = self.gen.grottos_in(ox, ox + w, oy, oy + h);
+        self.ruins = self.gen.ruins_in(ox, ox + w, oy, oy + h);
+        self.chests.clear(); let bh = gen::CHEST_BAND as i64; let mg = 4 * S as i64;
+        // a window cell for absolute (wx, wy), at least `mg` in from every edge
+        let inside = |wx: i64, wy: i64| { let (x, y) = (wx - ox, wy - oy); (x >= mg && x < w - mg && y >= mg && y < h - mg).then_some((x as usize, y as usize)) };
+        let w0 = self.gen.w0.max(1) as i64;
+        for band in oy.div_euclid(bh)..=(oy + h).div_euclid(bh) { for bx in ox.div_euclid(w0)..=(ox + w).div_euclid(w0) {
+            for (wx, wy) in self.gen.chests_in_band(bx, band) {
+                let Some((x, y)) = inside(wx, wy) else { continue };
+                self.chests.push(Chest { x, y, opened: self.opened.contains(&(wx, wy)), ancient: None });
             }
-        }
-        for r in &self.ruins { if let Some((x, wy)) = r.chest { let y = wy - self.oy; if y < mg || y >= h - mg { continue; }
-            self.chests.push(Chest { x, y: y as usize, opened: self.opened.contains(&(x, wy)), ancient: Some(r.id) }); } }
+        } }
+        for r in &self.ruins { if let Some((wx, wy)) = r.chest { let Some((x, y)) = inside(wx, wy) else { continue };
+            self.chests.push(Chest { x, y, opened: self.opened.contains(&(wx, wy)), ancient: Some(r.id) }); } }
         self.refresh_sites();
-        for s in &self.sites { if let Some((x, wy)) = s.chest { let y = wy - self.oy; if y < mg || y >= h - mg { continue; }
-            if self.chests.iter().any(|c| c.x == x && c.y as i64 == y) { continue; }
-            self.chests.push(Chest { x, y: y as usize, opened: self.opened.contains(&(x, wy)), ancient: None }); } }
+        for s in &self.sites { if let Some((wx, wy)) = s.chest { let Some((x, y)) = inside(wx, wy) else { continue };
+            if self.chests.iter().any(|c| c.x == x && c.y == y) { continue; }
+            self.chests.push(Chest { x, y, opened: self.opened.contains(&(wx, wy)), ancient: None }); } }
         self.refresh_clues();
     }
     /// The clues in the window, from the seed (like chests); the ones already found stay found.
     pub fn refresh_clues(&mut self) {
-        let h = self.g.h as i64; let bh = crate::lore::LORE_BAND as i64; let mg = 4 * S as i64; self.clues.clear();
-        for band in self.oy.div_euclid(bh)..=(self.oy + h).div_euclid(bh) {
-            for (kind, x, wy, look) in crate::lore::clues_in_band(&self.gen, self.gen.seed, band, self.g.w) {
-                let y = wy - self.oy; if y < mg || y >= h - mg { continue; }
-                self.clues.push(crate::lore::Clue { kind, x, y: y as usize, wy, found: self.found_clues.contains(&(x, wy)), look });
+        let (ox, w, h) = (self.ox, self.g.w as i64, self.g.h as i64); let bh = crate::lore::LORE_BAND as i64; let mg = 4 * S as i64; self.clues.clear();
+        let w0 = self.gen.w0.max(1) as i64;
+        for band in self.oy.div_euclid(bh)..=(self.oy + h).div_euclid(bh) { for bx in ox.div_euclid(w0)..=(ox + w).div_euclid(w0) {
+            for (kind, wx, wy, look) in crate::lore::clues_in_band(&self.gen, self.gen.seed, bx, band) {
+                let (x, y) = (wx - ox, wy - self.oy); if y < mg || y >= h - mg || x < mg || x >= w - mg { continue; }
+                self.clues.push(crate::lore::Clue { kind, x: x as usize, y: y as usize, wy, found: self.found_clues.contains(&(wx, wy)), look });
             }
-        }
+        } }
     }
     /// A Delver who comes within about a metre of a clue (in the open, not buried) reads it: the next
     /// fragment of its kind goes into the journal. Once all of a kind are read, more clues are just noted.
@@ -367,7 +378,7 @@ impl World {
             let c = &self.clues[k]; if c.found || self.g.is_solidish(c.y * self.g.w + c.x) { continue; }
             let near = self.moles.iter().any(|m| m.alive && (m.x as i64 - c.x as i64).abs() <= r && (m.y as i64 - c.y as i64).abs() <= r + 2 * S as i64);
             if !near { continue; }
-            let (kind, x, wy) = (c.kind, c.x, c.wy); self.clues[k].found = true; self.found_clues.insert((x, wy));
+            let (kind, x, wy) = (c.kind, self.ox + c.x as i64, c.wy); self.clues[k].found = true; self.found_clues.insert((x, wy));
             match crate::lore::next_fragment(kind, &self.journal) {
                 Some(f) => { self.journal.push(f); self.say(format!("Journal: {} (J)", crate::lore::FRAGMENTS[f as usize].title)); }
                 None => self.say(format!("Another {}, like the others.", kind.name().to_lowercase())),
@@ -383,14 +394,15 @@ impl World {
         self.journal.push(id); self.say(format!("Journal: {} (J)", crate::lore::entry(id).1));
     }
     /// Slide the window by `rows` (a multiple of `band::BH`; + = deeper). Rows leaving are packed into
-    /// bands with everything in them (devices, torches, drops, stations, plots, air); rows entering are
-    /// unpacked from their band, or generated if never visited. Everything with a y coordinate moves.
+    /// tiles with everything in them (devices, torches, drops, stations, plots, air); rows entering are
+    /// unpacked from their tiles, or generated if never visited. Everything with a y coordinate moves.
     pub fn shift(&mut self, rows: i64) {
         use crate::band::{self, BH};
         let (w, h) = (self.g.w, self.g.h); let s = rows.unsigned_abs() as usize; if s == 0 || s >= h || s % BH != 0 || h % BH != 0 { return; }
-        for c in &self.chests { if c.opened { self.opened.insert((c.x, self.oy + c.y as i64)); } }
+        let tw = band::tile_w(w);
+        for c in &self.chests { if c.opened { self.opened.insert((self.ox + c.x as i64, self.oy + c.y as i64)); } }
         let (lv, en) = if rows > 0 { (0, h - s) } else { (h - s, 0) }; // first window row leaving / entering (after the move)
-        for y0 in (lv..lv + s).step_by(BH) { let blob = band::encode(self, y0); self.bands.insert(self.oy + y0 as i64, band::Stored::new(blob)); }
+        for y0 in (lv..lv + s).step_by(BH) { for x0 in (0..w).step_by(tw) { let blob = band::encode(self, x0, y0); self.bands.insert((self.ox + x0 as i64, self.oy + y0 as i64), band::Stored::new(blob)); } }
         let d = s * w;
         if rows > 0 {
             self.g.mat.copy_within(d.., 0); self.g.flags.copy_within(d.., 0); self.g.shade.copy_within(d.., 0); self.desig.copy_within(d.., 0); self.walls.cell.copy_within(d.., 0);
@@ -399,7 +411,7 @@ impl World {
         }
         self.oy += rows; self.st.shift_rows(rows, w);
         for y in en..en + s { for x in 0..w { self.desig[y * w + x] = 0; self.walls.cell[y * w + x] = 0; } }
-        // entities and block layers move with the rock; what was in the leaving rows is in its band now
+        // entities and block layers move with the rock; what was in the leaving rows is in its tile now
         let dy = |y: usize| -> Option<usize> { let v = y as i64 - rows; if v >= 0 && v < h as i64 { Some(v as usize) } else { None } };
         for m in self.moles.iter_mut() { if let Some(v) = dy(m.y) { m.y = v; } else { m.alive = false; } m.path.clear(); m.job = None; m.work_cell = None; }
         self.drops = std::mem::take(&mut self.drops).into_iter().filter_map(|mut d| dy(d.y).map(|v| { d.y = v; d.py -= rows as f32; d.ppy -= rows as f32; d })).collect();
@@ -412,15 +424,9 @@ impl World {
         let sp = self.stockpile; if let (Some(a), Some(b)) = (dy(sp.1), dy(sp.3)) { self.stockpile = (sp.0, a, sp.2, b); }
         self.logic.shift_rows(rows / crate::logic::B as i64);
         self.air.shift_rows(rows / air::AB as i64);
-        // entering rows: unpack the stored bands; the never-visited ones come built and shored from the
+        // entering rows: unpack the stored tiles; the never-visited ones come built and shored from the
         // stream (built ahead, or now if the window got there first: `stream.rs`)
-        for y0 in (en..en + s).step_by(BH) {
-            let fresh = match self.bands.remove(&(self.oy + y0 as i64)) {
-                Some(b) => match band::decode(self, y0, &b.blob, None) { Ok(true) => false, Ok(false) => { self.line_back(y0, y0 + BH); false } Err(_) => true }, // (false: older blob, no wall bytes)
-                None => true,
-            };
-            if fresh { self.put_fresh_band(y0); self.line_back(y0, y0 + BH); }
-        }
+        for y0 in (en..en + s).step_by(BH) { for x0 in (0..w).step_by(tw) { self.enter_tile(x0, y0); } }
         self.disasters.y = (self.disasters.y as i64 - rows).clamp(8, h as i64 - 8) as usize;
         self.refresh_chests();
         crate::stream::shift_wake(&mut self.g, rows, en, en + s); // only the entering chunks (and their edge) wake
@@ -429,12 +435,61 @@ impl World {
         // overburden change) are re-solved
         let m = 16 * crate::mat::CPM;
         let (ent, far) = if rows > 0 { ((0, en.saturating_sub(m), w - 1, h - 1), (0, 0, w - 1, m)) } else { ((0, 0, w - 1, (en + s + m).min(h - 1)), (0, h - 1 - m, w - 1, h - 1)) };
-        self.start_seam(rows, ent, far); self.g.clear_struct(); // solved over the next ticks (`stream.rs`)
+        self.start_seam(0, rows, ent, far); self.g.clear_struct(); // solved over the next ticks (`stream.rs`)
         self.light = Light::new(w, h);
         self.pl.mine = None; if let Some(m) = self.moles.first() { self.pl.fall_from = m.y; }
     }
-    /// Cells (materials, flags) of the stored band starting at world row `wy0`, for drawing far rows.
-    pub fn stored_cells(&self, wy0: i64) -> Option<(Vec<u8>, Vec<u8>)> { self.bands.get(&wy0).and_then(|b| crate::band::cells(&b.blob, self.g.w)) }
+    /// Window tile at cell (x0, y0) entering: unpack it from its stored blob, or put the fresh ground there.
+    fn enter_tile(&mut self, x0: usize, y0: usize) {
+        use crate::band::{self, BH}; let tw = band::tile_w(self.g.w);
+        let key = (self.ox + x0 as i64, self.oy + y0 as i64);
+        let fresh = match self.bands.remove(&key) {
+            Some(b) => match band::decode(self, x0, y0, &b.blob, None) { Ok(true) => false, Ok(false) => { self.line_back_rect(x0, x0 + tw, y0, y0 + BH); false } Err(_) => true }, // (false: older blob, no wall bytes)
+            None => true,
+        };
+        if fresh { self.put_fresh_tile(x0, y0); self.line_back_rect(x0, x0 + tw, y0, y0 + BH); }
+    }
+    /// Slide the window sideways by `cols` (a multiple of `band::TW`; + = east). Columns leaving are
+    /// packed into tiles with everything in them, columns entering are unpacked or generated, exactly as
+    /// `shift` does for rows: the Deepholt runs on sideways as it does down. Everything with an x moves.
+    pub fn shift_x(&mut self, cols: i64) {
+        use crate::band::{self, BH, TW}; use crate::grid::shift_cols;
+        let (w, h) = (self.g.w, self.g.h); let s = cols.unsigned_abs() as usize;
+        if s == 0 || s >= w || s % TW != 0 || w % TW != 0 || h % BH != 0 { return; }
+        for c in &self.chests { if c.opened { self.opened.insert((self.ox + c.x as i64, self.oy + c.y as i64)); } }
+        let (lv, en) = if cols > 0 { (0, w - s) } else { (w - s, 0) }; // first window column leaving / entering (after the move)
+        for x0 in (lv..lv + s).step_by(TW) { for y0 in (0..h).step_by(BH) { let blob = band::encode(self, x0, y0); self.bands.insert((self.ox + x0 as i64, self.oy + y0 as i64), band::Stored::new(blob)); } }
+        shift_cols(&mut self.g.mat, w, cols, 0); shift_cols(&mut self.g.flags, w, cols, 0); shift_cols(&mut self.g.shade, w, cols, 0); shift_cols(&mut self.g.life, w, cols, 0);
+        shift_cols(&mut self.desig, w, cols, 0); shift_cols(&mut self.walls.cell, w, cols, 0);
+        self.ox += cols; self.st.shift_cols(cols, w);
+        let dx = |x: usize| -> Option<usize> { let v = x as i64 - cols; if v >= 0 && v < w as i64 { Some(v as usize) } else { None } };
+        let fx = cols as f32;
+        for m in self.moles.iter_mut() { if let Some(v) = dx(m.x) { m.x = v; } else { m.alive = false; } m.path.clear(); m.job = None; m.work_cell = None; }
+        self.drops = std::mem::take(&mut self.drops).into_iter().filter_map(|mut d| dx(d.x).map(|v| { d.x = v; d.px -= fx; d.ppx -= fx; d })).collect();
+        self.shift_x_transport(cols, w);
+        self.debris = std::mem::take(&mut self.debris).into_iter().filter_map(|mut d| dx(d.px.max(0.) as usize).map(|_| { d.px -= fx; d.ppx -= fx; d })).collect(); self.waves.clear(); self.strain.clear();
+        self.torches = std::mem::take(&mut self.torches).into_iter().filter_map(|(x, y)| dx(x).map(|v| (v, y))).collect();
+        self.buildings = std::mem::take(&mut self.buildings).into_iter().filter_map(|mut b| dx(b.x).filter(|&v| v + Station::W < w).map(|v| { b.x = v; b.claimed = false; b })).collect();
+        self.furniture = std::mem::take(&mut self.furniture).into_iter().filter_map(|mut f| dx(f.x).filter(|&v| v + 16 * S < w).map(|v| { f.x = v; f })).collect();
+        self.farms = std::mem::take(&mut self.farms).into_iter().filter_map(|mut f| dx(f.x).map(|v| { f.x = v; f })).collect();
+        let sp = self.stockpile; if let (Some(a), Some(b)) = (dx(sp.0), dx(sp.2)) { self.stockpile = (a, sp.1, b, sp.3); }
+        self.logic.shift_cols(cols / crate::logic::B as i64);
+        self.air.shift_cols(cols / air::AB as i64);
+        for y in 0..h { for x in en..en + s { self.desig[y * w + x] = 0; self.walls.cell[y * w + x] = 0; } }
+        for x0 in (en..en + s).step_by(TW) { for y0 in (0..h).step_by(BH) { self.enter_tile(x0, y0); } }
+        self.disasters.x = (self.disasters.x as i64 - cols).clamp(8, w as i64 - 8) as usize;
+        self.refresh_chests();
+        crate::stream::shift_wake_x(&mut self.g, cols, en, en + s);
+        let m = 16 * crate::mat::CPM;
+        let (ent, far) = if cols > 0 { ((en.saturating_sub(m), 0, w - 1, h - 1), (0, 0, m, h - 1)) } else { ((0, 0, (en + s + m).min(w - 1), h - 1), (w - 1 - m, 0, w - 1, h - 1)) };
+        self.start_seam(cols, 0, ent, far); self.g.clear_struct();
+        self.light = Light::new(w, h);
+        // the player's body slides with the rock and keeps its speed (a run doesn't stop at the slide)
+        self.pl.mine = None; self.pl.px -= fx; self.pl.ppx -= fx;
+        if let Some(m) = self.moles.first() { if self.pl.sync.is_some() { self.pl.sync = Some((m.x, m.y)); } }
+    }
+    /// Cells (materials, flags) of the stored tile at absolute (x0, wy0), for drawing far rows.
+    pub fn stored_cells(&self, x0: i64, wy0: i64) -> Option<(Vec<u8>, Vec<u8>)> { self.bands.get(&(x0, wy0)).and_then(|b| crate::band::cells(&b.blob, crate::band::tile_w(self.g.w))) }
     /// Keep the colony inside the window: slide when living moles crowd the top or bottom.
     fn follow_colony(&mut self) {
         let h = self.g.h; let ys: Vec<usize> = self.moles.iter().filter(|m| m.alive).map(|m| m.y).collect(); if ys.is_empty() { return; }
@@ -444,7 +499,15 @@ impl World {
         // (with m = 100 a 256-row window thrashed back and forth every 30 ticks)
         let m = (100 * S).min(h.saturating_sub(SLIDE) / 2);
         if hi > h - m && lo >= m + SLIDE { self.shift(SLIDE as i64); } else if lo < m && hi + SLIDE <= h - m { self.shift(-(SLIDE as i64)); }
+        // ...and sideways: a window as wide as the game's slides a tile (32 m) when the colony comes within
+        // SIDE_MARGIN of a side (narrower windows, scenario maps, stay put)
+        if !self.roams_x() { return; }
+        let w = self.g.w; let xs: Vec<usize> = self.moles.iter().filter(|m| m.alive).map(|m| m.x).collect(); if xs.is_empty() { return; }
+        let (lo, hi) = (*xs.iter().min().unwrap(), *xs.iter().max().unwrap()); let (sl, m) = (crate::band::TW, SIDE_MARGIN.min((w - crate::band::TW) / 2));
+        if hi > w - m && lo >= m + sl { self.shift_x(sl as i64); } else if lo < m && hi + sl <= w - m { self.shift_x(-(sl as i64)); }
     }
+    /// Does this window slide sideways? Only one a whole number of tiles wide and wide enough for found places.
+    pub fn roams_x(&self) -> bool { self.g.w % crate::band::TW == 0 && self.g.w >= crate::sites::SITE_MIN_W }
 
     #[inline] pub(crate) fn passable(&self, x: usize, y: usize) -> bool { let m = self.g.get(x, y); m.passable() && !self.is_building_cell(x, y, false) }
     fn is_building_cell(&self, _x: usize, _y: usize, _solid: bool) -> bool { false }
@@ -914,7 +977,7 @@ impl World {
             let (cx, cy) = (self.chests[c].x, self.chests[c].y);
             let near = self.moles.iter().any(|m| m.alive && m.x.abs_diff(cx) <= 4 * S && m.y.abs_diff(cy) <= 4 * S);
             if !near || self.g.is_solidish(self.g.idx(cx, cy)) { continue; }
-            self.chests[c].opened = true; self.chests_opened += 1; self.opened.insert((cx, self.oy + cy as i64));
+            self.chests[c].opened = true; self.chests_opened += 1; self.opened.insert((self.ox + cx as i64, self.oy + cy as i64));
             let h = hash3(cx as u32, cy as u32, self.info.seed);
             let d = self.depth_m(cx, cy);
             let loot: Vec<(Item, u32)> = if self.chests[c].ancient.is_some() { self.vault_loot(h) }
@@ -1102,9 +1165,12 @@ impl World {
         if !self.moles[0].alive {
             self.pl.dead_t += 1; if self.pl.dead_t < 150 { return; }
             // respawn at the burrow (slide the window back to it if needed)
-            let (sx, swy) = self.pl.spawn; let h = self.g.h as i64;
+            let (swx, swy) = self.pl.spawn; let (w, h) = (self.g.w as i64, self.g.h as i64);
             let (mg, sl) = (100 * S as i64, SLIDE as i64);
             for _ in 0..64 { let y = swy - self.oy; if y < mg { self.shift(-sl); } else if y > h - mg { self.shift(sl); } else { break; } }
+            if self.roams_x() { let (mx, tw) = (SIDE_MARGIN as i64, crate::band::TW as i64);
+                for _ in 0..4096 { let x = swx - self.ox; if x < mx { self.shift_x(-tw); } else if x > w - mx { self.shift_x(tw); } else { break; } } }
+            let sx = (swx - self.ox).clamp(2 * S as i64, w - 2 * S as i64) as usize;
             let mut y = (swy - self.oy).clamp(4 * S as i64, h - 3 * S as i64) as usize; while y > 4 * S && !self.fits(sx, y) { y -= 1; }
             let m = &mut self.moles[0]; m.x = sx; m.y = y; m.hp = 100.; m.breath = 100.; m.hunger = m.hunger.max(50.); m.alive = true; m.fall = 0;
             self.pl = Player { spawn: self.pl.spawn, deaths: self.pl.deaths, fall_from: y, ..Default::default() };
@@ -1345,7 +1411,7 @@ impl World {
             if self.g.mat[i] != root || !(self.g.mat[i - w] == trunk || self.g.m(i - w).passable()) { continue; }
             if hash3(x as u32, y as u32, (self.tick / TREE_EVERY) as u32 ^ 0x7EE) % TREE_GROW_1_IN != 0 { continue; }
             // climb the trunk to its top, then grow one cell into open space above it
-            let full = gen::tree_height(x, self.oy + y as i64, self.info.seed);
+            let full = gen::tree_height(self.ox + x as i64, self.oy + y as i64, self.info.seed);
             let mut k = 1; while k <= full && y >= k + 1 && self.g.mat[i - k * w] == trunk { k += 1; }
             if k > full || y < k + 1 { continue; }
             let j = i - k * w; if !matches!(self.g.m(j).kind(), crate::mat::Kind::Empty | crate::mat::Kind::Gas) { continue; }
@@ -1370,9 +1436,9 @@ impl World {
                 if self.caught.get(&(g.id, k)).map_or(false, |&t0| self.tick < t0 + GLOWMITE_BACK) { continue; }
                 let h = hash3(g.id, k as u32, 0x61); let f = |b: u32| ((h >> b) & 255) as f32 / 255.;
                 let (rx, ry) = (g.rx as f32, g.ry as f32);
-                let x = g.cx as f32 + rx * 0.6 * (f(0) * 6.28 + t * (0.05 + 0.08 * f(8))).sin() + 0.5 * SF * (t * (1.3 + f(16))).sin();
+                let x = (g.cx - self.ox) as f32 + rx * 0.6 * (f(0) * 6.28 + t * (0.05 + 0.08 * f(8))).sin() + 0.5 * SF * (t * (1.3 + f(16))).sin();
                 let yr = (g.cy - self.oy) as f32 - ry * 0.15 + ry * 0.35 * (f(24) * 6.28 + t * (0.07 + 0.06 * f(4))).sin() + 0.4 * SF * (t * 1.7 + f(12) * 6.).cos();
-                if yr >= 0. && yr < self.g.h as f32 { v.push((x, yr, gi, k)); }
+                if yr >= 0. && yr < self.g.h as f32 && x >= 0. && x < self.g.w as f32 { v.push((x, yr, gi, k)); }
             }
         }
         v
@@ -1475,9 +1541,9 @@ impl World {
     /// First time within 8 m of a grotto's hollow: a line in the log, like ruins and found places. No cards.
     pub(crate) fn step_grottos(&mut self) {
         let Some(m) = self.moles.first().filter(|m| m.alive) else { return };
-        let (mx, my) = (m.x as i64, self.oy + m.y as i64); let reach = 8 * CPM as i64;
+        let (mx, my) = (self.ox + m.x as i64, self.oy + m.y as i64); let reach = 8 * CPM as i64;
         let near: Vec<(u32, i64)> = self.grottos.iter().filter(|g| !self.grottos_seen.contains(&g.id)
-            && (mx - g.cx as i64).abs() <= g.rx as i64 + reach && (my - g.cy).abs() <= g.ry as i64 + reach).map(|g| (g.id, g.cy)).collect();
+            && (mx - g.cx).abs() <= g.rx as i64 + reach && (my - g.cy).abs() <= g.ry as i64 + reach).map(|g| (g.id, g.cy)).collect();
         for (id, cy) in near {
             self.grottos_seen.insert(id); self.events.push(Event::Discover);
             self.say(grotto_notice(cy as f32 * CELL_M));
@@ -1485,7 +1551,7 @@ impl World {
     }
     /// Old saves (before grottos were remembered): a grotto whose hollow centre has been seen counts as visited.
     pub fn mark_seen_grottos(&mut self) {
-        for g in &self.grottos { let y = g.cy - self.oy; if y >= 0 && (y as usize) < self.g.h && g.cx < self.g.w && self.g.flags[y as usize * self.g.w + g.cx] & F_SEEN != 0 { self.grottos_seen.insert(g.id); } }
+        for g in &self.grottos { let (x, y) = (g.cx - self.ox, g.cy - self.oy); if y >= 0 && (y as usize) < self.g.h && x >= 0 && (x as usize) < self.g.w && self.g.flags[y as usize * self.g.w + x as usize] & F_SEEN != 0 { self.grottos_seen.insert(g.id); } }
     }
     /// Furniture standing within `HOME_M` of a built workbench: the holt's own (0 without a workbench).
     pub fn home_furniture(&self) -> u32 {

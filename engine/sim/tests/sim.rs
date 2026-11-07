@@ -577,7 +577,7 @@ fn press(w: &mut World, n: usize, f: impl Fn(&mut Input)) -> (f32, f32) { let (m
 
 // ---- bands: the endless world off-window, and chunked saves ----
 mod bands {
-    use molehill_sim::{world::*, mat::{S, Mat}, logic::Dev, craft::{Item, Station}, save, band::BH};
+    use molehill_sim::{world::*, mat::{S, Mat}, logic::Dev, craft::{Item, Station}, save, band::{BH, tile_w}};
     use std::collections::HashMap;
     /// A world with things built near the top of the window, at rows that leave it on a slide down.
     fn built() -> (World, Snap) {
@@ -607,9 +607,9 @@ mod bands {
     /// left the window; now their band keeps them and brings them back.
     #[test] fn things_survive_leaving_the_window() {
         let (mut w, before) = built();
-        w.shift(SL); assert_eq!(w.bands.len(), SL as usize / BH);
+        w.shift(SL); assert_eq!(w.bands.len(), SL as usize / BH * (w.g.w / tile_w(w.g.w)), "the rows left as tiles");
         assert!(w.torches.iter().all(|t| t.0 != 160), "the torch left with its band");
-        let up: Vec<i64> = w.bands.keys().copied().collect();
+        let up: Vec<(i64, i64)> = w.bands.keys().copied().collect();
         w.shift(-SL); assert!(up.iter().all(|k| !w.bands.contains_key(k)), "back in the window, those bands are no longer stored");
         let after = snap(&w); assert_eq!(after.devs, before.devs); assert_eq!(after, before);
         // a lit charge keeps burning where it was: it really went with the band
@@ -635,7 +635,7 @@ mod bands {
         let p2 = save::save_parts(&w); let k2: Vec<String> = p2.bands.iter().map(|b| b.0.clone()).collect();
         let new = k2.iter().filter(|k| !k1.contains(k)).count();
         assert_eq!(new, 1, "one changed band, one new key");
-        for (wy0, b) in &w.bands { assert!(k1.contains(&save::band_key(*wy0, b.hash)), "far band {wy0} kept its key"); }
+        for (&(x0, wy0), b) in &w.bands { assert!(k1.contains(&save::tile_key(x0, wy0, b.hash)), "far tile {x0},{wy0} kept its key"); }
         assert!(p2.manifest.len() < 16 * 1024, "the manifest stays small: {} bytes", p2.manifest.len());
         // digging deeper adds bands without rewriting the old ones
         w.shift(SL); let k3: Vec<String> = save::save_parts(&w).bands.iter().map(|b| b.0.clone()).collect();
@@ -645,7 +645,7 @@ mod bands {
         let (mut w, _) = built(); w.shift(SL);
         let p = save::save_parts(&w); let mut store: HashMap<String, Vec<u8>> = p.bands.iter().map(|(k, b)| (k.clone(), b.to_vec())).collect();
         let mut m = p.manifest.clone(); m.push(0);
-        let far: Vec<String> = w.bands.iter().map(|(wy0, b)| save::band_key(*wy0, b.hash)).collect();
+        let far: Vec<String> = w.bands.iter().map(|(&(x0, wy0), b)| save::tile_key(x0, wy0, b.hash)).collect();
         store.remove(&far[0]); if let Some(b) = store.get_mut(&far[1]) { let n = b.len() / 2; b[n] ^= 0x55; }
         let l = save::load_with(&m, &mut |k| store.get(k).cloned()).expect("far bands lost is not fatal");
         assert_eq!(l.bands.len(), far.len() - 2, "the missing and the damaged band are dropped");
@@ -656,9 +656,11 @@ mod bands {
     /// v3 saves (one blob, a row cache of cells) from before bands still load; the cached rows become bands.
     #[test] fn v3_save_still_loads() {
         let mut w = save::load(include_bytes!("data/v3_cpm8.bin")).expect("v3 loads");
-        assert_eq!(w.bands.len(), SL as usize / BH, "the row cache became bands");
-        let wy0 = *w.bands.keys().next().unwrap(); let (m, _) = w.stored_cells(wy0).unwrap();
-        w.shift(-SL); assert!(!w.bands.contains_key(&wy0)); assert_eq!(&w.g.mat[..m.len()], &m[..], "rows come back from the converted band");
+        let tw = tile_w(w.g.w); assert_eq!(w.bands.len(), SL as usize / BH * (w.g.w / tw), "the row cache became tiles");
+        let k = *w.bands.keys().next().unwrap(); let (m, _) = w.stored_cells(k.0, k.1).unwrap();
+        w.shift(-SL); assert!(!w.bands.contains_key(&k));
+        let x0 = (k.0 - w.ox) as usize; let y0 = (k.1 - w.oy) as usize;
+        for y in 0..BH { assert_eq!(&w.g.mat[(y0 + y) * w.g.w + x0..(y0 + y) * w.g.w + x0 + tw], &m[y * tw..(y + 1) * tw], "rows come back from the converted tile"); }
         for _ in 0..30 { w.step(); }
         let l = save::load(&save::save(&w)).expect("and saves again as v4"); assert_eq!(l.oy, w.oy);
     }
@@ -727,7 +729,7 @@ fn material_table_is_consistent() {
     let mut tally: std::collections::BTreeMap<i64, [u32; 4]> = Default::default(); // copper, iron, basalt, solid
     for seed in [3u32, 77, 4242] { let g = Gen::new(seed, w);
         for d in (-30..120i64).step_by(2) { let wy = d * CPM as i64; for x in (16 * S..w - 16 * S).step_by(3) {
-            let m = Mat::from_u8(g.cell(x, wy, w).0); let t = tally.entry(band(d)).or_default();
+            let m = Mat::from_u8(g.cell(x as i64, wy).0); let t = tally.entry(band(d)).or_default();
             if m == Mat::CopperOre { t[0] += 1; } if m == Mat::IronOre { t[1] += 1; } if m == Mat::Basalt { t[2] += 1; }
             if m.kind() == molehill_sim::mat::Kind::Solid { t[3] += 1; } } } }
     let sum = |b0: i64, b1: i64, k: usize| (b0..=b1).map(|b| tally.get(&b).map_or(0, |t| t[k])).sum::<u32>();
@@ -769,7 +771,7 @@ fn material_table_is_consistent() {
         assert!(wood(&w) * 10 >= t0 * 9, "seed {seed}: trees stand ({} of {t0})", wood(&w));
         for g in &gs { // the hollow (as generated) is still open air, bar a little rubble or a fresh trunk cell
             let (mut n, mut open) = (0, 0);
-            for y in 0..w.g.h { for x in g.cx.saturating_sub(g.rx)..(g.cx + g.rx).min(w.g.w) { if g.part(x, w.oy + y as i64) == Some(molehill_sim::gen::Part::Hollow) { n += 1; if !w.g.is_solidish(w.g.idx(x, y)) { open += 1; } } } }
+            for y in 0..w.g.h { for x in (g.cx as usize).saturating_sub(g.rx)..(g.cx as usize + g.rx).min(w.g.w) { if g.part(x as i64, w.oy + y as i64) == Some(molehill_sim::gen::Part::Hollow) { n += 1; if !w.g.is_solidish(w.g.idx(x, y)) { open += 1; } } } }
             assert!(n > 0 && open * 10 >= n * 9, "seed {seed}: grotto at {} is {open} of {n} cells open", g.cx); }
     }
 }
@@ -785,7 +787,7 @@ fn material_table_is_consistent() {
 #[test] fn glowmites_drift_glow_and_get_caught() {
     use molehill_sim::{craft::Item, gen::Grotto};
     let (mut w, x0, y0) = arena(); let c = molehill_sim::mat::CPM;
-    w.grottos = vec![Grotto { id: 99, cx: x0 + 2 * c, cy: w.oy + y0 as i64 - 2 * c as i64, rx: 2 * c, ry: c + c / 2, floor: 3 * c as i64 / 4, pool: (0, 0), trees: [(0, 0); 3], ntrees: 0 }];
+    w.grottos = vec![Grotto { id: 99, cx: (x0 + 2 * c) as i64, cy: w.oy + y0 as i64 - 2 * c as i64, rx: 2 * c, ry: c + c / 2, floor: 3 * c as i64 / 4, pool: (0, 0), trees: [(0, 0); 3], ntrees: 0 }];
     let g = w.grottos[0]; let n0 = w.glowmites().len(); assert!(n0 >= 4, "a swarm: {n0}");
     let inside = |w: &World| w.glowmites().iter().all(|m| ((m.0 - g.cx as f32) / g.rx as f32).abs() < 1. && ((m.1 - (g.cy - w.oy) as f32) / g.ry as f32).abs() < 1.);
     for _ in 0..600 { w.step(); assert!(inside(&w), "glowmites stay in the hollow"); }
@@ -1246,7 +1248,7 @@ fn spawn_zone_is_pickaxe_ground_with_a_way_to_copper() {
     for f in FRAGMENTS { let t = format!("{} {}", f.title, f.text).to_lowercase(); for b in banned { assert!(!t.contains(b), "{}: '{b}'", f.title); } assert!(f.text.len() <= 160, "{}", f.title); }
     // every placed clue sits in open rock (not inside a wall), and drafts and odd finds only above the start
     let (w, _, _) = arena(); let mut n = 0;
-    for band in -8..8i64 { for (kind, x, wy, _) in clues_in_band(&w.gen, w.gen.seed, band, w.g.w) { n += 1;
+    for band in -8..8i64 { for (kind, x, wy, _) in clues_in_band(&w.gen, w.gen.seed, 0, band) { n += 1;
         assert!(w.gen.open(x, wy), "clue in rock at {x},{wy}"); if band >= 0 { assert!(!matches!(kind, ClueKind::Draft | ClueKind::Relic)); } } }
     assert!(n > 10);
     // the journal reads each fragment once, in order per kind
@@ -1286,7 +1288,7 @@ fn ruins_are_rare_deep_and_clear_of_the_start_and_grottos() {
     for seed in 0..300u32 { let gen = Gen::new(seed, w);
         for r in gen.ruins_in_rows(-200 * c, 1000 * c) { n += 1; kinds[r.kind as usize] += 1;
             assert!(r.y0 >= 5 * c, "seed {seed}: a ruin at {} m, up in the holt layers", r.y0 / c);
-            let (rx0, rx1, ry0, ry1) = (r.x0 as i64, (r.x0 + r.w) as i64, r.y0, r.y0 + r.h as i64);
+            let (rx0, rx1, ry0, ry1) = (r.x0, r.x0 + r.w as i64, r.y0, r.y0 + r.h as i64);
             assert!(!(rx1 > (w / 2) as i64 - 30 * c && rx0 < (w / 2) as i64 + 30 * c && ry0 < 30 * c), "seed {seed}: a ruin by the start");
             for g in gen.grottos_in_rows(ry0 - 30 * c, ry1 + 30 * c) { let sh = GROTTO_SHELL as i64;
                 let (gx0, gx1, gy0, gy1) = (g.cx as i64 - g.rx as i64 - sh, g.cx as i64 + g.rx as i64 + sh, g.cy - g.ry as i64 - sh, g.cy + g.ry as i64 + sh);
@@ -1299,7 +1301,7 @@ fn ruins_are_rare_deep_and_clear_of_the_start_and_grottos() {
     // seed 66 has a tube station in its first window (about 45 m down): generated, its waygate and bore are there
     let wd = World::new(1024 * S, 512 * S, 66);
     let r = wd.ruins.iter().find(|r| r.kind == Kind::TubeStation).expect("seed 66: a tube station in the window");
-    let (gx, gwy) = r.gate.unwrap(); let gy = (gwy - wd.oy) as usize;
+    let (gx, gwy) = r.gate.unwrap(); let (gx, gy) = ((gx - wd.ox) as usize, (gwy - wd.oy) as usize);
     assert_eq!(wd.g.get(gx, gy), Mat::Door, "the waygate's sealed gate");
     assert_eq!(wd.g.get(gx, gy - 2 * CPM - 2), Mat::IronBeam, "its iron frame");
 }
@@ -1432,7 +1434,7 @@ mod enrichment {
                 }
                 let (cx, wy) = s.centre();
                 if let Some(m) = s.cell(cx, wy) {
-                    assert_eq!(gen.cell(cx, wy, w).0, m as u8, "site_cell is what gen.cell stamps");
+                    assert_eq!(gen.cell(cx, wy).0, m as u8, "site_cell is what gen.cell stamps");
                 }
             }
         }
@@ -1446,7 +1448,7 @@ mod enrichment {
                 let stations: Vec<_> = gen.ruins_in_rows(-40 * c, 140 * c).into_iter().filter(|r| r.kind == RuinKind::TubeStation).collect();
                 for s in rows(&gen).iter().filter(|s| s.kind == Kind::Halt) {
                     for r in &stations {
-                        let (dx, dy) = ((s.centre().0 as i64 - (r.x0 + r.w / 2) as i64).abs(), (s.centre().1 - (r.y0 + r.h as i64 / 2)).abs());
+                        let (dx, dy) = ((s.centre().0 - (r.x0 + (r.w / 2) as i64)).abs(), (s.centre().1 - (r.y0 + r.h as i64 / 2)).abs());
                         if dx < 50 * c && dy < 40 * c {
                             near_pair = true;
                             assert_eq!(s.link, Some(r.id), "a halt next to a tube station faces it");
@@ -1521,7 +1523,7 @@ mod enrichment {
         let (mut w, x0, y0, sw, sh) = stamp(Kind::Mine);
         let id = w.sites.last().unwrap().id;
         if let Some((cx, cwy)) = w.sites.last().unwrap().chest {
-            let cy = (cwy - w.oy) as usize;
+            let (cx, cy) = ((cx - w.ox) as usize, (cwy - w.oy) as usize);
             w.moles[0].x = cx; w.moles[0].y = cy;
             for _ in 0..40 { w.step(); }
             assert!(w.chests_opened >= 1 || w.inv[Item::Rail as usize] >= 6 || w.inv[Item::Coal as usize] >= 4,
@@ -1567,7 +1569,7 @@ fn abandoned_mine_track_and_ore_face_read() {
     use molehill_sim::sites::{Kind, Site, MINE_RAIL};
     let s = Site::new(1, Kind::Mine, 0, 0, 0, false, None);
     let (w, h, c) = (s.w as i64, s.h as i64, CPM as i64);
-    let at = |dx: i64, dy: i64| s.cell(dx as usize, dy).unwrap_or(Mat::Rock);
+    let at = |dx: i64, dy: i64| s.cell(dx, dy).unwrap_or(Mat::Rock);
     let col = |dx: i64| (0..h).map(|dy| at(dx, dy)).collect::<Vec<_>>();
     // the track: rail on top of the floor, sleepers and ballast under it, rock beneath
     let (mut rail, mut sleeper, mut ballast) = (0, 0, 0);
@@ -1607,7 +1609,7 @@ fn found_places_differ_in_size_lining_and_stay_clear_of_the_spawn() {
         let (mut n, mut tot) = (0usize, 0usize);
         for dy in 0..site.h as i64 {
             for dx in 0..site.w {
-                if let Some(wl) = site.wall(site.x0 + dx, site.y0 + dy) {
+                if let Some(wl) = site.wall(site.x0 + dx as i64, site.y0 + dy) {
                     tot += 1;
                     if wl == want { n += 1; }
                 }
@@ -1621,9 +1623,9 @@ fn found_places_differ_in_size_lining_and_stay_clear_of_the_spawn() {
     dominant(Kind::Fissure, Wall::Basalt);
     dominant(Kind::Halt, Wall::Ashlar);
     let fossil = Site::new(1, Kind::Fossil, 0, 0, 0, false, None);
-    assert!((0..fossil.w).any(|dx| (0..fossil.h as i64).any(|dy| fossil.wall(dx, fossil.y0 + dy) == Some(Wall::Fossil))));
+    assert!((0..fossil.w).any(|dx| (0..fossil.h as i64).any(|dy| fossil.wall(dx as i64, fossil.y0 + dy) == Some(Wall::Fossil))));
     let crystal = Site::new(1, Kind::Crystal, 0, 0, 0, false, None);
-    assert!((0..crystal.w).any(|dx| (0..crystal.h as i64).any(|dy| matches!(crystal.wall(dx, crystal.y0 + dy), Some(Wall::Salt | Wall::Crystal)))));
+    assert!((0..crystal.w).any(|dx| (0..crystal.h as i64).any(|dy| matches!(crystal.wall(dx as i64, crystal.y0 + dy), Some(Wall::Salt | Wall::Crystal)))));
 
     let openings = |kind: Kind| {
         let site = Site::new(1, kind, 0, 0, 0, true, None);
@@ -1631,11 +1633,11 @@ fn found_places_differ_in_size_lining_and_stay_clear_of_the_spawn() {
         let mut sides = [false; 4];
         for dy in 0..site.h as i64 {
             if open(site.cell(site.x0, site.y0 + dy)) { sides[0] = true; }
-            if open(site.cell(site.x0 + site.w - 1, site.y0 + dy)) { sides[1] = true; }
+            if open(site.cell(site.x0 + site.w as i64 - 1, site.y0 + dy)) { sides[1] = true; }
         }
         for dx in 0..site.w {
-            if open(site.cell(site.x0 + dx, site.y0)) { sides[2] = true; }
-            if open(site.cell(site.x0 + dx, site.y0 + site.h as i64 - 1)) { sides[3] = true; }
+            if open(site.cell(site.x0 + dx as i64, site.y0)) { sides[2] = true; }
+            if open(site.cell(site.x0 + dx as i64, site.y0 + site.h as i64 - 1)) { sides[3] = true; }
         }
         sides.iter().filter(|&&b| b).count()
     };
@@ -1722,18 +1724,18 @@ fn found_places_have_open_silhouettes_not_filled_boxes() {
     use molehill_sim::sites::{Kind, Site};
     let c = CPM as i64;
     let holt = Site::new(1, Kind::Holt, 0, 0, 0, false, None);
-    assert!(holt.cell(holt.w / 2, 0).is_none(), "host above the holt dome");
-    assert!(matches!(holt.cell(holt.w / 2, 4 * c), Some(Mat::Limestone) | Some(Mat::Empty) | None));
+    assert!(holt.cell((holt.w / 2) as i64, 0).is_none(), "host above the holt dome");
+    assert!(matches!(holt.cell((holt.w / 2) as i64, 4 * c), Some(Mat::Limestone) | Some(Mat::Empty) | None));
     let pump = Site::new(1, Kind::Pumpworks, 0, 0, 0, false, None);
-    assert!(pump.cell(pump.w / 2, 0).is_none(), "host above the pumpworks roof");
+    assert!(pump.cell((pump.w / 2) as i64, 0).is_none(), "host above the pumpworks roof");
     let halt = Site::new(1, Kind::Halt, 0, 0, 0, false, None);
-    assert!(halt.cell(8 * CPM, 0).is_none(), "host above the warehouse");
+    assert!(halt.cell(8 * CPM as i64, 0).is_none(), "host above the warehouse");
     let fossil = Site::new(1, Kind::Fossil, 0, 0, 0, false, None);
     assert!(fossil.cell(0, 0).is_none(), "fossil box corners stay host");
     let crystal = Site::new(1, Kind::Crystal, 0, 0, 0, false, None);
     assert!(crystal.cell(0, 0).is_none(), "crystal box corners stay host");
     let mine = Site::new(1, Kind::Mine, 0, 0, 0, false, None);
-    assert!(mine.cell(8 * CPM, 0).is_none(), "host above the mine drift roof");
+    assert!(mine.cell(8 * CPM as i64, 0).is_none(), "host above the mine drift roof");
 }
 
 /// Every way into a found place reaches its chest (or the fissure floor) and the rest of its

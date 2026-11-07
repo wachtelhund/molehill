@@ -266,3 +266,13 @@ impl Grid {
         [(y > 0).then(|| i - w), (y + 1 < h).then(|| i + w), (x > 0).then(|| i - 1), (x + 1 < w).then(|| i + 1)].into_iter().flatten()
     }
 }
+
+/// Slide a `w`-wide row-major layer sideways by `cols` (+ = the window moved east: contents move west);
+/// the entering columns take `blank`.
+pub fn shift_cols<T: Copy>(v: &mut [T], w: usize, cols: i64, blank: T) {
+    let s = cols.unsigned_abs() as usize; if s == 0 || w == 0 { return; }
+    for r in v.chunks_mut(w) {
+        if s >= w { r.fill(blank); continue; }
+        if cols > 0 { r.copy_within(s.., 0); r[w - s..].fill(blank); } else { r.copy_within(..w - s, s); r[..s].fill(blank); }
+    }
+}

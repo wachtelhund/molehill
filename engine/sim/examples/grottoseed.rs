@@ -21,10 +21,10 @@ fn score(seed: u32) -> Option<(usize, f32, f32, f32, usize)> {
         let seen = g.trees[..g.ntrees].iter().filter(|&&(bx, ht)| { let tx = (bx as f32 + 4. - sx) / CPM as f32;
             let (t0, t1) = (((g.cy + g.floor) as f32 - ht as f32 - sy) / CPM as f32, ((g.cy + g.floor) as f32 - sy) / CPM as f32);
             tx.abs() < VIEW.0 && t1 > -VIEW.1 && t0 < VIEW.1 }).count();
-        let (x0, x1) = (g.cx.saturating_sub(g.rx + 8), g.cx + g.rx + 8); let (y0, y1) = (g.cy - g.ry as i64 - 8, g.cy + g.ry as i64 + 8);
+        let (x0, x1) = ((g.cx as usize).saturating_sub(g.rx + 8), (g.cx as usize) + g.rx + 8); let (y0, y1) = (g.cy - g.ry as i64 - 8, g.cy + g.ry as i64 + 8);
         let mut near = f32::MAX; let mut at = (0., 0.);
         for y in (y0..=y1).step_by(2) { for x in (x0..=x1).step_by(2) {
-            if !matches!(g.part(x, y), Some(Part::Hollow)) { continue; }
+            if !matches!(g.part(x as i64, y), Some(Part::Hollow)) { continue; }
             let (dx, dy) = ((x as f32 - sx) / CPM as f32, (y as f32 - sy) / CPM as f32); let d = (dx * dx + dy * dy).sqrt();
             if d < near { near = d; at = (dx, dy); } } }
         let cand = (seen, near, at.0, at.1, g.ntrees);

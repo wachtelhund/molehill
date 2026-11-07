@@ -86,6 +86,15 @@ impl Stress {
         let s32 = s as u32; for v in self.ctop.iter_mut().chain(self.vtop.iter_mut()) { *v = if up { v.saturating_sub(s32) } else { *v + s32 }; }
         self.cracking = std::mem::take(&mut self.cracking).into_iter().filter_map(|i| { let i = i as usize; if up { i.checked_sub(d) } else { (i + d < n).then_some(i + d) } }).map(|i| i as u32).collect();
     }
+    /// The window slid sideways by `cols` (+ = east): the solver's state moves with the rock (roof rows
+    /// are row numbers, so they stay); the entering columns start blank.
+    pub fn shift_cols(&mut self, cols: i64, w: usize) {
+        use crate::grid::shift_cols; let n = self.util.len(); if self.reach.len() != n || w == 0 { return; }
+        if cols.unsigned_abs() as usize >= w { *self = Stress::new(n); return; }
+        shift_cols(&mut self.util, w, cols, 0); shift_cols(&mut self.pending, w, cols, 0); shift_cols(&mut self.overburden, w, cols, 0.); shift_cols(&mut self.reach, w, cols, false);
+        shift_cols(&mut self.ctop, w, cols, 0); shift_cols(&mut self.vtop, w, cols, 0);
+        self.cracking = std::mem::take(&mut self.cracking).into_iter().filter_map(|i| { let (x, y) = ((i as usize % w) as i64 - cols, i as usize / w); (x >= 0 && x < w as i64).then(|| (y * w + x as usize) as u32) }).collect();
+    }
     pub fn solve(&mut self, g: &Grid) -> Vec<u32> { self.solve_rect(g, None) }
     /// Re-solve around the chunks holding `cells` (each one's 64-cell chunk; nearby chunks cluster into one
     /// region). Exact when nothing else changed since the last solve. Falls back to a full solve when the
@@ -152,17 +161,17 @@ impl Stress {
         let mut util = vec![0f32; rn];
         // 2. connectivity (BFS from bedrock)
         let mut reach = vec![false; rn]; let mut q: Vec<u32> = Vec::with_capacity(rn / 4);
-        // anchors: bedrock walls, the window's top and bottom rows (the Deepholt continues beyond them),
+        // anchors: bedrock, the window's edge rows and columns (the Deepholt continues beyond them, down and sideways),
         // and for a partial solve the region's edge cells that had a load path last time
         let edge = |x: usize, y: usize| (x == rx0 && rx0 > 0) || (x == rx1 && rx1 + 1 < w) || (y == ry0 && ry0 > 0) || (y == ry1 && ry1 + 1 < h);
         for y in ry0..=ry1 { for x in rx0..=rx1 { let i = y * w + x;
-            if g.mat[i] == Mat::Bedrock as u8 || ((i < w || i >= n - w) && st(i)) || (dirty.is_some() && edge(x, y) && self.reach[i] && supports(i)) { reach[li(x, y)] = true; q.push(i as u32); } } }
+            if g.mat[i] == Mat::Bedrock as u8 || ((i < w || i >= n - w || x == 0 || x + 1 == w) && st(i)) || (dirty.is_some() && edge(x, y) && self.reach[i] && supports(i)) { reach[li(x, y)] = true; q.push(i as u32); } } }
         // a region edge cell that had a load path last time is only trusted once a search from it finds a real
         // anchor: rock cut free inside the region would otherwise prop itself up on its own edge cells (which
         // still say "held" from before the cut) until some far solve finally saw it, and then dropped whole and
         // unwarned. Anchors that check out seed the search; the rest wait until one of theirs does.
         let (mut seeds, mut q2) = (vec![], vec![]); self.epoch = self.epoch.wrapping_add(1);
-        if dirty.is_some() { q.retain(|&i| { let i = i as usize; let keep = g.mat[i] == Mat::Bedrock as u8 || ((i < w || i >= n - w) && st(i)); if !keep { reach[li(i % w, i / w)] = false; seeds.push(i); } keep }); }
+        if dirty.is_some() { q.retain(|&i| { let i = i as usize; let keep = g.mat[i] == Mat::Bedrock as u8 || ((i < w || i >= n - w || i % w == 0 || i % w + 1 == w) && st(i)); if !keep { reach[li(i % w, i / w)] = false; seeds.push(i); } keep }); }
         let mut head = 0;
         let mut k = 0;
         loop {
@@ -268,7 +277,7 @@ impl Stress {
         fail
     }
 
-    /// Does cell `i` have a load path to a real anchor (bedrock, or the window's top or bottom row), by the
+    /// Does cell `i` have a load path to a real anchor (bedrock, or the window's edge rows and columns), by the
     /// load-path rules of `solve_rect` step 2 searched backwards from it, downward first, so in solid ground it
     /// is a short walk. If not, every cell the search reached is left without one too (`reach` false), which a
     /// later solve of those cells acts on. Past `ANCHOR_BUDGET` cells it trusts the last solve.
@@ -279,7 +288,7 @@ impl Stress {
         *vis_gen = vis_gen.wrapping_add(1); if *vis_gen == 0 { vis.fill(0); *vis_gen = 1; }
         let gen = *vis_gen;
         let supports = |j: usize| matches!(g.m(j).kind(), Kind::Powder | Kind::Solid);
-        let anchor = |j: usize| g.mat[j] == Mat::Bedrock as u8 || ((j < w || j >= n - w) && g.is_static(j));
+        let anchor = |j: usize| g.mat[j] == Mat::Bedrock as u8 || ((j < w || j >= n - w || j % w == 0 || j % w + 1 == w) && g.is_static(j));
         // (a cell reached from the start through static rock only is held if the start is: static rock carries
         // static rock both ways; those are remembered for the rest of this solve, so the next search stops there)
         const SYM: u32 = 1 << 31;

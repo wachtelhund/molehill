@@ -79,7 +79,7 @@ New Holt asks for a mode. **Survival** starts with a small kit: you dig with the
 
 * **Falling sand and fluids:** sand, gravel, water and lava. Lava meeting water becomes loose basalt scoria.
 * **Structural stress:** overburden, bending, compression and connectivity. Cracked cells crumble after 40 ticks. With no player action, the start burrow stands and a fresh world collapses only a little in the first 2 minutes (this is tested). Some natural caves may still settle in the fog away from the colony.
-* **Endless Deepholt:** you start in the middle layer of earth (depth 0 m). The 1024×512-cell grid is a sliding window over an infinite column: when the camera or colony nears the top or bottom edge, the window slides by 128 rows. Leaving rows are stored as 8 m bands with everything in them (your digging, devices, torches and stations are kept), and new rows are generated on demand from a pure per-cell function of (seed, x, absolute row), so the world is deterministic per seed. Horizontally it is still bounded by bedrock walls.
+* **Endless Deepholt:** you start in the middle layer of earth (depth 0 m). The 2048×1024-cell grid (256 × 128 m) is a sliding window over a world endless every way: when the colony nears the top or bottom edge the window slides by 32 m, and when it nears a side (80 m) it slides 32 m sideways. What leaves is stored as 32 m × 8 m tiles with everything in them (your digging, devices, torches and stations are kept), and new ground is generated on demand from a pure per-cell function of (seed, absolute column, absolute row), built and shored ahead of the window on a worker thread, so the world is deterministic per seed. There are no side walls.
 * **Seeded procgen:** biomes, strata by depth, caves, and pockets of water and lava. Water is common in shallow layers and lava deeper down (details below).
 * **Lighting:** unlit tunnels stay dark. Torches, powered lamps, forges, a torch in the paws and the mole's fungus-oil headlamp (`G`) cast light with soft falloff and rock shadows; lava, crystal and fungus glow. There is also fog of war and a deep-earth parallax background. There is no sky light and no day cycle.
 * **Moles:**
@@ -104,7 +104,7 @@ New Holt asks for a mode. **Survival** starts with a small kit: you dig with the
 * **Disasters:** floods, lava surges and quakes. Each starts with a 10 s warning banner and lasts 6 s, with camera shake. The first comes at about 2.5 min, then one every 90–180 s.
 * **Sound:** procedural effects plus an ambient rumble that changes with depth, on every build. The recipes are shared (`game/src/audio.rs`): the web plays them through WebAudio, and native builds render the same graph in software (`game/src/synth.rs`) out through cpal. Sound starts after the first input and follows Settings > Volume and Music.
 * **Music:** generative ambient (`game/src/music.rs`), no audio files: soft pads, kalimba-like plucks, rare bells and low drones through a cave reverb and echo. Pieces of 1–2 minutes alternate with long quiet rests. The mood follows the mole: airy and major up in the wet layers, earthy at home, darker deeper, low and smouldering near lava. It has its own quiet volume in Settings (default 35%; Enter mutes).
-* **Save/load:** a small manifest plus one run-length-encoded blob per 8 m band of the world, named by content hash. Autosaves (every 30 s) rewrite only the bands that changed. It goes to localStorage on web and to files on native, and autoloads at start.
+* **Save/load:** a small manifest plus one run-length-encoded blob per 32 m × 8 m tile of the world, named by position and content hash. Autosaves (every 30 s) rewrite only the tiles that changed; saves from before tiles still load. It goes to localStorage on web and to files on native, and autoloads at start.
 
 ## World generation (`sim/src/gen.rs`)
 
@@ -115,7 +115,7 @@ Each game uses a new seed. The window is 1024×512 cells, one cell is 0.25 m, an
 * **Caves:** fbm caverns plus ridged worm tunnels.
 * **Fluid pockets** use a separate noise field, and each pocket holds one fluid. The lava share is clamp((d − 10)/60, 0, 0.92) and the water share is clamp((40 − d)/60, 0.08, 1), where d is depth in metres. Pockets near the start burrow are dried to clay.
 * **Ore veins** follow thin ridged-noise bands (coal, copper, tin, iron, quartz). Crystal and quartz line deeper caves, and glowing fungus grows on cave floors.
-* **Chests:** 6 per 128-row band, placed deterministically. Opened chests are remembered across window slides.
+* **Chests:** 6 per 32 m band and 256 m span, placed deterministically. Opened chests are remembered across window slides.
 * **Start burrow:** a domed 31-cell chamber with a granite roof and a clay floor. The roof steps down toward the walls, so no roof run is long enough to fail.
 * **Stability pass:** the world is settled for 240 CA ticks, then the structural solver runs and failing cells are reinforced or removed. Newly generated rows are stabilised the same way when the window slides. A fresh world therefore stands, and collapses are caused by you, or by the deep lava/water front.
 

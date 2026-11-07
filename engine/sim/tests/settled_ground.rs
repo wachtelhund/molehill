@@ -13,7 +13,7 @@ fn lens_share(seeds: std::ops::Range<u32>, keep: &dyn Fn(f32, f32) -> bool) -> (
     for seed in seeds { let g = Gen::new(seed, w);
         for wy in (-60 * CPM as i64..60 * CPM as i64).step_by(3) { for x in (8 * S..w - 8 * S).step_by(3) {
             if !keep((x as f32 - (w / 2) as f32) / c, wy as f32 / c) { continue; }
-            let (m, f) = g.cell(x, wy, w); let m = Mat::from_u8(m);
+            let (m, f) = g.cell(x as i64, wy); let m = Mat::from_u8(m);
             if !matches!(m.kind(), Kind::Solid | Kind::Powder) || m == Mat::Bedrock { continue; }
             n += 1; if matches!(m, Mat::Sand | Mat::Gravel) { loose += 1; if f & F_WET != 0 { wet += 1; } } // (a grotto's moss and roots are wet by design)
         } } }
