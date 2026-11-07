@@ -25,10 +25,10 @@ pub fn ruin_chance(d: f32) -> f32 { if d < 15. { 0. } else if d < 60. { 0.05 + (
 pub enum Kind { PumpingHall, SealedVault, TubeStation }
 impl Kind { pub fn name(self) -> &'static str { match self { Kind::PumpingHall => "pumping hall", Kind::SealedVault => "sealed vault", Kind::TubeStation => "tube station" } } }
 
-/// One ruin: its bounding box (window columns, world rows), and where its chest and waygate are.
+/// One ruin: its bounding box (absolute columns and rows), and where its chest and waygate are.
 #[derive(Clone, Debug)]
 pub struct Ruin {
-    pub id: u32, pub kind: Kind, pub x0: usize, pub y0: i64, pub w: usize, pub h: usize,
+    pub id: u32, pub kind: Kind, pub x0: i64, pub y0: i64, pub w: usize, pub h: usize,
     /// tube station: the tube runs off to the left (true) or right of the hall
     pub left: bool,
     /// pumping hall: which interior pillar has given way (0..4)
@@ -36,9 +36,9 @@ pub struct Ruin {
     /// tube station: where the old cave-in plugs the tube (metres along it)
     pub plug: usize,
     /// the vault's chest (column, world row of the open cell it sits in)
-    pub chest: Option<(usize, i64)>,
+    pub chest: Option<(i64, i64)>,
     /// the tube station's waygate (column, world row of the gate's middle)
-    pub gate: Option<(usize, i64)>,
+    pub gate: Option<(i64, i64)>,
 }
 
 /// Lore fragments: carvings and knocked patterns found in ruins. Plain, earthy, no magic; they point upward.
@@ -59,7 +59,7 @@ pub fn fragment_of(id: u32) -> &'static str { FRAGMENTS[(id >> 7) as usize % FRA
 impl Gen {
     /// The ruin in ruin cell (gx, gy), if it has one.
     pub fn ruin_at(&self, gx: i64, gy: i64) -> Option<Ruin> {
-        let w = self.biome.len(); if gx < 0 || (gx as usize + 1) * RUIN_W > w { return None; }
+        let w = self.w0;
         let h = hash3(gx as u32, gy as u32, self.seed ^ 0xA9C1E7);
         let (rw, rh) = (RUIN_W as i64, RUIN_H as i64); let mid = gy * rh + rh / 2;
         if (h & 0xFFFF) as f32 / 65536. >= ruin_chance(mid as f32 * CELL_M) { return None; }
@@ -71,25 +71,28 @@ impl Gen {
         // never near the starting burrow (depth 0, the window's middle), never into a grotto
         if (x0 + bw / 2 - (w / 2) as i64).abs() < 60 * c && (y0 + bh / 2).abs() < 40 * c { return None; }
         let (gw, gh) = (GROTTO_W as i64, GROTTO_H as i64);
-        for gy2 in (y0 - 8 * c).div_euclid(gh)..=(y0 + bh + 8 * c).div_euclid(gh) { for gx2 in ((x0 - 8 * c).max(0)).div_euclid(gw)..=(x0 + bw + 8 * c).div_euclid(gw) {
+        for gy2 in (y0 - 8 * c).div_euclid(gh)..=(y0 + bh + 8 * c).div_euclid(gh) { for gx2 in (x0 - 8 * c).div_euclid(gw)..=(x0 + bw + 8 * c).div_euclid(gw) {
             if let Some(g) = self.grotto_at(gx2, gy2) {
-                let (gx0, gx1, gy0, gy1) = (g.cx as i64 - g.rx as i64 - 3 * c, g.cx as i64 + g.rx as i64 + 3 * c, g.cy - g.ry as i64 - 3 * c, g.cy + g.ry as i64 + 3 * c);
+                let (gx0, gx1, gy0, gy1) = (g.cx - g.rx as i64 - 3 * c, g.cx + g.rx as i64 + 3 * c, g.cy - g.ry as i64 - 3 * c, g.cy + g.ry as i64 + 3 * c);
                 if gx1 >= x0 && gx0 <= x0 + bw && gy1 >= y0 && gy0 <= y0 + bh { return None; }
             } } }
-        Some(Ruin::new(h, kind, x0 as usize, y0, r(4, 2) == 0, r(5, 4) as usize, (12 + r(6, 20)) as usize))
+        Some(Ruin::new(h, kind, x0, y0, r(4, 2) == 0, r(5, 4) as usize, (12 + r(6, 20)) as usize))
     }
     /// The ruin whose cell holds (x, wy), if any.
-    pub fn ruin_of(&self, x: usize, wy: i64) -> Option<Ruin> { self.ruin_at((x / RUIN_W) as i64, wy.div_euclid(RUIN_H as i64)) }
-    /// Every ruin touching rows [wy0, wy1).
-    pub fn ruins_in_rows(&self, wy0: i64, wy1: i64) -> Vec<Ruin> {
-        let rh = RUIN_H as i64; let mut v = vec![];
-        for gy in wy0.div_euclid(rh)..=(wy1 - 1).div_euclid(rh) { for gx in 0..(self.biome.len() / RUIN_W) as i64 { if let Some(r) = self.ruin_at(gx, gy) { if r.y0 < wy1 && r.y0 + r.h as i64 > wy0 { v.push(r); } } } }
+    pub fn ruin_of(&self, x: i64, wy: i64) -> Option<Ruin> { self.ruin_at(x.div_euclid(RUIN_W as i64), wy.div_euclid(RUIN_H as i64)) }
+    /// Every ruin touching columns [x0, x1) and rows [wy0, wy1) (absolute).
+    pub fn ruins_in(&self, x0: i64, x1: i64, wy0: i64, wy1: i64) -> Vec<Ruin> {
+        let (rw, rh) = (RUIN_W as i64, RUIN_H as i64); let mut v = vec![];
+        for gy in wy0.div_euclid(rh)..=(wy1 - 1).div_euclid(rh) { for gx in x0.div_euclid(rw)..=(x1 - 1).div_euclid(rw) { if let Some(r) = self.ruin_at(gx, gy) {
+            if r.y0 < wy1 && r.y0 + r.h as i64 > wy0 && r.x0 < x1 && r.x0 + r.w as i64 > x0 { v.push(r); } } } }
         v
     }
+    /// Every ruin touching rows [wy0, wy1) across the home columns (0..`w0`).
+    pub fn ruins_in_rows(&self, wy0: i64, wy1: i64) -> Vec<Ruin> { self.ruins_in(0, self.w0 as i64, wy0, wy1) }
     /// What a ruin puts at (x, wy): Some((material, flags)) inside a ruin's box (0 = open air), None outside.
-    pub fn ruin_cell(&self, x: usize, wy: i64) -> Option<(u8, u8)> { self.ruin_of(x, wy).and_then(|r| r.cell(x, wy)).map(|m| (m as u8, 0)) }
+    pub fn ruin_cell(&self, x: i64, wy: i64) -> Option<(u8, u8)> { self.ruin_of(x, wy).and_then(|r| r.cell(x, wy)).map(|m| (m as u8, 0)) }
     /// Open air or water of a ruin (stabilisation keeps it open, like a grotto's hollow).
-    pub fn in_ruin_void(&self, x: usize, wy: i64) -> bool { self.ruin_of(x, wy).map_or(false, |r| matches!(r.cell(x, wy), Some(Mat::Empty | Mat::Water))) }
+    pub fn in_ruin_void(&self, x: i64, wy: i64) -> bool { self.ruin_of(x, wy).map_or(false, |r| matches!(r.cell(x, wy), Some(Mat::Empty | Mat::Water))) }
 }
 
 impl Kind {
@@ -99,19 +102,19 @@ impl Kind {
 impl Ruin {
     /// A ruin of `kind` with its top-left at (x0, y0): its chest and waygate placed. `left`: a tube station's
     /// tube runs left; `broken`: the hall's fallen pillar; `plug`: where the tube's old cave-in lies (m).
-    pub fn new(id: u32, kind: Kind, x0: usize, y0: i64, left: bool, broken: usize, plug: usize) -> Ruin {
+    pub fn new(id: u32, kind: Kind, x0: i64, y0: i64, left: bool, broken: usize, plug: usize) -> Ruin {
         let (w, h) = kind.size(); let c = CPM as i64;
         let mut ru = Ruin { id, kind, x0, y0, w, h, left, broken: broken % 4, plug, chest: None, gate: None };
         match kind {
-            Kind::SealedVault => ru.chest = Some((x0 + w / 2, y0 + h as i64 - 2 * c + c / 2 - 1)),
-            Kind::TubeStation => { let hx = if left { x0 + w - 14 * CPM } else { x0 }; let gx = if left { hx + CPM / 2 } else { hx + 13 * CPM + CPM / 2 }; ru.gate = Some((gx, y0 + 3 * c + c / 2)); }
+            Kind::SealedVault => ru.chest = Some((x0 + (w / 2) as i64, y0 + h as i64 - 2 * c + c / 2 - 1)),
+            Kind::TubeStation => { let hx = if left { x0 + (w - 14 * CPM) as i64 } else { x0 }; let gx = if left { hx + c / 2 } else { hx + 13 * c + c / 2 }; ru.gate = Some((gx, y0 + 3 * c + c / 2)); }
             _ => {}
         }
         ru
     }
     /// The ruin's material at (x, wy), or None outside its box (the host rock stays).
-    pub fn cell(&self, x: usize, wy: i64) -> Option<Mat> {
-        let (dx, dy) = (x as i64 - self.x0 as i64, wy - self.y0);
+    pub fn cell(&self, x: i64, wy: i64) -> Option<Mat> {
+        let (dx, dy) = (x - self.x0, wy - self.y0);
         if dx < 0 || dy < 0 || dx >= self.w as i64 || dy >= self.h as i64 { return None; }
         let c = CPM as i64; let (w, h) = (self.w as i64, self.h as i64);
         use Mat::*;
@@ -178,7 +181,7 @@ impl Ruin {
     /// The lore fragment carved here.
     pub fn fragment(&self) -> &'static str { fragment_of(self.id) }
     /// Middle of the ruin (column, world row).
-    pub fn centre(&self) -> (usize, i64) { (self.x0 + self.w / 2, self.y0 + self.h as i64 / 2) }
+    pub fn centre(&self) -> (i64, i64) { (self.x0 + (self.w / 2) as i64, self.y0 + self.h as i64 / 2) }
 }
 
 /// The relics a vault can hold, in the order they turn up. Each is unique: once found, later vaults give
@@ -198,9 +201,9 @@ impl crate::world::World {
     /// its waygate). Each ruin speaks once.
     pub(crate) fn step_ruins(&mut self) {
         let Some(m) = self.moles.first().filter(|m| m.alive) else { return };
-        let (mx, my) = (m.x as i64, self.oy + m.y as i64); let reach = 8 * CPM as i64;
+        let (mx, my) = (self.ox + m.x as i64, self.oy + m.y as i64); let reach = 8 * CPM as i64;
         let near: Vec<(u32, Kind, &'static str)> = self.ruins.iter().filter(|r| !self.ruins_seen.contains(&r.id)
-            && mx >= r.x0 as i64 - reach && mx < (r.x0 + r.w) as i64 + reach && my >= r.y0 - reach && my < r.y0 + r.h as i64 + reach)
+            && mx >= r.x0 - reach && mx < r.x0 + r.w as i64 + reach && my >= r.y0 - reach && my < r.y0 + r.h as i64 + reach)
             .map(|r| (r.id, r.kind, r.fragment())).collect();
         for (id, kind, frag) in near {
             self.ruins_seen.insert(id); self.events.push(crate::world::Event::Discover);

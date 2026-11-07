@@ -18,16 +18,19 @@ pub enum Layer { Strata, Caves, Veins }
 
 /// `surface[x]`, `biome[x]` per cell column; layer image spans [-pad, w+pad] × [-pad, h+pad] cells.
 /// `oy` = absolute row of window row 0, so the deep-earth bands line up with the endless world.
-pub fn layer(kind: Layer, oy: i64, biome: &[Biome], w: usize, h: usize, pad: usize, res: usize, seed: u32) -> (Vec<u8>, u32, u32) {
+/// One parallax layer behind the window at (`ox`, `oy`) (world column and row of its top-left cell),
+/// `pad` columns wider on each side; `biome` gives the biome of an absolute column.
+pub fn layer(kind: Layer, ox: i64, oy: i64, biome: &dyn Fn(i64) -> Biome, w: usize, h: usize, pad: usize, res: usize, seed: u32) -> (Vec<u8>, u32, u32) {
     let (tw, th) = (((w + 2 * pad) / res) as u32, (h / res) as u32);
     let mut d = vec![0u8; (tw * th * 4) as usize];
     let n = Noise::new(seed ^ 0xBEEF); let n2 = Noise::new(seed ^ 0xF00D);
+    // the biome per texel column (the window slides sideways: the pattern runs on in world columns)
+    let bios: Vec<Biome> = (0..tw).map(|tx| biome(ox + tx as i64 * res as i64 - pad as i64)).collect();
     for ty in 0..th { for tx in 0..tw {
-        let cx = (tx as i64 * res as i64 - pad as i64).clamp(0, w as i64 - 1) as usize;
-        let cxf = tx as f32 * res as f32 - pad as f32; let cyf = (ty as i64 * res as i64 + oy) as f32;
+        let cxf = (ox + tx as i64 * res as i64 - pad as i64) as f32; let cyf = (ty as i64 * res as i64 + oy) as f32;
         // noise runs in legacy 0.25 m tiles so the rock patterns keep their size in metres at any CPM
         let (cxf, cyf) = (cxf / molehill_sim::mat::SF, cyf / molehill_sim::mat::SF);
-        let depth = cyf * 0.25; let tint = biome_tint(biome[cx]);
+        let depth = cyf * 0.25; let tint = biome_tint(bios[tx as usize]);
         let (mut c, mut a): ([f32; 3], f32) = ([0.; 3], 0.);
         match kind {
             Layer::Strata => {

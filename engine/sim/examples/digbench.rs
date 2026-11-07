@@ -1,25 +1,30 @@
 //! Frame cost of moving through the world on the game-sized window (256 × 128 m): every tick is timed
-//! along several routes, and ticks where the window slid (`World::shift`: rows packed, unpacked or
-//! generated) are counted apart. Each route starts from a fresh world with the same seed.
+//! along several routes, and ticks where the window slid (`World::shift` / `shift_x`: tiles packed,
+//! unpacked or generated) are counted apart. Each route starts from a fresh world with the same seed.
 //! * `down`: a shaft is cleared under the player mole so it falls as fast as it can (digging straight down;
 //!   about 15 m/s, `TUNE.terminal`: the longest real fall)
-//! * `up`, `side`, `diag`: the mole is carried along at running speed (6 m/s) through a cleared pocket
+//! * `up`, `diag`: the mole is carried along at running speed (6 m/s) through a cleared pocket
+//! * `side`, `west`: the same, 300 m east or west (the window slides sideways a tile at a time)
 //! * `fastdown`, `fastup`: the same at 40 m/s, faster than the mole can fall (a stress test: the 40 m/s climb
 //!   outruns the ground built ahead)
 //! * `respawn`: dies 200 m down and comes back to the burrow (the window slides all the way back at once)
 //! * `load`: saved 200 m down and loaded, then carried 100 m deeper into ground nobody has seen
-//! Like the game, each frame is a tick plus one `World::prefetch_step` (fresh ground built ahead of the
-//! window), and a world is first built `AHEAD_SLIDES` deep behind the loading line (timed apart, `prep`).
+//! Like the game, each frame is a tick plus building fresh ground ahead of the window (`World::prefetch_step`:
+//! one call natively, slices for up to 6 ms with `--sliced`, as the web build's `PREFETCH_MS`), and a world is
+//! first built `AHEAD_SLIDES` deep behind the loading line (timed apart, `prep`).
 //! `--no-prefetch` skips both: every fresh band is then built at the slide that needs it. Natively a worker
 //! thread builds the bands (off the timed thread); `--sliced` builds them in slices on the stepping thread,
 //! as the web build does.
-//! Usage: cargo run --release -p molehill-sim --no-default-features --example digbench -- [seed] [route ...] [--sliced] [--no-prefetch] [--max-ms N]
+//! Usage: cargo run --release -p molehill-sim --no-default-features --example digbench -- [seed] [route ...] [--sliced] [--no-prefetch] [--realtime] [--max-ms N]
 //! Times are CPU ms of the stepping thread (single-threaded, as on the web), so other load on the machine doesn't skew them.
 //! `--max-ms N` exits with an error if any route's worst tick is over N ms (a coarse regression gate).
+//! `--realtime` paces the frames at 60 Hz of wall time, as the game runs them, so the worker thread has
+//! the time it has in play (without it the ticks run back to back, several times faster than the game).
 use molehill_sim::{mat::{Mat, CPM, S}, save, world::World};
 use std::sync::atomic::{AtomicBool, Ordering::Relaxed};
 static PREFETCH: AtomicBool = AtomicBool::new(true);
 static SLICED: AtomicBool = AtomicBool::new(false);
+static REALTIME: AtomicBool = AtomicBool::new(false);
 
 /// CPU time of this thread (ms): machine load from other processes doesn't count. Run single-threaded
 /// (`--no-default-features`) so a tick's whole cost is on this thread, as on the web.
@@ -42,19 +47,24 @@ fn pocket(w: &mut World, x: usize, y: usize, below: usize) {
 }
 /// One frame: a tick, then (as the game does) one step of building ground ahead.
 fn timed(w: &mut World, r: &mut Run) {
-    let (oy, seam) = (w.oy, w.seam_busy()); let t = cpu_ms(); w.step(); if PREFETCH.load(Relaxed) { w.prefetch_step(); }
-    let ms = cpu_ms() - t; r.ts.push(ms); if w.oy != oy { r.slide.push(ms); } else if seam { r.seam.push(ms); } else { r.other.push(ms); }
+    // (sliced, as the web build: slices for up to 6 ms of the frame, as the game's PREFETCH_MS)
+    let (oy, ox, seam) = (w.oy, w.ox, w.seam_busy()); let t = cpu_ms(); w.step();
+    if PREFETCH.load(Relaxed) { if w.stream.sliced { let t1 = cpu_ms(); while w.prefetch_step() && cpu_ms() - t1 < 6. {} } else { w.prefetch_step(); } }
+    let ms = cpu_ms() - t; r.ts.push(ms);
+    if REALTIME.load(Relaxed) { let left = 1000. / 60. - ms; if left > 0. { std::thread::sleep(std::time::Duration::from_secs_f64(left / 1e3)); } } if w.oy != oy || w.ox != ox { r.slide.push(ms); } else if seam { r.seam.push(ms); } else { r.other.push(ms); }
 }
 fn wy(w: &World) -> i64 { w.oy + w.moles[0].y as i64 }
-fn wx(w: &World) -> usize { w.moles[0].x }
+fn wx(w: &World) -> i64 { w.ox + w.moles[0].x as i64 }
 /// Carry the mole by (dx, dy) cells per tick (fractional steps accumulate) until it has gone `metres`.
+/// Positions are world cells, so a sideways slide carries on where it was.
 fn carry(w: &mut World, r: &mut Run, vx: f32, vy: f32, metres: f32) {
-    let (x0, y0) = (wx(w) as f32, wy(w) as f32); let (mut fx, mut fy) = (x0, y0); let gw = w.g.w as f32;
+    let (x0, y0) = (wx(w) as f32, wy(w) as f32); let (mut fx, mut fy) = (x0, y0);
     let (mut vx, mut gone, mut k) = (vx, 0f32, 0);
     while gone / (CPM as f32) < metres && k < 100_000 {
-        if fx + vx < 12. * CPM as f32 { vx = vx.abs(); } else if fx + vx > gw - 12. * CPM as f32 { vx = -vx.abs(); } // turn at the bedrock walls
+        if !w.roams_x() { let (gw, wx0) = (w.g.w as f32, w.ox as f32); // a window that doesn't slide sideways: turn at its sides
+            if fx + vx < wx0 + 12. * CPM as f32 { vx = vx.abs(); } else if fx + vx > wx0 + gw - 12. * CPM as f32 { vx = -vx.abs(); } }
         fx += vx; fy += vy; gone += vx.abs() + vy.abs();
-        let y = (fy as i64 - w.oy).clamp(3 * CPM as i64, w.g.h as i64 - 2) as usize; let x = fx as usize;
+        let y = (fy as i64 - w.oy).clamp(3 * CPM as i64, w.g.h as i64 - 2) as usize; let x = (fx as i64 - w.ox).clamp(2, w.g.w as i64 - 3) as usize;
         pocket(w, x, y, CPM); let m = &mut w.moles[0]; m.x = x; m.y = y; m.fall = 0; m.hp = 100.; m.breath = 100.;
         timed(w, r); k += 1;
     }
@@ -63,7 +73,7 @@ fn carry(w: &mut World, r: &mut Run, vx: f32, vy: f32, metres: f32) {
 fn fall(w: &mut World, r: &mut Run, metres: f32) {
     let start = wy(w); let mut k = 0;
     while ((wy(w) - start) as f32 / CPM as f32) < metres && k < 200_000 {
-        let (x, y) = (wx(w), w.moles[0].y); pocket(w, x, y, 2 * CPM); w.moles[0].hp = 100.; timed(w, r); k += 1;
+        let (x, y) = (w.moles[0].x, w.moles[0].y); pocket(w, x, y, 2 * CPM); w.moles[0].hp = 100.; timed(w, r); k += 1;
     }
     r.metres = (wy(w) - start) as f32 / CPM as f32;
 }
@@ -73,7 +83,8 @@ fn route(name: &'static str, seed: u32) -> Run {
     match name {
         "down" => fall(&mut w, &mut r, 200.),
         "up" => carry(&mut w, &mut r, 0., -run, 200.),
-        "side" => carry(&mut w, &mut r, run, 0., 200.),
+        "side" => carry(&mut w, &mut r, run, 0., 300.),
+        "west" => carry(&mut w, &mut r, -run, 0., 300.),
         "diag" => carry(&mut w, &mut r, run * 0.7, run * 0.7, 200.),
         "fastdown" => carry(&mut w, &mut r, 0., fast, 400.),
         "fastup" => carry(&mut w, &mut r, 0., -fast, 400.),
@@ -96,11 +107,12 @@ fn main() {
     let max_ms: Option<f64> = a.iter().position(|s| s == "--max-ms").and_then(|i| a.get(i + 1)).and_then(|s| s.parse().ok());
     if a.iter().any(|s| s == "--no-prefetch") { PREFETCH.store(false, Relaxed); }
     if a.iter().any(|s| s == "--sliced") { SLICED.store(true, Relaxed); }
+    if a.iter().any(|s| s == "--realtime") { REALTIME.store(true, Relaxed); }
     let pos: Vec<&String> = a.iter().take_while(|s| *s != "--max-ms").filter(|s| !s.starts_with("--")).collect();
     let seed: u32 = pos.first().and_then(|s| s.parse().ok()).unwrap_or(4242);
-    let all = ["down", "up", "side", "diag", "fastdown", "fastup", "respawn", "load"];
+    let all = ["down", "up", "side", "west", "diag", "fastdown", "fastup", "respawn", "load"];
     let names: Vec<&'static str> = { let v: Vec<&'static str> = all.iter().copied().filter(|n| pos.iter().skip(1).any(|p| p.as_str() == *n)).collect(); if v.is_empty() { all.to_vec() } else { v } };
-    println!("seed {seed}: CPU ms per frame, single thread (60 Hz budget 16.7 ms){}", if !PREFETCH.load(Relaxed) { ", no prefetch" } else if SLICED.load(Relaxed) { ", bands built in slices (web)" } else { ", bands built on a worker thread" });
+    println!("seed {seed}: CPU ms per frame, single thread (60 Hz budget 16.7 ms){}{}", if !PREFETCH.load(Relaxed) { ", no prefetch" } else if SLICED.load(Relaxed) { ", tiles built in slices (web)" } else { ", tiles built on a worker thread" }, if REALTIME.load(Relaxed) { ", paced at 60 Hz" } else { "" });
     println!("{:<9} {:>6} {:>6} {:>7} {:>7} {:>8} {:>7} {:>9} {:>9} {:>9}  ", "route", "metres", "ticks", "mean", "p99", "worst", "slides", "slide max", "seam max", "rest max");
     let mut worst_all = 0f64;
     for n in names {

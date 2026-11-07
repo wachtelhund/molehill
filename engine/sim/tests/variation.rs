@@ -50,7 +50,7 @@ fn depth_remaps_follow_the_layers() {
     // a placed site takes the depth of its middle
     let deep = Site::new(1, Kind::Fossil, 0, 70 * 8, v, false, None);
     let (x, y) = rock[0];
-    assert_eq!(deep.cell(x, deep.y0 + y as i64), Some(Mat::Basalt));
+    assert_eq!(deep.cell(x as i64, deep.y0 + y as i64), Some(Mat::Basalt));
 }
 
 #[test]

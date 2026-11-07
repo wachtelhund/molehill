@@ -97,7 +97,7 @@ Only 16 m counts. That is the **pressure-arch height** (Terzaghi arching): load 
 
 ### 2. Load path
 
-A breadth-first search starts from bedrock and from the window's top and bottom rows (the Deepholt continues past them). **Static cells carry each other in all four directions.** **Loose ground** (sand, rubble) carries only what rests directly on it, so a pillar built on a sand floor still has a load path down to rock. A static cell that isn't reached has no load path; it gives way after **8 ticks**, and its debris sinks or floats by density.
+A breadth-first search starts from bedrock and from the window's edge rows and columns, top, bottom and sides (the Deepholt continues past them all). **Static cells carry each other in all four directions.** **Loose ground** (sand, rubble) carries only what rests directly on it, so a pillar built on a sand floor still has a load path down to rock. A static cell that isn't reached has no load path; it gives way after **8 ticks**, and its debris sinks or floats by density.
 
 ### 3. Roofs in bending
 

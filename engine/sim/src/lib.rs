@@ -34,3 +34,4 @@ pub mod sites;
 pub mod templates;
 pub mod lore;
 pub mod stream;
+pub mod roam;

@@ -57,14 +57,18 @@ pub fn clue_rate(depth_m: f32) -> f32 { (1.2 * 2f32.powf(-depth_m / 30.)).clamp(
 /// The clues a band holds: a pure function of the seed and the band, like chests. Each kind wants its
 /// own spot: a carving on a wall, a note or an odd find on a floor, a draft where an open shaft rises.
 /// Drafts and odd finds only show up above the start layer; deep down a clue is a carving or a note.
-pub fn clues_in_band(gen: &Gen, seed: u32, band: i64, w: usize) -> Vec<(ClueKind, usize, i64, u8)> {
+/// A band is `gen.w0` columns wide: span `bx` 0 is the home columns, the others run on either side.
+/// Returns (kind, absolute column, absolute row, look).
+pub fn clues_in_band(gen: &Gen, seed: u32, bx: i64, band: i64) -> Vec<(ClueKind, i64, i64, u8)> {
+    let w = gen.w0; if w <= 16 * S { return vec![]; }
+    let mix = |b: i64| if bx == 0 { b as u32 } else { (b as u32) ^ (bx as u32).wrapping_mul(0x85EB_CA6B) };
     let bh = LORE_BAND as i64; let mid = (band * bh + bh / 2) as f32 / CPM as f32; // band centre depth, metres
-    let rate = clue_rate(mid); let h0 = hash3(band as u32, 17, seed ^ 0x11D);
+    let rate = clue_rate(mid); let h0 = hash3(mix(band), 17, seed ^ 0x11D);
     let n = rate.floor() as u32 + ((h0 & 1023) as f32 / 1024. < rate.fract()) as u32;
-    let empty = |x: usize, wy: i64| gen.open(x, wy) && gen.cell(x, wy, w).0 == 0;
+    let empty = |x: i64, wy: i64| gen.open(x, wy) && gen.cell(x, wy).0 == 0;
     let mut v = vec![];
     for k in 0..n * 6 { if v.len() as u32 >= n { break; }
-        let h = hash3(k, band as u32, seed ^ 0x1D7); let x = 8 * S + h as usize % (w - 16 * S);
+        let h = hash3(k, mix(band), seed ^ 0x1D7); let x = bx * w as i64 + (8 * S + h as usize % (w - 16 * S)) as i64;
         let r = (h >> 20) % 100; let shallow = mid < 0.;
         let kind = if shallow && r < 25 { ClueKind::Draft } else if shallow && r < 50 { ClueKind::Relic } else if r < 75 { ClueKind::Carving } else { ClueKind::Note };
         for dy in 0..bh { let wy = band * bh + dy; if !empty(x, wy) { continue; }

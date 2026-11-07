@@ -46,7 +46,7 @@ fn encoded(kind: Kind, k: &Knobs, left: bool) -> Vec<char> {
     let s = site(kind, left); let (w, h) = (s.w, s.h);
     let mut g = Vec::with_capacity(w * h);
     for dy in 0..h { for dx in 0..w {
-        let at = |ore: Mat| s.cell_reference(dx, dy as i64, &Knobs { ore, ..*k });
+        let at = |ore: Mat| s.cell_reference(dx as i64, dy as i64, &Knobs { ore, ..*k });
         let (a, b) = (at(ORES[0]), at(ORES[1]));
         g.push(if a == b { a.map_or(HOST, default_char) } else {
             assert!(a == Some(ORES[0]) && b == Some(ORES[1]), "{kind:?} ({dx},{dy}): the ore knob changes {a:?} into {b:?}");
@@ -178,7 +178,7 @@ fn verify(kind: Kind, f: &SiteFile) -> Result<(), String> {
         let k = Knobs::of(var);
         let s = site(kind, left);
         for dy in 0..h { for dx in 0..w {
-            let (a, b) = (t.cell(dx, dy, var, left), s.cell_reference(dx, dy as i64, &k));
+            let (a, b) = (t.cell(dx, dy, var, left), s.cell_reference(dx as i64, dy as i64, &k));
             if a != b { return Err(format!("var {var} left {left}: ({dx},{dy}) template {a:?}, reference {b:?}")); }
             if b.is_some() { for hh in [0u32, 5, 11, 0xABCD_EF07] {
                 if t.lining_with(dx, dy, var, left, hh) != Some(s.lining_reference(dx as i64, dy as i64, hh)) { return Err(format!("lining at ({dx},{dy})")); }

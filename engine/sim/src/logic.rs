@@ -86,6 +86,13 @@ impl Logic {
         sh(&mut self.burn, bw, bh, s, down); sh(&mut self.powered, bw, bh, s, down); sh(&mut self.rx_on, bw, bh, s, down); sh(&mut self.tx_on, bw, bh, s, down); sh(&mut self.heard, bw, bh, s, down);
         self.invalidate();
     }
+    /// Slide all block layers by `bc` block columns (+ = window moved east, contents move west).
+    pub fn shift_cols(&mut self, bc: i64) {
+        use crate::grid::shift_cols; let bw = self.bw; if bc == 0 { return; }
+        shift_cols(&mut self.wire, bw, bc, 0); shift_cols(&mut self.dev, bw, bc, 0); shift_cols(&mut self.dev_p, bw, bc, 0); shift_cols(&mut self.dev_s, bw, bc, 0);
+        shift_cols(&mut self.burn, bw, bc, 0); shift_cols(&mut self.powered, bw, bc, 0); shift_cols(&mut self.rx_on, bw, bc, 0); shift_cols(&mut self.tx_on, bw, bc, 0); shift_cols(&mut self.heard, bw, bc, 0);
+        self.invalidate();
+    }
     pub fn invalidate(&mut self) { self.dirty = true; self.thrum_dirty = true; }
     fn mark(&mut self) { self.dirty = true; self.thrum_dirty = true; }
 

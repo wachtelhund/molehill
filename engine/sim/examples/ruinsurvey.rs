@@ -19,7 +19,7 @@ fn show(seed: u32) {
     let w = World::new(W, H, seed);
     let Some(r) = w.ruins.iter().find(|r| r.y0 - w.oy >= 0 && ((r.y0 - w.oy) as usize + r.h) < H) else { println!("no ruin in the window"); return };
     println!("seed {seed}: a {:?} at x {} depth {:.1} m ({}x{} m)", r.kind, r.x0, r.y0 as f32 / CPM as f32, r.w / CPM, r.h / CPM);
-    let k = CPM / 4; let (x0, y0) = (r.x0.saturating_sub(4 * CPM), (r.y0 - w.oy) as usize - 3 * CPM);
+    let k = CPM / 4; let (x0, y0) = ((r.x0 - w.ox - 4 * CPM as i64).max(0) as usize, (r.y0 - w.oy) as usize - 3 * CPM);
     for y in (y0..y0 + r.h + 6 * CPM).step_by(k) { let mut l = String::new(); for x in (x0..(x0 + r.w + 8 * CPM).min(W)).step_by(k) {
         use Mat::*; l.push(match w.g.get(x, y) { Empty => '.', Water => 'w', StoneBrick => 'k', IronBeam => 'I', Door => 'D', Gravel => 'g', Granite => '#', Limestone => 'L', Rock => 'r', Lava => 'l', Basalt => 'a', _ => '+' }); }
         println!("{l}"); }

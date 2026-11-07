@@ -22,7 +22,7 @@ fn templates_match_the_procedural_sites() {
                 let s = Site { id: 0, kind, x0: 0, y0: 0, w, h, var, left, chest: None, link: None };
                 let mut diff = 0; let mut first = None;
                 for dy in 0..h { for dx in 0..w {
-                    let (a, b) = (t.cell(dx, dy, var, left), s.cell_reference(dx, dy as i64, &k));
+                    let (a, b) = (t.cell(dx, dy, var, left), s.cell_reference(dx as i64, dy as i64, &k));
                     let lining_ok = b.is_none() || [0u32, 3, 9, 0x7777_7777].iter().all(|&hh| t.lining_with(dx, dy, var, left, hh) == Some(s.lining_reference(dx as i64, dy as i64, hh)));
                     if a != b || !lining_ok { diff += 1; first.get_or_insert((dx, dy, a, b)); }
                 } }
@@ -45,7 +45,7 @@ fn site_chest_comes_from_the_template() {
     for &(kind, _) in &FAMILIES {
         for left in [false, true] {
             let s = Site::new(7, kind, 100, -50, 3, left, None);
-            let want = Site::chest_reference(kind, left).map(|(x, y)| (100 + x, -50 + y as i64));
+            let want = Site::chest_reference(kind, left).map(|(x, y)| (100 + x as i64, -50 + y as i64));
             assert_eq!(s.chest, want, "{kind:?} left={left}");
         }
     }
