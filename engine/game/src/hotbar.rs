@@ -126,7 +126,7 @@ mod tests {
         for d in 0..DEVS.len() { assert!(s.contains(&Some(Thing::Dev(d))), "{:?} missing from the pack", DEVS[d]); }
         for k in 0..STATIONS.len() { assert!(s.contains(&Some(Thing::Station(k))), "{:?} missing", STATIONS[k]); }
         for n in 1..=3 { assert!(s.contains(&Some(Thing::Pick(n))), "dig tool {n} missing"); }
-        for it in [Item::SteamBorer, Item::StoreWagon, Item::WorkshopWagon, Item::BunkWagon, Item::WaterWagon, Item::CoalWagon] {
+        for it in [Item::SteamBorer, Item::StoreWagon, Item::WorkshopWagon, Item::BunkWagon, Item::CoalWagon] {
             assert!(s.contains(&Some(Thing::Item(it))), "{it:?} missing from the pack"); }
         let mut w = World::new(512 * molehill_sim::mat::S, 256 * molehill_sim::mat::S, 7); w.set_mode(Mode::Creative);
         for &it in ITEMS.iter() { assert!(w.inv[it as usize] >= 999, "Creative has {} {it:?}", w.inv[it as usize]); }

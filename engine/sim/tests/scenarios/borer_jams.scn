@@ -22,14 +22,12 @@ give SteamBorer 1
 give Coal 2
 hold 1-1 right
 place 2 3 0 SteamBorer
-pour 4 -1 -1 Water
-pour 4 0 -1 Water
-pour 4 1 -1 Water
-pour 4 2 -1 Water
-pour 4 3 -1 Water
-pour 4 4 -1 Water
-pour 4 5 -1 Water
-pour 4 6 -1 Water
+// a heap of sand on the floor behind it: the little room it has to throw its spoil into (this used to be the puddle
+// it drank half of, when it had a water tank)
+pour 4 -1 -1 Sand
+pour 4 0 -1 Sand
+pour 4 1 -1 Sand
+pour 4 2 -1 Sand
 wield 10 Coal
 use 11 3 -1
 wield 13 none

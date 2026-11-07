@@ -27,12 +27,6 @@ place 2 8 0 SteamBorer
 place 3 -3 0 StoreWagon               // its front 4 tiles short of the borer's tail
 expect 8 wagons == 1
 expect 8 train == 0
-pour 9 3 -3 Water
-pour 9 4 -3 Water
-pour 9 5 -3 Water
-pour 9 6 -3 Water
-pour 9 7 -3 Water
-pour 9 8 -3 Water
 wield 10 Coal
 use 11 8 -1
 use 12 8 -1

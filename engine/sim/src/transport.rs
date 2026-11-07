@@ -17,7 +17,7 @@
 //! track can't. A lever, knot or listener on that line switches the stretch, so a line can be automated
 //! with the same logic as doors and pumps. At the end of a powered stretch a cart bounces off the bumper
 //! and is driven back the other way: a powered line between two bumpers shuttles.
-use crate::craft::{Item, NITEM};
+use crate::craft::Item;
 use crate::mat::{CPM, S, SF, TRACK};
 use crate::world::{Event, World, BODY_H, BODY_HW, TUNE};
 
@@ -328,7 +328,7 @@ impl World {
     }
     /// Save: the carts (window-relative cells) and their cargo.
     pub fn encode_transport(&self) -> Vec<u8> {
-        let mut o = crate::band::Wr(vec![]); o.u8(12);
+        let mut o = crate::band::Wr(vec![]); o.u8(13);
         o.u32(self.tr.carts.len() as u32);
         for c in &self.tr.carts { o.f32(c.x); o.f32(c.y); o.f32(c.v); o.u8((c.dir + 1) as u8); o.u32(c.cargo.len() as u32); for &(it, n) in &c.cargo { o.u8(it as u8); o.u32(n); } }
         // v2: ladders and lifts
@@ -357,11 +357,11 @@ impl World {
         o.0
     }
     pub fn decode_transport(&mut self, b: &[u8]) -> Result<(), String> {
-        let mut r = crate::band::Rd { b, p: 0 }; let ver = r.u8()?;
+        let mut r = crate::band::Rd::new(b); let ver = r.u8()?; r.old = ver < 13; // 13: the water wagon and the borer's tank are gone
         let (gw, gh) = (self.g.w as f32, self.g.h as f32);
         for _ in 0..r.len(4096)? {
             let (x, y, v, dir) = (r.f32()?, r.f32()?, r.f32()?, r.u8()? as i8 - 1);
-            let mut cargo = vec![]; for _ in 0..r.len(NITEM)? { let (it, n) = (r.u8()?, r.u32()?); if (it as usize) < NITEM { cargo.push((crate::craft::ITEMS[it as usize], n)); } }
+            let mut cargo = vec![]; for _ in 0..r.len(4096)? { let (it, n) = (r.u8()?, r.u32()?); if let Some(it) = r.item(it) { cargo.push((it, n)); } }
             if x > 1. && x < gw - 1. && y > 1. && y < gh - 1. { self.tr.carts.push(Cart { x, y, px: x, py: y, v, vy: 0., dir: dir.signum().max(-1), on_rail: false, cargo, tip: 0 }); }
         }
         if ver >= 2 {

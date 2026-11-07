@@ -196,11 +196,11 @@ impl World {
             o.u8(b.burning.map_or(255, |it| it as u8)); o.u32(b.burn); o.f32(b.water); o.f32(b.steam); o.u32(b.burnt); }
     }
     pub(crate) fn decode_boilers(&mut self, r: &mut crate::band::Rd) -> Result<(), String> {
-        let (gw, gh) = (self.g.w, self.g.h); let ni = crate::craft::NITEM;
+        let (gw, gh) = (self.g.w, self.g.h);
         for _ in 0..r.len(4096)? {
             let (x, y) = (r.u32()? as usize, r.u32()? as usize);
-            let mut fuel = vec![]; for _ in 0..r.len(ni)? { let (it, n) = (r.u8()?, r.u32()?); if (it as usize) < ni { fuel.push((crate::craft::ITEMS[it as usize], n)); } }
-            let bi = r.u8()?; let burning = ((bi as usize) < ni).then(|| crate::craft::ITEMS[bi as usize]);
+            let mut fuel = vec![]; for _ in 0..r.len(4096)? { let (it, n) = (r.u8()?, r.u32()?); if let Some(it) = r.item(it) { fuel.push((it, n)); } }
+            let bi = r.u8()?; let burning = r.item(bi);
             let (burn, water, steam, burnt) = (r.u32()?, r.f32()?, r.f32()?, r.u32()?);
             if x > BOILER_W && x + BOILER_W < gw && y > BOILER_H + 1 && y < gh - 1 && water.is_finite() && steam.is_finite() {
                 self.tr.boilers.push(Boiler { x, y, fuel, burning, burn, water: water.clamp(0., TANK), steam: steam.clamp(0., STEAM_MAX), burnt, choked: false, puff: 0., engines: vec![] }); }

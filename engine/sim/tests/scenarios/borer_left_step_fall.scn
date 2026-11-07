@@ -24,13 +24,6 @@ give SteamBorer 1
 give Coal 3
 hold 1-1 left                         // face left
 place 2 -8 1 SteamBorer
-pour 4 -11 1 Water
-pour 4 -10 1 Water
-pour 4 -9 1 Water
-pour 4 -8 1 Water
-pour 4 -7 1 Water
-pour 4 -6 1 Water
-pour 4 -5 1 Water
 wield 10 Coal
 use 11 -8 0
 use 12 -8 0

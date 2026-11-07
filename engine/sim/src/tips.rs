@@ -135,7 +135,7 @@ pub fn transport_tip(w: &World, x: usize, y: usize) -> Option<Tip> {
     if let Some(k) = w.borer_at(x, y) {
         let b = &w.tr.borers[k];
         let on = w.tr.borer_ride == Some(k);
-        return tip("Steam borer", vec![format!("Fuel {} lumps{} · water {:.0} of {:.0} · steam {:.0} kJ.", b.lumps(), if b.burning.is_some() { " (lit)" } else { "" }, b.water, crate::borer::TANK, b.steam),
+        return tip("Steam borer", vec![format!("Runs on coal: fuel {} lumps{} · steam {:.0} kJ.", b.lumps(), if b.burning.is_some() { " (lit)" } else { "" }, b.steam),
             if b.jammed { "Jammed: no room behind it for its spoil. Clear the tunnel behind it.".into() } else if on { "A/D: drive and bore (it bores the way it faces) · Space: get off.".into() } else { "Coal in paw + right mouse: feed it · empty paw: get on · E: rake out its fuel, then pick it up.".into() }]);
     }
     if let Some(j) = w.wagon_at(x, y) {
@@ -144,13 +144,12 @@ pub fn transport_tip(w: &World, x: usize, y: usize) -> Option<Tip> {
         l.push(match wg.kind {
             WagonKind::Store => format!("Holds {} of {} items{}.", wg.load(), crate::wagon::STORE_CAP, if inside { " · right mouse: stow the stack in paw" } else { "" }),
             WagonKind::Coal => format!("{} of {} lumps of fuel; coupled, it stokes the borer while its steam is low.", wg.load(), crate::wagon::COAL_CAP),
-            WagonKind::Water => format!("Water {:.0} of {:.0}; coupled, it tops up the borer's tank.", wg.water, crate::wagon::WATER_CAP),
             WagonKind::Bunk => "Climb in to sleep: you'll wake here, and the holt is saved.".into(),
             WagonKind::Workshop => if inside { "You're at its bench: craft as at a workbench.".into() } else { "Climb in to work at its bench.".into() },
         });
         let e = match (wg.load() > 0, wg.coupled) { (true, _) => "E: take its load out", (false, true) => "E: uncouple it", _ => "E: pick it up" };
         l.push(if inside { format!("Space: get out · {e}.") } else { format!("Right mouse: climb in · {e}.") });
-        return tip(match wg.kind { WagonKind::Store => "Store wagon", WagonKind::Workshop => "Workshop wagon", WagonKind::Bunk => "Bunk wagon", WagonKind::Water => "Water wagon", WagonKind::Coal => "Coal wagon" }, l);
+        return tip(match wg.kind { WagonKind::Store => "Store wagon", WagonKind::Workshop => "Workshop wagon", WagonKind::Bunk => "Bunk wagon", WagonKind::Coal => "Coal wagon" }, l);
     }
     if let Some(k) = w.gate_at(x, y) {
         let g = &w.tr.links.gates[k];

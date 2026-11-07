@@ -230,7 +230,7 @@ impl World {
         let n = self.tr.hoppers.len(); for hp in self.tr.hoppers.iter_mut() { if hp.dest.is_some_and(|d| d >= n) { hp.dest = None; } }
         for _ in 0..r.len(1 << 16)? {
             let (x, y, rider) = (r.f32()?, r.f32()?, r.u8()? != 0);
-            for _ in 0..r.len(crate::craft::NITEM)? { let (it, k) = (r.u8()?, r.u32()?); if (it as usize) < crate::craft::NITEM && x > 0. && y > 0. && x < w as f32 && y < h as f32 { self.drops.push(Drop::at(x, y, crate::craft::ITEMS[it as usize], k)); } }
+            for _ in 0..r.len(4096)? { let (it, k) = (r.u8()?, r.u32()?); if let Some(it) = r.item(it).filter(|_| x > 0. && y > 0. && x < w as f32 && y < h as f32) { self.drops.push(Drop::at(x, y, it, k)); } }
             if rider && x > 0. && y > 0. && x < w as f32 && y < h as f32 { let (xi, yi) = (x as usize, y as usize); self.moles[0].x = xi; self.moles[0].y = yi; self.pl.sync = None; }
         }
         Ok(())

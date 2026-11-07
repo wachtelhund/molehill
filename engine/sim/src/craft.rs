@@ -34,9 +34,23 @@ pub enum Item {
     // non-electric logic (linkage.rs): pull-rods, a tread plate, a float, a sluice gate, a tipping scale, a clutch
     Rod, TreadPlate, Float, SluiceGate, Scale, Clutch,
     // the rideable steam borer (borer.rs) and the wagons it hauls (wagon.rs)
-    SteamBorer, StoreWagon, WorkshopWagon, BunkWagon, WaterWagon, CoalWagon,
+    SteamBorer, StoreWagon, WorkshopWagon, BunkWagon, CoalWagon,
 }
-pub const NITEM: usize = 106;
+pub const NITEM: usize = 105;
+/// Saves before v13 (and transport blobs before 13) numbered the items with the water wagon at 104 and the coal wagon
+/// at 105. The borer runs on coal only now and the water wagon is gone: an old water wagon comes back as a store wagon.
+pub const WATER_WAGON_V12: usize = 104;
+/// An item by its number in a save; `old` for the numbering before v13 (see `WATER_WAGON_V12`).
+pub fn item_from_save(k: usize, old: bool) -> Option<Item> {
+    if old && k == WATER_WAGON_V12 { return Some(Item::StoreWagon); }
+    ITEMS.get(if old && k > WATER_WAGON_V12 { k - 1 } else { k }).copied()
+}
+/// The "Water wagon" recipe's place in `RECIPES` before v13: a craft queue from then drops it and moves the later ones up.
+pub const WATER_WAGON_RECIPE_V12: usize = 79;
+pub fn recipe_from_save(k: usize, old: bool) -> Option<usize> {
+    let k = if old { match k { WATER_WAGON_RECIPE_V12 => return None, k if k > WATER_WAGON_RECIPE_V12 => k - 1, k => k } } else { k };
+    (k < RECIPES.len()).then_some(k)
+}
 /// What an item can do in the world (see `Item::uses`).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Uses { pub place: bool, pub throw: bool, pub pick_up: bool }
@@ -378,9 +392,6 @@ const ITEM_DEFS_CONST: [ItemDef; NITEM] = {
     it(BunkWagon, "Bunk wagon", [120, 132, 96],
        "A fungus-fibre bunk on wheels for a borer to haul. Sleep in it to wake there after a fall (the holt is saved).").dens(500.0).place().pick_up()
        .controls("Left mouse: set it down (behind a borer it couples on) · right mouse: climb in or out · walk into it to shove it (climbing in is going to sleep) · E: uncouple, then pick up"),
-    it(WaterWagon, "Water wagon", [92, 112, 132],
-       "A riveted iron tank on wheels. It draws water it touches and, coupled to a borer, keeps its tank topped up.").dens(900.0).place().pick_up()
-       .controls("Left mouse: set it down (behind a borer it couples on) · right mouse: climb in or out · walk into it to shove it · E: uncouple, then pick up (its water pours out)"),
     it(CoalWagon, "Coal wagon", [70, 66, 64],
        "An iron fuel bunker on wheels. Coupled to a borer, its stoking chute feeds the firebox a lump at a time.").dens(900.0).place().pick_up()
        .controls("Left mouse: set it down (behind a borer it couples on) · right mouse: climb in or out · walk into it to shove it · fuel in paw + right mouse: shovel it in · E: take the fuel out, then uncouple, then pick up"),
@@ -565,7 +576,6 @@ pub static RECIPES: &[Recipe] = &[
     Recipe { name: "Store wagon", station: Station::Workbench, inputs: &[(Item::Wood, 6), (Item::IronIngot, 2)], out: (Item::StoreWagon, 1), ticks: 200 },
     Recipe { name: "Workshop wagon", station: Station::Workbench, inputs: &[(Item::Wood, 8), (Item::Stone, 4), (Item::IronIngot, 2)], out: (Item::WorkshopWagon, 1), ticks: 240 },
     Recipe { name: "Bunk wagon", station: Station::Workbench, inputs: &[(Item::Wood, 6), (Item::Fungus, 4), (Item::IronIngot, 2)], out: (Item::BunkWagon, 1), ticks: 200 },
-    Recipe { name: "Water wagon", station: Station::Forge, inputs: &[(Item::IronIngot, 5), (Item::Wood, 2)], out: (Item::WaterWagon, 1), ticks: 240 },
     Recipe { name: "Coal wagon", station: Station::Forge, inputs: &[(Item::IronIngot, 4), (Item::Wood, 2)], out: (Item::CoalWagon, 1), ticks: 240 },
     Recipe { name: "Drill", station: Station::Workshop, inputs: &[(Item::BronzeIngot, 4)], out: (Item::Drill, 1), ticks: 240 },
     Recipe { name: "Knot", station: Station::Workshop, inputs: &[(Item::CopperIngot, 1), (Item::Quartz, 1)], out: (Item::Gate, 1), ticks: 100 },
