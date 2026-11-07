@@ -13,7 +13,7 @@ You play one Delver: a body about **45 × 73 cm** (1.8 × 2.9 tiles of 0.25 m, i
 | `A` / `D` | Run. Instant start and stop. Steps of 1–2 tiles (up to 0.5 m) are climbed at full speed, and you shove through loose sand. Sand, gravel or soil still falling or pouring (moved in the last two steps with air or more falling grains under it) is neither wall nor floor: you can't stand on a stream, you run and drop through it, and it pouring past you is no burial; once it settles it carries you (`World::in_flight`) |
 | `Shift` held while running | Sprint: 1.6× speed (instant), so jumps carry further; burns a little food. Shift-click is left free |
 | `Space` (or a fresh `W` press) | Jump. Hold for a full jump (about 1.25 m), tap for a short hop |
-| Into a wall in the air | **No wall climbing** (Hampus, 2026-11-06): bare rock can't be clung to, climbed or wall-jumped off; you slide straight down it. A ledge whose top comes within 0.75 m of the feet as you press toward it in the air is rolled over (`TUNE.ledge`), so a full jump takes ledges up to about 2 m. Higher, use a rope ladder or the **rope gun** |
+| Into a wall in the air | **No wall climbing**: bare rock can't be clung to, climbed or wall-jumped off; you slide straight down it. A ledge whose top comes within 0.75 m of the feet as you press toward it in the air is rolled over (`TUNE.ledge`), so a full jump takes ledges up to about 2 m. Higher, use a rope ladder or the **rope gun** |
 | `W` / `Space` in water | Swim up |
 | `S` | Dig down (on the ground) |
 | Left mouse | Use the item in hand: dig, place a block brush, panel a back wall, torch, copperline, device, spore, TNT or station |

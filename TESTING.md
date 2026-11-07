@@ -13,7 +13,7 @@ The game crate has a few headless unit tests of its own for HUD and art logic th
 
 `spawn_reveals_only_burrow_neighbourhood` checks a fresh holt starts with only its burrow and a 1 m skin seen (nothing 10 m out, through rock or not, and no unseen material counted as discovered).
 
-`sim/tests/sim.rs` covers stress and collapse, fluids, digging tiers, and movement. The movement tests check jump height, the variable short hop, coyote time, and that a bare wall can't be climbed (no cling, no climb: Hampus 2026-11-06). Rope-gun edge cases live there too: a window slide (up, down or sideways) keeps the mole on its rope, and riding from a rope lets go of it. Helpers: `arena()` makes a cleared granite box around spawn, and `press(&mut w, n, |input| ...)` steps n ticks with a given input.
+`sim/tests/sim.rs` covers stress and collapse, fluids, digging tiers, and movement. The movement tests check jump height, the variable short hop, coyote time, and that a bare wall can't be climbed (no cling, no climb). Rope-gun edge cases live there too: a window slide (up, down or sideways) keeps the mole on its rope, and riding from a rope lets go of it. Helpers: `arena()` makes a cleared granite box around spawn, and `press(&mut w, n, |input| ...)` steps n ticks with a given input.
 
 ## 2. Scenario harness (`sim/examples/scenario.rs`)
 
@@ -261,7 +261,7 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `cart_off_rail.scn` | With the track gone under it a cart drops off the rails and won't roll when pushed |
 | `powered_rail_climbs.scn` | Copperline on the track drives a cart up a 1-in-3 climb while a lever powers it; the line shuttles between its bumpers; lever off and it coasts to the foot |
 | `rail_too_steep_to_push.scn` | Plain track: the mole can't push even an empty cart up a 1-in-3 (needs ~330 N, it has 320 N) |
-| `falling_loose_no_climb.scn` / `falling_loose_walk_under.scn` | A stream of sand pouring from a hopper's slot (Hampus's playtest): jumping into it pressing into it and `W` gives no cling and no footing (it used to climb the stream and stick in mid-air), the mole drops through into a pit unhurt and climbs out its rock wall; walking along the floor under a pour, the mole runs on through it (it used to stop dead against it for good). Both fail with the rule off |
+| `falling_loose_no_climb.scn` / `falling_loose_walk_under.scn` | A stream of sand pouring from a hopper's slot (found in a playtest): jumping into it pressing into it and `W` gives no cling and no footing (it used to climb the stream and stick in mid-air), the mole drops through into a pit unhurt and climbs out its rock wall; walking along the floor under a pour, the mole runs on through it (it used to stop dead against it for good). Both fail with the rule off |
 | `rope_ladder_climb.scn` / `rope_ladder_falls.scn` | A ladder tied on a cliff's lip: climbed at 3 m/s, hangs still without keys, climbed over onto the top; dig out its rock and it falls |
 | `rope_ladder_top_out.scn` | At the foot of a 4.5 m cliff's ladder `W` grabs (harness var `ladder_up`: the game's W climbs, not jumps) and, held alone, climbs off the top onto the ledge and stays there (no bobbing on the knot) |
 | `rope_ladder_down.scn` | On a 7.5 m cliff beside the ladder's head, `S` steps onto the rope (`ladder_down`: the game's S doesn't dig) and climbs down at 3.5 m/s; no fall damage at the foot (30 hp before the fix) |
@@ -371,7 +371,7 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `site_pumpworks_rope_to_chest.scn` / `site_fissure_east_bridge.scn` / `site_fossil_over_the_beast.scn` | Site-trap fixes: from the fossil cave's east mouth under the skull, up the mound's 2.2 m east face by rope gun, over the ribs of the beast lying on the floor, `S` at the rope off the mound's west end, down to the chest at 100 hp with nothing crumbling or falling (`crumbled` 0, no debris); from the pumpworks' east door over the wheel by rope gun, down onto the window-sill landing, `S` at the rope's head, 7 m down and the chest opened at 100 hp; from the fissure's east mouth level onto the 24 m bridge to its broken middle, then 10 s standing there with nothing falling (100 hp, no debris) |
 | `site_mine.scn` (with the copper face and the ballast; soot lining) / `site_holt.scn` (table and stools on the open floor) / `site_pumpworks.scn` / `site_fissure.scn` / `site_fossil.scn` / `site_crystal.scn` / `site_halt.scn` | Each found-place family stamps with its materials, lining and interaction (rails, furniture, a held sump, a rope, carved bone, quartz pools, a wrecked cart and no waygate). Each map is solid rock sized to its reworked site (up to 80 × 22 m, or 18 × 40 m for the fissure), with a pocket for the mole under it or beside it; the site carves itself out |
 
-### Writing a new scenario (for agents)
+### Writing a new scenario
 
 1. Copy the closest `.scn`, then draw the map. Leave 3 empty cells above `@` for the mole's body.
 2. Add `dump`/`ascii` lines at the ticks you care about and run the file alone. Read the JSON to pick thresholds; for example, find the tick where `grounded` flips.

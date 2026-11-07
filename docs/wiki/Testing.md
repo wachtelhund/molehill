@@ -4,7 +4,7 @@
 
 ## Why the game can be tested without a screen
 
-Every gameplay rule lives in `molehill-sim`, which has **no Bevy dependency**: no window, no GPU, no audio. The game crate only turns key presses into an `Input` struct and draws what the sim produces. So a test, or an AI agent, can drive the exact same `World::step()` the player does, and check the result as numbers.
+Every gameplay rule lives in `molehill-sim`, which has **no Bevy dependency**: no window, no GPU, no audio. The game crate only turns key presses into an `Input` struct and draws what the sim produces. So a test can drive the exact same `World::step()` the player does, and check the result as numbers.
 
 The sim is also **deterministic**. Randomness is a hash of position and tick, the parallel falling-sand phases can't race, and disasters use their own random stream. The same scenario always gives the same output, so a failure is reproducible rather than flaky.
 
@@ -54,7 +54,7 @@ expect 120 grounded == 1
 
 The variables, the map legend and the list of every included scenario are in [`TESTING.md`](../../TESTING.md).
 
-## Writing one (the loop for agents)
+## Writing one
 
 1. Copy the closest `.scn` and draw the map. Leave 3 empty tiles above `@` for the mole's body.
 2. Add `dump` / `ascii` lines at the ticks you care about and run that file alone. Read the JSON to choose thresholds, for example the tick where `grounded` flips.

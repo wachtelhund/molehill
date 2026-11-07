@@ -88,7 +88,7 @@ The deeper the holt reaches, the further its Delvers have to haul, so travel cli
 
 ### Ancient waygates (open decision)
 
-> **Open decision for Hampus:** how far the waygates should go, and whether they should exist at all.
+> **Open decision:** how far the waygates should go, and whether they should exist at all.
 
 The waygates are the closest Molehill comes to teleporters, and they must stay **physics-based and consistent with the lore**: there is no instant jump from one place to another. The proposal is that the Ancients built long **fast lines**: sealed, pumped-out tubes or high-speed rails that ran between their facilities across distances no holt has crossed since. You find a dead line, then **repair it**: restore its seals, clear its cave-ins, and feed it power. Each repaired line links two facilities you have found. Travel is very fast, but it is still travel. A capsule runs the tube, and a broken stretch stops it.
 
