@@ -2,6 +2,8 @@
 //! world into a GPU texture (albedo x per-cell light, fog of war, designations, cracks), draws
 //! parallax background layers behind open cells, and syncs sprites for moles, items, chests,
 //! stations and torches.
+// Release builds on Windows open no console window beside the game.
+#![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 mod art;
 mod audio;
 mod music;
