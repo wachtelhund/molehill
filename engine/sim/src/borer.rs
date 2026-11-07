@@ -46,6 +46,8 @@ pub const TURN: f32 = 4.;
 pub const DRIVE_W: f32 = 600.;
 pub const GRIND_W: f32 = 5000.;
 pub const CUT_KJ: f32 = 0.0012;
+/// The hardest dig time it meets in a face (granite's is 22): the cap on a hardness sample.
+const MAX_DIG: f32 = 30.;
 
 /// Where the middle of wagon `n` of the train (0 the first behind the cab) rides, as path length behind the head.
 pub fn seg_dist(n: usize) -> f32 { CAB_D + BORER_W / 2. + GAP + WAGON_W / 2. + n as f32 * SEG_D }
@@ -129,6 +131,10 @@ impl World {
         (r0..=r1).flat_map(move |rr| (c0..=c1).map(move |c| (c, rr))).filter(move |&(c, rr)| (c as f32 + 0.5 - x).powi(2) + (rr as f32 + 0.5 - y).powi(2) <= r * r)
     }
     fn solid_at(&self, c: i32, r: i32) -> bool { !self.g.in_bounds(c, r) || !self.passable(c as usize, r as usize) }
+    /// The cells the head at (x, y) would cut: every one of its round face that isn't open (bedrock it never cuts).
+    fn face(&self, x: f32, y: f32) -> Vec<usize> {
+        self.disc(x, y, HEAD_R).filter(|&(c, r)| self.g.in_bounds(c, r) && !self.passable(c as usize, r as usize)).map(|(c, r)| self.g.idx(c as usize, r as usize)).filter(|&i| self.g.m(i) != Mat::Bedrock).collect()
+    }
     fn uncuttable(&self, c: i32, r: i32) -> bool { !self.g.in_bounds(c, r) || self.g.get(c as usize, r as usize) == Mat::Bedrock }
     /// The head moved to (x, y), pushed back off what it can't cut (bedrock, the window's edge) to a cell inside its rim,
     /// so it slides along bedrock it grazes; it stops only where it is pointed into it.
@@ -281,15 +287,27 @@ impl World {
                     nx = b.x; ny = b.y; b.vy = 0.;
                 }
             }
+            // the cut is paid for before the head moves: with less steam than the whole step's cut costs, it goes only as
+            // far as its steam grinds (a starved borer crawls on at what its firebox raises, smoothly, not for free)
+            if (nx, ny) != (b.x, b.y) {
+                let cost = |w: &World, x: f32, y: f32| w.face(x, y).iter().map(|&i| w.g.m(i).p().dig as f32).sum::<f32>() * CUT_KJ;
+                let need = cost(self, nx, ny);
+                if need > b.steam {
+                    let f = b.steam / need;
+                    if f < 0.05 { nx = b.x; ny = b.y; } else { nx = b.x + (nx - b.x) * f; ny = b.y + (ny - b.y) * f; }
+                }
+            }
             if (nx, ny) != (b.x, b.y) {
                 // cut the face: every cell of the round head at its new place that isn't open
-                let cells: Vec<usize> = self.disc(nx, ny, HEAD_R).filter(|&(c, r)| self.g.in_bounds(c, r) && !self.passable(c as usize, r as usize)).map(|(c, r)| self.g.idx(c as usize, r as usize)).filter(|&i| self.g.m(i) != Mat::Bedrock).collect();
+                let cells = self.face(nx, ny);
                 self.tr.borers[k] = b.clone();
                 let mut dig = 0.; for &i in &cells { dig += self.worm_cut(k, i, &train); }
                 let acc = std::mem::take(&mut self.tr.borers[k].acc); b.acc = acc;
                 let step = ((nx - b.x).powi(2) + (ny - b.y).powi(2)).sqrt().max(1e-3);
                 b.steam = (b.steam - dig * CUT_KJ).max(0.);
-                b.hard += (dig / step - b.hard) * 0.2;
+                // (a sample is at most a whole face of the hardest rock: from rest inside rock, as an old save loads, the
+                // first tiny step cuts a whole disc)
+                b.hard += ((dig / step).min(2. * HEAD_R * MAX_DIG) - b.hard) * 0.2;
                 if !cells.is_empty() {
                     light::reveal(&mut self.g, nx.max(0.) as usize, ny.max(0.) as usize, (HEAD_R as usize) + 3 * S);
                     if self.tick % 8 == 0 { self.shake = self.shake.max(0.04); self.events.push(Event::Dig); }

@@ -94,7 +94,7 @@ expect 430 borerang > 20              // swinging round toward down: a curve, no
 expect 430 borerang < 60
 expect 450 borerang == 90             // heading straight down
 expect 600 borery > 25                // and bored down
-expect 600 borerx < 31
+expect 600 borerx < 33
 expect 600 borerv > 1.6               // at granite speed
 hold 601-720 down right
 expect 720 borerang > 44.5           // a diagonal
@@ -106,5 +106,5 @@ expect 760 borerang == 270            // turned back the short way (through east
 expect 960 borery < 16                // bored up
 hold 961-1080 left
 expect 1080 borerang == 180
-expect 1080 borerx < 25               // and west, back over its first tunnel
+expect 1080 borerx < 27               // and west, back over its first tunnel
 expect 1080 onborer == 1
