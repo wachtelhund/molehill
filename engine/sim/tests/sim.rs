@@ -1130,6 +1130,15 @@ mod progression {
         let d0 = c.inv[Item::Drill as usize]; assert!(c.craft_now(recipe_by_name("Drill").unwrap()).is_ok() && c.inv[Item::Drill as usize] == d0 + 1, "Creative crafts anywhere");
         c.input.tool = 3; assert_eq!(c.dig_power(), 3);
     }
+    /// Creative's pack holds 999 of every item in the registry (the steam borer, the wagons and every production,
+    /// logic and refinement piece included), from a new holt and after a save and load.
+    #[test] fn creative_has_999_of_every_item() {
+        use molehill_sim::survival::Mode;
+        let mut c = World::new(256 * molehill_sim::mat::S, 128 * molehill_sim::mat::S, 3); c.set_mode(Mode::Creative);
+        let l = save::load(&save::save(&c)).unwrap();
+        for d in ITEM_DEFS.iter() { for (w, when) in [(&c, "new"), (&l, "loaded")] {
+            assert!(w.inv[d.item as usize] >= 999, "{when} Creative holt has {} {}", w.inv[d.item as usize], d.name); } }
+    }
 }
 /// A blast's knock carries through the rock like a thrum: a listener in solid granite hears it (on any
 /// channel) for a moment.

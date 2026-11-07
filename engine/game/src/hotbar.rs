@@ -97,6 +97,22 @@ mod tests {
         }
     }
 
+    /// Every thing there is has a slot: every device and station, and every item (the dig tools as their
+    /// slots), so nothing new gets cut off the end of the pack; and Creative holds 999 of each item.
+    #[test] fn the_pack_holds_everything_and_creative_has_999() {
+        use molehill_sim::{world::World, survival::Mode, craft::{ITEMS, STATIONS}, logic::DEVS};
+        let s = crate::default_slots();
+        for &it in ITEMS.iter() { if matches!(it, Item::Pickaxe | Item::Drill | Item::Bore) { continue; }
+            assert!(s.contains(&Some(Thing::Item(it))), "{it:?} missing from the pack"); }
+        for d in 0..DEVS.len() { assert!(s.contains(&Some(Thing::Dev(d))), "{:?} missing from the pack", DEVS[d]); }
+        for k in 0..STATIONS.len() { assert!(s.contains(&Some(Thing::Station(k))), "{:?} missing", STATIONS[k]); }
+        for n in 1..=3 { assert!(s.contains(&Some(Thing::Pick(n))), "dig tool {n} missing"); }
+        for it in [Item::SteamBorer, Item::StoreWagon, Item::WorkshopWagon, Item::BunkWagon, Item::WaterWagon, Item::CoalWagon] {
+            assert!(s.contains(&Some(Thing::Item(it))), "{it:?} missing from the pack"); }
+        let mut w = World::new(512 * molehill_sim::mat::S, 256 * molehill_sim::mat::S, 7); w.set_mode(Mode::Creative);
+        for &it in ITEMS.iter() { assert!(w.inv[it as usize] >= 999, "Creative has {} {it:?}", w.inv[it as usize]); }
+    }
+
     /// A real Survival start: the hotbar holds the pickaxe, the torches and the rest of the kit, and none
     /// of its ten slots is a faint thing you have none of. Creative has everything.
     #[test] fn the_survival_kit_fills_the_hotbar() {

@@ -71,7 +71,9 @@ const FAR: usize = 4; // chunk rows drawn beyond each end of the simulated windo
     look: Vec2 }
 /// What an inventory slot holds. Counts come from the shared pack (`World::inv`).
 #[derive(Clone, Copy, PartialEq, Debug)] pub enum Thing { Pick(u8), Item(Item), Dev(usize), Station(usize) }
-pub const NSLOT: usize = 100; // 10 hotbar + 90 pack: room for the six back-wall items after devices and stations
+/// 10 hotbar + the pack: a slot for every thing there is (the dig tools, every device, station and item but the
+/// three dig tools' items), in whole rows of 10, so a newly added item always has a slot (Creative shows it all).
+pub const NSLOT: usize = (3 + DEVS.len() + STATIONS.len() + NITEM - 3).div_ceil(10) * 10;
 /// The round brush an inventory thing uses, if any (dig tools and placeable blocks).
 pub fn brush_of(t: Option<Thing>) -> Option<sw::Brush> { match t { Some(Thing::Pick(n)) => Some(sw::Brush::Dig(n)), Some(Thing::Item(it)) if sw::block_code(it).is_some() || it.pigment().is_some() || it.is_wall() => Some(sw::Brush::Place(it)), _ => None } }
 /// The radius the brush of this thing will actually use (the player's choice, clamped to the item's range).
