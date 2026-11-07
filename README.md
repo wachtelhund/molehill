@@ -14,13 +14,13 @@ Get the latest build from **[Releases](https://github.com/wachtelhund/molehill/r
 
 | system | file |
 |---|---|
-| macOS | the macOS `.zip` (unzip, then open `Molehill.app`) |
-| Windows | the Windows `.zip` (unzip, then run `molehill.exe`) |
-| Linux (x86_64) | the Linux `.tar.gz` (extract, then run `./molehill`) |
+| macOS (universal: Apple silicon and Intel) | the `macos-universal.zip` (unzip, then run `molehill`) |
+| Windows (x86_64) | the `windows-x86_64.zip` (unzip, then run `molehill.exe`) |
+| Linux (x86_64) | the `linux-x86_64.tar.gz` (extract, then run `./molehill`) |
 
 The builds are not signed, so the first launch asks for confirmation:
 
-* **macOS (Gatekeeper):** right-click `Molehill.app` and choose **Open**, then **Open** again. Or clear the quarantine flag in a terminal: `xattr -dr com.apple.quarantine Molehill.app`.
+* **macOS (Gatekeeper):** right-click `molehill` and choose **Open**, then **Open** again. Or clear the quarantine flag in a terminal: `xattr -d com.apple.quarantine molehill`. Saves go in the folder the game starts in (your home folder when you double-click it).
 * **Windows (SmartScreen):** if "Windows protected your PC" appears, click **More info**, then **Run anyway**.
 
 **In the browser:** the web build is in [`site/`](site/). Serve that folder with any static file server and open it, for example `python3 -m http.server -d site 8080` and then http://localhost:8080/. Add `?fresh` to the address to skip loading the autosave. The web build saves to the browser's local storage.

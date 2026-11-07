@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Molehill — a falling-sand colony sim</title>
-  <meta name="description" content="A falling-sand platformer and colony sim written in Rust and Bevy. Dig, build, and manage structure and light. A development build; downloads come later.">
+  <meta name="description" content="A falling-sand platformer and colony sim written in Rust and Bevy. Dig, build, and manage structure and light. A free, open-source development build for macOS, Windows, Linux and the browser.">
   <meta name="theme-color" content="#120e0b">
   <meta name="color-scheme" content="dark">
   <link rel="canonical" href="https://molehill.hampusnilsson.dev/">
@@ -20,7 +20,7 @@
   <meta property="og:locale" content="en_US">
   <meta property="og:url" content="https://molehill.hampusnilsson.dev/">
   <meta property="og:title" content="Molehill — a falling-sand colony sim">
-  <meta property="og:description" content="A falling-sand platformer and colony sim written in Rust and Bevy. In development; downloads come later.">
+  <meta property="og:description" content="A falling-sand platformer and colony sim written in Rust and Bevy. A free, open-source development build for macOS, Windows, Linux and the browser.">
   <meta property="og:image" content="https://molehill.hampusnilsson.dev/img/hud-digging.png">
   <meta property="og:image:type" content="image/png">
   <meta property="og:image:width" content="1280">
@@ -28,7 +28,7 @@
   <meta property="og:image:alt" content="Development screenshot: Survival New Holt at the start burrow, lit from within.">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="Molehill — a falling-sand colony sim">
-  <meta name="twitter:description" content="A falling-sand platformer and colony sim written in Rust and Bevy. A development build; downloads come later.">
+  <meta name="twitter:description" content="A falling-sand platformer and colony sim written in Rust and Bevy. A free, open-source development build for macOS, Windows, Linux and the browser.">
   <meta name="twitter:image" content="https://molehill.hampusnilsson.dev/img/hud-digging.png">
   <script type="application/ld+json">
   {
@@ -78,7 +78,7 @@
 
     <article class="chapter" id="pitch">
       <p>Molehill is a falling-sand platformer and colony sim, written in Rust and Bevy. You dig tunnels, place supports, and furnish rooms. Sand slides, water finds its level, and stone fails when a span is too wide. Light has to be placed; a tunnel stays dark until you bring a lamp, a torch, or a material that already glows.</p>
-      <p class="note">This page is a look at the work. There is no game to play in the browser, and downloads will come later.</p>
+      <p class="note">This is an early development build. You can <a href="#download">download it</a> or play the web version in your browser.</p>
     </article>
 
     <article class="chapter" id="dig">
@@ -176,10 +176,23 @@
       </picture>
       <figcaption>Development screenshot. Light and shadow in a tunnel you cut and furnish yourself.</figcaption>
     </figure>
+
+    <section class="chapter" id="download" aria-labelledby="download-title">
+      <p class="kicker">Download</p>
+      <h2 id="download-title">Get the development build</h2>
+      <ul class="plain">
+        <li><a href="https://github.com/wachtelhund/molehill/releases/latest">macOS</a>: universal zip (Apple silicon and Intel)</li>
+        <li><a href="https://github.com/wachtelhund/molehill/releases/latest">Windows</a>: x86_64 zip</li>
+        <li><a href="https://github.com/wachtelhund/molehill/releases/latest">Linux</a>: x86_64 tar.gz</li>
+        <li><a href="/play/">Play the web version</a> in your browser (keyboard and mouse)</li>
+        <li><a href="https://github.com/wachtelhund/molehill">Source code</a> on GitHub, MIT licensed</li>
+      </ul>
+      <p>The builds are not signed. On macOS, right-click <code>molehill</code> and choose Open the first time, or run <code>xattr -d com.apple.quarantine molehill</code>. On Windows, if SmartScreen warns you, click More info, then Run anyway.</p>
+    </section>
   </main>
 
   <footer>
-    <p>Molehill is in development. Downloads will come later.</p>
+    <p>Molehill is in development.</p>
     <p class="foot-quiet">Written in Rust and Bevy.</p>
   </footer>
 </body>

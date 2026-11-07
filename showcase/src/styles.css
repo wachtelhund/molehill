@@ -264,6 +264,22 @@ p {
   margin-bottom: 0;
 }
 
+.plain {
+  margin: 0 0 1.1em;
+  padding: 0;
+  list-style: none;
+}
+
+.plain li {
+  margin: 0 0 0.45em;
+}
+
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.9em;
+  color: var(--ink);
+}
+
 .note {
   margin-top: 1.6rem;
   color: var(--ink-mute);

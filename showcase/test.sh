@@ -23,11 +23,20 @@ css = (dist / "styles.css").read_text(encoding="utf-8")
 page404 = (dist / "404.html").read_text(encoding="utf-8")
 wrangler = (root / "wrangler.toml").read_text(encoding="utf-8")
 
-# Isolation: the playable build must not be in this output.
-for pattern in ("*.wasm", "molehill.js", "molehill_bg.wasm"):
-    hits = list(dist.rglob(pattern))
+# Isolation: the game lives only under /play, as a byte-identical copy of site/.
+for pattern in ("*.wasm", "molehill.js"):
+    hits = [h for h in dist.rglob(pattern) if (dist / "play") not in h.parents]
     if hits:
-        fail(f"game binary in dist: {hits}")
+        fail(f"game binary outside play/: {hits}")
+for name in ("index.html", "molehill.js", "molehill_bg.wasm"):
+    out, src = dist / "play" / name, repo / "site" / name
+    if not out.is_file():
+        fail(f"web version missing play/{name}")
+    elif not src.is_file() or out.read_bytes() != src.read_bytes():
+        fail(f"play/{name} is not a byte-identical copy of site/{name}")
+headers = (dist / "_headers").read_text(encoding="utf-8")
+if "/play/*" not in headers or "wasm-unsafe-eval" not in headers:
+    fail("_headers needs a /play/* rule that lets the wasm run")
 
 # No Worker script / paid backend bindings in config.
 for needle in ("\nmain =", "binding =", "[[r2_buckets]]", "[[kv_namespaces]]",
@@ -94,13 +103,22 @@ for href in sorted(refs):
         target = dist / path.lstrip("/")
     else:
         target = dist / path
+    if path.endswith("/"):
+        target = target / "index.html"
     if not target.is_file():
         fail(f"broken local ref: {href}")
 
-# No private repo, no fake store/download, no playable embed.
+# Outside links go only to the public repo and its releases; no store, no embed.
+for href in re.findall(r'href="(https?://[^"]+)"', html + page404):
+    if not (href.startswith("https://github.com/wachtelhund/molehill") or href.startswith("https://molehill.hampusnilsson.dev/")):
+        fail(f"unexpected outside link: {href}")
+if "https://github.com/wachtelhund/molehill/releases/latest" not in html:
+    fail("download links must point at the latest release")
+if 'href="/play/"' not in html:
+    fail("missing the link to the web version")
+if "<iframe" in html.lower():
+    fail("the game must not be embedded in the landing page")
 forbidden = (
-    "github.com/wachtelhund",
-    "github.com",
     "site/molehill",
     ".wasm",
     "Add to cart",
@@ -119,7 +137,7 @@ for word in forbidden:
         fail(f"forbidden copy or link: {word}")
 
 # Honest development status.
-for phrase in ("downloads will come later", "development build", "no game to play in the browser"):
+for phrase in ("development build", "not signed", "more info", "run anyway", "xattr -d com.apple.quarantine"):
     if phrase not in html.lower():
         fail(f"missing honest status line: {phrase}")
 
