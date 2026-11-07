@@ -999,9 +999,12 @@ pub fn site_loot(kind: Kind, h: u32) -> Vec<(Item, u32)> {
 }
 
 impl World {
-    /// Refresh the sites touching the window (with the chests).
+    /// Refresh the sites touching the window (with the chests): the generator's, and the stamped ones
+    /// (`staged`) still in it. Without the second, a window slide forgot a scripted site and its chest.
     pub fn refresh_sites(&mut self) {
-        self.sites = self.gen.sites_in(self.ox, self.ox + self.g.w as i64, self.oy, self.oy + self.g.h as i64);
+        let (x0, x1, y0, y1) = (self.ox, self.ox + self.g.w as i64, self.oy, self.oy + self.g.h as i64);
+        self.sites = self.gen.sites_in(x0, x1, y0, y1);
+        self.sites.extend(self.staged.iter().filter(|s| s.x0 < x1 && s.x0 + s.w as i64 > x0 && s.y0 < y1 && s.y0 + s.h as i64 > y0).cloned());
         self.stamp_site_things();
     }
     /// Devices, furniture, farms, carts and ladders a site owns. Idempotent: a thing already there is left.
@@ -1032,7 +1035,7 @@ impl World {
             }
         }
         self.stamp_one(&s);
-        self.sites.push(s);
+        self.staged.push(s.clone()); self.sites.push(s);
     }
     fn stamp_one(&mut self, s: &Site) {
         let (x0, y0) = (s.x0 - self.ox, s.y0 - self.oy);

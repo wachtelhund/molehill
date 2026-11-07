@@ -141,6 +141,13 @@ Measured on native release, with other agents loading the machine:
 * Bug, on both web and native: every effect's "last played" started at 0 s, and the audio clock also starts at 0 when the sound opens. So the first of each effect inside its gap after opening was dropped: the menu click of the very key or click that opened the sound (gap 0.05 s), and a quake (2 s), crumble (1.2 s) or death (1 s) right after. The gaps now start long ago (`audio::Gaps`); `the_first_of_each_event_sounds_at_once` failed before and passes now.
 * Not done: still no ear test of native or web sound on any platform; not opened in a live window or browser.
 
+## `--dump-art` on the pump and halt scenes (watchdog 08:23)
+* Panic: `main.rs:314` in `dev_dump`, "range start index 18446744073709330952 out of range for slice of length 856064" (a negative index wrapped). It came from the mole-column marker, which indexed `mx - x0` with the mole outside the crop.
+* Why the mole was outside the crop: the pump and halt rooms stand the mole near the window's east side, so by frame 150 the window had slid a tile east (`ox` 0 → 256). The slide's `refresh_chests` → `refresh_sites` rebuilt `sites` from the generator alone, so the site stamped by `--scene` was gone (frame 2: 2 sites, the stamped one last; frame 150: 1, a generated site at window x −209). The dump cropped that one. The mine, holt and the rest never slide by frame 150, so they worked.
+* Fix, in the sim: `World::staged` holds the sites `stamp_site` adds (they're not in the generator), and `refresh_sites` puts back the ones still touching the window, so their things and chest return too. Scenarios that stamp a site and then slide keep it as well. In the dump, the marker is drawn only inside the crop.
+* Test: `a_stamped_site_survives_a_slide` (`tests/roam.rs`) fails without the fix ("after a slide east") and passes with it. `--scene=pump` and `--scene=halt` with `--dump-art` now write all 310 files, and the wiki's pumpworks and halt stills are retaken from them (same crops, now with the region wash).
+* Not done: no live window; staged sites aren't saved (they're scripted only).
+
 ## Open
 * The design's emberiron for the Bore doesn't exist, so the Bore takes iron, copper and crystal.
 * localStorage holds about 5 MB. A band is 10–40 KB, so a holt explored over a few hundred metres of depth could fill it. Bands the player never changed could be dropped and regenerated (not done: the falling-sand settling after generation would differ).

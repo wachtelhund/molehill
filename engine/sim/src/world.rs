@@ -269,6 +269,9 @@ pub struct World {
     pub walls: crate::walls::Walls,
     /// sites touching the window (refreshed with the chests); the ones already visited (ids)
     pub sites: Vec<crate::sites::Site>, pub sites_seen: std::collections::HashSet<u32>,
+    /// sites stamped by a script (`stamp_site`: scenarios, the game's `--scene`), which the generator doesn't
+    /// know: `refresh_sites` puts them back in `sites` after every slide while they touch the window. Not saved.
+    pub staged: Vec<crate::sites::Site>,
     /// grottos the player has come near (the discovery line is said once each); saved
     pub grottos_seen: std::collections::HashSet<u32>,
     /// fresh bands built ahead of the window, a step at a time (`stream.rs`); never saved
@@ -304,7 +307,7 @@ impl World {
             moles: vec![], drops: vec![], stockpile: (0, 0, 0, 0), buildings: vec![], torches: vec![], chests: vec![], furniture: vec![], paint_acc: 0,
             quest: 0, log: vec![], discovered: [false; NMAT], chests_opened: 0, pillars: 0, max_depth: 0., craft_queue: vec![], gear: Gear::default(), known: [false; NITEM], mode: Default::default(), rules: Default::default(), lamp_oil: 0., lamp_dry: false, lamp_low: false, ruins: vec![], ruins_seen: Default::default(), relics: 0, crumbled: 0, crumble_box: None, crumbled_in: 0,
             light_rect: (0, 0, w - 1, h - 1), events: vec![], marks: vec![], react_pending: false, logic: Logic::new(w, h), disasters: Disasters::new(seed), shake: 0., air: Air::new(w, h), farms: vec![], harvested: 0, input: Input::default(), pl: Player::default(), gen: gn, ox: 0, oy, bands: Default::default(), opened: Default::default(), clues: vec![], found_clues: Default::default(), journal: vec![], grottos: vec![], caught: Default::default(), keep_blast_field: false, blast_field: vec![], debris: vec![], waves: vec![], strain: vec![], strain_creak: 0, tr: Default::default(), blasts_run: 0, info, g,
-            walls: crate::walls::Walls::new(w, h), sites: vec![], sites_seen: Default::default(), grottos_seen: Default::default(), stream: Default::default(),
+            walls: crate::walls::Walls::new(w, h), sites: vec![], staged: vec![], sites_seen: Default::default(), grottos_seen: Default::default(), stream: Default::default(),
         }
     }
     pub fn new(w: usize, h: usize, seed: u32) -> World { let mut b = NewHolt::new(w, h, seed); while b.step().is_none() {} b.take() }

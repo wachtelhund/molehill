@@ -311,7 +311,9 @@ fn dev_dump(n: Local<u32>, g: Res<Game>, sp: Res<Sprites>, images: Res<Assets<Im
             for j in 0..3 { v[o + j] = srgb(lin(c[j]) * (1. - a) + lin(v[o + j] as f32) * a).min(255.) as u8; } v[o + 3] = 255; } }
         // mark the mole's body cells so the crop can be read without sprites (view.bmp below starts from the unmarked copy)
         let clean = v.clone();
-        for dy in 0..3 * S { let (x, y) = (mx - x0, my - dy - y0); let o = (y * cw + x) * 4; v[o..o + 4].copy_from_slice(&[255, 0, 255, 255]); }
+        // (only where it falls in the crop: a site crop needn't hold the mole, e.g. after `--shot-walk`)
+        for dy in 0..3 * S { let (Some(x), Some(y)) = (mx.checked_sub(x0), (my.checked_sub(dy)).and_then(|y| y.checked_sub(y0))) else { continue };
+            if x >= cw || y >= chh { continue; } let o = (y * cw + x) * 4; v[o..o + 4].copy_from_slice(&[255, 0, 255, 255]); }
         bmp(&format!("{dir}/view_cells.bmp"), cw, chh, &v, false, 4 / S.min(4));
         // view.bmp: the same at one pixel per world unit with every visible world sprite blitted on in depth
         // order (furniture, found-place props, chests, torches, carts, the mole, copperline, ropes); rotated ones are sampled back through their rotation
