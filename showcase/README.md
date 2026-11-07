@@ -27,7 +27,9 @@ Open http://localhost:4173/ for the landing page and http://localhost:4173/play/
 
 ## Deploy (owner / coordinator only)
 
-This repository does **not** deploy the site. Static-asset requests on Workers are free and unlimited. There is **no Worker script**, so there is no Worker-invocation billing.
+The repository can deploy it on request: run the `deploy-site` workflow by hand with `what=site` (see [Architecture](../docs/wiki/Architecture.md#manual-site-deploy-and-builds)). It builds the web version from source, runs `build.sh` and `test.sh`, and deploys with this `wrangler.toml`, using the `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` secrets. It never runs on a push. The manual steps below still work.
+
+Nothing deploys the site automatically. Static-asset requests on Workers are free and unlimited. There is **no Worker script**, so there is no Worker-invocation billing.
 
 Create a **new** assets-only Worker named `molehill`. Do not update, rename, or overwrite any other Worker.
 

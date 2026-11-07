@@ -1,5 +1,6 @@
 # Release builds of the native game. GitHub-hosted runners only.
 # - workflow_dispatch: build all three OSes and upload them as run artifacts (a dry run).
+# - workflow_call: the same, from deploy-site.yml (what: binaries or both).
 # - push of a tag v*: the same builds, then a GitHub Release with the archives attached.
 # Every asset (font, site templates) is compiled into the binary and sound is synthesised (cpal),
 # so each archive is just the binary plus the README.
@@ -9,6 +10,7 @@ on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: read
@@ -19,7 +21,7 @@ env:
 jobs:
   macos:
     name: macOS (universal)
-    runs-on: macos-14
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
