@@ -268,6 +268,7 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `rope_ladder_shaft.scn` | A rope hung from a shaft's ceiling: grabbed at the foot, climbed to the top where the mole hangs still under the ceiling, then `W`+`D` carries it off sideways at 2 m/s into the side passage |
 | `rope_ladder_let_go.scn` | Hanging on a ladder, `D` alone lets go at once and runs off at full speed; `W` catches the rope again mid-fall; a jump lets go as a real jump |
 | `lift_ride_stops.scn` | Cursor anywhere in a 2 m shaft with three passages: the cage snaps to the shaft (1.875 m, centred) with 4 stops. From the foot a tap on `W` stops level at the next passage, held runs through the next stop without slowing to the top, a tap on `S` goes one down, the mole walks off unhurt; width and stops saved |
+| `lift_from_under.scn` | Placed with the cursor level with a side passage (it still finds the shaft); the mole drops into the shaft under the cage (no exit at the foot), calls it, the cage stops over its head, `W` climbs up through the floor hatch, and it rides up a stop |
 | `lift_call.scn` | In a side passage a fresh `W` calls the cage up to that stop (no jump); on it `S` rides it down |
 | `lift_balance.scn` | Four stones on the cage with the mole (70 kg over) are too heavy to haul (said; the brake holds); right mouse balances it with 7 stones from the pack and it rides |
 | `lift_powered.scn` | The same overload rides on current at the head (1.5 m/s, the copperline in a block of the head frame beside its middle); lever off, too heavy again |
