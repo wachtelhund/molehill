@@ -108,9 +108,9 @@ pub fn dress(w: &World) -> Vec<Placed> {
     out
 }
 fn dress_site(w: &World, s: &Site, out: &mut Vec<Placed>) {
-    let (gw, gh) = (w.g.w, w.g.h); let sy = s.y0 - w.oy;
-    if sy < 0 || sy as usize + s.h >= gh || s.x0 + s.w >= gw { return; }
-    let (sx, sy) = (s.x0 as i64, sy); let m = CPM as f32;
+    let (gw, gh) = (w.g.w, w.g.h); let (sx, sy) = (s.x0 - w.ox, s.y0 - w.oy);
+    if sy < 0 || sy as usize + s.h >= gh || sx < 0 || sx as usize + s.w >= gw { return; }
+    let m = CPM as f32;
     let solid = |x: i64, y: i64| x < 0 || y < 0 || x >= gw as i64 || y >= gh as i64 || w.g.is_solidish(y as usize * gw + x as usize);
     // things that already stand there: furniture, chests, ladders, and props placed before
     let blocked = |out: &Vec<Placed>, x0: usize, y0: usize, x1: usize, y1: usize| {

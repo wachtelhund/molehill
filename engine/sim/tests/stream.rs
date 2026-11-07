@@ -1,15 +1,16 @@
-//! Streaming fresh ground (`stream.rs`): a band nobody has visited is a pure function of the seed and its
-//! row, however and whenever it is built, and building ahead never changes the world; a slide onto
-//! ground built ahead stays cheap.
-use molehill_sim::{band::BH, mat::S, stream::{band_cells, BandCache}, world::{World, SLIDE}};
+//! Streaming fresh ground (`stream.rs`): a tile nobody has visited is a pure function of the seed and its
+//! column and row, however and whenever it is built, and building ahead never changes the world; a slide
+//! onto ground built ahead stays cheap, down or sideways.
+use molehill_sim::{band::{tile_w, BH, TW}, mat::S, stream::{band_cells, BandCache}, world::{World, SLIDE}};
 
 /// CPU time of this thread (ms): other load on the machine doesn't count.
 fn cpu_ms() -> f64 { let mut t = libc::timespec { tv_sec: 0, tv_nsec: 0 }; unsafe { libc::clock_gettime(libc::CLOCK_THREAD_CPUTIME_ID, &mut t); } t.tv_sec as f64 * 1e3 + t.tv_nsec as f64 / 1e6 }
 
 #[test]
 fn a_band_is_the_same_however_it_is_built() {
-    let w = World::blank(512 * S, 256 * S, 31); let gw = w.g.w; let below = w.oy + w.g.h as i64;
-    let (a, b) = (below, below + 5 * BH as i64);
+    let w = World::blank(512 * S, 256 * S, 31); let gw = tile_w(w.g.w); let below = w.oy + w.g.h as i64;
+    // one below the window, one far off to the west (beyond the home columns)
+    let (a, b) = ((TW as i64, below), (-7 * TW as i64, below + 5 * BH as i64));
     let once = band_cells(&w.gen, gw, a);
     // after another band, in slices, and on the worker thread
     let _ = band_cells(&w.gen, gw, b); let again = band_cells(&w.gen, gw, a);

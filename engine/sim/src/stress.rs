@@ -81,6 +81,15 @@ impl Stress {
         let s32 = s as u32; for v in self.ctop.iter_mut().chain(self.vtop.iter_mut()) { *v = if up { v.saturating_sub(s32) } else { *v + s32 }; }
         self.cracking = std::mem::take(&mut self.cracking).into_iter().filter_map(|i| { let i = i as usize; if up { i.checked_sub(d) } else { (i + d < n).then_some(i + d) } }).map(|i| i as u32).collect();
     }
+    /// The window slid sideways by `cols` (+ = east): the solver's state moves with the rock (roof rows
+    /// are row numbers, so they stay); the entering columns start blank.
+    pub fn shift_cols(&mut self, cols: i64, w: usize) {
+        use crate::grid::shift_cols; let n = self.util.len(); if self.reach.len() != n || w == 0 { return; }
+        if cols.unsigned_abs() as usize >= w { *self = Stress::new(n); return; }
+        shift_cols(&mut self.util, w, cols, 0); shift_cols(&mut self.pending, w, cols, 0); shift_cols(&mut self.overburden, w, cols, 0.); shift_cols(&mut self.reach, w, cols, false);
+        shift_cols(&mut self.ctop, w, cols, 0); shift_cols(&mut self.vtop, w, cols, 0);
+        self.cracking = std::mem::take(&mut self.cracking).into_iter().filter_map(|i| { let (x, y) = ((i as usize % w) as i64 - cols, i as usize / w); (x >= 0 && x < w as i64).then(|| (y * w + x as usize) as u32) }).collect();
+    }
     pub fn solve(&mut self, g: &Grid) -> Vec<u32> { self.solve_rect(g, None) }
     /// Re-solve around the chunks holding `cells` (each one's 64-cell chunk; nearby chunks cluster into one
     /// region). Exact when nothing else changed since the last solve. Falls back to a full solve when the
@@ -147,11 +156,11 @@ impl Stress {
         let mut util = vec![0f32; rn];
         // 2. connectivity (BFS from bedrock)
         let mut reach = vec![false; rn]; let mut q: Vec<u32> = Vec::with_capacity(rn / 4);
-        // anchors: bedrock walls, the window's top and bottom rows (the Deepholt continues beyond them),
+        // anchors: bedrock, the window's edge rows and columns (the Deepholt continues beyond them, down and sideways),
         // and for a partial solve the region's edge cells that had a load path last time
         let edge = |x: usize, y: usize| (x == rx0 && rx0 > 0) || (x == rx1 && rx1 + 1 < w) || (y == ry0 && ry0 > 0) || (y == ry1 && ry1 + 1 < h);
         for y in ry0..=ry1 { for x in rx0..=rx1 { let i = y * w + x;
-            if g.mat[i] == Mat::Bedrock as u8 || ((i < w || i >= n - w) && st(i)) || (dirty.is_some() && edge(x, y) && self.reach[i] && supports(i)) { reach[li(x, y)] = true; q.push(i as u32); } } }
+            if g.mat[i] == Mat::Bedrock as u8 || ((i < w || i >= n - w || x == 0 || x + 1 == w) && st(i)) || (dirty.is_some() && edge(x, y) && self.reach[i] && supports(i)) { reach[li(x, y)] = true; q.push(i as u32); } } }
         let mut head = 0;
         while head < q.len() {
             let i = q[head] as usize; head += 1; let (x, y) = (i % w, i / w);

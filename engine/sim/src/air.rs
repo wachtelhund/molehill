@@ -75,6 +75,7 @@ impl Air {
         let (d, n) = (s * bw, bw * bh);
         if br > 0 { self.co2.copy_within(d.., 0); self.co2[n - d..].iter_mut().for_each(|c| *c = 0.); } else { self.co2.copy_within(..n - d, d); self.co2[..d].iter_mut().for_each(|c| *c = 0.); }
     }
+    pub fn shift_cols(&mut self, bc: i64) { crate::grid::shift_cols(&mut self.co2, self.bw, bc, 0.); }
     pub fn to_bytes(&self) -> Vec<u8> { self.co2.iter().map(|&c| (c.clamp(0., 1.5) / 1.5 * 255.) as u8).collect() }
     pub fn from_bytes(&mut self, b: &[u8]) { for (c, &v) in self.co2.iter_mut().zip(b) { *c = v as f32 / 255. * 1.5; } }
 }

@@ -158,7 +158,7 @@ impl World {
             if self.tr.riding.is_some() || self.tr.in_tube.is_some() { return false; }
             self.tr.wagon_ride = Some(j);
             match kind {
-                WagonKind::Bunk => { let w = &self.tr.wagons[j]; self.pl.spawn = (w.x as usize, self.oy + (w.y - 1.) as i64); self.tr.slept = true;
+                WagonKind::Bunk => { let w = &self.tr.wagons[j]; self.pl.spawn = (self.ox + w.x as i64, self.oy + (w.y - 1.) as i64); self.tr.slept = true;
                     self.say("You curl up in the bunk wagon: you'll wake here. (Space: get up)".into()); }
                 WagonKind::Workshop => self.say("In the workshop wagon: you can work here as at a workbench. Space: get out.".into()),
                 WagonKind::Store => self.say("In the store wagon: right mouse with something in paw stows it · Space: get out.".into()),
