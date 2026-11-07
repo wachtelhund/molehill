@@ -17,7 +17,7 @@ fn wall_code(s: &str) -> Option<u8> {
     Some(match s.to_ascii_lowercase().as_str() {
         "none" => 0, "rock" => 1, "timber" => 2, "masonry" => 3, "beams" | "beam" => 4, "pipes" | "pipe" => 5,
         "carving" | "carved" => 6, "damp" => 7, "crack" => 8, "root" => 9, "gap" => 10, "salt" => 11, "crystal" => 12, "fossil" => 13,
-        "soot" => 14, "wetstone" | "wet_stone" => 15, "basalt" => 16, "ashlar" => 17, "ironclad" => 18, _ => return None,
+        "soot" => 14, "wetstone" | "wet_stone" => 15, "basalt" => 16, "ashlar" => 17, "ironclad" => 18, "mycel" | "mycelium" => 19, _ => return None,
     })
 }
 
@@ -30,7 +30,7 @@ impl Run {
             "px" => (p.px - self.ox as f32) as f64 / kf, "py" => (p.py - self.oy as f32) as f64 / kf, "vx" => p.vx as f64 / kf, "vy" => p.vy as f64 / kf,
             "dx" => (p.px - self.sx) as f64 / kf, "dy" => (p.py - self.sy) as f64 / kf, "rise" => (self.sy - self.top) as f64 / kf,
             "grounded" => p.grounded as u8 as f64, "cling" => p.cling as f64, "hp" => m.hp as f64, "breath" => m.breath as f64,
-            "deaths" => p.deaths as f64, "tier" => self.w.dig_power() as f64, "buildings" => self.w.buildings.len() as f64, "brush" => self.sizes.radius(self.held) as f64 / kf, "snapcells" => self.sizes.snap_cells() as f64 / kf, "torches" => self.w.torches.len() as f64, "awake" => self.awake() as f64, "crumbled" => self.w.crumbled as f64 / (kf * kf), "tick" => self.w.tick as f64,
+            "deaths" => p.deaths as f64, "tier" => self.w.dig_power() as f64, "buildings" => self.w.buildings.len() as f64, "brush" => self.sizes.radius(self.held) as f64 / kf, "snapcells" => self.sizes.snap_cells() as f64 / kf, "torches" => self.w.torches.len() as f64, "awake" => self.awake() as f64, "crumbled" => self.w.crumbled_in as f64 / (kf * kf), "tick" => self.w.tick as f64,
             "hunger" => m.hunger as f64, "oil" => self.w.lamp_oil as f64, "quest" => self.w.quest as f64, "lamp" => self.w.lamp_lit() as u8 as f64, "mode" => self.w.mode as u8 as f64, "relics" => self.w.relics as f64, "ruins_seen" => self.w.ruins_seen.len() as f64, "hungeron" => !self.w.rules.no_hunger as u8 as f64,
             "flash" => p.flash as f64, "shake" => self.w.shake as f64,
             // the last blast's wave and what it threw: cells in flight (tiles), the drawn front's radius (m),
@@ -364,6 +364,9 @@ fn run_file(path: &str, json: bool) -> bool {
     for (y, l) in map.iter().enumerate() { let cs: Vec<char> = l.chars().collect(); for x in 0..mw { let c = *cs.get(x).unwrap_or(&'#');
         let m = mat_char(c).unwrap_or_else(|| panic!("{path}: unknown map char '{c}'"));
         for j in 0..K * K { let (cx, cy) = (ox + x * K + j % K, oy + y * K + j / K); let i = w.g.idx(cx, cy); w.g.set(i, m); w.g.flags[i] = 0; w.walls.set_at(cx, cy, molehill_sim::walls::Wall::None); } } }
+    // `crumbled` counts the map and its frame only: the generated world round the frame may settle a cell or two
+    // far off (whatever the seed put there), and that isn't the scenario's
+    w.crumble_box = Some((ox.saturating_sub(fr), oy.saturating_sub(fr), (ox + mw * K + fr).min(w.g.w), (oy + mh * K + fr).min(w.g.h)));
     if let Some(m) = mode { w.set_mode(m); }
     if nohunger { w.set_hunger(false); }
     for (n, k) in gives { let i = molehill_sim::craft::ITEMS.iter().position(|it| format!("{it:?}").eq_ignore_ascii_case(&n)).unwrap_or_else(|| panic!("unknown item {n}")); w.inv[i] = k; }
@@ -473,7 +476,7 @@ fn run_file(path: &str, json: bool) -> bool {
                     let (a, b) = (r.at(*x1, *y1), r.at(*x2, *y2)); let n = r.sizes.snap_cells();
                     let rline = if item.is_wall() { r.w.place_wall_line(a, b, n, item) } else { r.w.place_line(a, b, n, item) };
                     if let Err(e) = rline { println!("  NOTE {path} tick {tick}: line failed: {e}"); r.w.refuse_place(item.name(), e); } }
-                Act::SaveLoad(t) if *t == tick => { let b = molehill_sim::save::save(&r.w); let mut w = molehill_sim::save::load(&b).unwrap_or_else(|e| panic!("{path}: reload failed: {e}")); w.disasters.enabled = false; r.w = w; }
+                Act::SaveLoad(t) if *t == tick => { let b = molehill_sim::save::save(&r.w); let mut w = molehill_sim::save::load(&b).unwrap_or_else(|e| panic!("{path}: reload failed: {e}")); w.disasters.enabled = false; (w.crumble_box, w.crumbled_in) = (r.w.crumble_box, r.w.crumbled_in); r.w = w; }
                 Act::Put(t, dx, dy, it) if *t == tick => {
                     let item = molehill_sim::craft::ITEMS.iter().copied().find(|i| format!("{i:?}").eq_ignore_ascii_case(it)).unwrap_or_else(|| panic!("{path}: unknown item {it}"));
                     // fill the whole tile, bottom row first, so each cell rests on the one below or a neighbour
