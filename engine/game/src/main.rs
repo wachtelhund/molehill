@@ -1418,7 +1418,7 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
         for (j, s) in [-1f32, 1.].into_iter().enumerate() { for i in 0..n { let (a, b) = (y0 + i as f32 * seg, (y0 + (i + 1) as f32 * seg).min(y0 + len)); let id = (k * 2 + j) * 64 + i;
             rot.insert((34, id), std::f32::consts::FRAC_PI_2);
             want.push((34, id, cell_to_world(xc + s * 0.9 * SF, (a + b) / 2.), 3.9, sp.rope[0].clone(), Vec2::new((b - a) * CPX + 0.6, 1.6), false, lit_at((a + b) / 2.))); } }
-        for j in 0..(l.len / S) { let y = y0 + (j * S) as f32 + 0.5 * SF; want.push((35, k * 64 + j, cell_to_world(xc, y), 3.95, sp.rung.clone(), Vec2::new(8., 3.), false, lit_at(y))); }
+        for j in 0..(l.len / S) { let y = y0 + (j * S) as f32 + 0.5 * SF; want.push((35, k * 64 + j, cell_to_world(xc, y), 3.95, sp.rung.clone(), Vec2::new(8., 2.), false, lit_at(y))); }
     }
     // rope gun art: each rope a chain of twisted-fibre lengths, one per verlet segment, turned along it; the stone
     // hook at its head points the way the rope runs into the rock it bit (or, in flight, the way it flies)

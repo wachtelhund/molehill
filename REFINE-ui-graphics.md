@@ -417,6 +417,18 @@ Polish only: no new systems, lore names kept. Each entry lists what changed and 
   flags haven't landed. Those poses are checked by the sprite dump and `climbing_frames_go_hand_over_hand` only. No
   live window.
 
+## Climbing art: polish (branch `refine/climb-art-polish`)
+* Evidence: in the #77 still, crops of the ladder showed the rungs as 3 px with their outline on a 4 px pitch, so the
+  ladder read nearly solid. Rungs are now 2 px of timber (lit top, shaded underside) without an outline, and the wall
+  shows between them.
+* Checked and left: the ladder head's and hook's scars in the stone; the mole on the ladder centred on it with its
+  paws above its head; the rope swing tilt.
+* Stills: since about 00:30 the window capture (`--shot`) comes out flat grey on this machine (the display is
+  locked; movement reports the same). The CPU-composited `--dump-art` `view.bmp` still renders, and everything here
+  was checked through it.
+* Still not seen in the running game: the climb cycle, slide and top-out. Movement's `--shot-up/down` flags (their
+  lift PR) are not on main yet. Sprite dump and test only. No live window.
+
 ## Open issues
 * `--shot` writes an empty frame on macOS when the game is launched from a background shell (the surface is
   never presented). It needs a visible window, or Linux with Xvfb.
