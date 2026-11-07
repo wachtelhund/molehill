@@ -233,6 +233,14 @@ Polish only: no new features or concepts. Each entry is one commit.
     * Not done live: the `--shot` stills still came out as grey frames at 01:40 (the display is locked). Feel is
       tuned headless only.
 
+24. **Phase-2 polish (main c65aa80).** #82 made the window slide sideways too (`roam.rs`), and its rope pass
+    cleared `on_rope`, the bug #72 fixed for the slide up and down: a mole on a rope near the side margin
+    dropped off it. The hold now moves with the rope (`a_sideways_window_slide_keeps_the_mole_on_its_rope`,
+    failing before). Lifts and ladders already keep working through a sideways slide (their stops are rows,
+    and ladder climbing is a flag).
+    * Not done live: the `--shot` stills from #80/#84 are still grey (the display is locked), so the lift
+      UX, the rope and ladder ghosts and the climb feel have still not been seen in a window.
+
 ## Open issues
 * Ropes and rope ladders the world window leaves (a long trip up or down) are lost with it: they aren't kept
   in the 64-row bands. Worth a band record if players rig long routes.
