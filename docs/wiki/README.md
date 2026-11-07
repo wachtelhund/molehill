@@ -46,4 +46,4 @@ New Holt asks for **Survival** (a small kit; you dig with the tools you own, fin
 
 ## Keeping this wiki true
 
-The wiki lives only here, in `docs/wiki/` on `main`. Any merge to `main` that changes behaviour (rules, numbers, controls, devices or the build) must update the matching page in the same change ([`AGENTS.md`](../../AGENTS.md) says so too). [`LORE.md`](../../LORE.md) is binding: if the [Lore](Lore.md) page and `LORE.md` ever disagree, `LORE.md` wins and the page is fixed. Use at most a few screenshots, stored in `images/`.
+The wiki lives only here, in `docs/wiki/` on `main`. Any merge to `main` that changes behaviour (rules, numbers, controls, devices or the build) must update the matching page in the same change. [`LORE.md`](../../LORE.md) is binding: if the [Lore](Lore.md) page and `LORE.md` ever disagree, `LORE.md` wins and the page is fixed. Use at most a few screenshots, stored in `images/`.

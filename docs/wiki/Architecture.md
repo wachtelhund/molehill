@@ -146,7 +146,7 @@ The holt's mode and its hunger option are saved with it; a save from before mode
 
 ## Working on the code
 
-See [`AGENTS.md`](../../AGENTS.md) for the loop: change the sim, add a scenario, run tests and scenarios, build the game, rebuild `site/` if the game changed, then commit and push. **Merges that change behaviour must update the matching page in `docs/wiki/`.**
+The development loop: change the sim, add a scenario, run tests and scenarios, build the game, rebuild `site/` if the game changed, then commit and push. **Merges that change behaviour must update the matching page in `docs/wiki/`.**
 
 ## Music
 

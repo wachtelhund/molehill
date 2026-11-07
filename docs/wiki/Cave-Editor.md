@@ -51,7 +51,7 @@ The window opens at 1600 × 960 and can't be made shorter than the panel needs. 
 ## Checking it without looking (dev)
 
 * `--canvas=FILE.bmp` writes the canvas (one pixel per cell, as drawn in the window) and quits without opening a window; add `--shot-keys=p` (or `r`, `g`, `n`, `b`, …) to run those keys first, so the file shows a check. The panel's text goes to the terminal.
-* `--shot=FILE.bmp [--shot-at=N] [--shot-keys=…]` saves one frame of the real window (panel, fonts and canvas, 1600 × 960) and quits. The camera draws into an image instead of the screen for it, so it works from a background shell too (an agent's; a macOS window that isn't really on screen reads back black).
+* `--shot=FILE.bmp [--shot-at=N] [--shot-keys=…]` saves one frame of the real window (panel, fonts and canvas, 1600 × 960) and quits. The camera draws into an image instead of the screen for it, so it works from a background shell too (a macOS window that isn't really on screen reads back black).
 * `cargo test --release -p molehill-cave-editor --test panel` clicks every panel row at its place, presses every key and paints strokes through the same code the window calls. It shows that every control does what its row says, and that every row fits the panel's width (38 characters; a longer one wrapped onto the row below). Mouse feel (dragging strokes, wheel zoom, panning) still needs a person at the window.
 
 ## Who owns a layout
