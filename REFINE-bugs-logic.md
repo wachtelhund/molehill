@@ -137,6 +137,10 @@ Measured on native release, with other agents loading the machine:
 * Tests: offline renders in `synth::tests`; `opens_the_sound_card` (`--ignored`) passed on this Mac: the default output opened and the audio clock ran with the wall clock. The synth renders about 19× real time on a busy machine (about 5 % of a core).
 * Not done: I couldn't listen (no speakers in this session), so the native sound hasn't been compared by ear with the browser on any platform. Linux and Windows builds weren't compiled here (no targets installed); Linux needs `libasound2-dev`. Only macOS (aarch64) is built and its device opening tested.
 
+## Phase 2 polish (from c65aa80)
+* Bug, on both web and native: every effect's "last played" started at 0 s, and the audio clock also starts at 0 when the sound opens. So the first of each effect inside its gap after opening was dropped: the menu click of the very key or click that opened the sound (gap 0.05 s), and a quake (2 s), crumble (1.2 s) or death (1 s) right after. The gaps now start long ago (`audio::Gaps`); `the_first_of_each_event_sounds_at_once` failed before and passes now.
+* Not done: still no ear test of native or web sound on any platform; not opened in a live window or browser.
+
 ## Open
 * The design's emberiron for the Bore doesn't exist, so the Bore takes iron, copper and crystal.
 * localStorage holds about 5 MB. A band is 10–40 KB, so a holt explored over a few hundred metres of depth could fill it. Bands the player never changed could be dropped and regenerated (not done: the falling-sand settling after generation would differ).
