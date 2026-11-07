@@ -1,15 +1,15 @@
 # dest<TAB>repo-relative source<TAB>sha256
 # Authentic development-build screenshots only. Build copies these; it does not generate art.
-# Fresh dump-art captures from current main (2026-11-06). Found-place environments omitted — those are being reworked.
-walls-lining.webp	docs/wiki/images/walls-lining.webp	77f58d7d3de142dc2e0d15a5f30cf8d615c88100bb1733adcea1de33f24ec5a7
-walls-lining.png	docs/wiki/images/walls-lining.png	f5cd9dd53ee04627a8ee35ecdd8b05e7503c771a099792ef10bba4b4f2d3f4d3
+# Fresh dump-art captures from current main (2026-11-07). The scene stills are --dump-wide crops, scaled 3x.
 hud-digging.webp	docs/wiki/images/hud-digging.webp	602b35314590d6559c4f6133375fcc11504c372f2fa269f2527b9290253fb32b
 hud-digging.png	docs/wiki/images/hud-digging.png	f54b204f4d98713841989ccdbe01c2bf42fe40b976fe7f12bcfc78dc022bbd42
 blast-front.webp	docs/wiki/images/blast-front.webp	106f46891b84c05e5aafd54fa6a07d9f28ecc066e709b1c1fd845a6f21ffc9d4
 blast-front.png	docs/wiki/images/blast-front.png	60b89775b22cb7dd896d61e4964315f9ee97371a1dcb9bf904da0bfa71644891
-menu-main.webp	docs/wiki/images/menu-main.webp	acf3939500759643d7bdef9714c28143be149e0e275c529732f3547458d205b6
-menu-main.png	docs/wiki/images/menu-main.png	a433861277a670d73851d106ad63f94c41b0b424256d9c0cbd190f3af73ed31f
 water-flood.webp	engine/shots/gameplay-water-flood.webp	4183551ff6108ed362b57a876f88ebd9a788c578a5edc9aa3d297b382741875b
 water-flood.png	engine/shots/gameplay-water-flood.png	246680e944abd8be899490097c35441a2df9a0b46678250f6dd1f73e8e1831b0
 torch-tunnel.webp	engine/shots/gameplay-torch-tunnel.webp	8d10133e5924941b24cbe464d32cefc5f29c5bc2f274d80353fd262068a9644c
 torch-tunnel.png	engine/shots/gameplay-torch-tunnel.png	66473af1587af4c2a3026616aaf113866c58a207546668475b201539f323eb71
+regions.jpg	engine/shots/showcase-regions.jpg	5a51ea0984eb492d28bedda818f607517a8924cea2650a4841cb482ecbed16e7
+borer-wagons.png	engine/shots/showcase-borer-wagons.png	81bcd288b30fc379e798e06903730875af89c88c4f83144025361375196ae322
+rope-gun.png	engine/shots/showcase-rope-gun.png	86a772fb200a46040c360953d796f2fd7a4f53d342aa7c6484b88976738d85ed
+lift.png	engine/shots/showcase-lift.png	78b87b0465e727e644284b978d34cc923096c44e611240bbf8f46a147da69d9c
