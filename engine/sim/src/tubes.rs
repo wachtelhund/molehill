@@ -32,6 +32,8 @@ pub struct Hopper {
 }
 impl Hopper {
     pub fn contains(&self, x: f32, y: f32) -> bool { x >= self.x as f32 && x < (self.x + HOPPER) as f32 && y >= self.y as f32 && y < (self.y + HOPPER) as f32 }
+    /// Does the mouth cover any of the box [x0, x1) × [y0, y1)?
+    pub fn overlaps(&self, x0: f32, y0: f32, x1: f32, y1: f32) -> bool { (self.x as f32) < x1 && x0 < (self.x + HOPPER) as f32 && (self.y as f32) < y1 && y0 < (self.y + HOPPER) as f32 }
     pub fn centre(&self) -> (f32, f32) { (self.x as f32 + HOPPER as f32 / 2., self.y as f32 + HOPPER as f32 / 2.) }
 }
 #[derive(Clone, Debug)]
@@ -69,7 +71,9 @@ impl World {
         let (x0, y0) = (x.saturating_sub(HOPPER / 2), floor.map_or(y.saturating_sub(HOPPER / 2), |r| r.saturating_sub(HOPPER)));
         if x0 + HOPPER + 1 >= self.g.w || y0 + HOPPER + 1 >= self.g.h || x0 == 0 || y0 == 0 { return Err("too near the edge"); }
         if !(y0..y0 + HOPPER).all(|r| (x0..x0 + HOPPER).all(|c| self.passable(c, r))) { return Err("needs 1 m of open space"); }
-        if self.tr.hoppers.iter().any(|h| h.x.abs_diff(x0) < HOPPER && h.y.abs_diff(y0) < HOPPER) { return Err("there's a hopper there"); }
+        if self.tr.hoppers.iter().any(|h| h.x.abs_diff(x0) < HOPPER && h.y.abs_diff(y0) < HOPPER) { return Err("there's a tube hopper there"); }
+        // an ore hopper is a different machine: a mouth inside its bin or legs would hide one from the other
+        if self.tr.bins.iter().any(|b| b.overlaps(x0 as f32, y0 as f32, (x0 + HOPPER) as f32, (y0 + HOPPER) as f32)) { return Err("there's an ore hopper there"); }
         let w = self.g.w;
         // the tube it feeds: a standing tube cell on the ring round the mouth (below it first)
         // (within a tile of the mouth)
@@ -101,8 +105,8 @@ impl World {
         let Some(k) = self.hopper_at(x, y) else { return false };
         self.events.push(Event::Click);
         if self.gear.held.is_none() && self.tr.in_tube.is_none() && self.tr.riding.is_none() {
-            if !self.hopper_blowing(k) { self.say("This hopper's blower needs current to send.".into()); return true; }
-            if self.send_capsule(k, vec![], true) { self.say("Sealed in a capsule...".into()); } else { self.say("This hopper has nowhere to send to.".into()); }
+            if !self.hopper_blowing(k) { self.say("This tube hopper's blower needs current to send.".into()); return true; }
+            if self.send_capsule(k, vec![], true) { self.say("Sealed in a capsule...".into()); } else { self.say("This tube hopper has nowhere to send to.".into()); }
             return true;
         }
         // cycle the destination
@@ -110,7 +114,7 @@ impl World {
         let cur = self.tr.hoppers[k].dest.unwrap_or(k);
         if let Some(d) = (1..n).map(|s| (cur + s) % n).find(|&d| d != k && self.tube_path(from, self.tr.hoppers[d].tube).is_some()) {
             self.tr.hoppers[k].dest = Some(d); let (dx, dy) = self.tr.hoppers[d].centre();
-            self.say(format!("Hopper sends to the one {:.0} m {}.", ((dx - x as f32).powi(2) + (dy - y as f32).powi(2)).sqrt() / CPM as f32, if dx < x as f32 { "to the left" } else { "to the right" }));
+            self.say(format!("Tube hopper sends to the one {:.0} m {}.", ((dx - x as f32).powi(2) + (dy - y as f32).powi(2)).sqrt() / CPM as f32, if dx < x as f32 { "to the left" } else { "to the right" }));
         }
         true
     }

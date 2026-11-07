@@ -380,6 +380,55 @@ Polish only: no new systems, lore names kept. Each entry lists what changed and 
 * Stills only, no live window. Stills plus `wagons_have_their_own_silhouettes` cover both facings, the loads and
   gauge, and the train moving.
 
+## Final polish round (branch `refine/final-art-polish`)
+* Wiki stills for the fossil cave and the fissure were outdated (from before #22's site traps). Regenerated with
+  `--scene=fossil` / `--scene=fissure --dump-art` at frame 150, same crops. Now the fossil beast lies on the dig floor
+  with its ribs bedded in rock, and the fissure has its standing decks and ladders. Captions updated (the fossil
+  one still mentioned a scaffold, which moved to the mine in the furnishing pass).
+* Tube hopper vs ore hopper: in the world the tube hopper was still three tinted rectangles (kinds 43–45) next to the
+  drawn timber ore-hopper bin. It's now drawn (`art::tube_hopper`) as its pack icon shows it: a brass funnel with a
+  dark mouth narrowing into a flanged tube stub. `--scene=production` puts one beside the ore hopper, and in the still
+  at frame 60 the two read apart at a glance. Test `tube_hopper_is_a_drawn_funnel`.
+* Checked and left: the icon sheet holds all 106 items and 21 devices (no gaps); the borer and wagon facing and
+  coupling were fixed in #66/#69.
+* Not tested: a live window or a playtest. Everything here was checked through `--dump-art` stills and tests.
+
+## Climbing art (branch `refine/climb-art`, Hampus's playtest note 23:55)
+* The climb pose was two side-on frames turned nose-up, left from wall climbing (gone since #32), and the held tool
+  was still drawn while climbing (the check was `cling == 0`, always true now). Rope ladders were 1-px lines.
+* Coordinated with movement (p1, reworking lift and ladder placement): they don't touch the pose selection, the rope
+  or rope-ladder drawing, or art.rs, and the `Ladder` and rope data keep their shape. State read: `tr.climbing`,
+  `tr.on_rope`, `pl.vy`, `pl.mantle` (top-out), `ropes::hand` and the hook for the swing angle.
+* The mole on a rope or ladder is drawn from behind (frames 13–20, 20×26):
+  * a four-frame hand-over-hand cycle, one frame per cell climbed, so it keeps pace at 2 m/s on a rope and
+    3 m/s on a ladder;
+  * two hang frames, a slide frame (paws clamped, let down fast) and a grab (the first 0.15 s of holding on, and
+    stepping off at the foot);
+  * rolling over the top ledge, the side-on reaching frame tilted 0.6 rad nose-up;
+  * on a rope the sprite turns to the line from the hook to the hands, so it tilts with the swing.
+  * Nothing is held while climbing, and the headlamp halo is hidden (the lens faces away).
+* The first back-view frames hid the arms behind the hat (sprite dump), so the arms now run up beside the head and
+  are drawn last. In the dump the paws alternate across the cycle.
+* Models: rope ladders have twisted fibre side ropes in half-metre lengths and lashed timber rungs (`art::rung`); a
+  fixed rope's hook and a ladder's head show a chipped, cracked scar in the stone (`art::hook_bite`).
+* `--scene=climb` / `climb-rope` in the running game: the mole hangs on the ladder with its paws on the rungs above its
+  head, and on the rope it swings tilted along the line, with the rope sagging below.
+* Not seen in the running game: the climb cycle, slide and top-out need held W/S, and movement's `--shot-up/down`
+  flags haven't landed. Those poses are checked by the sprite dump and `climbing_frames_go_hand_over_hand` only. No
+  live window.
+
+## Climbing art: polish (branch `refine/climb-art-polish`)
+* Evidence: in the #77 still, crops of the ladder showed the rungs as 3 px with their outline on a 4 px pitch, so the
+  ladder read nearly solid. Rungs are now 2 px of timber (lit top, shaded underside) without an outline, and the wall
+  shows between them.
+* Checked and left: the ladder head's and hook's scars in the stone; the mole on the ladder centred on it with its
+  paws above its head; the rope swing tilt.
+* Stills: since about 00:30 the window capture (`--shot`) comes out flat grey on this machine (the display is
+  locked; movement reports the same). The CPU-composited `--dump-art` `view.bmp` still renders, and everything here
+  was checked through it.
+* Still not seen in the running game: the climb cycle, slide and top-out. Movement's `--shot-up/down` flags (their
+  lift PR) are not on main yet. Sprite dump and test only. No live window.
+
 ## Open issues
 * `--shot` writes an empty frame on macOS when the game is launched from a background shell (the surface is
   never presented). It needs a visible window, or Linux with Xvfb.

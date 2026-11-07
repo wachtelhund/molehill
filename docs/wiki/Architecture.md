@@ -102,7 +102,8 @@ The rule is simple: **gameplay goes in the sim.** If it changes what happens in 
 | `itemart.rs` | one hand-drawn pack icon per item, each its own silhouette (see [Item and Place Art](Item-and-Place-Art.md)) |
 | `props.rs` | found-place furnishings: their art, where each family puts them, and fitting them against the cells |
 | `wiring.rs` | draws copperline and devices as sprites over the world (one per 1 m block, cached by block), and the wiring view (`V`) |
-| `audio.rs` | procedural sound and the music synth (web only) |
+| `audio.rs` | procedural sound: the shared recipes (each event's tones and noise bursts, each note's oscillators, the rumble, the reverb impulse), played through WebAudio on the web and through `synth.rs` and cpal natively |
+| `synth.rs` | native only: the WebAudio graph in software (spec biquads, envelopes, band-limited oscillators, the echo and a partitioned-FFT convolution reverb normalised as a browser's), rendered on cpal's audio thread |
 | `music.rs` | the generative music composer: pure Rust, unit-tested natively, writes timed notes for `audio.rs` |
 
 **Fixed step with interpolation.** Each frame adds `delta × 60` to an accumulator and runs `World::step()` once per whole tick, at most 3 a frame, discarding the backlog after a hitch. The mole is drawn interpolated between its last two positions, so movement is smooth at any refresh rate while the sim stays at exactly 60 Hz. Menus set `Game.paused`, which stops stepping.
@@ -114,10 +115,10 @@ The rule is simple: **gameplay goes in the sim.** If it changes what happens in 
 | | native | web |
 |---|---|---|
 | build | `cargo run --release` (in `engine/`) | `./build-web.sh` → `dist/`, then copy to `site/` |
-| target | Linux / macOS (x11, wayland) | `wasm32-unknown-unknown`, WebGL2, `wasm-bindgen` 0.2.130 |
+| target | Linux / macOS / Windows (x11, wayland) | `wasm32-unknown-unknown`, WebGL2, `wasm-bindgen` 0.2.130 |
 | sim threads | rayon (`parallel` feature) | single-threaded (feature off) |
 | saves | a manifest file and a folder of band files next to the binary | localStorage keys (base64): the manifest and one key per band |
-| sound | silent | procedural WebAudio effects and generative music, starts after the first input |
+| sound | the same effects, rumble and music rendered by `synth.rs` on cpal's audio thread (Linux needs the ALSA headers to build), starts after the first input | procedural WebAudio effects and generative music, starts after the first input |
 | seeds and flags | `--fresh`, `--seed=`, `--shot=`, `--dump-art=`, `--scene=`, `--shot-zoom=` | `?fresh`, `?seed=` |
 
 On the web, `console_error_panic_hook` is installed, so a panic prints its message and source line in the browser console instead of a bare `unreachable`.
@@ -157,4 +158,4 @@ The music is generated while you play; no audio files ship. `music.rs` is a slow
 | Deep | below 25 m | E minor pentatonic | lower, darker filter, drone |
 | Ember | below 70 m, or lava around the mole | C# with a flat second | low and slow, strong drone |
 
-Melodies walk gently on the scale at a slow pulse (0.85–1.3 s), with long gaps. A big change of place winds the current piece down early, so the next one starts in the new mood. `audio.rs` plays the notes with WebAudio: pads and drones go through a lowpass set by the mood; plucks (a sine with a short 4th-harmonic tick, like a kalimba or marimba) also go into a 0.62 s darkening echo; everything goes into a 3.5 s generated cave reverb. Music has its own bus and volume (Settings > Music, default 35% of an already quiet level; Enter or a click mutes). The composer's tests (`cargo test --release -p molehill music`) check that it opens quietly, stays sparse, has long rests, sits higher up shallow and lower near lava, never schedules a note twice, and doesn't burst after the tab sleeps.
+Melodies walk gently on the scale at a slow pulse (0.85–1.3 s), with long gaps. A big change of place winds the current piece down early, so the next one starts in the new mood. `audio.rs` turns each note into oscillators (`audio::parts`) that WebAudio plays on the web and `synth.rs` plays natively: pads and drones go through a lowpass set by the mood; plucks (a sine with a short 4th-harmonic tick, like a kalimba or marimba) also go into a 0.62 s darkening echo; everything goes into a 3.5 s generated cave reverb. Music has its own bus and volume (Settings > Music, default 35% of an already quiet level; Enter or a click mutes). The composer's tests (`cargo test --release -p molehill music`) check that it opens quietly, stays sparse, has long rests, sits higher up shallow and lower near lava, never schedules a note twice, and doesn't burst after the tab sleeps. The synth's tests (`synth::tests`) render offline: the partitioned reverb equals a direct convolution, every event is heard and ends, effects follow Settings > Volume and music only Settings > Music, the reverb carries a bell past its end, the rumble grows with depth, a generated minute of music never clips, and it renders well ahead of real time. `cargo test --release -p molehill opens_the_sound_card -- --ignored` opens the real output and checks the audio clock runs.
