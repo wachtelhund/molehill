@@ -45,7 +45,7 @@ The lore is a design constraint as much as a story. Here is where it shows up in
 
 | lore | in the game |
 |---|---|
-| No sky, no surface | The world is a sliding window over an infinite column (see [World and Generation](World-and-Generation.md)). There is no daylight: `World::step` pins `day` to 0, and all light comes from emitters and lamps. |
+| No sky, no surface | The world is a window that slides over earth endless up, down and sideways (see [World and Generation](World-and-Generation.md)). There is no daylight: `World::step` pins `day` to 0, and all light comes from emitters and lamps. |
 | Cooler and wetter up, hotter and drier down | Fluid pockets choose water or lava by depth: the lava share rises from 0 at 10 m to 92 % at 70 m. Stone hardens from dirt and clay to limestone, granite and basalt. |
 | Everything follows physics | Roofs and pillars are checked with beam bending and compression from a material table in kg/m³ and kPa (see [Physics](Physics.md)). |
 | Delvers see poorly | Fog of war, a dark palette, and tunnels that stay black until you light them. Remembered rock is drawn deliberately dim. A Delver carries its own handmade light: a fungus-oil lamp on its hat, whose beam reaches 12 m and is stopped by rock. |
