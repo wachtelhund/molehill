@@ -31,7 +31,7 @@ This repository does **not** deploy the site. Static-asset requests on Workers a
 
 Create a **new** assets-only Worker named `molehill`. Do not update, rename, or overwrite any other Worker.
 
-Account (already authorized on the owner’s Mac.home Wrangler OAuth): `9887f0a567827483359f7f79e2bd2734`.
+Account: the owner's Cloudflare account. `wrangler.toml` names none; Wrangler uses the account of the existing login (or `CLOUDFLARE_ACCOUNT_ID`). Keep account ids out of the repository.
 
 1. `cd showcase && ./build.sh`
 2. Confirm `dist/` has no `.wasm`.
@@ -45,7 +45,6 @@ Account (already authorized on the owner’s Mac.home Wrangler OAuth): `9887f0a5
    `wrangler.toml` sets:
 
    * `name = "molehill"` — new Worker; do not change this
-   * `account_id = "9887f0a567827483359f7f79e2bd2734"`
    * `assets.directory = "./dist"` — never `site/` or the game
    * `[[routes]]` `pattern = "molehill.hampusnilsson.dev"` `custom_domain = true`
    * no `main`, no bindings, no R2/KV/D1, no observability
