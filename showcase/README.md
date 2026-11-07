@@ -2,7 +2,7 @@
 
 Public landing page for **https://molehill.hampusnilsson.dev**.
 
-Isolated from the playable game. It does not load the wasm build, does not offer downloads, and has no analytics, accounts, or forms.
+A landing page with a Download section (links to the latest GitHub Release and the source) and the web version at `/play/`. The landing page itself loads no game code; the web version is a byte-identical copy of `site/` under `dist/play/`. No analytics, accounts, or forms.
 
 ## Build
 
@@ -13,7 +13,7 @@ No npm install. From this directory:
 ./test.sh
 ```
 
-`build.sh` copies `src/` to `dist/` and copies **byte-identical gameplay screenshots** listed in `shots.manifest`. It refuses to emit `.wasm` or `molehill.js`.
+`build.sh` copies `src/` to `dist/` and copies **byte-identical gameplay screenshots** listed in `shots.manifest`. It copies the committed web build (`site/index.html`, `molehill.js`, `molehill_bg.wasm`) to `dist/play/`, and refuses to emit `.wasm` or `molehill.js` anywhere else. `_headers` gives `/play/*` its own CSP (scripts from the site, `wasm-unsafe-eval`) in place of the landing page's.
 
 **Site output:** `showcase/dist/`
 
@@ -23,7 +23,7 @@ No npm install. From this directory:
 python3 -m http.server -d dist 4173
 ```
 
-Open http://localhost:4173/ — landing page only. No canvas, no wasm, no play control. Python’s server will not apply `404.html` or `_headers`; Cloudflare Workers Static Assets will.
+Open http://localhost:4173/ for the landing page and http://localhost:4173/play/ for the web version. Python’s server will not apply `404.html` or `_headers`; Cloudflare Workers Static Assets will.
 
 ## Deploy (owner / coordinator only)
 
@@ -34,7 +34,7 @@ Create a **new** assets-only Worker named `molehill`. Do not update, rename, or 
 Account: the owner's Cloudflare account. `wrangler.toml` names none; Wrangler uses the account of the existing login (or `CLOUDFLARE_ACCOUNT_ID`). Keep account ids out of the repository.
 
 1. `cd showcase && ./build.sh`
-2. Confirm `dist/` has no `.wasm`.
+2. Confirm the only `.wasm` in `dist/` is `dist/play/molehill_bg.wasm` (`./test.sh` checks).
 3. From this directory, with that existing Wrangler login (no new login or token):
 
    ```bash
@@ -45,7 +45,7 @@ Account: the owner's Cloudflare account. `wrangler.toml` names none; Wrangler us
    `wrangler.toml` sets:
 
    * `name = "molehill"` — new Worker; do not change this
-   * `assets.directory = "./dist"` — never `site/` or the game
+   * `assets.directory = "./dist"` — never `site/` directly (the game reaches `dist/play/` through `build.sh`)
    * `[[routes]]` `pattern = "molehill.hampusnilsson.dev"` `custom_domain = true`
    * no `main`, no bindings, no R2/KV/D1, no observability
 
@@ -56,7 +56,7 @@ A `*.workers.dev` preview also appears (`workers_dev = true`) and is sent `X-Rob
 
 ### What not to deploy
 
-- Do not upload `site/` (the playable wasm build).
+- Do not point the Worker at `site/`; the web version goes out only as `dist/play/`, built by `build.sh`.
 - Do not add R2, KV, D1, Durable Objects, or a `main` Worker script.
 - Do not enable analytics or forms.
 - Do not run this config against any Worker except `molehill`.

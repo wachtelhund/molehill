@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Copy the showcase source and verified repo screenshots into ./dist.
-# No npm, no bundler, no generated gameplay art.
+# No npm, no bundler, no generated gameplay art. The web version is copied from site/ into play/.
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")" && pwd)"
@@ -39,11 +39,21 @@ while IFS=$'\t' read -r dest rel sha; do
   cp -a "$from" "$dist/img/$dest"
 done < "$manifest"
 
-# Refuse to ship anything from the playable web build.
-if find "$dist" -type f \( -name '*.wasm' -o -name 'molehill.js' -o -name 'molehill_bg.wasm' \) | grep -q .; then
-  echo "refusing to emit game wasm/js into showcase/dist" >&2
+# The landing page itself never carries the game: no wasm or game js outside /play.
+if find "$dist" -path "$dist/play" -prune -o -type f \( -name '*.wasm' -o -name 'molehill.js' \) -print | grep -q .; then
+  echo "refusing to emit game wasm/js outside showcase/dist/play" >&2
   exit 1
 fi
+
+# The web version, byte-identical to the committed build in site/, served at /play/.
+mkdir -p "$dist/play"
+for f in index.html molehill.js molehill_bg.wasm; do
+  if [[ ! -f "$repo/site/$f" ]]; then
+    echo "missing web build file: site/$f" >&2
+    exit 1
+  fi
+  cp -a "$repo/site/$f" "$dist/play/$f"
+done
 
 echo "built $dist"
 find "$dist" -type f | sort
