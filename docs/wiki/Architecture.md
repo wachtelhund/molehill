@@ -142,6 +142,14 @@ cd engine && ./build-web.sh && cd .. && rm -rf site && cp -r dist site
 
 The asset names carry no version (`molehill-macos-universal.zip`, `molehill-windows-x86_64.zip`, `molehill-linux-x86_64.tar.gz`), so `https://github.com/wachtelhund/molehill/releases/latest/download/<asset>` always points at the newest release.
 
+### Manual site deploy and builds
+
+`.github/workflows/deploy-site.yml` runs only when started by hand (Actions tab, or `gh workflow run deploy-site.yml -f what=site`). Nothing builds or deploys on a push. Its `what` input picks what runs:
+
+* **`site`:** builds the web version from source (`engine/build-web.sh`), puts it in `site/` in the runner's checkout only, then runs `showcase/test.sh`, which builds the showcase and checks it. It then deploys `showcase/` with `cloudflare/wrangler-action`, using `showcase/wrangler.toml` unchanged. It needs the repository secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`; no ids are written in the repository.
+* **`binaries`:** the three native builds from `release.yml` (it is called as a reusable workflow), uploaded as run artifacts. A GitHub Release still comes only from a `v*` tag.
+* **`both`:** both of the above.
+
 Windows release builds use the `windows` subsystem, so no console window opens beside the game. Anything the game prints, such as from the `--shot=` dev flags, is not shown there. Use a debug build for those.
 
 ## Saves
