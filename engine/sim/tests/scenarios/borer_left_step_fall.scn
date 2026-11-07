@@ -38,7 +38,7 @@ wield 13 none
 use 14 -8 0
 expect 15 onborer == 1
 expect 300 borery == 11
-hold 300-1500 left                    // bore left
+hold 300-560 left                     // bore left
 expect 1500 borerx < 19.5             // into the face (it stood at 22.7)
 expect 3 static:Granite == 608
 expect 1500 static:Granite <= 600   // 10 tiles of it cut

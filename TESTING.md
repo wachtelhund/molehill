@@ -308,7 +308,7 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `ore_hopper_rod.scn` | The mole on a tread plate holds an ore hopper's gate open by a rod: it empties onto the floor; off the plate, it shuts |
 | `borer_bores.scn` | A steam borer fed coal by hand and filled from a puddle bores into granite when ridden; as much gravel as it cut lies behind it; Space gets off; saved |
 | `borer_needs_steam.scn` | With no fuel a ridden borer raises no steam and doesn't move |
-| `borer_jams.scn` | In a dead end with no room behind it for its spoil, a borer jams and says so |
+| `borer_jams.scn` | In a dead end, a borer jams once the room behind it fills, then bores on only as it frees room, backfilling the chamber behind it solid (sealed in) |
 | `borer_left_step_fall.scn` | A borer bores left into granite, climbs a tile-high step onto a ledge, then tips off the ledge's end into a pit, the mole on it |
 | `wagon_train.scn` | A coal wagon and a water wagon set down behind a borer couple on, stoke it and top up its tank, and follow it into the face; the spoil lies behind the tail; saved coupled |
 | `wagon_couple.scn` | A borer backing up couples a loose store wagon; E uncouples it and the borer drives off without it; backed up to again it couples; at the tunnel's end the wagon stops the train; E twice takes it up |
