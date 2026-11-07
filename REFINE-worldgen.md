@@ -105,11 +105,19 @@ with strata offset, cave openness, fluid pockets, host rock, lenses, growth and 
 * **Art is ui-graphics' (p3):** only a `Biome::Fungal` arm in `art::biome_tint` so the game builds. API for them:
   `Biome` (+ `name`, `NBIOME`), `Gen::biome_of(x, wy)` in world cells, `Wall::Mycel` (colour and pattern in walls.rs).
 
+## Post-biomes polish (main `724bf9b`)
+p3's seed-4242 stills (PR #96) showed two things in my files, both measured before and after (`tests/biomes.rs`):
+* **Straight sideways seams.** `biome_x` switched on a hard vertical, so two columns' regions met in a straight
+  rock seam (granite against limestone at window x ≈ 770). `biome_of` now reads the leaning up to 15 m off to
+  either side by depth (`REGION_WANDER`). Changes that run straight on 2 m down: 0.89 → 0.10.
+* **Lining quilt.** `natural_at` hashed 1 m blocks, so back walls were a grid of squares. It now hashes the warped
+  patch (`Gen::patch`, up to 0.7 m), the same shares per region. Lining changes on the 1 m grid: 0.31 → 0.14
+  (0.12 = no grid).
+* Fresh worlds change where regions moved: no seed of 0-31 digs into lava within 20 s of holding S any more,
+  so `digging_straight_down_never_kills` now also runs seeds 35 and 56 (which do) and checks the hot floor there.
+
 ## Open / for others
-* **For the next polish round (p3's stills, seed 4242, PR #96):** (1) region edges between columns are straight
-  verticals (`biome_x` switches on a hard line; only depth edges wander) and show as a rock seam, e.g. granite against
-  limestone at window x ≈ 770, rows 580-800: wobble the column lookup by depth. (2) `natural_at` picks one wall per 1 m
-  block, so linings read as a quilt of 1 m squares: noise-shaped patches or edge blending.
+* (Both of p3's biome findings are done: see Post-biomes polish.)
 * **p2:** the parallel CA (rayon) isn't deterministic on the first run after a rebuild. Seen on
   `digging_straight_down_never_kills` seed 6 (a limestone clump falls into a flooded shaft onto the mole on some runs),
   and on `tree_regrow` / `water_levels` on the biomes branch. Repeat runs of the same binary pass.

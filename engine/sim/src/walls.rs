@@ -228,10 +228,11 @@ pub fn lining_of(m: Mat) -> Wall {
 /// Natural lining of an open cave cell, by region (`Gen::biome_of`): mostly carved rock, with what the
 /// region leaves on it. Roots and damp in the loam, seep stains and salt crust in the karst, cracks and
 /// missing panels in the crags, fungal threads in the fungal hollows, split basalt in the ashlands.
-/// Patches are about a metre across (one hash per 1 m block, plus a little per-cell grain). World cells.
+/// Patches are about a metre across, irregular (one hash per warped 1 m patch, `Gen::patch`, plus a little
+/// per-cell grain). World cells.
 pub fn natural_at(gen: &Gen, x: i64, wy: i64) -> Wall {
-    let d = wy as f32 * crate::mat::CELL_M; let c = crate::mat::CPM as i64;
-    let r = (hash3(x.div_euclid(c) as u32, wy.div_euclid(c) as u32, gen.seed ^ 0xB4C11) & 255) as f32 / 255.;
+    let d = wy as f32 * crate::mat::CELL_M; let (px, py) = gen.patch(x, wy);
+    let r = (hash3(px as u32, py as u32, gen.seed ^ 0xB4C11) & 255) as f32 / 255.;
     let g = (hash3(x as u32, wy as u32, gen.seed ^ 0xB4C12) & 255) as f32 / 255.;
     let r = (r * 0.8 + g * 0.2).clamp(0., 1.);
     match gen.biome_of(x, wy) {
