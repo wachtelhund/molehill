@@ -39,10 +39,12 @@ const PAD: usize = 512 * S;
 const CH: usize = 64 * S; // texture chunk size in cells (16 m)
 /// The parallax layers are drawn at legacy-tile resolution (one pixel per 0.25 m): they're blurred far rock.
 const BG_RES: usize = S;
+/// Milliseconds of a frame the web build spends building fresh ground ahead (natively a thread does it).
+#[cfg(target_arch = "wasm32")] const PREFETCH_MS: f32 = 6.;
 const FAR: usize = 4; // chunk rows drawn beyond each end of the simulated window (the camera roams there; nothing simulates)
 
 #[derive(Resource)] pub struct Game { pub w: World, /// a holt is in play (false over the empty window before the first one)
-    pub live: bool, chunks: Vec<Handle<Image>>, buf: Vec<u8>, /** per drive train, how far it has run (cells of belt travel), and the tick it was advanced to */ turn: Vec<f32>, turn_tick: u64, pub uploads: usize, acc: f32, pub paused: bool, speed: u32, pub frame: u64, last_light: u64, msg: String, pub help: bool, ev: Vec<sw::Event>, shake_off: Vec2, autosave: f32, last_oy: i64, far: Vec<Handle<Image>>, far_done: Vec<bool>, far_cells: std::collections::HashMap<i64, Option<(Vec<u8>, Vec<u8>)>>, pub inv_open: bool, pub aim: Option<(usize, usize, bool)>,
+    pub live: bool, chunks: Vec<Handle<Image>>, buf: Vec<u8>, /** per drive train, how far it has run (cells of belt travel), and the tick it was advanced to */ turn: Vec<f32>, turn_tick: u64, pub uploads: usize, acc: f32, pub paused: bool, speed: u32, pub frame: u64, last_light: u64, msg: String, pub help: bool, ev: Vec<sw::Event>, shake_off: Vec2, autosave: f32, last_oy: i64, last_ox: i64, far: Vec<Handle<Image>>, far_done: Vec<bool>, far_cells: std::collections::HashMap<(i64, i64), Option<(Vec<u8>, Vec<u8>)>>, pub inv_open: bool, pub aim: Option<(usize, usize, bool)>,
     pub slots: Vec<Option<Thing>>, pub held: Option<Thing>, /** lay the hotbar out afresh for this holt (`hotbar.rs`) */ pub relayout: bool, pub hot: usize, pub sel_t: f32, pub toasts: Vec<(String, f32)>, log_seen: u64, pub show_dev: bool, disp: Vec2, pub seed: u32,
     /// brush size per brush item and grid snap (`view::BrushSizes`)
     pub sizes: sv::BrushSizes,
@@ -274,7 +276,7 @@ fn dev_dump(n: Local<u32>, g: Res<Game>, sp: Res<Sprites>, images: Res<Assets<Im
             let yw0 = (st.y0 - g.w.oy).max(0) as usize;
             let cw = (st.w + 2 * pad).min(W);
             let chh = (st.h + 2 * pad).min(H);
-            let x0 = st.x0.saturating_sub(pad).min(W.saturating_sub(cw));
+            let x0 = ((st.x0 - g.w.ox).max(0) as usize).saturating_sub(pad).min(W.saturating_sub(cw));
             let y0 = yw0.saturating_sub(pad).min(H.saturating_sub(chh));
             (cw, chh, x0, y0)
         } else {
@@ -835,14 +837,14 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, mut fonts: R
         if let Some(k) = slots.iter().position(|s| *s == Some(Thing::Item(Item::TimberWall))) { slots.swap(0, k); hot = 0; }
         relayout = false;
     }
-    commands.insert_resource(Game { w, chunks, buf: vec![1; W * H * 4], turn: vec![], turn_tick: 0, uploads: 0, acc: 0., paused: true, speed: 1, frame: 0, last_light: 0, msg: String::new(), help: false, ev: vec![], shake_off: Vec2::ZERO, autosave: 0., last_oy: oy0, far, far_done, far_cells: Default::default(), inv_open: false, aim: None, slots, held: None, relayout, hot, sel_t: 0., toasts: vec![], log_seen: 0, show_dev: false, disp, seed, sizes: Default::default(), drag: None, brush_tag: None, demo_right: false, demo_up: false, demo_down: false, demo_aim: None, wheel: Default::default(), mouse_latch: false, jump_tap: false, jump_key: false, w_jump: false, charge: None, throw_aim: (1., -1.), e_latch: false, pops: vec![], look: Vec2::ZERO, live });
+    commands.insert_resource(Game { w, chunks, buf: vec![1; W * H * 4], turn: vec![], turn_tick: 0, uploads: 0, acc: 0., paused: true, speed: 1, frame: 0, last_light: 0, msg: String::new(), help: false, ev: vec![], shake_off: Vec2::ZERO, autosave: 0., last_oy: oy0, last_ox: 0, far, far_done, far_cells: Default::default(), inv_open: false, aim: None, slots, held: None, relayout, hot, sel_t: 0., toasts: vec![], log_seen: 0, show_dev: false, disp, seed, sizes: Default::default(), drag: None, brush_tag: None, demo_right: false, demo_up: false, demo_down: false, demo_aim: None, wheel: Default::default(), mouse_latch: false, jump_tap: false, jump_key: false, w_jump: false, charge: None, throw_aim: (1., -1.), e_latch: false, pops: vec![], look: Vec2::ZERO, live });
 }
 
 /// Saves only write a holt in play: Quit on the main menu before Continue never puts the empty window over the autosave.
 pub fn save_now(g: &mut Game) { if !g.live { return; } g.msg = match save_slot("molehill-manual", &g.w) { Ok(()) => "Game saved".into(), Err(e) => format!("Save failed: {e}") }; }
 pub fn save_auto(g: &mut Game) { if !g.live { return; } if let Err(e) = save_slot("molehill-auto", &g.w) { g.msg = format!("Autosave failed: {e}"); } }
 fn reset_view(g: &mut Game, commands: &mut Commands) {
-    g.last_oy = g.w.oy; g.far_done.iter_mut().for_each(|v| *v = false); g.far_cells.clear(); commands.insert_resource(make_bg(&g.w)); g.buf.iter_mut().for_each(|v| *v = 1);
+    g.last_oy = g.w.oy; g.last_ox = g.w.ox; g.far_done.iter_mut().for_each(|v| *v = false); g.far_cells.clear(); commands.insert_resource(make_bg(&g.w)); g.buf.iter_mut().for_each(|v| *v = 1);
     g.w.pl.sync = None; g.inv_open = false; g.help = false; g.acc = 0.;
 }
 /// Dev runs that need a holt from the first frame (`--shot`, `--scene`): generated at once in `setup`.
@@ -869,7 +871,7 @@ pub fn load_saved(g: &mut Game, commands: &mut Commands) -> bool {
         Some(Err(e)) => { g.msg = format!("Load failed: {e}"); false } None => { g.msg = "No save yet".into(); false } }
 }
 fn make_bg(w: &World) -> Bg {
-    let mk = |k, f| (art::layer(k, w.oy, &w.info.biome, W, H, PAD, BG_RES, w.info.seed).0, f);
+    let mk = |k, f| (art::layer(k, w.ox, w.oy, &|x| w.gen.biome_x(x), W, H, PAD, BG_RES, w.info.seed).0, f);
     Bg { layers: vec![mk(art::Layer::Strata, 0.8), mk(art::Layer::Caves, 0.6), mk(art::Layer::Veins, 0.35)] }
 }
 fn dev_cost(d: Dev) -> Option<Item> { d.cost() }
@@ -1069,7 +1071,11 @@ fn simulate(mut commands: Commands, mut g: ResMut<Game>, time: Res<Time>, mut ca
             gg.pops.extend(pm.into_iter().chain(m).map(|(k, x, y, r)| (k, x, y, r, now))); g.acc -= 1.; n += 1;
             if g.jump_tap { g.jump_tap = false; g.w.input.jump = g.jump_key; } } // the tap was seen: back to the key's state
         g.pops.retain(|p| now - p.4 < 0.25);
-        g.w.prefetch_step(); // fresh ground ahead of the window: a worker thread natively, a few-ms slice on the web
+        // fresh ground ahead of the window: natively a worker thread builds it (one call hands it the list); on the
+        // web each call is a few-ms slice on this thread, so up to PREFETCH_MS of the frame goes to it (a walk
+        // sideways needs a column of tiles every 32 m)
+        #[cfg(target_arch = "wasm32")] { let t = bevy::platform::time::Instant::now(); while g.w.prefetch_step() && t.elapsed().as_secs_f32() * 1e3 < PREFETCH_MS {} }
+        #[cfg(not(target_arch = "wasm32"))] g.w.prefetch_step();
         g.autosave += time.delta_secs();
         if g.autosave > 30. { g.autosave = 0.; save_auto(&mut g); }
         // asleep in a bunk wagon: the holt is saved there (wagon.rs)
@@ -1077,8 +1083,9 @@ fn simulate(mut commands: Commands, mut g: ResMut<Game>, time: Res<Time>, mut ca
         if g.acc > 4. { g.acc = 0.; }
     }
     let (Ok((mut ct, _)), Ok(win)) = (cam.single_mut(), win.single()) else { return };
-    if g.w.oy != g.last_oy { // window slid: keep the camera on the same rock, redraw everything
+    if g.w.oy != g.last_oy || g.w.ox != g.last_ox { // window slid (down or sideways): keep the camera on the same rock, redraw everything
         let d = (g.w.oy - g.last_oy) as f32; ct.translation.y += d * CPX; g.last_oy = g.w.oy;
+        let d = (g.w.ox - g.last_ox) as f32; ct.translation.x -= d * CPX; g.last_ox = g.w.ox;
         commands.insert_resource(make_bg(&g.w)); g.buf.iter_mut().for_each(|v| *v = 1); g.far_done.iter_mut().for_each(|v| *v = false); g.far_cells.clear();
     }
     // camera shake (quakes, explosions): remove last frame's offset, add a new one
@@ -1124,12 +1131,13 @@ fn render_world(mut gm: ResMut<Game>, bg: Res<Bg>, mut images: ResMut<Assets<Ima
     // premultiplied linear "over": out = bg·(1-a) + cp
     let over = |(cp, a): ([f32; 3], f32), h: [f32; 3], ha: f32| -> ([f32; 3], f32) { ([cp[0] * (1. - ha) + lin(h[0]) * ha, cp[1] * (1. - ha) + lin(h[1]) * ha, cp[2] * (1. - ha) + lin(h[2]) * ha], 1. - (1. - a) * (1. - ha)) };
     for y in y0..=y1 { for x in x0..=x1 {
+        let (hx, hy) = ((x as i64 + wd.ox) as u32, (y as i64 + wd.oy) as u32); // world column and row: textures run on across slides
         let i = y * W + x; let o = i * 4;
         let m = gr.m(i); let p = &PROPS[m as usize];
         let seen = gr.flags[i] & F_SEEN != 0;
         let px: [u8; 4];
         if !seen {
-            let n = (hash3(x as u32 / (2 * S) as u32, y as u32 / (2 * S) as u32, 5) & 7) as u8;
+            let n = (hash3(hx / (2 * S) as u32, hy / (2 * S) as u32, 5) & 7) as u8;
             px = [14 + n, 12 + n, 17 + n, 255];
         } else {
             let lit = x >= lr.0 && x <= lr.2 && y >= lr.1 && y <= lr.3;
@@ -1146,7 +1154,7 @@ fn render_world(mut gm: ResMut<Game>, bg: Res<Bg>, mut images: ResMut<Assets<Ima
                     let mut o = ([0.; 3], 1. - k.powf(2.2));
                     let wl = wd.walls.get(i);
                     if wl != molehill_sim::walls::Wall::None {
-                        let wc = wl.color(); let sh = wl.shade(x as u32, (y as i64 + wd.oy) as u32);
+                        let wc = wl.color(); let sh = wl.shade(hx, hy);
                         // one darker/flatter scale, same light as the open cell: no extra 0.55 multiply
                         let lit = |c: u8, li: f32| {
                             let face = molehill_sim::walls::WALL_AMIN + (1. - molehill_sim::walls::WALL_AMIN) * li.min(1.15);
@@ -1163,13 +1171,13 @@ fn render_world(mut gm: ResMut<Game>, bg: Res<Bg>, mut images: ResMut<Assets<Ima
                     px = if a < 0.004 { [0, 0, 0, 0] } else { [srgb(cp[0] / a).min(255.) as u8, srgb(cp[1] / a).min(255.) as u8, srgb(cp[2] / a).min(255.) as u8, (a * 255.).round() as u8] };
                 }
                 _ => {
-                    let v = (hash3(x as u32, y as u32, m as u32) & 255) as f32 / 255.;
-                    let v2 = (hash3(x as u32 / (3 * S) as u32, y as u32 / (2 * S) as u32, m as u32 + 77) & 255) as f32 / 255.;
+                    let v = (hash3(hx, hy, m as u32) & 255) as f32 / 255.;
+                    let v2 = (hash3(hx / (3 * S) as u32, hy / (2 * S) as u32, m as u32 + 77) & 255) as f32 / 255.;
                     let mut k = 0.86 + v * 0.14 + (v2 - 0.5) * 0.12;
                     if m == Mat::Grass { k *= 0.9 + 0.2 * v; }
                     // soft shading: lit top faces, shadowed undersides
                     let wy = (y as i64 + wd.oy) as u32;
-                    if p.kind == Kind::Solid && !gr.loose(i) { k *= art::mat_tex(m, x as u32, wy, wd.tick); }
+                    if p.kind == Kind::Solid && !gr.loose(i) { k *= art::mat_tex(m, hx, wy, wd.tick); }
                     // rims: a bright lip on faces open to the top, a soft second row under it, shadowed undersides
                     // and slightly darker side walls, so every tunnel edge reads as a shaped edge
                     // (each band is one legacy tile, S cells, thick)
@@ -1180,7 +1188,7 @@ fn render_world(mut gm: ResMut<Game>, bg: Res<Bg>, mut images: ResMut<Assets<Ima
                     else if (1..=S).any(|d| y + d < H && open(i + d * W)) { k *= 0.74; }
                     else if (1..=S).any(|d| (x >= d && open(i - d)) || (x + d < W && open(i + d))) { k *= 0.9; }
                     if p.kind == Kind::Powder || gr.loose(i) { k *= 0.93 + 0.1 * v; }
-                    if wd.st.pending[i] > 0 && (hash3(x as u32, y as u32, 9) % 3 == 0) { k *= 0.45; }
+                    if wd.st.pending[i] > 0 && (hash3(hx, hy, 9) % 3 == 0) { k *= 0.45; }
                     let emit = p.emit; let em = (emit[0] as u16 + emit[1] as u16 + emit[2] as u16) > 0;
                     let lm = |c: f32, li: f32| if em { c * (0.8 + 0.4 * v) } else { c * (li.min(1.25) * 0.94 + 0.06) };
                     // paint: the pigment takes over most of the colour; the material's pattern and shading stay
@@ -1192,7 +1200,7 @@ fn render_world(mut gm: ResMut<Game>, bg: Res<Bg>, mut images: ResMut<Assets<Ima
                             { let run = |dx: i64, dy: i64| (1..=3i64).take_while(|&k| { let (xx, yy) = (x as i64 + dx * k, y as i64 + dy * k); xx >= 0 && yy >= 0 && (xx as usize) < W && (yy as usize) < H && gr.m(yy as usize * W + xx as usize) == m }).count();
                               run(-1, 0) + run(1, 0) >= run(0, -1) + run(0, 1) }) } else { (0., true) };
                         let on = p.flags & molehill_sim::mat::LINK != 0 && wd.pulled(i); let turn = if m == Mat::Float { wd.tick as f32 / 9. } else { turn }; // a lifted float bobs
-                        art::mat_color(m, x as u32, wy, above, turn, horiz, on).unwrap_or(p.color.map(|v| v as f32)) };
+                        art::mat_color(m, hx, wy, above, turn, horiz, on).unwrap_or(p.color.map(|v| v as f32)) };
                     let mut c = [lm(base[0] * k, l[0]), lm(base[1] * k, l[1]), lm(base[2] * k, l[2])];
                     let mut alpha = 255.;
                     if m == Mat::Water { c = [lm(40. + 30. * v2, l[0]), lm(90. + 20. * v2, l[1]), lm(170., l[2])]; alpha = 255.; }
@@ -1244,15 +1252,16 @@ fn render_far(gm: &mut Game, ct: &Transform, win: &Window, images: &mut Assets<I
         let m8 = 8 * S as i32; if x0 + CH as i32 <= vx0 - m8 || x0 > vx1 + m8 || y0 + CH as i32 <= vy0 - m8 || y0 > vy1 + m8 { continue; }
         if budget == 0 { break; } budget -= 1;
         let Game { w, far_cells, .. } = &mut *gm; let mut data = vec![0u8; CH * CH * 4];
+        let tw = molehill_sim::band::tile_w(W); let tx0 = (cx * CH) / tw * tw; let kx = w.ox + tx0 as i64; // the stored tile holding this chunk column
         for r in 0..CH { let wy = w.oy + (y0 + r as i32) as i64; let s0 = molehill_sim::band::band_start(w.oy, wy);
-            let row = far_cells.entry(s0).or_insert_with(|| w.stored_cells(s0)).as_ref().map(|(m, f)| { let o = (wy - s0) as usize * W; (&m[o..o + W], &f[o..o + W]) });
-            for c in 0..CH { let x = cx * CH + c;
-                let (m, seen) = match row { Some((m, f)) => (m[x], f[x] & F_SEEN != 0), None => (w.gen.cell(x, wy, W).0, false) };
-                let mm = Mat::from_u8(m); let p = &PROPS[m as usize]; let v = (hash3(x as u32, wy as u32, m as u32) & 255) as f32 / 255.;
+            let row = far_cells.entry((kx, s0)).or_insert_with(|| w.stored_cells(kx, s0)).as_ref().map(|(m, f)| { let o = (wy - s0) as usize * tw; (&m[o..o + tw], &f[o..o + tw]) });
+            for c in 0..CH { let x = cx * CH + c; let wx = w.ox + x as i64;
+                let (m, seen) = match row { Some((m, f)) => (m[x - tx0], f[x - tx0] & F_SEEN != 0), None => (w.gen.cell(wx, wy).0, false) };
+                let mm = Mat::from_u8(m); let p = &PROPS[m as usize]; let v = (hash3(wx as u32, wy as u32, m as u32) & 255) as f32 / 255.;
                 let px: [f32; 3] = if seen {
                     match p.kind { Kind::Empty | Kind::Gas => [30., 24., 22.], _ => { let k = 0.5 + 0.08 * v; [p.color[0] as f32 * k, p.color[1] as f32 * k, p.color[2] as f32 * k] } }
                 } else {
-                    let n = (hash3(x as u32 / (2 * S) as u32, wy as u32 / (2 * S) as u32, 5) & 7) as f32;
+                    let n = (hash3(wx as u32 / (2 * S) as u32, wy as u32 / (2 * S) as u32, 5) & 7) as f32;
                     match p.kind { Kind::Empty | Kind::Gas => [8. + n, 7. + n, 11. + n], _ if mm == Mat::Lava => [70. + n, 30., 16.], _ if mm == Mat::Water => [16., 24. + n, 44.],
                         _ => { let k = 0.16 + 0.03 * v; [p.color[0] as f32 * k + 12. + n, p.color[1] as f32 * k + 10. + n, p.color[2] as f32 * k + 15. + n] } }
                 };
@@ -1264,7 +1273,7 @@ fn render_far(gm: &mut Game, ct: &Transform, win: &Window, images: &mut Assets<I
 }
 
 /// Frame-to-frame feedback state for the mole sprite and the little particles (dig chips, landing dust).
-#[derive(Default)] struct Fx { /** seconds holding a rope or ladder, and since letting go */ climb_t: f32, off_t: f32, was_climb: bool, waves_seen: u64, grounded: bool, vy: f32, squash: f32, parts: Vec<Part>, last_mine: Option<[f32; 3]>, chip_t: f32, dust_t: f32, wet: bool, ember_t: f32, deny: bool, deny_t: f32, props: Vec<props::Placed>, props_key: (i64, Vec<u32>) }
+#[derive(Default)] struct Fx { /** seconds holding a rope or ladder, and since letting go */ climb_t: f32, off_t: f32, was_climb: bool, waves_seen: u64, grounded: bool, vy: f32, squash: f32, parts: Vec<Part>, last_mine: Option<[f32; 3]>, chip_t: f32, dust_t: f32, wet: bool, ember_t: f32, deny: bool, deny_t: f32, props: Vec<props::Placed>, props_key: (i64, i64, Vec<u32>) }
 /// A pixel particle; `g` is its gravity (negative drifts up, like embers).
 struct Part { p: Vec2, v: Vec2, life: f32, max: f32, c: [f32; 3], size: f32, g: f32, drag: f32, al: f32 }
 /// How far up (cells) a floor object's centre sits: half its height in world units.
@@ -1686,7 +1695,7 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
     }
     // found-place furnishings (props.rs): placed once per window against the cells there, drawn behind the
     // furniture and lit like it; they show once you've seen where they stand
-    let key = (w.oy, w.sites.iter().map(|s| s.id).collect::<Vec<_>>()); if fx.props_key != key { fx.props = props::dress(w); fx.props_key = key; }
+    let key = (w.ox, w.oy, w.sites.iter().map(|s| s.id).collect::<Vec<_>>()); if fx.props_key != key { fx.props = props::dress(w); fx.props_key = key; }
     for (k, p) in fx.props.iter().enumerate() {
         let (cx, by) = ((p.x + p.w / 2).min(W - 1), (p.y + p.h - 1).min(H - 1));
         if w.g.flags[by * W + cx] & F_SEEN == 0 && w.g.flags[p.y.min(H - 1) * W + cx] & F_SEEN == 0 { continue; }

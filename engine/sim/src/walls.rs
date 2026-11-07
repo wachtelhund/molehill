@@ -220,7 +220,7 @@ pub fn lining_of(m: Mat) -> Wall {
 }
 
 /// Natural lining of an open cave cell: mostly rock, with stains, cracks, roots and the odd missing panel.
-pub fn natural_at(gen: &Gen, x: usize, wy: i64) -> Wall {
+pub fn natural_at(gen: &Gen, x: i64, wy: i64) -> Wall {
     let d = wy as f32 * crate::mat::CELL_M;
     let h = hash3(x as u32, wy as u32, gen.seed ^ 0xB4C11);
     let r = (h & 255) as f32 / 255.;
@@ -236,11 +236,13 @@ pub fn natural_at(gen: &Gen, x: usize, wy: i64) -> Wall {
 impl World {
     /// Line open cells in window rows `[y0, y1)` from the generator: caves, grottos, ruins and sites.
     /// Solid rock stays unlined (nothing to see). Does not touch cells the player already panelled.
-    pub fn line_back(&mut self, y0: usize, y1: usize) {
-        let (w, h) = (self.g.w, self.g.h); let y1 = y1.min(h);
-        for y in y0..y1 { for x in 0..w {
-            let i = y * w + x; if self.walls.cell[i] != 0 { continue; }
-            let wy = self.oy + y as i64;
+    pub fn line_back(&mut self, y0: usize, y1: usize) { self.line_back_rect(0, self.g.w, y0, y1) }
+    /// `line_back` over window columns `[x0, x1)` only (a tile that slid in).
+    pub fn line_back_rect(&mut self, x0: usize, x1: usize, y0: usize, y1: usize) {
+        let (w, h) = (self.g.w, self.g.h); let (x1, y1) = (x1.min(w), y1.min(h));
+        for y in y0..y1 { for xw in x0..x1 {
+            let i = y * w + xw; if self.walls.cell[i] != 0 { continue; }
+            let (x, wy) = (self.ox + xw as i64, self.oy + y as i64);
             if let Some(wl) = self.gen.site_wall(x, wy) { self.walls.cell[i] = wl as u8; continue; }
             if !shows_back(&self.g, i) { continue; }
             if self.gen.grotto_of(x, wy).is_some_and(|g| g.is_void(x, wy)) {
@@ -255,7 +257,8 @@ impl World {
     }
     /// Timber the start burrow so it reads as a holt, not a hole.
     pub fn line_burrow(&mut self) {
-        let (w, h) = (self.g.w, self.g.h); let sx = w / 2;
+        let (w, h) = (self.g.w, self.g.h); let sx = (self.gen.w0 / 2) as i64 - self.ox;
+        if sx < 0 || sx >= w as i64 || -self.oy < 0 { return; } let sx = sx as usize; // the burrow is off-window
         let sy = ((-self.oy) as usize).min(h.saturating_sub(4 * S));
         let (x0, x1) = (sx.saturating_sub(16 * S), (sx + 16 * S).min(w));
         let (y0, y1) = (sy.saturating_sub(14 * S), (sy + 4 * S).min(h));

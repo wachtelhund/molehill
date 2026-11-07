@@ -13,7 +13,7 @@ use std::collections::VecDeque;
 /// v4: the world as bands (see `band.rs`): a manifest names every band (window and off-window) by start
 /// row and content hash; blobs travel inline (`save`) or as separate keys (`save_parts`). v3: one blob
 /// with a row cache of cells (still loads). Older (surface-world) saves are refused.
-pub const VERSION: u32 = 11; // 11: grottos visited; // 10: background walls (band trailing RLE) and sites visited; // 9: transport (carts and their cargo; see transport.rs); // 8: Ancient relics found and ruins visited; // 7: the Lid journal and the clues found; 6: the items ever picked up (recipes unlock by touch); 5: the game mode, the headlamp's oil, and hunger on/off
+pub const VERSION: u32 = 12; // 12: the window slides sideways too: its column (`ox`), and the world stored as tiles keyed by (column, row); // 11: grottos visited; // 10: background walls (band trailing RLE) and sites visited; // 9: transport (carts and their cargo; see transport.rs); // 8: Ancient relics found and ruins visited; // 7: the Lid journal and the clues found; 6: the items ever picked up (recipes unlock by touch); 5: the game mode, the headlamp's oil, and hunger on/off
 const MAGIC: &[u8; 8] = b"MOLEHILL";
 /// The engine tag also names the cell resolution: a save at another cells-per-metre won't load.
 const ENGINE: &str = if crate::mat::CPM == 4 { "bevy-v3" } else if crate::mat::CPM == 8 { "bevy-v3-cpm8" } else { "bevy-v3-cpm?" };
@@ -66,11 +66,11 @@ fn load_v3(b: &[u8]) -> R<World> {
     let mut rows: std::collections::HashMap<i64, (Vec<u8>, Vec<u8>)> = Default::default();
     for _ in 0..r.len(1 << 20)? { let wy = r.u64()? as i64; let mut m = r.rle(gw)?; for v in m.iter_mut() { *v = *remap.get(*v as usize).unwrap_or(&0); } let f = r.rle(gw)?; rows.insert(wy, (m, f)); }
     // the old row cache becomes bands (cells only: v3 lost devices and things off-window anyway)
-    w.bands.clear(); let starts: std::collections::BTreeSet<i64> = rows.keys().map(|&wy| band::band_start(w.oy, wy)).collect();
+    w.bands.clear(); let starts: std::collections::BTreeSet<i64> = rows.keys().map(|&wy| band::band_start(w.oy, wy)).collect(); let tw = band::tile_w(gw);
     for s0 in starts { if (0..BH as i64).all(|k| rows.contains_key(&(s0 + k))) {
         let (mut m, mut f) = (Vec::with_capacity(gw * BH), Vec::with_capacity(gw * BH)); for k in 0..BH as i64 { let (a, b) = &rows[&(s0 + k)]; m.extend_from_slice(a); f.extend_from_slice(b); }
-        w.bands.insert(s0, band::Stored::new(band::encode_cells(&m, &f, w.logic.bw, w.air.bw))); } }
-    w.opened.clear(); for _ in 0..r.len(1 << 20)? { let x = r.u32()? as usize; let wy = r.u64()? as i64; w.opened.insert((x, wy)); }
+        let t = band::Tile::of_cells(m, f, gw); for k in 0..gw / tw { w.bands.insert(((k * tw) as i64, s0), band::Stored::new(t.cut(k * tw, tw).write())); } } }
+    w.opened.clear(); for _ in 0..r.len(1 << 20)? { let x = r.u32()? as i64; let wy = r.u64()? as i64; w.opened.insert((x, wy)); }
     w.farms.clear(); for _ in 0..r.len(1 << 16)? { let (x, y, g) = (r.u32()? as usize, r.u32()? as usize, r.f32()?); if x < gw && y + 1 < gh { w.farms.push(Farm { x, y, growth: g.clamp(0., 1.), why: 0 }); } }
     let ab = r.rle(w.air.co2.len())?; w.air.from_bytes(&ab); w.harvested = r.u32()?;
     if r.p < r.b.len() {
@@ -87,8 +87,10 @@ fn load_v3(b: &[u8]) -> R<World> {
     Ok(w)
 }
 
-/// The storage key of a band blob: its start row and content hash (a changed band gets a new key).
+/// The storage key of a band blob before v12: its start row and content hash (a changed band gets a new key).
 pub fn band_key(wy0: i64, hash: u64) -> String { format!("b{wy0}_{hash:016x}") }
+/// The storage key of a tile blob (v12): its first column and row and its content hash.
+pub fn tile_key(x0: i64, wy0: i64, hash: u64) -> String { format!("t{x0}_{wy0}_{hash:016x}") }
 
 /// A save split into parts: a small manifest (globals + the list of bands) and the band blobs, each
 /// under `band_key`. Write the blobs first and the manifest last; then a torn save still loads the
@@ -96,9 +98,9 @@ pub fn band_key(wy0: i64, hash: u64) -> String { format!("b{wy0}_{hash:016x}") }
 pub struct Parts<'a> { pub manifest: Vec<u8>, pub bands: Vec<(String, Cow<'a, [u8]>)> }
 
 pub fn save_parts(w: &World) -> Parts<'_> {
-    let mut bands: Vec<(i64, u64, Cow<[u8]>)> = vec![];
-    for y0 in (0..w.g.h).step_by(BH) { let blob = band::encode(w, y0); bands.push((w.oy + y0 as i64, band::hash(&blob), Cow::Owned(blob))); }
-    for (&wy0, b) in &w.bands { bands.push((wy0, b.hash, Cow::Borrowed(&b.blob[..]))); }
+    let mut bands: Vec<((i64, i64), u64, Cow<[u8]>)> = vec![]; let tw = band::tile_w(w.g.w);
+    for y0 in (0..w.g.h).step_by(BH) { for x0 in (0..w.g.w).step_by(tw) { let blob = band::encode(w, x0, y0); bands.push(((w.ox + x0 as i64, w.oy + y0 as i64), band::hash(&blob), Cow::Owned(blob))); } }
+    for (&k, b) in &w.bands { bands.push((k, b.hash, Cow::Borrowed(&b.blob[..]))); }
     let mut o = Wr(vec![]); o.0.extend_from_slice(MAGIC); o.u32(VERSION); o.str(ENGINE);
     o.u32(w.g.w as u32); o.u32(w.g.h as u32); o.u32(w.info.seed); o.u64(w.tick); o.u64(w.g.tick);
     o.u32(NMAT as u32); for p in PROPS.iter() { o.str(p.name); }
@@ -111,22 +113,22 @@ pub fn save_parts(w: &World) -> Parts<'_> {
     for d in w.discovered { o.u8(d as u8); }
     o.u64(w.disasters.rng); o.u32(w.disasters.ticks_left.max(60)); o.u8(w.disasters.enabled as u8);
     o.u32(w.log.len() as u32); for (t, s) in &w.log { o.u64(*t); o.str(s); }
-    o.u64(w.oy as u64);
-    let mut opened: Vec<(usize, i64)> = w.opened.iter().copied().collect();
-    for c in &w.chests { if c.opened { opened.push((c.x, w.oy + c.y as i64)); } } opened.sort(); opened.dedup();
-    o.u32(opened.len() as u32); for &(x, wy) in &opened { o.u32(x as u32); o.u64(wy as u64); }
-    o.u32(w.harvested); o.u32(w.pl.deaths); o.u32(w.pl.spawn.0 as u32); o.u64(w.pl.spawn.1 as u64);
+    o.u64(w.oy as u64); o.u64(w.ox as u64);
+    let mut opened: Vec<(i64, i64)> = w.opened.iter().copied().collect();
+    for c in &w.chests { if c.opened { opened.push((w.ox + c.x as i64, w.oy + c.y as i64)); } } opened.sort(); opened.dedup();
+    o.u32(opened.len() as u32); for &(x, wy) in &opened { o.u64(x as u64); o.u64(wy as u64); }
+    o.u32(w.harvested); o.u32(w.pl.deaths); o.u64(w.pl.spawn.0 as u64); o.u64(w.pl.spawn.1 as u64);
     o.u8(w.mode as u8); o.f32(w.lamp_oil); o.u8(w.rules.no_hunger as u8);
     o.u32(NITEM as u32); for k in w.known { o.u8(k as u8); }
     o.u32(w.journal.len() as u32); for &f in &w.journal { o.u32(f as u32); }
-    let mut fc: Vec<(usize, i64)> = w.found_clues.iter().copied().collect(); fc.sort();
-    o.u32(fc.len() as u32); for &(x, wy) in &fc { o.u32(x as u32); o.u64(wy as u64); }
+    let mut fc: Vec<(i64, i64)> = w.found_clues.iter().copied().collect(); fc.sort();
+    o.u32(fc.len() as u32); for &(x, wy) in &fc { o.u64(x as u64); o.u64(wy as u64); }
     let mut rs: Vec<u32> = w.ruins_seen.iter().copied().collect(); rs.sort(); o.u8(w.relics); o.u32(rs.len() as u32); for id in rs { o.u32(id); }
     o.bytes(&w.encode_transport());
     let mut ss: Vec<u32> = w.sites_seen.iter().copied().collect(); ss.sort(); o.u32(ss.len() as u32); for id in ss { o.u32(id); }
     let mut gs: Vec<u32> = w.grottos_seen.iter().copied().collect(); gs.sort(); o.u32(gs.len() as u32); for id in gs { o.u32(id); }
-    o.u32(bands.len() as u32); for (wy0, h, b) in &bands { o.u64(*wy0 as u64); o.u64(*h); o.u32(b.len() as u32); }
-    Parts { manifest: o.0, bands: bands.into_iter().map(|(wy0, h, b)| (band_key(wy0, h), b)).collect() }
+    o.u32(bands.len() as u32); for ((x0, wy0), h, b) in &bands { o.u64(*x0 as u64); o.u64(*wy0 as u64); o.u64(*h); o.u32(b.len() as u32); }
+    Parts { manifest: o.0, bands: bands.into_iter().map(|((x0, wy0), h, b)| (tile_key(x0, wy0, h), b)).collect() }
 }
 
 /// The whole save in one blob (manual slots, native files, tests): the manifest, then every band inline.
@@ -161,16 +163,17 @@ pub fn load_with(b: &[u8], fetch: &mut dyn FnMut(&str) -> Option<Vec<u8>>) -> R<
     let mut discovered = [false; NMAT]; for k in 0..nm { let v = r.u8()? != 0; discovered[remap[k] as usize] |= v; }
     let (drng, dleft, den) = (r.u64()? | 1, r.u32()?, r.u8()? != 0);
     let mut log = vec![]; for _ in 0..r.len(1000)? { let t = r.u64()?; let s = r.str()?; log.push((t, s)); }
-    let oy = r.u64()? as i64;
-    let mut opened = std::collections::HashSet::new(); for _ in 0..r.len(1 << 20)? { let x = r.u32()? as usize; let wy = r.u64()? as i64; opened.insert((x, wy)); }
-    let (harvested, deaths, spx, spy) = (r.u32()?, r.u32()?, r.u32()? as usize, r.u64()? as i64);
+    let oy = r.u64()? as i64; let ox = if ver >= 12 { r.u64()? as i64 } else { 0 }; // (before v12 the window never left the home columns)
+    let xcol = |r: &mut Rd| -> R<i64> { if ver >= 12 { Ok(r.u64()? as i64) } else { Ok(r.u32()? as i64) } };
+    let mut opened = std::collections::HashSet::new(); for _ in 0..r.len(1 << 20)? { let x = xcol(&mut r)?; let wy = r.u64()? as i64; opened.insert((x, wy)); }
+    let (harvested, deaths) = (r.u32()?, r.u32()?); let (spx, spy) = (xcol(&mut r)?, r.u64()? as i64);
     let (mode, lamp_oil, no_hunger) = if ver >= 5 { (crate::survival::Mode::from_u8(r.u8()?), r.f32()?, r.u8()? != 0) } else { (crate::survival::Mode::Plain, 0., false) };
     // v6: items ever picked up; before that, what is in the pack counts as known
     let known = if ver >= 6 { let n = r.len(4096)?; let mut k = [false; NITEM]; for j in 0..n { let v = r.u8()? != 0; if j < NITEM { k[j] = v; } } Some(k) } else { None };
     // v7: the journal (fragment ids, in reading order) and the clues found
     let (journal, found_clues) = if ver >= 7 {
         let j: Vec<u16> = (0..r.len(4096)?).map(|_| r.u32().map(|v| v as u16)).collect::<R<_>>()?;
-        let mut f = std::collections::HashSet::new(); for _ in 0..r.len(1 << 20)? { let x = r.u32()? as usize; let wy = r.u64()? as i64; f.insert((x, wy)); }
+        let mut f = std::collections::HashSet::new(); for _ in 0..r.len(1 << 20)? { let x = xcol(&mut r)?; let wy = r.u64()? as i64; f.insert((x, wy)); }
         (j.into_iter().filter(|&k| (k as usize) < crate::lore::FRAGMENTS.len()).collect(), f)
     } else { (vec![], Default::default()) };
     // v8: the relics found and the ruins visited
@@ -181,21 +184,29 @@ pub fn load_with(b: &[u8], fetch: &mut dyn FnMut(&str) -> Option<Vec<u8>>) -> R<
     let sites_seen = if ver >= 10 { let mut s = std::collections::HashSet::new(); for _ in 0..r.len(1 << 20)? { s.insert(r.u32()?); } s } else { Default::default() };
     // v11: grottos visited
     let grottos_seen = if ver >= 11 { let mut s = std::collections::HashSet::new(); for _ in 0..r.len(1 << 20)? { s.insert(r.u32()?); } Some(s) } else { None };
-    let list: Vec<(i64, u64, usize)> = (0..r.len(1 << 20)?).map(|_| Ok((r.u64()? as i64, r.u64()?, r.len(1 << 28)?))).collect::<R<_>>()?;
+    // the blob list: tiles (column, row) since v12, full-width bands (row) before
+    let list: Vec<(Option<i64>, i64, u64, usize)> = (0..r.len(1 << 20)?).map(|_| Ok(if ver >= 12 { (Some(r.u64()? as i64), r.u64()? as i64, r.u64()?, r.len(1 << 28)?) } else { (None, r.u64()? as i64, r.u64()?, r.len(1 << 28)?) })).collect::<R<_>>()?;
     let inline = !r.done() && r.u8()? == 1;
     // the world: generated from the seed, then everything mutable comes from the bands
     let mut w = World::blank(gw, gh, seed);
-    w.oy = oy; w.drops.clear(); w.torches.clear(); w.buildings.clear(); w.farms.clear(); w.bands.clear();
+    w.ox = ox; w.oy = oy; w.drops.clear(); w.torches.clear(); w.buildings.clear(); w.farms.clear(); w.bands.clear();
     w.logic = crate::logic::Logic::new(gw, gh); w.air = crate::air::Air::new(gw, gh);
-    let mut window = vec![false; gh / BH]; let mut lost = 0;
-    for &(wy0, h, n) in &list {
-        let blob = if inline { r.take(n)?.to_vec() } else { match fetch(&band_key(wy0, h)) { Some(b) => b, None => { lost += 1; continue; } } };
+    let tw = band::tile_w(gw); if ox.rem_euclid(tw as i64) != 0 && tw != gw { return Err("bad window column".into()); }
+    let mut window = vec![false; (gw / tw) * (gh / BH)]; let mut lost = 0;
+    for &(x0, wy0, h, n) in &list {
+        let key = match x0 { Some(x0) => tile_key(x0, wy0, h), None => band_key(wy0, h) };
+        let blob = if inline { r.take(n)?.to_vec() } else { match fetch(&key) { Some(b) => b, None => { lost += 1; continue; } } };
         if blob.len() != n || band::hash(&blob) != h { if inline { return Err("save is damaged (band checksum)".into()); } lost += 1; continue; }
-        let y = wy0 - oy;
-        if y >= 0 && y < gh as i64 && y % BH as i64 == 0 {
-            band::decode(&mut w, y as usize, &blob, (!same_mats).then_some(&remap[..]))?; window[y as usize / BH] = true;
-        } else if (wy0 - oy).rem_euclid(BH as i64) == 0 {
-            let blob = if same_mats { blob } else { band::remap_blob(&blob, gw, &remap)? }; w.bands.insert(wy0, band::Stored::new(blob));
+        // a band from before v12 is the home columns' full width: cut it into tiles
+        let tiles: Vec<(i64, Vec<u8>)> = match x0 { Some(x0) => vec![(x0, blob)], None => band::split_legacy(&blob, gw, tw)?.into_iter().enumerate().map(|(k, b)| ((k * tw) as i64, b)).collect() };
+        for (x0, blob) in tiles {
+            let (x, y) = (x0 - ox, wy0 - oy);
+            if (wy0 - oy).rem_euclid(BH as i64) != 0 || (x0 - ox).rem_euclid(tw as i64) != 0 { continue; }
+            if y >= 0 && y < gh as i64 && x >= 0 && x < gw as i64 {
+                band::decode(&mut w, x as usize, y as usize, &blob, (!same_mats).then_some(&remap[..]))?; window[(y as usize / BH) * (gw / tw) + x as usize / tw] = true;
+            } else {
+                let blob = if same_mats { blob } else { band::remap_blob(&blob, tw, &remap)? }; w.bands.insert((x0, wy0), band::Stored::new(blob));
+            }
         }
     }
     if window.iter().any(|&k| !k) { return Err("save is missing part of the world around the mole".into()); }
@@ -211,7 +222,7 @@ pub fn load_with(b: &[u8], fetch: &mut dyn FnMut(&str) -> Option<Vec<u8>>) -> R<
     w.craft_queue = craft_queue.into_iter().filter(|&k| k < RECIPES.len()).collect(); w.discovered = discovered;
     w.disasters.rng = drng; w.disasters.ticks_left = dleft; w.disasters.enabled = den; w.log = log; w.opened = opened;
     w.known = known.unwrap_or_else(|| std::array::from_fn(|k| w.inv[k] > 0));
-    w.harvested = harvested; w.pl.deaths = deaths; if spx < gw { w.pl.spawn = (spx, spy); }
+    w.harvested = harvested; w.pl.deaths = deaths; w.pl.spawn = (spx, spy);
     w.journal = journal; w.found_clues = found_clues; w.relics = relics; w.ruins_seen = ruins_seen;
     // ruins visited before their carvings went into the journal: add the carvings now (by ruin id order)
     let mut seen: Vec<u32> = w.ruins_seen.iter().copied().collect(); seen.sort();
@@ -225,7 +236,7 @@ pub fn load_with(b: &[u8], fetch: &mut dyn FnMut(&str) -> Option<Vec<u8>>) -> R<
     w.g.life.iter_mut().for_each(|v| *v = 0); w.g.wake_all(); w.st = crate::stress::Stress::new(gw * gh);
     let f = w.st.solve(&w.g); w.st.crack(&w.g, &f); w.g.clear_struct();
     w.say(format!("Loaded save (tick {}).", tick));
-    if lost > 0 { w.say(format!("{lost} far bands of the save were missing; the Deepholt there is as it was before you came.")); }
+    if lost > 0 { w.say(format!("{lost} far parts of the save were missing; the Deepholt there is as it was before you came.")); }
     Ok(w)
 }
 

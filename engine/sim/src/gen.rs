@@ -39,9 +39,9 @@ const BURROW_MARGIN: i64 = 2 * CPM as i64;
 /// copper just below it. Harder ground (granite, basalt, iron, quartz, crystal) starts beyond it, and its
 /// fluid pockets are water, never lava.
 pub const START_SAFE: f32 = 25.;
-pub fn in_start_zone(w: usize, x: usize, wy: i64) -> bool { near_start(w, x, wy, START_SAFE) }
+pub fn in_start_zone(w: usize, x: i64, wy: i64) -> bool { near_start(w, x, wy, START_SAFE) }
 /// Within `r` metres of the starting burrow?
-pub fn near_start(w: usize, x: usize, wy: i64, r: f32) -> bool {
+pub fn near_start(w: usize, x: i64, wy: i64, r: f32) -> bool {
     let (dx, dy) = ((x as f32 - (w / 2) as f32) / CPM as f32, wy as f32 / CPM as f32); dx * dx + dy * dy < r * r
 }
 /// The settled ground round the burrow, where a new holt digs its first tunnels: within SETTLED.0 m the
@@ -52,7 +52,7 @@ pub const SETTLED: (f32, f32) = (40., 70.);
 /// Metres under the burrow floor, 3 m either side of its middle, kept free of water and lava pockets.
 pub const DRY_UNDER: usize = 6;
 /// How settled (cell x, wy) is: 1 within SETTLED.0 m of the burrow, easing to 0 at SETTLED.1 m.
-pub fn settled_at(w: usize, x: usize, wy: i64) -> f32 {
+pub fn settled_at(w: usize, x: i64, wy: i64) -> f32 {
     let (dx, dy) = ((x as f32 - (w / 2) as f32) / CPM as f32, wy as f32 / CPM as f32);
     let t = (((dx * dx + dy * dy).sqrt() - SETTLED.0) / (SETTLED.1 - SETTLED.0)).clamp(0., 1.); 1. - t * t * (3. - 2. * t)
 }
@@ -68,17 +68,17 @@ pub fn soften(m: Mat) -> Mat {
 pub const GROTTO_SHELL: usize = 3 * CPM / 2;
 /// Height (cells) a root-tree reaches from its root row `root_wy`, per 1 m column block: 2-3.5 m.
 /// Regrowth uses the same rule, so a cut tree grows back to the height it had.
-pub fn tree_height(x: usize, root_wy: i64, seed: u32) -> usize { let h = hash3((x / CPM) as u32, root_wy as u32, seed ^ 0x7EE5); 2 * CPM + h as usize % (3 * CPM / 2 + 1) }
+pub fn tree_height(x: i64, root_wy: i64, seed: u32) -> usize { let h = hash3(x.div_euclid(CPM as i64) as u32, root_wy as u32, seed ^ 0x7EE5); 2 * CPM + h as usize % (3 * CPM / 2 + 1) }
 /// One grotto: a domed hollow with a flat floor of moss and mycelium, a seep pool sunk into the floor,
-/// and 1-3 root-trees. `cx` is a window column; `cy` and the floor are absolute rows.
+/// and 1-3 root-trees. `cx` is an absolute column (`World::ox` + window column); `cy` and the floor are absolute rows.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Grotto { pub id: u32, pub cx: usize, pub cy: i64, pub rx: usize, pub ry: usize,
+pub struct Grotto { pub id: u32, pub cx: i64, pub cy: i64, pub rx: usize, pub ry: usize,
     /// floor row offset below the centre (cells)
     pub floor: i64,
     /// pool centre (dx from cx) and half width (cells)
     pub pool: (i64, i64),
-    /// trunk block starts (window columns; the trunk is cells [x + 2, x + 6)) and heights
-    pub trees: [(usize, usize); 3], pub ntrees: usize }
+    /// trunk block starts (absolute columns; the trunk is cells [x + 2, x + 6)) and heights
+    pub trees: [(i64, usize); 3], pub ntrees: usize }
 /// What a cell is in a grotto.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Part { Hollow, Pool, Trunk, Roots, Floor, Wall, Shell }
@@ -86,12 +86,12 @@ impl Grotto {
     pub fn floor_row(&self) -> i64 { self.cy + self.floor }
     fn in_hollow(&self, dx: i64, dy: i64) -> bool { (dx as f32 / self.rx as f32).powi(2) + (dy as f32 / self.ry as f32).powi(2) < 1. && dy < self.floor }
     /// The cell (x, wy)'s part of this grotto, or None outside its shell.
-    pub fn part(&self, x: usize, wy: i64) -> Option<Part> {
-        let (dx, dy) = (x as i64 - self.cx as i64, wy - self.cy);
+    pub fn part(&self, x: i64, wy: i64) -> Option<Part> {
+        let (dx, dy) = (x - self.cx, wy - self.cy);
         let t = GROTTO_SHELL as f32;
         if (dx as f32 / (self.rx as f32 + t)).powi(2) + (dy as f32 / (self.ry as f32 + t)).powi(2) >= 1. { return None; }
-        let (f, tile, xi) = (self.floor, S as i64, x as i64);
-        for &(bx, th) in &self.trees[..self.ntrees] { let t0 = bx as i64 + 2;
+        let (f, tile, xi) = (self.floor, S as i64, x);
+        for &(bx, th) in &self.trees[..self.ntrees] { let t0 = bx + 2;
             if dy < f && dy >= f - th as i64 && xi >= t0 && xi < t0 + 4 { return Some(Part::Trunk); }
             // roots: under the trunk exactly at the top (so regrowth keeps it 4 cells wide), spreading deeper
             let sp = (dy - f) / 2; if dy >= f && dy < f + CPM as i64 && xi >= t0 - sp && xi < t0 + 4 + sp { return Some(Part::Roots); }
@@ -104,12 +104,11 @@ impl Grotto {
         Some(Part::Shell)
     }
     /// Is (x, wy) open air or water of this grotto (stabilisation must not fill it)?
-    pub fn is_void(&self, x: usize, wy: i64) -> bool { matches!(self.part(x, wy), Some(Part::Hollow | Part::Pool)) }
+    pub fn is_void(&self, x: i64, wy: i64) -> bool { matches!(self.part(x, wy), Some(Part::Hollow | Part::Pool)) }
 }
 impl Gen {
     /// The grotto in grotto cell (gx, gy), if it has one.
     pub fn grotto_at(&self, gx: i64, gy: i64) -> Option<Grotto> {
-        let w = self.biome.len(); if gx < 0 || (gx as usize + 1) * GROTTO_W > w { return None; }
         if let Some((ngx, ngy, g)) = self.near_grotto { if (ngx, ngy) == (gx, gy) { return Some(g); } }
         let h = hash3(gx as u32, gy as u32, self.seed ^ 0x6A07);
         let mid = gy * GROTTO_H as i64 + GROTTO_H as i64 / 2;
@@ -121,7 +120,7 @@ impl Gen {
     /// cells beside and around the start, whose shape lands at the right distance with at least two root-trees. Wood stays scarce (a grotto's trees give a handful), but a new
     /// Delver never has to hunt far for the first of it.
     fn find_near_grotto(&self) -> Option<(i64, i64, Grotto)> {
-        let w = self.biome.len(); if w < crate::sites::SITE_MIN_W { return None; }
+        let w = self.w0; if w < crate::sites::SITE_MIN_W { return None; }
         let sgx = ((w / 2) / GROTTO_W) as i64; let c = CPM as f32;
         let at = |g: &Grotto| { let (dx, dy) = ((g.cx as f32 - (w / 2) as f32) / c, g.cy as f32 / c); ((dx * dx + dy * dy).sqrt(), dy.abs()) };
         // nature first: a grotto the seed already put in reach (two trees or more) is the near grotto
@@ -142,7 +141,7 @@ impl Gen {
     /// A grotto's shape in cell (gx, gy) from hash `h`, wanting at least `min_trees` trees; None if it would
     /// break into the starting burrow.
     fn grotto_shape(&self, gx: i64, gy: i64, h: u32, min_trees: usize) -> Option<Grotto> {
-        let w = self.biome.len();
+        let w = self.w0;
         let (gw, gh) = (GROTTO_W as i64, GROTTO_H as i64);
         let c = CPM as i64;
         let r = |k: u32, n: i64| (hash3(h, k, self.seed) as i64).rem_euclid(n.max(1));
@@ -157,25 +156,27 @@ impl Gen {
         if (cx - (w / 2) as i64).abs() < rx + sh + bx && cy + ry + sh > -by.0 && cy - ry - sh < by.1 { return None; }
         let floor = ry / 2;
         let pw = 3 * c / 2; let px = r(5, rx) - rx / 2;
-        let mut trees = [(0usize, 0usize); 3]; let mut n = 0;
+        let mut trees = [(0i64, 0usize); 3]; let mut n = 0;
         let want = (1 + r(6, 3) as usize).max(min_trees);
         for k in 0..3i64 { if n >= want { break; }
             let dx = (k - 1) * rx * 11 / 20 + r(7 + k as u32, c) - c / 2;
             if (dx - px).abs() < pw + c { continue; }
-            let bx = ((cx + dx) / c * c) as usize;
+            let bx = (cx + dx).div_euclid(c) * c;
             trees[n] = (bx, tree_height(bx, cy + floor, self.seed)); n += 1; }
-        Some(Grotto { id: h, cx: cx as usize, cy, rx: rx as usize, ry: ry as usize, floor, pool: (px, pw), trees, ntrees: n })
+        Some(Grotto { id: h, cx, cy, rx: rx as usize, ry: ry as usize, floor, pool: (px, pw), trees, ntrees: n })
     }
     /// The grotto whose cell holds (x, wy), if any.
-    pub fn grotto_of(&self, x: usize, wy: i64) -> Option<Grotto> { self.grotto_at((x / GROTTO_W) as i64, wy.div_euclid(GROTTO_H as i64)) }
-    /// Every grotto touching rows [wy0, wy1).
-    pub fn grottos_in_rows(&self, wy0: i64, wy1: i64) -> Vec<Grotto> {
-        let gh = GROTTO_H as i64; let mut v = vec![];
-        for gy in wy0.div_euclid(gh)..=(wy1 - 1).div_euclid(gh) { for gx in 0..(self.biome.len() / GROTTO_W) as i64 { if let Some(g) = self.grotto_at(gx, gy) { v.push(g); } } }
+    pub fn grotto_of(&self, x: i64, wy: i64) -> Option<Grotto> { self.grotto_at(x.div_euclid(GROTTO_W as i64), wy.div_euclid(GROTTO_H as i64)) }
+    /// Every grotto whose cell touches columns [x0, x1) and rows [wy0, wy1) (absolute).
+    pub fn grottos_in(&self, x0: i64, x1: i64, wy0: i64, wy1: i64) -> Vec<Grotto> {
+        let (gw, gh) = (GROTTO_W as i64, GROTTO_H as i64); let mut v = vec![];
+        for gy in wy0.div_euclid(gh)..=(wy1 - 1).div_euclid(gh) { for gx in x0.div_euclid(gw)..=(x1 - 1).div_euclid(gw) { if let Some(g) = self.grotto_at(gx, gy) { v.push(g); } } }
         v
     }
+    /// Every grotto touching rows [wy0, wy1) across the home columns (the first window's, 0..`w0`).
+    pub fn grottos_in_rows(&self, wy0: i64, wy1: i64) -> Vec<Grotto> { self.grottos_in(0, self.w0 as i64, wy0, wy1) }
     /// Open air or water of a grotto (kept open by stabilisation).
-    pub fn in_grotto_void(&self, x: usize, wy: i64) -> bool { self.grotto_of(x, wy).map_or(false, |g| g.is_void(x, wy)) || self.in_ruin_void(x, wy) || self.in_site_void(x, wy) } // (and a ruin's halls, and a site's carved rooms)
+    pub fn in_grotto_void(&self, x: i64, wy: i64) -> bool { self.grotto_of(x, wy).map_or(false, |g| g.is_void(x, wy)) || self.in_ruin_void(x, wy) || self.in_site_void(x, wy) } // (and a ruin's halls, and a site's carved rooms)
 }
 
 pub struct Noise { seed: u32 }
@@ -202,14 +203,19 @@ pub const BIOME_NAMES: [&str; 4] = ["Loamlands", "Karst caverns", "Granite crags
 
 pub struct GenInfo { pub surface: Vec<usize>, pub biome: Vec<Biome>, pub chests: Vec<(usize, usize)>, pub start: (usize, usize), pub seed: u32 }
 
-pub fn biome_at(n: &Noise, x: usize) -> Biome {
+pub fn biome_at(n: &Noise, x: i64) -> Biome {
     let v = n.fbm(x as f32 / SF, 0.5, 260., 2);
     if v < 0.36 { Biome::Loam } else if v < 0.52 { Biome::Karst } else if v < 0.66 { Biome::Crags } else { Biome::Ashlands }
 }
 
 /// Rows are generated on demand from an absolute row index `wy` (0 = the starting layer, + is
-/// deeper). Pure per-cell function of (x, wy, seed): the same seed always yields the same Deepholt.
-pub struct Gen { pub seed: u32, n0: Noise, n1: Noise, n2: Noise, n3: Noise, pub biome: Vec<Biome>,
+/// deeper) and an absolute column `x` (0..`w0` = the first window; the Deepholt runs on both ways). Pure
+/// per-cell function of (x, wy, seed): the same seed always yields the same Deepholt.
+pub struct Gen { pub seed: u32, n0: Noise, n1: Noise, n2: Noise, n3: Noise,
+    /// the home width: the first window's columns, whose middle is the starting burrow
+    pub w0: usize,
+    /// the biome of each home column (`biome_x` for any column)
+    pub biome: Vec<Biome>,
     /// the grotto placed near the start (its grotto cell and shape), fixed by the seed
     pub near_grotto: Option<(i64, i64, Grotto)>,
     /// the first-hour found place placed in reach of the start (its site cell and site), fixed by the seed
@@ -217,21 +223,24 @@ pub struct Gen { pub seed: u32, n0: Noise, n1: Noise, n2: Noise, n3: Noise, pub 
 impl Gen {
     pub fn new(seed: u32, w: usize) -> Gen {
         let n3 = Noise::new(seed ^ 0x3C3C);
-        let biome = (0..w).map(|x| biome_at(&n3, x)).collect();
-        let mut g = Gen { seed, n0: Noise::new(seed), n1: Noise::new(seed ^ 0x51ED), n2: Noise::new(seed ^ 0xA77A), n3, biome, near_grotto: None, near_site: None };
+        let biome = (0..w as i64).map(|x| biome_at(&n3, x)).collect();
+        let mut g = Gen { seed, n0: Noise::new(seed), n1: Noise::new(seed ^ 0x51ED), n2: Noise::new(seed ^ 0xA77A), n3, w0: w, biome, near_grotto: None, near_site: None };
         g.near_grotto = g.find_near_grotto(); g.near_site = g.find_near_site(); g
     }
+    /// The biome of absolute column `x`.
+    #[inline] pub fn biome_x(&self, x: i64) -> Biome { if x >= 0 && (x as usize) < self.biome.len() { self.biome[x as usize] } else { biome_at(&self.n3, x) } }
     /// Open cave cell? Blobby caverns + thin winding tunnels.
-    pub fn open(&self, x: usize, wy: i64) -> bool {
+    pub fn open(&self, x: i64, wy: i64) -> bool {
         let (fx, fy) = (x as f32 / SF, wy as f32 / SF); // noise runs in legacy 0.25 m tiles: features keep their size in metres
-        let band = match self.biome[x] { Biome::Karst => 0.04, Biome::Loam => 0.0, Biome::Crags => -0.03, Biome::Ashlands => 0.01 };
+        let band = match self.biome_x(x) { Biome::Karst => 0.04, Biome::Loam => 0.0, Biome::Crags => -0.03, Biome::Ashlands => 0.01 };
         let c = self.n3.fbm(fx, fy * 1.6, 46., 3) + band;
         let t = (self.n1.fbm(fx + 5000., fy * 1.3, 110., 2) - 0.5).abs();
         c > 0.66 || t < 0.012
     }
-    pub fn cell(&self, x: usize, wy: i64, w: usize) -> (u8, u8) { self.cell_with(x, wy, w, &|x, wy| self.open(x, wy)) }
-    fn cell_with(&self, x: usize, wy: i64, w: usize, open: &dyn Fn(usize, i64) -> bool) -> (u8, u8) {
-        if x < 2 * S || x >= w - 2 * S { return (Mat::Bedrock as u8, 0); }
+    /// The generated cell at absolute (x, wy). No side walls: the Deepholt runs on sideways as it does down.
+    pub fn cell(&self, x: i64, wy: i64) -> (u8, u8) { self.cell_with(x, wy, &|x, wy| self.open(x, wy)) }
+    fn cell_with(&self, x: i64, wy: i64, open: &dyn Fn(i64, i64) -> bool) -> (u8, u8) {
+        let w = self.w0; let bio = self.biome_x(x);
         let (fx, fy) = (x as f32 / SF, wy as f32 / SF); let d = fy * 0.25; // fx, fy in legacy 0.25 m tiles; d = metres below the starting layer
         // ruins of the Ancients are stamped in whole (see ruins.rs); then grottos are carved: their hollow,
         // pool, trees and floor don't depend on the rock around
@@ -248,13 +257,13 @@ impl Gen {
             Some(Part::Wall) if glow() => return (Mat::Mycelium as u8, 0),
             _ => {}
         }
-        let dd = d + (self.n1.fbm(fx, fy, 60., 3) - 0.5) * 10. + match self.biome[x] { Biome::Loam => -4., Biome::Karst => 2., Biome::Crags => 8., Biome::Ashlands => 4. };
+        let dd = d + (self.n1.fbm(fx, fy, 60., 3) - 0.5) * 10. + match bio { Biome::Loam => -4., Biome::Karst => 2., Biome::Crags => 8., Biome::Ashlands => 4. };
         if part.is_none() && open(x, wy) {
             // fluid pockets: wetter up, hotter down
             let pk = self.n2.fbm(fx + 7000., fy * 1.4, 28., 2);
             if pk > 0.63 {
                 let lava_p = ((dd - 10.) / 60.).clamp(0., 0.92); let water_p = ((40. - dd) / 60.).clamp(0.08, 1.);
-                let r = (hash3((x / (24 * S)) as u32, (wy.div_euclid(24 * S as i64)) as u32, self.seed ^ 0xF1) & 1023) as f32 / 1024.;
+                let r = (hash3(x.div_euclid(24 * S as i64) as u32, (wy.div_euclid(24 * S as i64)) as u32, self.seed ^ 0xF1) & 1023) as f32 / 1024.;
                 if r < lava_p { return (Mat::Lava as u8, 0); }
                 if r < lava_p + water_p * (1. - lava_p) { return (Mat::Water as u8, 0); }
             }
@@ -263,9 +272,9 @@ impl Gen {
         let (n1, n2) = (&self.n1, &self.n2); let mut fl = 0u8;
         let mut m = if dd < -30. { if n2.fbm(fx, fy * 2., 40., 2) > 0.55 { Mat::Clay } else { Mat::Dirt } }
             else if dd < 0. { if n2.fbm(fx, fy * 2., 40., 2) > 0.5 { Mat::Clay } else if n2.fbm(fx + 90., fy, 70., 2) > 0.62 { Mat::Limestone } else { Mat::Dirt } }
-            else if dd < 30. { if self.biome[x] == Biome::Crags && dd >= 15. { Mat::Granite } else if n2.fbm(fx + 300., fy, 70., 3) > 0.55 { Mat::Rock } else { Mat::Limestone } }
+            else if dd < 30. { if bio == Biome::Crags && dd >= 15. { Mat::Granite } else if n2.fbm(fx + 300., fy, 70., 3) > 0.55 { Mat::Rock } else { Mat::Limestone } }
             else if dd < 70. { if n2.fbm(fx + 300., fy, 70., 3) > 0.5 { Mat::Granite } else { Mat::Rock } }
-            else if self.biome[x] == Biome::Ashlands || n2.at(fx / 50., fy / 50.) > 0.3 { Mat::Basalt } else { Mat::Granite }; // the deep is mostly basalt
+            else if bio == Biome::Ashlands || n2.at(fx / 50., fy / 50.) > 0.3 { Mat::Basalt } else { Mat::Granite }; // the deep is mostly basalt
         if dd < 35. { let l = n2.fbm(fx, fy * 3., 50., 3); let calm = settled_at(w, x, wy);
             let at = LENS.0 + if dd < 10. { LENS.1 } else { 0. } + LENS.2 * calm;
             if l > at { m = if n1.at(fx / 30., fy / 30.) > 0.5 { Mat::Gravel } else { Mat::Sand }; if l > at + LENS.3 && calm < 0.5 { fl |= F_WET; } } }
@@ -285,7 +294,7 @@ impl Gen {
         }
         // decoration on cave walls
         let (k, ki) = (S, S as i64); // a decoration skin one legacy tile thick
-        let edge = open(x, wy - ki) || open(x, wy + ki) || open(x - k, wy) || open(x + k, wy);
+        let edge = open(x, wy - ki) || open(x, wy + ki) || open(x - k as i64, wy) || open(x + k as i64, wy);
         if edge && m != Mat::Sand {
             let r = self.n0.at(fx / 9., fy / 9.);
             if dd > 45. && r > 0.80 { m = Mat::Crystal; } else if dd > 35. && r < 0.10 { m = Mat::Quartz; }
@@ -294,33 +303,34 @@ impl Gen {
         }
         (m as u8, fl)
     }
-    /// Fill window rows [y0, y1) with generated content; `oy` = absolute row of window row 0.
-    pub fn fill_rows(&self, g: &mut Grid, oy: i64, y0: usize, y1: usize) { self.fill_cells(g, oy, y0, y1); self.fill_post(g, oy, y0, y1); }
+    /// Fill window rows [y0, y1) with generated content; (`ox`, `oy`) = absolute column and row of window cell (0, 0).
+    pub fn fill_rows(&self, g: &mut Grid, ox: i64, oy: i64, y0: usize, y1: usize) { self.fill_cells(g, ox, oy, y0, y1); self.fill_post(g, ox, oy, y0, y1); }
     /// The raw cells of rows [y0, y1), each from the seed alone: filling a range in pieces gives the same
     /// cells as filling it at once (`GenBuild` does that across frames). `fill_post` then finishes the range.
-    pub fn fill_cells(&self, g: &mut Grid, oy: i64, y0: usize, y1: usize) {
+    pub fn fill_cells(&self, g: &mut Grid, ox: i64, oy: i64, y0: usize, y1: usize) {
         let w = g.w;
         let rows = y1 - y0 + 2 * S; let mut op = vec![false; rows * w];
-        for r in 0..rows { for x in 2 * S..w - 2 * S { op[r * w + x] = self.open(x, oy + y0 as i64 - S as i64 + r as i64); } }
+        for r in 0..rows { for x in 0..w { op[r * w + x] = self.open(ox + x as i64, oy + y0 as i64 - S as i64 + r as i64); } }
         let base = oy + y0 as i64 - S as i64;
-        let open = |x: usize, wy: i64| { let r = wy - base; if r >= 0 && (r as usize) < rows { op[r as usize * w + x] } else { self.open(x, wy) } };
-        for y in y0..y1 { for x in 0..w { let (m, f) = self.cell_with(x, oy + y as i64, w, &open); let i = y * w + x; g.mat[i] = m; g.flags[i] = f; } }
+        let open = |xa: i64, wy: i64| { let (r, x) = (wy - base, xa - ox); if r >= 0 && (r as usize) < rows && x >= 0 && (x as usize) < w { op[r as usize * w + x as usize] } else { self.open(xa, wy) } };
+        for y in y0..y1 { for x in 0..w { let (m, f) = self.cell_with(ox + x as i64, oy + y as i64, &open); let i = y * w + x; g.mat[i] = m; g.flags[i] = f; } }
     }
     /// The passes over a whole filled range: lava bakes its surroundings, the start zone softens, loose sand sets.
-    pub fn fill_post(&self, g: &mut Grid, oy: i64, y0: usize, y1: usize) {
-        let w = g.w;
+    pub fn fill_post(&self, g: &mut Grid, ox: i64, oy: i64, y0: usize, y1: usize) {
+        let (w, w0) = (g.w, self.w0);
         // lava pockets have long since baked their surroundings: nothing burnable within reach of lava
         let r = 4 * S;
-        for y in y0..y1 { for x in 2 * S..w - 2 * S { if g.mat[y * w + x] != Mat::Lava as u8 { continue; }
-            for yy in y.saturating_sub(r).max(y0)..(y + r + 1).min(y1) { for xx in x.saturating_sub(r)..(x + r + 1).min(w - 2 * S) {
+        for y in y0..y1 { for x in 0..w { if g.mat[y * w + x] != Mat::Lava as u8 { continue; }
+            for yy in y.saturating_sub(r).max(y0)..(y + r + 1).min(y1) { for xx in x.saturating_sub(r)..(x + r + 1).min(w) {
                 let j = yy * w + xx; if Mat::from_u8(g.mat[j]).p().ignite > 0 { g.mat[j] = Mat::Basalt as u8; }
             } }
         } }
         // the start zone is all pickaxe ground (see `in_start_zone`), whatever the bands or the lava put there;
         // and it's cool: a fluid pocket in it is water, not lava (which would crust into basalt)
         for y in y0..y1 { for x in 0..w { let i = y * w + x; let wy = oy + y as i64;
-            if g.mat[i] == Mat::Lava as u8 && near_start(w, x, wy, START_SAFE + 10.) { g.mat[i] = Mat::Water as u8; } // (10 m spare: no lava can run in while the world settles)
-            else if in_start_zone(w, x, wy) { g.mat[i] = soften(Mat::from_u8(g.mat[i])) as u8; } } }
+            let xa = ox + x as i64;
+            if g.mat[i] == Mat::Lava as u8 && near_start(w0, xa, wy, START_SAFE + 10.) { g.mat[i] = Mat::Water as u8; } // (10 m spare: no lava can run in while the world settles)
+            else if in_start_zone(w0, xa, wy) { g.mat[i] = soften(Mat::from_u8(g.mat[i])) as u8; } } }
         // unsupported sand at gen time turns to sandstone; in the settled ground round the burrow so does sand
         // within a metre of open cave (a natural cave wall there doesn't pour into the first tunnels)
         let r = CPM as i64;
@@ -328,19 +338,21 @@ impl Gen {
             let i = y * w + x; if g.mat[i] != Mat::Sand as u8 { continue; }
             let ok = |j: usize| { let m = Mat::from_u8(g.mat[j]); m.kind() == crate::mat::Kind::Solid || m == Mat::Sand };
             if !(ok(i + w) && ok(i + w - 1) && ok(i + w + 1)) { g.mat[i] = Mat::Rock as u8; continue; }
-            if settled_at(w, x, oy + y as i64) > 0.5 {
+            if settled_at(w0, ox + x as i64, oy + y as i64) > 0.5 {
                 let near_open = (-r..=r).step_by(S).any(|dy| (-r..=r).step_by(S).any(|dx| { let (xx, yy) = (x as i64 + dx, y as i64 + dy);
                     xx >= 0 && yy >= y0 as i64 && (xx as usize) < w && (yy as usize) < y1 && Mat::from_u8(g.mat[yy as usize * w + xx as usize]).passable() }));
                 if near_open { g.mat[i] = Mat::Rock as u8; }
             }
         } }
     }
-    /// Chest sites in a CHEST_BAND-row (32 m) band (deterministic): (x, absolute row).
-    pub fn chests_in_band(&self, band: i64, w: usize) -> Vec<(usize, i64)> {
-        let mut v = vec![]; let bh = CHEST_BAND as i64;
+    /// Chest sites in a CHEST_BAND-row (32 m) band, across the `w0`-wide column span `bx` (span 0 = the home
+    /// columns; deterministic): (absolute column, absolute row).
+    pub fn chests_in_band(&self, bx: i64, band: i64) -> Vec<(i64, i64)> {
+        let mut v = vec![]; let bh = CHEST_BAND as i64; let w = self.w0; if w <= 16 * S { return v; }
         for k in 0..6u32 {
-            let x = 8 * S + hash3(k, band as u32, self.seed ^ 0xC4) as usize % (w - 16 * S);
-            for dy in 0..bh { let wy = band * bh + dy; if self.open(x, wy) && !self.open(x, wy + 1) && self.cell(x, wy, w).0 == 0 { v.push((x, wy)); break; } }
+            let hk = if bx == 0 { hash3(k, band as u32, self.seed ^ 0xC4) } else { hash3(k ^ (bx as u32).wrapping_mul(0x9E37_79B9), band as u32, self.seed ^ 0xC4) };
+            let x = bx * w as i64 + (8 * S + hk as usize % (w - 16 * S)) as i64;
+            for dy in 0..bh { let wy = band * bh + dy; if self.open(x, wy) && !self.open(x, wy + 1) && self.cell(x, wy).0 == 0 { v.push((x, wy)); break; } }
         }
         v
     }
@@ -387,12 +399,12 @@ impl GenBuild {
     pub fn step(&mut self, g: &mut Grid) -> bool {
         let (w, h) = (g.w, g.h); let oy = self.oy; let (sx, cx0, cx1, cy0, cy1) = self.geo;
         let gen = &self.gen;
-        let keep = |x: usize, y: usize| (x >= cx0 && x <= cx1 && y >= cy0 && y <= cy1) || gen.in_grotto_void(x, oy + y as i64);
-        let soft = |x: usize, y: usize| in_start_zone(w, x, oy + y as i64);
+        let keep = |x: usize, y: usize| (x >= cx0 && x <= cx1 && y >= cy0 && y <= cy1) || gen.in_grotto_void(x as i64, oy + y as i64);
+        let soft = |x: usize, y: usize| in_start_zone(w, x as i64, oy + y as i64);
         match self.stage {
             GenStage::Fill => {
-                let y1 = (self.row + FILL_ROWS).min(h); gen.fill_cells(g, oy, self.row, y1); self.row = y1;
-                if y1 == h { gen.fill_post(g, oy, 0, h); self.stage = GenStage::Carve; }
+                let y1 = (self.row + FILL_ROWS).min(h); gen.fill_cells(g, 0, oy, self.row, y1); self.row = y1;
+                if y1 == h { gen.fill_post(g, 0, oy, 0, h); self.stage = GenStage::Carve; }
             }
             GenStage::Carve => {
                 for y in cy0 - 6 * S..cy1 + 6 * S { for x in cx0 - 8 * S..=cx1 + 8 * S { let i = y * w + x; if g.mat[i] == Mat::Water as u8 || g.mat[i] == Mat::Lava as u8 { g.mat[i] = Mat::Clay as u8; } } }

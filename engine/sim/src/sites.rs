@@ -93,12 +93,13 @@ pub const MINE_FACE: i64 = 5;
 /// One site: its box, a variant nibble for layout, and the chest / Ancient-tube link if any.
 #[derive(Clone, Copy, Debug)]
 pub struct Site {
-    pub id: u32, pub kind: Kind, pub x0: usize, pub y0: i64, pub w: usize, pub h: usize,
+    pub id: u32, pub kind: Kind, pub x0: i64, pub y0: i64, pub w: usize, pub h: usize,
     /// layout knobs packed from the seed (ore type, which bay collapsed, which way a halt faces, …)
     pub var: u32,
     /// a halt's wrecked tube runs off to the left
     pub left: bool,
-    pub chest: Option<(usize, i64)>,
+    /// the chest (absolute column and row)
+    pub chest: Option<(i64, i64)>,
     /// an Ancient tube station this halt points at (the ruin's id)
     pub link: Option<u32>,
 }
@@ -151,16 +152,15 @@ impl Gen {
         thread_local! { static LAST: std::cell::RefCell<Option<(u32, usize, i64, i64, Option<Site>)>> = std::cell::RefCell::new(None); }
         LAST.with(|slot| {
             if let Some((seed, w, x, y, s)) = *slot.borrow() {
-                if seed == self.seed && w == self.biome.len() && x == gx && y == gy { return s; }
+                if seed == self.seed && w == self.w0 && x == gx && y == gy { return s; }
             }
             let s = self.site_at_fresh(gx, gy);
-            *slot.borrow_mut() = Some((self.seed, self.biome.len(), gx, gy, s));
+            *slot.borrow_mut() = Some((self.seed, self.w0, gx, gy, s));
             s
         })
     }
     fn site_at_fresh(&self, gx: i64, gy: i64) -> Option<Site> {
-        let w = self.biome.len(); if w < SITE_MIN_W { return None; }
-        if gx < 0 || (gx as usize + 1) * SITE_W > w { return None; }
+        let w = self.w0; if w < SITE_MIN_W { return None; }
         let h = hash3(gx as u32, gy as u32, self.seed ^ 0x51FE);
         let sh = SITE_H as i64; let mid = gy * sh + sh / 2;
         let d = mid as f32 * CELL_M;
@@ -174,8 +174,8 @@ impl Gen {
     /// How far (m) a Delver at the burrow has to go to reach this site: from the burrow (the window's middle
     /// column, depth 0) to the nearest cell of its box.
     pub fn site_trek(&self, s: &Site) -> f32 {
-        let (bx, c) = ((self.biome.len() / 2) as i64, CPM as f32);
-        let dx = (s.x0 as i64 - bx).max(bx - (s.x0 + s.w) as i64).max(0) as f32 / c;
+        let (bx, c) = ((self.w0 / 2) as i64, CPM as f32);
+        let dx = (s.x0 - bx).max(bx - (s.x0 + s.w as i64)).max(0) as f32 / c;
         let dy = s.y0.max(-(s.y0 + s.h as i64)).max(0) as f32 / c;
         (dx * dx + dy * dy).sqrt()
     }
@@ -184,7 +184,7 @@ impl Gen {
     /// there it is left alone (None); otherwise an abandoned mine (else an abandoned holt) goes into an empty
     /// site cell by the same placement rules as any site: clear of the start, of grottos and of ruins.
     pub(crate) fn find_near_site(&self) -> Option<(i64, i64, Site)> {
-        let w = self.biome.len(); if w < SITE_MIN_W { return None; }
+        let w = self.w0; if w < SITE_MIN_W { return None; }
         let ncx = (w / SITE_W) as i64; let c = CPM as i64;
         let fits = |s: &Site| { let t = self.site_trek(s); s.chest.is_some() && t >= NEAR_FIND.0 && t <= NEAR_FIND.1
             && s.y0 >= -NEAR_FIND.2 as i64 * c && s.y0 + s.h as i64 <= NEAR_FIND.2 as i64 * c };
@@ -204,7 +204,7 @@ impl Gen {
     /// Place a site of `kind` in site cell (gx, gy) from hash `h`: None where it would come near the start
     /// burrow or overlap a grotto or a ruin.
     fn site_build(&self, gx: i64, gy: i64, h: u32, kind: Kind) -> Option<Site> {
-        let w = self.biome.len();
+        let w = self.w0;
         let (sw, sh) = (SITE_W as i64, SITE_H as i64);
         let c = CPM as i64; let r = |k: u32, n: i64| (hash3(h, k, self.seed) as i64).rem_euclid(n.max(1));
         let (bw, bh) = (kind.size().0 as i64, kind.size().1 as i64);
@@ -216,18 +216,18 @@ impl Gen {
         if x0 < mid + safe && x0 + bw > mid - safe && y0 < safe && y0 + bh > -safe { return None; }
         let (gw, gh) = (GROTTO_W as i64, GROTTO_H as i64);
         for gy2 in (y0 - 6 * c).div_euclid(gh)..=(y0 + bh + 6 * c).div_euclid(gh) {
-            for gx2 in ((x0 - 6 * c).max(0)).div_euclid(gw)..=(x0 + bw + 6 * c).div_euclid(gw) {
+            for gx2 in (x0 - 6 * c).div_euclid(gw)..=(x0 + bw + 6 * c).div_euclid(gw) {
                 if let Some(g) = self.grotto_at(gx2, gy2) {
-                    let (gx0, gx1, gy0, gy1) = (g.cx as i64 - g.rx as i64 - 3 * c, g.cx as i64 + g.rx as i64 + 3 * c, g.cy - g.ry as i64 - 3 * c, g.cy + g.ry as i64 + 3 * c);
+                    let (gx0, gx1, gy0, gy1) = (g.cx - g.rx as i64 - 3 * c, g.cx + g.rx as i64 + 3 * c, g.cy - g.ry as i64 - 3 * c, g.cy + g.ry as i64 + 3 * c);
                     if gx1 >= x0 && gx0 <= x0 + bw && gy1 >= y0 && gy0 <= y0 + bh { return None; }
                 }
             }
         }
         let (rw, rh) = (RUIN_W as i64, RUIN_H as i64);
         for rgy in (y0 - 6 * c).div_euclid(rh)..=(y0 + bh + 6 * c).div_euclid(rh) {
-            for rgx in ((x0 - 6 * c).max(0)).div_euclid(rw)..=(x0 + bw + 6 * c).div_euclid(rw) {
+            for rgx in (x0 - 6 * c).div_euclid(rw)..=(x0 + bw + 6 * c).div_euclid(rw) {
                 if let Some(ru) = self.ruin_at(rgx, rgy) {
-                    let (rx0, rx1, ry0, ry1) = (ru.x0 as i64, ru.x0 as i64 + ru.w as i64, ru.y0, ru.y0 + ru.h as i64);
+                    let (rx0, rx1, ry0, ry1) = (ru.x0, ru.x0 + ru.w as i64, ru.y0, ru.y0 + ru.h as i64);
                     if rx1 > x0 && rx0 < x0 + bw && ry1 > y0 && ry0 < y0 + bh { return None; }
                 }
             }
@@ -235,56 +235,59 @@ impl Gen {
         let mut link = None; let mut left = r(4, 2) == 0;
         if kind == Kind::Halt {
             for rgy in (y0 - 50 * c).div_euclid(rh)..=(y0 + bh + 50 * c).div_euclid(rh) {
-                for rgx in ((x0 - 50 * c).max(0)).div_euclid(rw)..=(x0 + bw + 50 * c).div_euclid(rw) {
+                for rgx in (x0 - 50 * c).div_euclid(rw)..=(x0 + bw + 50 * c).div_euclid(rw) {
                     if let Some(ru) = self.ruin_at(rgx, rgy) {
                         if ru.kind != RuinKind::TubeStation { continue; }
-                        let (rx0, rx1, ry0, ry1) = (ru.x0 as i64, ru.x0 as i64 + ru.w as i64, ru.y0, ru.y0 + ru.h as i64);
+                        let (rx0, rx1, ry0, ry1) = (ru.x0, ru.x0 + ru.w as i64, ru.y0, ru.y0 + ru.h as i64);
                         let (cx, cy) = ((x0 + bw / 2 - (rx0 + rx1) / 2).abs(), (y0 + bh / 2 - (ry0 + ry1) / 2).abs());
                         if cx < 50 * c && cy < 40 * c { link = Some(ru.id); left = (rx0 + rx1) / 2 < x0 + bw / 2; }
                     }
                 }
             }
         }
-        Some(Site::new(h, kind, x0 as usize, y0, r(5, 1 << 20) as u32, left, link))
+        Some(Site::new(h, kind, x0, y0, r(5, 1 << 20) as u32, left, link))
     }
-    pub fn site_of(&self, x: usize, wy: i64) -> Option<Site> { self.site_at((x / SITE_W) as i64, wy.div_euclid(SITE_H as i64)) }
-    pub fn sites_in_rows(&self, wy0: i64, wy1: i64) -> Vec<Site> {
-        let sh = SITE_H as i64; let mut v = vec![];
-        if self.biome.len() < SITE_MIN_W { return v; }
+    pub fn site_of(&self, x: i64, wy: i64) -> Option<Site> { self.site_at(x.div_euclid(SITE_W as i64), wy.div_euclid(SITE_H as i64)) }
+    /// Every site touching columns [x0, x1) and rows [wy0, wy1) (absolute).
+    pub fn sites_in(&self, x0: i64, x1: i64, wy0: i64, wy1: i64) -> Vec<Site> {
+        let (sw, sh) = (SITE_W as i64, SITE_H as i64); let mut v = vec![];
+        if self.w0 < SITE_MIN_W { return v; }
         for gy in wy0.div_euclid(sh)..=(wy1 - 1).div_euclid(sh) {
-            for gx in 0..(self.biome.len() / SITE_W) as i64 {
-                if let Some(s) = self.site_at(gx, gy) { if s.y0 < wy1 && s.y0 + s.h as i64 > wy0 { v.push(s); } }
+            for gx in x0.div_euclid(sw)..=(x1 - 1).div_euclid(sw) {
+                if let Some(s) = self.site_at(gx, gy) { if s.y0 < wy1 && s.y0 + s.h as i64 > wy0 && s.x0 < x1 && s.x0 + s.w as i64 > x0 { v.push(s); } }
             }
         }
         v
     }
+    /// Every site touching rows [wy0, wy1) across the home columns (0..`w0`).
+    pub fn sites_in_rows(&self, wy0: i64, wy1: i64) -> Vec<Site> { self.sites_in(0, self.w0 as i64, wy0, wy1) }
     /// What a site puts at (x, wy): Some((material, flags)) inside its carved cells, None to leave the host.
-    pub fn site_cell(&self, x: usize, wy: i64) -> Option<(u8, u8)> {
+    pub fn site_cell(&self, x: i64, wy: i64) -> Option<(u8, u8)> {
         self.site_of(x, wy).and_then(|s| s.cell(x, wy)).map(|m| (m as u8, 0))
     }
-    pub fn site_wall(&self, x: usize, wy: i64) -> Option<Wall> { self.site_of(x, wy).and_then(|s| s.wall(x, wy)) }
+    pub fn site_wall(&self, x: i64, wy: i64) -> Option<Wall> { self.site_of(x, wy).and_then(|s| s.wall(x, wy)) }
     /// Open air or water a site carved (stabilisation must not fill it).
-    pub fn in_site_void(&self, x: usize, wy: i64) -> bool {
+    pub fn in_site_void(&self, x: i64, wy: i64) -> bool {
         self.site_of(x, wy).and_then(|s| s.cell(x, wy)).is_some_and(|m| matches!(m, Mat::Empty | Mat::Water | Mat::Rail | Mat::Tube))
     }
 }
 
 impl Site {
-    pub fn new(id: u32, kind: Kind, x0: usize, y0: i64, var: u32, left: bool, link: Option<u32>) -> Site {
+    pub fn new(id: u32, kind: Kind, x0: i64, y0: i64, var: u32, left: bool, link: Option<u32>) -> Site {
         let (w, h) = kind.size();
         let mut s = Site { id, kind, x0, y0, w, h, var, left, chest: None, link };
-        s.chest = crate::templates::get(kind).placed_chest(s.placement()).map(|(cx, cy)| (x0 + cx, y0 + cy as i64));
+        s.chest = crate::templates::get(kind).placed_chest(s.placement()).map(|(cx, cy)| (x0 + cx as i64, y0 + cy as i64));
         s
     }
     /// The procedural reference chest (see `cell_reference`), as an offset from the box's top-left.
     #[doc(hidden)]
     pub fn chest_reference(kind: Kind, left: bool) -> Option<(usize, usize)> {
         let (w, h) = kind.size(); let (x0, y0) = (0usize, 0i64);
-        let mut s = Site { id: 0, kind, x0, y0, w, h, var: 0, left, chest: None, link: None };
+        let mut s: (Option<(usize, i64)>,) = (None,);
         let c = CPM as i64;
         // chests stand in open air just above the floor so check_chests can open them
         let cy = y0 + h as i64 - 2 * c + c / 2 - 1;
-        s.chest = match kind {
+        s.0 = match kind {
             Kind::Mine => Some((x0 + w - 8 * CPM, cy)),
             Kind::Holt => Some((x0 + 10 * CPM, cy)), // hall floor between the table and the hearth
             Kind::Pumpworks => Some((x0 + 32 * CPM, cy)), // dry hall, west of the wheel
@@ -293,7 +296,7 @@ impl Site {
             Kind::Halt => Some((x0 + if left { w - 5 * CPM } else { 5 * CPM }, cy)), // warehouse aisle
             Kind::Fissure => None,
         };
-        s.chest.map(|(x, y)| (x, y as usize))
+        s.0.map(|(x, y)| (x, y as usize))
     }
     /// The ore an abandoned mine followed: copper three times in four (it's the shallow ore), else coal.
     pub fn mine_ore(&self) -> Mat { Knobs::of(self.var).ore }
@@ -301,19 +304,19 @@ impl Site {
     pub fn placement(&self) -> crate::templates::Placement {
         crate::templates::Placement { var: self.var, left: self.left, depth: self.centre().1 as f32 * CELL_M }
     }
-    pub fn centre(&self) -> (usize, i64) { (self.x0 + self.w / 2, self.y0 + self.h as i64 / 2) }
+    pub fn centre(&self) -> (i64, i64) { (self.x0 + (self.w / 2) as i64, self.y0 + self.h as i64 / 2) }
     /// Material this site stamps at (x, wy), or None to leave the host rock: read from its template
     /// (`templates.rs`, the data under `assets/sites/`).
-    pub fn cell(&self, x: usize, wy: i64) -> Option<Mat> {
-        let (dx, dy) = (x as i64 - self.x0 as i64, wy - self.y0);
+    pub fn cell(&self, x: i64, wy: i64) -> Option<Mat> {
+        let (dx, dy) = (x - self.x0, wy - self.y0);
         if dx < 0 || dy < 0 || dx >= self.w as i64 || dy >= self.h as i64 { return None; }
         crate::templates::get(self.kind).placed_cell(dx as usize, dy as usize, self.placement())
     }
     /// The procedural reference layout the templates were exported from (`examples/export_sites.rs`),
     /// with explicit layout knobs. The golden test `templates_match_the_procedural_sites` keeps the two equal.
     #[doc(hidden)]
-    pub fn cell_reference(&self, x: usize, wy: i64, k: &Knobs) -> Option<Mat> {
-        let (dx, dy) = (x as i64 - self.x0 as i64, wy - self.y0);
+    pub fn cell_reference(&self, x: i64, wy: i64, k: &Knobs) -> Option<Mat> {
+        let (dx, dy) = (x - self.x0, wy - self.y0);
         if dx < 0 || dy < 0 || dx >= self.w as i64 || dy >= self.h as i64 { return None; }
         let c = CPM as i64; let (w, h) = (self.w as i64, self.h as i64);
         match self.kind {
@@ -846,16 +849,16 @@ impl Site {
     }
 
     /// Lining this site wants at (x, wy). None = leave whatever `line_back` would put.
-    pub fn wall(&self, x: usize, wy: i64) -> Option<Wall> {
-        let (dx, dy) = (x as i64 - self.x0 as i64, wy - self.y0);
+    pub fn wall(&self, x: i64, wy: i64) -> Option<Wall> {
+        let (dx, dy) = (x - self.x0, wy - self.y0);
         if dx < 0 || dy < 0 || dx >= self.w as i64 || dy >= self.h as i64 { return None; }
         if self.cell(x, wy).is_none() { return None; }
         crate::templates::get(self.kind).placed_lining(dx as usize, dy as usize, self.placement(), hash3(x as u32, wy as u32, self.id))
     }
     /// The procedural reference lining (see `cell_reference`): wall at (x, wy) in the variant `k`.
     #[doc(hidden)]
-    pub fn wall_reference(&self, x: usize, wy: i64, k: &Knobs) -> Option<Wall> {
-        let (dx, dy) = (x as i64 - self.x0 as i64, wy - self.y0);
+    pub fn wall_reference(&self, x: i64, wy: i64, k: &Knobs) -> Option<Wall> {
+        let (dx, dy) = (x - self.x0, wy - self.y0);
         if dx < 0 || dy < 0 || dx >= self.w as i64 || dy >= self.h as i64 { return None; }
         if self.cell_reference(x, wy, k).is_none() { return None; }
         Some(self.lining_reference(dx, dy, hash3(x as u32, wy as u32, self.id)))
@@ -998,7 +1001,7 @@ pub fn site_loot(kind: Kind, h: u32) -> Vec<(Item, u32)> {
 impl World {
     /// Refresh the sites touching the window (with the chests).
     pub fn refresh_sites(&mut self) {
-        self.sites = self.gen.sites_in_rows(self.oy, self.oy + self.g.h as i64);
+        self.sites = self.gen.sites_in(self.ox, self.ox + self.g.w as i64, self.oy, self.oy + self.g.h as i64);
         self.stamp_site_things();
     }
     /// Devices, furniture, farms, carts and ladders a site owns. Idempotent: a thing already there is left.
@@ -1015,15 +1018,15 @@ impl World {
     pub fn stamp_site_var(&mut self, kind: Kind, x0: usize, y0: usize, var: u32, left: bool) {
         let (w, h) = kind.size();
         if x0 + w >= self.g.w || y0 + h >= self.g.h { return; }
-        let s = Site::new(0x51FE ^ (x0 as u32).wrapping_mul(131) ^ (y0 as u32), kind, x0, self.oy + y0 as i64, var, left, None);
+        let s = Site::new(0x51FE ^ (x0 as u32).wrapping_mul(131) ^ (y0 as u32), kind, self.ox + x0 as i64, self.oy + y0 as i64, var, left, None);
         for y in 0..s.h { for x in 0..s.w {
-            if let Some(m) = s.cell(s.x0 + x, s.y0 + y as i64) {
-                let i = (y0 + y) * self.g.w + s.x0 + x; self.g.set(i, m); self.g.flags[i] = 0;
+            if let Some(m) = s.cell(s.x0 + x as i64, s.y0 + y as i64) {
+                let i = (y0 + y) * self.g.w + x0 + x; self.g.set(i, m); self.g.flags[i] = 0;
             }
-            if let Some(wl) = s.wall(s.x0 + x, s.y0 + y as i64) { self.walls.set_at(s.x0 + x, y0 + y, wl); }
+            if let Some(wl) = s.wall(s.x0 + x as i64, s.y0 + y as i64) { self.walls.set_at(x0 + x, y0 + y, wl); }
         } }
-        if let Some((cx, cwy)) = s.chest {
-            let cy = (cwy - self.oy) as usize;
+        if let Some((cwx, cwy)) = s.chest {
+            let (cx, cy) = ((cwx - self.ox) as usize, (cwy - self.oy) as usize);
             if cy < self.g.h && !self.chests.iter().any(|c| c.x == cx && c.y == cy) {
                 self.chests.push(crate::world::Chest { x: cx, y: cy, opened: false, ancient: None });
             }
@@ -1032,9 +1035,11 @@ impl World {
         self.sites.push(s);
     }
     fn stamp_one(&mut self, s: &Site) {
-        let y0 = (s.y0 - self.oy) as i64;
+        let (x0, y0) = (s.x0 - self.ox, s.y0 - self.oy);
         if y0 < 4 || y0 + s.h as i64 >= self.g.h as i64 - 4 { return; }
-        let (x0, y0) = (s.x0, y0 as usize);
+        // a site cut by the window's side: its things are set down once it is all in (a slide that far brings it)
+        if x0 < 4 || x0 + s.w as i64 >= self.g.w as i64 - 4 { return; }
+        let (x0, y0) = (x0 as usize, y0 as usize);
         for t in crate::templates::get(s.kind).placed_things(s.placement()) { self.set_thing(t.offset(x0, y0)); }
     }
     /// Set one site thing down at its window cell. Each is skipped if it doesn't fit or is already there.
@@ -1107,9 +1112,9 @@ impl World {
     /// First visit within 8 m: a line in the log. No cards.
     pub(crate) fn step_sites(&mut self) {
         let Some(m) = self.moles.first().filter(|m| m.alive) else { return };
-        let (mx, my) = (m.x as i64, self.oy + m.y as i64); let reach = 8 * CPM as i64;
+        let (mx, my) = (self.ox + m.x as i64, self.oy + m.y as i64); let reach = 8 * CPM as i64;
         let near: Vec<(u32, Kind, bool)> = self.sites.iter().filter(|s| !self.sites_seen.contains(&s.id)
-            && mx >= s.x0 as i64 - reach && mx < (s.x0 + s.w) as i64 + reach && my >= s.y0 - reach && my < s.y0 + s.h as i64 + reach)
+            && mx >= s.x0 - reach && mx < s.x0 + s.w as i64 + reach && my >= s.y0 - reach && my < s.y0 + s.h as i64 + reach)
             .map(|s| (s.id, s.kind, s.link.is_some())).collect();
         for (id, kind, link) in near {
             self.sites_seen.insert(id); self.events.push(crate::world::Event::Discover);
@@ -1118,8 +1123,8 @@ impl World {
     }
     /// The site whose chest sits at window (x, y), if any.
     pub fn site_at_chest(&self, x: usize, y: usize) -> Option<Kind> {
-        let wy = self.oy + y as i64;
-        self.sites.iter().find(|s| s.chest == Some((x, wy))).map(|s| s.kind)
+        let (wx, wy) = (self.ox + x as i64, self.oy + y as i64);
+        self.sites.iter().find(|s| s.chest == Some((wx, wy))).map(|s| s.kind)
     }
 }
 
