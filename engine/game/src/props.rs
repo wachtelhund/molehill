@@ -273,7 +273,8 @@ mod tests {
             assert!(got.len() + 1 >= plan(kind).len(), "{kind:?}: only {} of {} placed ({names:?})", got.len(), plan(kind).len());
             for p in &got {
                 seen.insert(p.prop);
-                assert!(p.x >= s.x0 && p.x + p.w <= s.x0 + s.w, "{:?} leaves the {kind:?}", p.prop);
+                let sx = s.x0 - w.ox; // (sites are placed in world columns, props in window cells)
+                assert!(p.x as i64 >= sx && (p.x + p.w) as i64 <= sx + s.w as i64, "{:?} leaves the {kind:?}", p.prop);
                 for y in p.y..p.y + p.h { for x in p.x..p.x + p.w { assert!(!w.g.is_solidish(y * w.g.w + x), "{:?} in {kind:?} sits in rock at {x},{y}", p.prop); } }
             }
         }
