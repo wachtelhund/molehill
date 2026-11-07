@@ -2024,6 +2024,24 @@ fn riding_from_a_rope_lets_go_of_it() {
 }
 fn mat_cpm() -> f32 { molehill_sim::mat::CPM as f32 }
 
+/// A mass cut free starts its countdown; if rubble piles up under it before the countdown ends (the first part of a
+/// fall landing under the rest), it rests on that and stays, even before a solve comes round to it again.
+#[test] fn cut_free_mass_resting_on_rubble_stays() {
+    let run = |rubble: bool| {
+        let (w, h) = (128 * S, 64 * S); let mut g = boxed(w, h);
+        for y in 0..h - 2 * S { for x in 2 * S..w - 2 * S { let i = g.idx(x, y); g.set(i, Mat::Granite); } }
+        for y in 10 * S..62 * S { for x in 10 * S..118 * S { let i = g.idx(x, y); g.set(i, Mat::Empty); } }
+        // a 10 m by 2 m block floating 1 m over the hall floor
+        for y in 50 * S..58 * S { for x in 40 * S..80 * S { let i = g.idx(x, y); g.set(i, Mat::Granite); } }
+        let mut st = Stress::new(w * h); let f = st.solve(&g); assert!(f.len() >= 40 * 8 * S * S, "the block hangs: {}", f.len()); st.crack(&g, &f);
+        for _ in 0..3 { assert!(st.tick(&g).is_empty()); }
+        if rubble { for y in 58 * S..62 * S { for x in 40 * S..80 * S { let i = g.idx(x, y); g.set(i, Mat::Sand); } } }
+        let mut out = 0; for _ in 0..60 { out += st.tick(&g).len(); } out
+    };
+    assert!(run(false) > 0, "with nothing under it, it drops");
+    assert_eq!(run(true), 0, "resting on rubble that landed under it, it stays");
+}
+
 /// The window slides sideways while the mole hangs on a rope gun's rope (it swung or climbed past the window's
 /// side margin): the rope moves with the rock and the mole keeps its hold, as on a slide up or down.
 #[test]
