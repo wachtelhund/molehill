@@ -6,7 +6,6 @@
 # Parent / owner deploys. This file does not deploy itself.
 
 name = "molehill"
-account_id = "9887f0a567827483359f7f79e2bd2734"
 compatibility_date = "2026-11-05"
 workers_dev = true
 

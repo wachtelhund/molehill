@@ -47,8 +47,8 @@ if re.search(r'(?m)^directory\s*=\s*".*(site|engine)', wrangler):
     fail("wrangler.toml must not point at site/ or engine/")
 if not re.search(r'(?m)^name\s*=\s*"molehill"', wrangler):
     fail("wrangler.toml Worker name must be molehill")
-if "9887f0a567827483359f7f79e2bd2734" not in wrangler:
-    fail("wrangler.toml must target the owner's account")
+if re.search(r'(?m)^account_id\s*=', wrangler):
+    fail("wrangler.toml must not commit an account id (Wrangler takes it from the login)")
 if "molehill.hampusnilsson.dev" not in wrangler or "custom_domain" not in wrangler:
     fail("wrangler.toml must attach molehill.hampusnilsson.dev as a custom domain")
 

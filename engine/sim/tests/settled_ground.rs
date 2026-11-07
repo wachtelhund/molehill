@@ -1,6 +1,6 @@
 //! The settled ground round the burrow (`gen::SETTLED`): a new holt's first tunnels don't run into a steady
 //! rain of loose ground, while the loose lenses stay further out and deeper, as the hazard they are.
-//! Numbers from `--example loosesurvey` are in REFINE-worldgen.md.
+//! Numbers come from `--example loosesurvey`.
 use molehill_sim::gen::{Gen, SETTLED};
 use molehill_sim::grid::F_WET;
 use molehill_sim::mat::{Kind, Mat, CPM, S};

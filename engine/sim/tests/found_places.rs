@@ -4,7 +4,7 @@
 //! * goal: from a way in (a region that reaches the site's edge: a mouth or a door) the body gets to the
 //!   chest, which stands in open space so it opens; or for the fissure (which has none) to its floor;
 //! * whole: the site's open space is one walk, with no big room cut off from the way in.
-//! Layouts that fail today are listed below (see REFINE-movement.md and `examples/sitewalk.rs` for maps).
+//! Layouts that fail today are listed below (see `examples/sitewalk.rs` for maps).
 //! The test also fails when a listed site has been opened up, so take it off the list: they only shrink.
 use molehill_sim::{world::World, mat::{Mat, CPM}, sites::Kind};
 

@@ -2,7 +2,7 @@
 // joins every part of the fissure to a way in (tests/found_places.rs; floor and bridges, with ropes). The
 // mouth's floor is the 24 m deck's top since the site-trap fix (it used to step into a 0.5 m slot by the
 // wall); `site_fissure_east_bridge.scn` walks on along the bridge. The ropes still hang under the bridges, so
-// from above the way down is a drop (REFINE-movement.md).
+// from above the way down is a drop.
 map
 ########################################################################################
 ########################################################################################

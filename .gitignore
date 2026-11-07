@@ -6,3 +6,9 @@ dist/
 *.log
 engine/target/
 *.save
+# build output anywhere (a stray engine/engine/target was once committed)
+target/
+# local agent notes and environment, never published
+REFINE*.md
+AGENTS.md
+.cargo-target.env
