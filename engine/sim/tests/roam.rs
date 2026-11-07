@@ -118,3 +118,19 @@ fn v11_save_still_loads() {
     assert!(w.drops.iter().any(|d| d.x == 170 && d.n == 3));
     let l = save::load(&save::save(&w)).expect("and saves again as v12"); assert_eq!((l.ox, l.oy), (w.ox, w.oy));
 }
+
+/// A slide down in the middle of a fall: the body keeps falling at its speed (no stop in mid-air), and the
+/// height already fallen still counts toward the landing.
+#[test]
+fn a_fall_carries_through_a_slide_down() {
+    let mut w = World::new(1024 * S, 512 * S, 5); w.disasters.enabled = false;
+    let (x, y0) = (w.moles[0].x, w.moles[0].y); let (gw, h) = (w.g.w, w.g.h); let start = w.oy + y0 as i64;
+    for y in y0 - 3 * CPM..h { for xx in x - CPM..x + CPM { let i = y * gw + xx; w.g.set(i, Mat::Empty); } }
+    let (mut vy, mut slid) = (0., false);
+    for _ in 0..3000 { let oy = w.oy; vy = w.pl.vy; w.step(); if w.oy != oy { slid = true; break; } }
+    assert!(slid, "the window slid during the fall");
+    assert!(vy > 40. * CPM as f32 / 10., "falling fast before the slide: {vy}");
+    w.step();
+    assert!(w.pl.vy > 0.8 * vy, "still falling after the slide: {} (was {vy})", w.pl.vy);
+    assert_eq!(w.oy + w.pl.fall_from as i64, start, "the fall is measured from where it began");
+}

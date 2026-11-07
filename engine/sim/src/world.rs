@@ -437,7 +437,11 @@ impl World {
         let (ent, far) = if rows > 0 { ((0, en.saturating_sub(m), w - 1, h - 1), (0, 0, w - 1, m)) } else { ((0, 0, w - 1, (en + s + m).min(h - 1)), (0, h - 1 - m, w - 1, h - 1)) };
         self.start_seam(0, rows, ent, far); self.g.clear_struct(); // solved over the next ticks (`stream.rs`)
         self.light = Light::new(w, h);
-        self.pl.mine = None; if let Some(m) = self.moles.first() { self.pl.fall_from = m.y; }
+        // the player's body slides with the rock, as in `shift_x`: a fall goes on at its speed (it used to stop
+        // dead in mid-air at the slide) and the height already fallen still counts at the landing
+        self.pl.mine = None; let fy = rows as f32; self.pl.py -= fy; self.pl.ppy -= fy;
+        self.pl.fall_from = (self.pl.fall_from as i64 - rows).clamp(0, h as i64 - 1) as usize;
+        if let Some(m) = self.moles.first() { if self.pl.sync.is_some() { self.pl.sync = Some((m.x, m.y)); } }
     }
     /// Window tile at cell (x0, y0) entering: unpack it from its stored blob, or put the fresh ground there.
     fn enter_tile(&mut self, x0: usize, y0: usize) {

@@ -73,6 +73,13 @@ the slide. Baseline on main `c2dd000` (unpaced, worker): `down` p99 70.9, worst 
 (200 m between the old bedrock walls, no slides) p99 18.5, worst 60.9. So the worst frames left are the same
 non-slide ticks main already has (stress passes), and a sideways slide costs about what a slide down does.
 
+## Phase 2 polish (main `c65aa80`)
+A slide down left the player's float body behind: `step_player` saw the mole's cell move and reset the body
+(speed 0, `fall_from` = here, grounded). A fall that crossed a slide stopped dead in mid-air (120 → 15 cells/s
+in `a_fall_carries_through_a_slide_down`) and the height fallen before the slide never counted at the
+landing. `World::shift` now carries the body as `shift_x` does (`py`, `ppy`, `fall_from` move with the rock;
+`sync` follows the mole).
+
 ## Open / for others
 * **p2:** the parallel CA (rayon) isn't deterministic on the first run after a rebuild. Seen on
   `digging_straight_down_never_kills` seed 6 (a limestone clump falls into a flooded shaft onto the mole on some runs),
