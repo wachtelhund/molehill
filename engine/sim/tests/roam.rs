@@ -134,3 +134,26 @@ fn a_fall_carries_through_a_slide_down() {
     assert!(w.pl.vy > 0.8 * vy, "still falling after the slide: {} (was {vy})", w.pl.vy);
     assert_eq!(w.oy + w.pl.fall_from as i64, start, "the fall is measured from where it began");
 }
+
+/// A found place stamped by a script (a scenario, the game's `--scene`) isn't in the generator, so a
+/// slide's refresh used to forget it: gone from `sites` with its chest, and `--dump-art` on the pump and
+/// halt scenes cropped some other site and panicked. It now stays while it touches the window, sideways
+/// and down, leaves when it doesn't, and comes back with its chest.
+#[test]
+fn a_stamped_site_survives_a_slide() {
+    use molehill_sim::sites::Kind;
+    let mut w = World::new(1024 * S, 512 * S, 4242); w.disasters.enabled = false;
+    let (sw, _) = Kind::Pumpworks.size(); let (x0, y0) = (w.g.w - sw - 4 * CPM, 200);
+    w.stamp_site(Kind::Pumpworks, x0, y0);
+    let st = *w.sites.last().unwrap(); let (ax, ay) = (st.x0, st.y0);
+    let here = |w: &World| w.sites.iter().any(|s| s.kind == Kind::Pumpworks && s.x0 == ax && s.y0 == ay);
+    let chest = |w: &World| st.chest.is_some_and(|(cx, cy)| w.chests.iter().any(|c| w.ox + c.x as i64 == cx && w.oy + c.y as i64 == cy));
+    assert!(here(&w), "stamped");
+    w.shift_x(TW as i64); assert!(here(&w), "after a slide east");
+    if st.chest.is_some() { assert!(chest(&w), "its chest after a slide east"); }
+    w.shift(BH as i64); assert!(here(&w), "after a slide down");
+    w.shift(-(BH as i64)); w.shift_x(-(TW as i64)); assert!(here(&w), "back where it was");
+    w.shift_x(-4 * (TW as i64)); assert!(!here(&w), "out of the window, not listed");
+    w.shift_x(4 * TW as i64); assert!(here(&w), "back in the window");
+    if st.chest.is_some() { assert!(chest(&w), "its chest back too"); }
+}
