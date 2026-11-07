@@ -117,7 +117,8 @@ pub fn update(g: Res<Game>, sp: Res<Sprites>, time: Res<Time>, win: Query<&Windo
     let vrow = |c: Vec2| -> Option<usize> { if c.x < 10. || c.x > 300. || c.y < VTOP - 2. { return None; }
         let k = ((c.y - VTOP + VGAP / 2.) / (VROW_H + VGAP)).floor() as usize; (0..crate::vitals::ROWS).filter(|&r| crate::vitals::shown(w, r)).nth(k) };
     { let mut p = q.p3(); if let Ok((mut n, mut v)) = p.single_mut() { let a = slot_pos(10, ww, wh); let b = slot_pos(9, ww, wh); n.left = Val::Px(a.x - 10.); n.top = Val::Px(a.y - 10.); n.width = Val::Px(b.x + S - a.x + 20.); n.height = Val::Px(b.y + S - a.y + 20.); *v = if g.inv_open { Visibility::Inherited } else { Visibility::Hidden }; } }
-    let cur = win.cursor_position();
+    // (dev stills with `--shot-aim`: no real cursor, so the tip sits where it would by the aimed spot, right of centre)
+    let cur = win.cursor_position().or_else(|| g.demo_aim.map(|_| Vec2::new(ww * 0.6, wh * 0.36)));
     { let mut p = q.p4(); if let Ok((mut n, mut im, mut v)) = p.single_mut() { match (g.held, cur) { (Some(t), Some(c)) => { im.image = icon(&sp, t); n.left = Val::Px(c.x - 8.); n.top = Val::Px(c.y - 8.); *v = Visibility::Inherited; } _ => *v = Visibility::Hidden } } }
     let hov = cur.and_then(|c| slot_at(c, ww, wh, g.inv_open).map(|k| (c, k)));
     // hover tooltip: a slot names its thing at once; in the world, resting the cursor ~0.35 s on a seen cell
@@ -127,6 +128,10 @@ pub fn update(g: Res<Game>, sp: Res<Sprites>, time: Res<Time>, win: Query<&Windo
     let tip: Option<(Vec2, String, String)> = match (cur, hov.and_then(|(_, k)| g.slots[k])) {
         (Some(c), None) if hov.is_none() && g.held.is_none() && vrow(c).is_some() => vrow(c).map(|r| { let (a, b) = crate::vitals::tip(w, r); (c, a, b) }),
         (Some(c), Some(th)) if g.held.is_none() => Some((c, match thing_count(&g, th) { Some(n) => format!("{}  ({})", thing_name(&g, th), n.min(9999)), None => thing_name(&g, th) }, { let c = crate::thing_controls(th); if c.is_empty() { crate::thing_desc(th).to_string() } else { format!("{}\n{}", crate::thing_desc(th), c) } })),
+        // a lift or rope ladder in hand: at once, where it would go at the cursor (or why it can't)
+        (Some(c), None) if hov.is_none() && !g.inv_open && matches!(g.slots[g.hot], Some(Thing::Item(molehill_sim::craft::Item::Lift | molehill_sim::craft::Item::RopeLadder))) && g.aim.is_some() => {
+            let (x, y, _) = g.aim.unwrap(); let Some(Thing::Item(it)) = g.slots[g.hot] else { unreachable!() };
+            molehill_sim::tips::place_tip(w, it, x, y).map(|t| (c, t.name, t.lines.join("\n"))) }
         (Some(c), None) if hov.is_none() && !busy && now - still.1 > 0.35 && !g.inv_open => g.aim.and_then(|(x, y, _)|
             molehill_sim::tips::describe(w, x, y).map(|t| (c, t.name, t.lines.join("\n")))),
         _ => None,

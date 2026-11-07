@@ -1,0 +1,55 @@
+// Calling a lift: standing in the right-hand passage at the shaft's edge, a fresh W hauls the hand rope and
+// the cage comes up from the foot to this stop and stops level (the mole doesn't jump). Step on, and S
+// rides it down to the foot. 
+// A 2 m shaft 6.75 m deep with side passages: one on the left 1.5 m under the head, one on the right
+// halfway down, and one at the foot on the right. The lift built in it is a 1.875 m cage (the shaft's width,
+// an odd number of cells) and stops at the top, at each passage's floor and at the shaft's floor (tile rows
+// 5.5, 10, 19 and 28.5 from the map's top).
+map
+##############################
+##############################
+##########........############
+##########........############
+##########........############
+##########........############
+##................############
+##................############
+##................############
+##................############
+##########........############
+##########........############
+##########........############
+##########........############
+##########........############
+##########.................###
+##########.................###
+##########.................###
+##########.........@.......###
+##########........############
+##########........############
+##########........############
+##########........############
+##########........############
+##########........############
+##########.................###
+##########.................###
+##########.................###
+##########.................###
+##############################
+##############################
+end
+give Lift 1
+place 2 -4 6 Lift                 // the cursor in the shaft below: the cage starts at the foot
+expect 3 liftstop == 3
+hold 10-12 up                     // call
+expect 13 liftv < 0
+expect 14 rise < 0.5              // no jump
+expect 150 liftstop == 2          // here, level with the passage floor
+expect 150 lifty == 19
+hold 160-200 left                 // onto the cage
+expect 200 grounded == 1
+hold 210-212 down                 // ride down one stop
+expect 330 liftstop == 3
+expect 330 py > 28
+hold 340-380 right                // off into the foot passage
+expect 380 px > 18

@@ -58,9 +58,9 @@ fn reachable() -> [bool; NITEM] {
     let t = tip(&w, mx + 2 * c, my - 1); assert!(t.starts_with("Mine cart") && t.contains("Right mouse: get in") && t.contains("push") && t.contains("throw things in"), "cart: {t}");
     w.tr.riding = Some(0); let t = tip(&w, mx + 2 * c, my - 1); assert!(t.contains("Space: jump out"), "cart, riding: {t}"); w.tr.riding = None;
     assert_eq!(w.place_transport(Item::RopeLadder, mx - c - c / 2, my - 2 * c), Ok(true));
-    let t = tip(&w, mx - c - c / 2, my - 2 * c); assert!(t.starts_with("Rope ladder") && t.contains("W / S: climb"), "ladder: {t}");
+    let t = tip(&w, mx - c - c / 2, my - 2 * c); assert!(t.starts_with("Rope ladder") && t.contains("W / S") && t.contains("E: take it down"), "ladder: {t}");
     assert_eq!(w.place_transport(Item::Lift, mx - 3 * c - c / 2, my - c), Ok(true));
-    let t = tip(&w, mx - 3 * c - c / 2, my - S); assert!(t.starts_with("Lift") && t.contains("Counterweight 40 kg") && t.contains("sinks") && t.contains("stone"), "lift: {t}");
+    let t = tip(&w, mx - 3 * c - c / 2, my - S); assert!(t.starts_with("Lift") && t.contains("W / S") && t.contains("calls the cage") && t.contains("Right mouse: balance"), "lift: {t}");
     assert_eq!(w.place_transport(Item::TubeHopper, mx + 4 * c + 2, my), Ok(true));
     let t = tip(&w, mx + 4 * c + 2, my - 2); assert!(t.starts_with("Tube hopper") && t.contains("No current") && t.contains("only receives"), "hopper: {t}");
 }
