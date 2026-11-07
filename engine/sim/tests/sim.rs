@@ -1933,3 +1933,27 @@ fn loading_prefetch_finishes_the_ground_ahead() {
         assert_eq!(w.stream_progress(), 1., "prefetch stopped before the ground ahead was built");
     }
 }
+
+/// A block cut free inside a region solve has no load path even though its far edge (past the region) held
+/// last time: region solves used to prop it up on its own stale edge cells until a far solve dropped it whole
+/// and unwarned. Joined to a wall out past the region, it still holds.
+#[test] fn region_solve_sees_a_block_cut_free() {
+    let cut = |tied: bool| {
+        // granite all round; a hall 60 m by 14 m; in it a block 48 m by 6 m standing on one 2 m post
+        let (w, h) = (320 * S, 96 * S); let mut g = boxed(w, h);
+        for y in 0..h - 2 * S { for x in 2 * S..w - 2 * S { let i = g.idx(x, y); g.set(i, Mat::Granite); } }
+        for y in 30 * S..86 * S { for x in 40 * S..280 * S { let i = g.idx(x, y); g.set(i, Mat::Empty); } }
+        for y in 40 * S..64 * S { for x in 64 * S..256 * S { let i = g.idx(x, y); g.set(i, Mat::Granite); } }
+        for y in 64 * S..86 * S { for x in 76 * S..84 * S { let i = g.idx(x, y); g.set(i, Mat::Granite); } }
+        if tied { for y in 40 * S..64 * S { for x in 256 * S..280 * S { let i = g.idx(x, y); g.set(i, Mat::Granite); } } }
+        let mut st = Stress::new(w * h); st.thr = 1e9; st.solve(&g); st.thr = molehill_sim::stress::FAIL_U;
+        let far = g.idx(240 * S, 50 * S); assert!(st.reach[far], "the block stands on its post");
+        // cut the post
+        for y in 64 * S..86 * S { for x in 76 * S..84 * S { let i = g.idx(x, y); g.set(i, Mat::Empty); } }
+        let f = st.solve_rect(&g, Some((76 * S, 64 * S, 84 * S - 1, 86 * S - 1)));
+        let hang = f.iter().filter(|&&i| !st.reach[i as usize]).count();
+        (hang, st.reach[far])
+    };
+    let (hang, held) = cut(false); assert!(hang > 0 && !held, "cut free: {hang} cells with no load path near the cut, far end held {held}");
+    let (hang, held) = cut(true); assert!(hang == 0 && held, "tied to the wall out past the region: {hang} hanging, far end held {held}");
+}
