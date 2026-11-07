@@ -9,6 +9,10 @@
 //!   at least 0.5 s before they began; `dug`: metres of tunnel the bot advanced.
 //! Disasters are off (the game's default), so everything counted comes from digging.
 //!
+//! Diagnostics: `WHY=1` (by material, creak sources), `DRIFT=1`, `BIG=1` (every tick over 200 cells let go),
+//! `BIGT=<tick>` (a map of what lets go that tick), `STALE=1` (rock the last solves still call held that has
+//! no load path over the whole window; should stay 0).
+//!
 //! `cargo run --release -p molehill-sim --example digbot -- [minutes] [seeds…]`
 use molehill_sim::{mat::{CPM, S}, survival::Mode, world::{Event, World}};
 
@@ -50,9 +54,18 @@ fn main() {
             let near: Vec<usize> = (my.saturating_sub(r)..(my + r).min(w.g.h)).flat_map(|y| (mx.saturating_sub(r)..(mx + r).min(w.g.w)).map(move |x| (x, y))).map(|(x, y)| y * w.g.w + x).collect();
             let mv0: Vec<u8> = near.iter().map(|&i| w.g.moved[i]).collect();
             let pend: Vec<(usize, u8, molehill_sim::mat::Mat)> = w.st.cracking.iter().map(|&i| (i as usize, w.st.pending[i as usize], w.g.m(i as usize))).filter(|p| p.1 == 1).collect();
+            if std::env::var("STALE").is_ok() && t % 300 == 0 { let ra = molehill_sim::stream::reach_all(&w.g); let st = (0..ra.len()).filter(|&i| w.g.is_static(i) && w.st.reach.get(i) == Some(&true) && !ra[i]).count(); let wrong = (0..ra.len()).filter(|&i| w.g.is_static(i) && w.st.reach.get(i) == Some(&false) && ra[i]).count(); println!("   t {t}: oy {} stale anchored {st}, held but marked hanging {wrong}, seam {}", w.oy, w.seam_busy()); }
+            if std::env::var("BIG").is_ok() && w.st.cracking.len() > 1000 { let due: Vec<usize> = w.st.cracking.iter().map(|&i| i as usize).filter(|&i| w.st.pending[i] == 1).collect(); if !due.is_empty() { let ra = molehill_sim::stream::reach_all(&w.g); let held = due.iter().filter(|&&i| ra[i]).count(); let hang = due.iter().filter(|&&i| w.st.reach[i] == false).count(); println!("   t {t}: {} due to let go, {hang} marked hanging, {held} of them held over the whole window", due.len()); } }
+            let bigt: Option<u64> = std::env::var("BIGT").ok().and_then(|v| v.parse().ok());
+            let snap: Option<Vec<(molehill_sim::mat::Mat, bool)>> = (bigt == Some(t)).then(|| (0..w.g.w * w.g.h).map(|i| (w.g.m(i), w.g.loose(i))).collect());
             w.step();
+            if let Some(sn) = snap { let (mut x0, mut y0, mut x1, mut y1, mut n) = (usize::MAX, usize::MAX, 0, 0, 0); let mut mats = std::collections::BTreeMap::<String, u32>::new();
+                for i in 0..sn.len() { if sn[i].0.kind() == molehill_sim::mat::Kind::Solid && !sn[i].1 && (w.g.loose(i) || w.g.m(i) != sn[i].0) { let (x, y) = (i % w.g.w, i / w.g.w); x0 = x0.min(x); x1 = x1.max(x); y0 = y0.min(y); y1 = y1.max(y); n += 1; *mats.entry(format!("{:?}", sn[i].0)).or_default() += 1; } }
+                println!("   BIGT {t}: {n} cells, bbox x {x0}..{x1} y {y0}..{y1}, {mats:?}");
+                for y in (y0.saturating_sub(16)..(y1 + 16).min(w.g.h)).step_by(8) { let row: String = (x0.saturating_sub(16)..(x1 + 16).min(w.g.w)).step_by(8).map(|x| { let i = y * w.g.w + x; let (m, l) = sn[i]; if (x / 8, y / 8) == (w.moles[0].x / 8, w.moles[0].y / 8) { '@' } else if m.kind() == molehill_sim::mat::Kind::Solid && !l && (w.g.loose(i) || w.g.m(i) != m) { 'X' } else if m.kind() == molehill_sim::mat::Kind::Solid { '#' } else if m == molehill_sim::mat::Mat::Empty { '.' } else if m == molehill_sim::mat::Mat::Water { '~' } else { ':' } }).collect(); println!("   {row}"); } }
             for (i, _, m) in pend { if w.g.m(i) != m { *by_mat.entry(format!("{m:?}")).or_default() += 1; if w.st.reach.get(i) == Some(&false) { hang += 1; } else { over += 1; } } }
             let crumbled = w.crumbled - before;
+            if crumbled > 200 && std::env::var("BIG").is_ok() { println!("   t {t}: {crumbled} cells let go; mole ({}, {}) oy {} window {}x{}, cracking {}", w.moles[0].x, w.moles[0].y, w.oy, w.g.w, w.g.h, w.st.cracking.len()); }
             for (&i, &m0) in near.iter().zip(&mv0) { if w.g.moved[i] != m0 { let m = w.g.m(i); match m.kind() {
                 molehill_sim::mat::Kind::Powder => drift_kind[0] += 1, molehill_sim::mat::Kind::Solid if w.g.loose(i) => drift_kind[1] += 1, molehill_sim::mat::Kind::Solid => drift_kind[2] += 1, _ => {} };
                 if matches!(m.kind(), molehill_sim::mat::Kind::Powder | molehill_sim::mat::Kind::Solid) { *drift_mat.entry(format!("{m:?}")).or_insert(0u64) += 1; } } }

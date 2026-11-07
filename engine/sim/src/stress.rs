@@ -40,7 +40,12 @@ pub struct Stress {
     ctop: Vec<u32>, vtop: Vec<u32>,
     /// failure threshold on utilisation (FAIL_U at runtime; gen uses a safety factor)
     pub thr: f32,
+    /// scratch for `anchored`: the search a cell was last visited by, and the solve that proved it held
+    vis: Vec<u32>, vis_gen: u32, held: Vec<u32>, epoch: u32,
 }
+/// Most cells an anchor check visits (64k, 1000 m²) before it gives up and trusts the last solve: a bigger mass
+/// cut free in one go is left to the next solve that covers it, as before.
+const ANCHOR_BUDGET: usize = 1 << 16;
 /// Overloaded rock creaks this long (ticks, 0.67 s) before it gives way (the long warning is the strain
 /// before it: see FAIL_U).
 pub const CRACK_TICKS: u8 = 40;
@@ -63,7 +68,7 @@ pub const LOOSE_TICKS: u8 = 8;
 pub const WEDGED_TICKS: u8 = 45;
 
 impl Stress {
-    pub fn new(n: usize) -> Self { Stress { util: vec![0; n], pending: vec![0; n], cracking: vec![], overburden: vec![0.; n], last_fail: 0, reach: vec![], ctop: vec![0; n], vtop: vec![0; n], thr: FAIL_U } }
+    pub fn new(n: usize) -> Self { Stress { util: vec![0; n], pending: vec![0; n], cracking: vec![], overburden: vec![0.; n], last_fail: 0, reach: vec![], ctop: vec![0; n], vtop: vec![0; n], thr: FAIL_U, vis: vec![], vis_gen: 0, held: vec![], epoch: 0 } }
 
     /// Full solve. Returns indices with u > 1.
     /// Height of the load-bearing column above any cell (16 m), the pressure-arch height.
@@ -161,14 +166,27 @@ impl Stress {
         let edge = |x: usize, y: usize| (x == rx0 && rx0 > 0) || (x == rx1 && rx1 + 1 < w) || (y == ry0 && ry0 > 0) || (y == ry1 && ry1 + 1 < h);
         for y in ry0..=ry1 { for x in rx0..=rx1 { let i = y * w + x;
             if g.mat[i] == Mat::Bedrock as u8 || ((i < w || i >= n - w || x == 0 || x + 1 == w) && st(i)) || (dirty.is_some() && edge(x, y) && self.reach[i] && supports(i)) { reach[li(x, y)] = true; q.push(i as u32); } } }
+        // a region edge cell that had a load path last time is only trusted once a search from it finds a real
+        // anchor: rock cut free inside the region would otherwise prop itself up on its own edge cells (which
+        // still say "held" from before the cut) until some far solve finally saw it, and then dropped whole and
+        // unwarned. Anchors that check out seed the search; the rest wait until one of theirs does.
+        let (mut seeds, mut q2) = (vec![], vec![]); self.epoch = self.epoch.wrapping_add(1);
+        if dirty.is_some() { q.retain(|&i| { let i = i as usize; let keep = g.mat[i] == Mat::Bedrock as u8 || ((i < w || i >= n - w || i % w == 0 || i % w + 1 == w) && st(i)); if !keep { reach[li(i % w, i / w)] = false; seeds.push(i); } keep }); }
         let mut head = 0;
-        while head < q.len() {
-            let i = q[head] as usize; head += 1; let (x, y) = (i % w, i / w);
-            // static cells carry each other in all four directions; loose ground (sand, rubble) only
-            // carries what rests directly on top of it, so a pillar built on a sand floor has a load path
-            let carried = g.is_static(i);
-            if carried { for j in g.n4(x, y) { let (jx, jy) = (j % w, j / w); if inr(jx, jy) && !reach[li(jx, jy)] && st(j) { reach[li(jx, jy)] = true; q.push(j as u32); } } }
-            if y > ry0 { let j = i - w; if !reach[li(x, y - 1)] && supports(j) { reach[li(x, y - 1)] = true; q.push(j as u32); } }
+        let mut k = 0;
+        loop {
+            while head < q.len() {
+                let i = q[head] as usize; head += 1; let (x, y) = (i % w, i / w);
+                // static cells carry each other in all four directions; loose ground (sand, rubble) only
+                // carries what rests directly on top of it, so a pillar built on a sand floor has a load path
+                let carried = g.is_static(i);
+                if carried { for j in g.n4(x, y) { let (jx, jy) = (j % w, j / w); if inr(jx, jy) && !reach[li(jx, jy)] && st(j) { reach[li(jx, jy)] = true; q.push(j as u32); } } }
+                if y > ry0 { let j = i - w; if !reach[li(x, y - 1)] && supports(j) { reach[li(x, y - 1)] = true; q.push(j as u32); } }
+            }
+            // next edge anchor not yet reached from a checked one
+            while k < seeds.len() && (reach[li(seeds[k] % w, seeds[k] / w)] || !self.reach[seeds[k]]) { k += 1; }
+            let Some(&i) = seeds.get(k) else { break }; k += 1;
+            if Self::anchored(&mut self.reach, &mut self.vis, &mut self.vis_gen, &mut self.held, self.epoch, g, i, &mut q2) { reach[li(i % w, i / w)] = true; q.push(i as u32); }
         }
         for y in ry0..=ry1 { for x in rx0..=rx1 { if st(y * w + x) && !reach[li(x, y)] { util[li(x, y)] = 9.; } } }
         // 3. bending of roof runs
@@ -257,6 +275,48 @@ impl Stress {
             if u > thr && g.mat[i] != Mat::Bedrock as u8 { fail.push(i as u32); }
         } }
         fail
+    }
+
+    /// Does cell `i` have a load path to a real anchor (bedrock, or the window's edge rows and columns), by the
+    /// load-path rules of `solve_rect` step 2 searched backwards from it, downward first, so in solid ground it
+    /// is a short walk. If not, every cell the search reached is left without one too (`reach` false), which a
+    /// later solve of those cells acts on. Past `ANCHOR_BUDGET` cells it trusts the last solve.
+    fn anchored(reach: &mut [bool], vis: &mut Vec<u32>, vis_gen: &mut u32, held: &mut Vec<u32>, epoch: u32, g: &Grid, i: usize, stack: &mut Vec<u32>) -> bool {
+        let (w, n) = (g.w, g.mat.len());
+        if vis.len() != n { *vis = vec![0; n]; *vis_gen = 0; }
+        if held.len() != n { *held = vec![0; n]; }
+        *vis_gen = vis_gen.wrapping_add(1); if *vis_gen == 0 { vis.fill(0); *vis_gen = 1; }
+        let gen = *vis_gen;
+        let supports = |j: usize| matches!(g.m(j).kind(), Kind::Powder | Kind::Solid);
+        let anchor = |j: usize| g.mat[j] == Mat::Bedrock as u8 || ((j < w || j >= n - w || j % w == 0 || j % w + 1 == w) && g.is_static(j));
+        // (a cell reached from the start through static rock only is held if the start is: static rock carries
+        // static rock both ways; those are remembered for the rest of this solve, so the next search stops there)
+        const SYM: u32 = 1 << 31;
+        let tag = |k: usize, sym: bool| k as u32 | if sym { SYM } else { 0 };
+        let mut seen: Vec<u32> = vec![tag(i, g.is_static(i))]; stack.clear(); stack.push(seen[0]); vis[i] = gen;
+        while let Some(e) = stack.pop() {
+            let (j, sym) = ((e & !SYM) as usize, e & SYM != 0);
+            // (past the budget it is taken as held for this solve too)
+            if anchor(j) || held[j] == epoch || seen.len() > ANCHOR_BUDGET {
+                for &e in &seen { if e & SYM != 0 { held[(e & !SYM) as usize] = epoch; } }
+                return true;
+            }
+            let (x, y) = (j % w, j / w);
+            // what can carry j: for static rock, the static rock beside, above or below it; for anything, solid
+            // or loose ground right under it. Pushed so the way down is tried first.
+            let mut next = [(usize::MAX, false); 4];
+            let st = g.is_static(j);
+            if st {
+                if y > 0 && g.is_static(j - w) { next[0] = (j - w, sym); }
+                if x > 0 && g.is_static(j - 1) { next[1] = (j - 1, sym); }
+                if x + 1 < w && g.is_static(j + 1) { next[2] = (j + 1, sym); }
+            }
+            if j + w < n && supports(j + w) { next[3] = (j + w, sym && st && g.is_static(j + w)); }
+            for (k, ks) in next { if k != usize::MAX && vis[k] != gen { vis[k] = gen; let e = tag(k, ks); stack.push(e); seen.push(e); } }
+        }
+        // cut free: nothing it rests on reaches an anchor
+        for &e in &seen { reach[(e & !SYM) as usize] = false; }
+        false
     }
 
     /// Start crack timers on failing cells.
