@@ -199,3 +199,25 @@ fn reachable() -> [bool; NITEM] {
     w.max_depth = BORER_DEEP_M; assert!(w.recipe_known(r), "open in the deep");
     let mut c = World::new(256 * molehill_sim::mat::S, 128 * molehill_sim::mat::S, 3); c.set_mode(Mode::Creative); assert!(c.recipe_known(r));
 }
+
+/// A borer out of steam goes only as fast as its firebox raises it: boring granite flat out takes more than the fire's
+/// 4.2 kW, so a lit borer with an empty steam store bores slower than one with steam in hand. It slows smoothly (it
+/// moves every tick), it isn't stuck, and it never bores for free (its steam never goes below what it had).
+#[test] fn starved_borer_bores_at_what_its_fire_raises() {
+    use molehill_sim::{borer::{Borer, STEAM_MAX}, mat::CPM};
+    let run = |steam: f32| -> (f32, u32) {
+        let mut w = World::new(256 * molehill_sim::mat::S, 128 * molehill_sim::mat::S, 3);
+        for i in 0..w.g.mat.len() { w.g.set(i, Mat::Granite); }
+        let (x0, y0) = (10 * CPM, 16 * CPM);
+        for y in y0 - 2 * CPM..y0 { for x in x0 - 4 * CPM..x0 + CPM { let i = w.g.idx(x, y); w.g.set(i, Mat::Empty); } }
+        let mut b = Borer::new(x0 as f32 - 6., y0 as f32 - 6., 0.); b.fuel = vec![(Item::Coal, 5)]; b.burning = Some(Item::Coal); b.burn = 4000; b.steam = steam;
+        w.tr.borers.push(b); w.tr.borer_ride = Some(0);
+        let (sx, mut moved) = (w.tr.borers[0].x, 0);
+        for t in 0..600 { w.input.right = true; let x = w.tr.borers[0].x; w.step(); if t > 60 && w.tr.borers[0].x > x { moved += 1; } assert!(w.tr.borers[0].steam >= 0.); }
+        (w.tr.borers[0].x - sx, moved)
+    };
+    let (full, _) = run(STEAM_MAX); let (starved, moving) = run(0.);
+    assert!(starved < 0.92 * full, "starved {starved} vs with steam {full}: it should be held to what its fire raises");
+    assert!(starved > 0.6 * full, "starved {starved} vs {full}: it should still bore on");
+    assert!(moving >= 530, "it bores on smoothly, every tick ({moving} of 539)");
+}
