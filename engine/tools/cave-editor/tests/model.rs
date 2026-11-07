@@ -110,9 +110,18 @@ fn a_run_shows_the_piece_it_ran() {
         let t = templates::get(k);
         let s = simulate(t, Placement { var: 0, left: false, depth: 50. }, 600).unwrap();
         let n = t.w * t.h;
-        eprintln!("{k:?}: {} of {n} cells changed, {} crumbled, hp {}", s.changed, s.crumbled, s.hp);
+        eprintln!("{k:?}: {} of {n} cells changed, {} broke or fell, hp {}", s.changed, s.broke, s.hp);
         assert!(s.changed * 10 < n, "{k:?}: {} of {n} cells changed in 10 s; the run isn't showing the piece", s.changed);
     }
+    // what `P` calls over capacity, `G` shows falling: the mine's deck between the chute and the shaft
+    // (most of its over-capacity cells) comes down whole, and the run has to count it
+    let p = Placement { var: 0, left: false, depth: 50. };
+    let over = stress(templates::get(Kind::Mine), p).unwrap().iter().filter(|&&b| b).count();
+    let s = simulate(templates::get(Kind::Mine), p, 600).unwrap();
+    assert!(over > 1000 && s.broke * 2 > over, "{over} cells over capacity, the run counts {} broke or fell", s.broke);
+    // and a sound piece loses nothing, a tall one included: the fissure's top rows leave the window when it
+    // slides after the mole, and were read as empty (its top decks "broke") until the run read stored bands
+    for k in [Kind::Fossil, Kind::Fissure] { assert_eq!(simulate(templates::get(k), p, 600).unwrap().broke, 0, "{k:?} stands (P: sound)"); }
 }
 
 #[test]
