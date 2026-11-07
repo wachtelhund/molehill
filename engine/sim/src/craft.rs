@@ -572,7 +572,7 @@ pub static RECIPES: &[Recipe] = &[
     Recipe { name: "Lift", station: Station::Workshop, inputs: &[(Item::IronIngot, 2), (Item::Wood, 4), (Item::CopperIngot, 1)], out: (Item::Lift, 1), ticks: 240 },
     // the steam borer: an iron frame and firebox with a bronze-toothed head (the workshop's fine work)
     Recipe { name: "Steam borer", station: Station::Workshop, inputs: &[(Item::IronIngot, 8), (Item::BronzeIngot, 4), (Item::Brick, 4)], out: (Item::SteamBorer, 1), ticks: 400 },
-    // the borer's wagons: timber bodies on iron wheels; the tanks and bunker riveted iron at the forge
+    // the borer's wagons: timber bodies on iron wheels; the coal bunker riveted iron at the forge
     Recipe { name: "Store wagon", station: Station::Workbench, inputs: &[(Item::Wood, 6), (Item::IronIngot, 2)], out: (Item::StoreWagon, 1), ticks: 200 },
     Recipe { name: "Workshop wagon", station: Station::Workbench, inputs: &[(Item::Wood, 8), (Item::Stone, 4), (Item::IronIngot, 2)], out: (Item::WorkshopWagon, 1), ticks: 240 },
     Recipe { name: "Bunk wagon", station: Station::Workbench, inputs: &[(Item::Wood, 6), (Item::Fungus, 4), (Item::IronIngot, 2)], out: (Item::BunkWagon, 1), ticks: 200 },
