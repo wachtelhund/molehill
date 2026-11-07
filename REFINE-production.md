@@ -283,7 +283,8 @@ I playtested the trains in context and probed the edges:
   * I tried spoil bulking (a third more volume). It didn't change the outcome, and I couldn't account for where the extra cells went, so it isn't shipped.
   * Instead the docs and `borer_jams` now describe what happens: it jams when the room behind it fills, then backfills and seals itself in.
 * **Tube hopper vs ore hopper.** Every ore hopper message said "ore hopper", but the tube hopper's messages, refusal and tip said a bare "hopper".
-  * They now say "tube hopper". New test: `tube_hopper_messages_say_tube_hopper`.
+  * The log lines and refusal were renamed on main in 81d1850 (#75-#77: hoppers can't stack), and I kept that wording on rebase.
+  * This round adds the hover tip ("Sends to the tube hopper…", "No other tube hopper on its line yet") and the test `tube_hopper_messages_say_tube_hopper`.
 * **Mine upper deck (flagged in #36), investigated and not changed.**
   * The editor's static solver still marks 2583 cells over capacity. That's the deck between the chute and the shaft, about 21 m of planks on stub posts with open gaps at both ends.
   * In a stamped scenario nothing falls in 30 s: planks and wood beams keep their counts. I didn't test whether digging near it sets it off.
