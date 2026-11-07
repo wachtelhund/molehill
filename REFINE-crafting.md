@@ -159,7 +159,24 @@ Raw bills (`craft::raw_bill`, a coal per cold-forge job), against the ladder's d
   cost changes; pinned by `rod_linkages_are_cheap_once_there_is_iron` (≤ 4 iron ore a part, nothing else past
   the pickaxe, the rig ≤ 12 lumps and 2 iron ore).
 
-## Open
+## Final polish (main a9bcf4b): borer and wagon costs, borer dig tempo
+* Recipes: steam borer (workshop: 8 iron ingots, 4 bronze, 4 brick) is about 16 iron ore, 6 copper ore,
+  2 tin ore, 2 clay and ~19 coal from the ground, a bore's worth; wagons are 2 iron ingots each and some wood
+  (store 6, workshop 8 and 4 stone, bunk 6 and 4 fungus), with water and coal wagons at the forge (5 and 4 iron
+  ingots). All after the drill (iron), none touches the first hour. No cost changes.
+* Borer tempo (evidence, flagged to p9, not changed: `borer.rs` is theirs): the borer reads the same `dig` table,
+  0.15 s a column per unit. Since the dig retune (#25: granite 14 to 22) that's 3.3 s a granite column, about
+  4 cm/s (the wiki said "2 s a column, 3 cm a second"). `digtempo` gains a borer column:
+  a 4 × 3 m room (12 m of 1 m tunnel) is 29 s in dirt, 173 s in sandstone, 317 s in granite, against 3.0 s with
+  the drill (bites only, walking not counted). Steam isn't the limit (4.2 kW raised against 1.8 kW used);
+  `GRIND_S` is. A coal lump bores 3.5 m of granite. If Hampus wants the borer to compete on speed, `GRIND_S`
+  near 0.03 would bore granite at about 0.2 m/s. p9 agreed and is retuning it in their final polish
+  (GRIND_S 0.15 to 0.03, GRIND_W 1.5 to 3 kW, about 10 m of granite a coal) and fixing the Production.md line;
+  the numbers above are from before that. The wiki's dig tempo note points at `digtempo`, which reads the
+  borer's constants, rather than quoting times.
+* Not live-playtested: the borer, the wagons and the crafting UI were checked headless only (scenarios, tests,
+  `digtempo`), never in the running game window.
+
 * Waking after death: the lamp holds whatever is left, with no oil in the pack (above). Option: the burrow
   keeps a measure for whoever crawls back in (a stash, not magic), once per wake.
 * Glowmite lantern (new item: needs p3 icon).
