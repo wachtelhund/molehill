@@ -429,6 +429,24 @@ Polish only: no new systems, lore names kept. Each entry lists what changed and 
 * Still not seen in the running game: the climb cycle, slide and top-out. Movement's `--shot-up/down` flags (their
   lift PR) are not on main yet. Sprite dump and test only. No live window.
 
+## Biome art (branch `refine/biome-art`, after biomes v2 #95)
+
+Worldgen's #95 has the regions (`Gen::biome_of`, `Biome::Fungal`, `Wall::Mycel`) and left the art to ui-graphics; #10's
+art predated the endless sideways world and was redone.
+* `art::RegionMap`: one region tint per 1 m block on absolute metres, over the window and its parallax pad, box-blurred over
+  `WASH_BLUR` (4) blocks with a margin, so a block's tint is the same whichever window built it (test
+  `regions_wash_softly_and_stay_put`). Built in `make_bg` on each slide: 71k `biome_of` calls, about 1.2 ms.
+* The parallax strata read it per texel (they were tinted per column), and natural ground in front takes `GROUND_WASH`
+  (0.6) of it. Built, painted, glowing and machinery cells keep their own colour.
+* Evidence (`--dump-wide`, new: the whole window, all shown and evenly lit; seed 4242 has all five regions): with a
+  1 m blend the wash drew hard vertical seams, because a column's leaning ends on a straight vertical (60+ m tall).
+  The blur makes them fade over about 9 m (diff of wash on/off before and after).
+* Mycel back walls read teal against brown damp and root; the thread pattern is faint at 1×. Left as worldgen made it.
+* Told worldgen: the straight column edges also show in the rock itself (granite against limestone), and natural walls
+  pick one wall per 1 m block, which reads as a quilt of squares. Both are in their files.
+* Not done: no live window (the `--shot` frame is still grey); the stills are CPU composites, evenly lit by the dev
+  flag, so how the wash reads under headlamp light was not seen.
+
 ## Open issues
 * `--shot` writes an empty frame on macOS when the game is launched from a background shell (the surface is
   never presented). It needs a visible window, or Linux with Xvfb.

@@ -151,7 +151,8 @@ pub(crate) fn default_slots() -> Vec<Option<Thing>> {
 /// Parallax background: three deep-earth layers (pixels, parallax factor). They are drawn as GPU sprites
 /// (`BgLayer`) behind the world and slide smoothly with the camera; open cells in the world texture are a
 /// translucent light/air overlay on top of them. Replacing the resource re-uploads the layer images.
-#[derive(Resource)] struct Bg { layers: Vec<(Vec<u8>, f32)> }
+#[derive(Resource)] struct Bg { layers: Vec<(Vec<u8>, f32)>, /// region tints of the window and its pad (`art::RegionMap`)
+    region: art::RegionMap }
 #[derive(Component)] pub struct BgLayer(usize);
 const BG_BASE: [f32; 3] = [44., 34., 30.];
 #[inline] fn lin(c: f32) -> f32 { (c / 255.).max(0.).powf(2.2) }
@@ -287,7 +288,8 @@ fn dev_dump(n: Local<u32>, g: Res<Game>, sp: Res<Sprites>, images: Res<Assets<Im
             "mine" | "holt" | "pump" | "pumpworks" | "fissure" | "fossil" | "crystal" | "salt" | "halt"
             | "site-mine" | "site-holt" | "site-pump" | "site-fissure" | "site-fossil" | "site-crystal" | "site-halt"
             | "walls" | "wall"));
-        let (cw, chh, x0, y0) = if let Some(st) = g.w.sites.last().filter(|_| site_dump) { // only a stamped scene crops to its site; a plain holt crops round the mole
+        // `--dump-wide`: the whole window, so a still shows every region in it (the biome wash and parallax)
+        let (cw, chh, x0, y0) = if dump_wide() { (W, H, 0, 0) } else if let Some(st) = g.w.sites.last().filter(|_| site_dump) { // only a stamped scene crops to its site; a plain holt crops round the mole
             let pad = 8 * CPM;
             let yw0 = (st.y0 - g.w.oy).max(0) as usize;
             let cw = (st.w + 2 * pad).min(W);
@@ -351,6 +353,12 @@ fn dev_dump(n: Local<u32>, g: Res<Game>, sp: Res<Sprites>, images: Res<Assets<Im
             let im = art::swatch(m, t); if let Some(d) = im.data.as_ref() { bmp(&format!("{dir}/cells-{m:?}-{j}.bmp"), im.width() as usize, im.height() as usize, d, false, 8); } } }
         info!("dumped art to {dir}");
     }
+}
+/// Dev (native): `--dump-wide` was given with `--dump-art=`: the dump is the whole window, every cell shown
+/// and evenly lit, so a still compares the regions' ground and back walls.
+fn dump_wide() -> bool {
+    #[cfg(not(target_arch = "wasm32"))] { static D: std::sync::OnceLock<bool> = std::sync::OnceLock::new(); *D.get_or_init(|| dumping() && std::env::args().any(|a| a == "--dump-wide")) }
+    #[cfg(target_arch = "wasm32")] { false }
 }
 /// Dev (native): `--dump-art=` was given.
 fn dumping() -> bool {
@@ -888,8 +896,9 @@ pub fn load_saved(g: &mut Game, commands: &mut Commands) -> bool {
         Some(Err(e)) => { g.msg = format!("Load failed: {e}"); false } None => { g.msg = "No save yet".into(); false } }
 }
 fn make_bg(w: &World) -> Bg {
-    let mk = |k, f| (art::layer(k, w.ox, w.oy, &|x| w.gen.biome_x(x), W, H, PAD, BG_RES, w.info.seed).0, f);
-    Bg { layers: vec![mk(art::Layer::Strata, 0.8), mk(art::Layer::Caves, 0.6), mk(art::Layer::Veins, 0.35)] }
+    let region = art::RegionMap::new(&|x, wy| w.gen.biome_of(x, wy), w.ox - PAD as i64, w.oy, W + 2 * PAD, H);
+    let mk = |k, f| (art::layer(k, w.ox, w.oy, &region, W, H, PAD, BG_RES, w.info.seed).0, f);
+    Bg { layers: vec![mk(art::Layer::Strata, 0.8), mk(art::Layer::Caves, 0.6), mk(art::Layer::Veins, 0.35)], region }
 }
 fn dev_cost(d: Dev) -> Option<Item> { d.cost() }
 fn input(mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<ButtonInput<MouseButton>>, scroll: Res<AccumulatedMouseScroll>,
@@ -1154,14 +1163,14 @@ fn render_world(mut gm: ResMut<Game>, bg: Res<Bg>, mut images: ResMut<Assets<Ima
         let (hx, hy) = ((x as i64 + wd.ox) as u32, (y as i64 + wd.oy) as u32); // world column and row: textures run on across slides
         let i = y * W + x; let o = i * 4;
         let m = gr.m(i); let p = &PROPS[m as usize];
-        let seen = gr.flags[i] & F_SEEN != 0;
+        let wide = dump_wide(); let seen = wide || gr.flags[i] & F_SEEN != 0;
         let px: [u8; 4];
         if !seen {
             let n = (hash3(hx / (2 * S) as u32, hy / (2 * S) as u32, 5) & 7) as u8;
             px = [14 + n, 12 + n, 17 + n, 255];
         } else {
             let lit = x >= lr.0 && x <= lr.2 && y >= lr.1 && y <= lr.3;
-            let l = if lit { wd.light.at(i) } else { [0.05; 3] };
+            let l = if wide { [0.9; 3] } else if lit { wd.light.at(i) } else { [0.05; 3] };
             // remembered rock stays faintly visible (a cool, dim memory); everything else comes from the sim's light
             let l = [l[0].max(0.15), l[1].max(0.15), l[2].max(0.18)];
             match p.kind {
@@ -1220,7 +1229,9 @@ fn render_world(mut gm: ResMut<Game>, bg: Res<Bg>, mut images: ResMut<Assets<Ima
                             { let run = |dx: i64, dy: i64| (1..=3i64).take_while(|&k| { let (xx, yy) = (x as i64 + dx * k, y as i64 + dy * k); xx >= 0 && yy >= 0 && (xx as usize) < W && (yy as usize) < H && gr.m(yy as usize * W + xx as usize) == m }).count();
                               run(-1, 0) + run(1, 0) >= run(0, -1) + run(0, 1) }) } else { (0., true) };
                         let on = p.flags & molehill_sim::mat::LINK != 0 && wd.pulled(i); let turn = if m == Mat::Float { wd.tick as f32 / 9. } else { turn }; // a lifted float bobs
-                        art::mat_color(m, hx, wy, above, turn, horiz, on).unwrap_or(p.color.map(|v| v as f32)) };
+                        art::mat_color(m, hx, wy, above, turn, horiz, on).unwrap_or_else(|| {
+                            // natural ground takes its region's wash; built blocks and glowing ones keep their own colour
+                            let c = p.color.map(|v| v as f32); if m.has(molehill_sim::mat::BUILT) || em { c } else { let t = bg.region.ground(hx as i64, wy as i64); [c[0] * t[0], c[1] * t[1], c[2] * t[2]] } }) };
                     let mut c = [lm(base[0] * k, l[0]), lm(base[1] * k, l[1]), lm(base[2] * k, l[2])];
                     let mut alpha = 255.;
                     if m == Mat::Water { c = [lm(40. + 30. * v2, l[0]), lm(90. + 20. * v2, l[1]), lm(170., l[2])]; alpha = 255.; }

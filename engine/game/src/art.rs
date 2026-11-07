@@ -11,6 +11,42 @@ pub fn image(w: u32, h: u32, data: Vec<u8>, nearest: bool) -> Image {
 }
 fn mix(a: [f32; 3], b: [f32; 3], t: f32) -> [f32; 3] { [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t] }
 pub fn biome_tint(b: Biome) -> [f32; 3] { match b { Biome::Loam => [1.0, 0.92, 0.82], Biome::Karst => [0.88, 0.95, 1.0], Biome::Crags => [0.9, 0.9, 0.98], Biome::Ashlands => [1.05, 0.8, 0.72], Biome::Fungal => [0.86, 1.0, 0.96] } } // (the region art is ui-graphics': this keeps the build whole)
+/// The region tint of every 1 m block over a span of world cells, read back blended between block centres
+/// (`at`), so a region edge is a soft wash. Blocks sit on absolute metres, so the wash doesn't jump when the
+/// window slides. `region(x, wy)` is `Gen::biome_of` in world cells.
+pub struct RegionMap { x0: i64, y0: i64, bw: usize, bh: usize, tint: Vec<[f32; 3]> }
+impl RegionMap {
+    pub fn new(region: &dyn Fn(i64, i64) -> Biome, x: i64, y: i64, w: usize, h: usize) -> Self {
+        let c = molehill_sim::mat::CPM as i64; let (x0, y0) = (x.div_euclid(c) * c, y.div_euclid(c) * c);
+        let (bw, bh) = (((x + w as i64 - x0) / c + 1) as usize, ((y + h as i64 - y0) / c + 1) as usize);
+        // sample WASH_BLUR blocks past each side and box-blur by that radius, so an edge the regions draw as a
+        // straight line (a column's leaning ends on a vertical) still fades over a few metres; the margin keeps a
+        // block's blurred tint the same whichever window it was built for
+        let r = WASH_BLUR; let (sw, sh) = (bw + 2 * r, bh + 2 * r);
+        let raw: Vec<[f32; 3]> = (0..sw * sh).map(|i| biome_tint(region(x0 + ((i % sw) as i64 - r as i64) * c + c / 2, y0 + ((i / sw) as i64 - r as i64) * c + c / 2))).collect();
+        let n = (2 * r + 1) as f32; let avg = |v: &mut dyn Iterator<Item = [f32; 3]>| v.fold([0.; 3], |a, b| [a[0] + b[0], a[1] + b[1], a[2] + b[2]]).map(|s| s / n);
+        let rows: Vec<[f32; 3]> = (0..sh * bw).map(|i| { let (bx, sy) = (i % bw, i / bw); avg(&mut (bx..=bx + 2 * r).map(|sx| raw[sy * sw + sx])) }).collect();
+        let tint = (0..bh * bw).map(|i| { let (bx, by) = (i % bw, i / bw); avg(&mut (by..=by + 2 * r).map(|sy| rows[sy * bw + bx])) }).collect();
+        RegionMap { x0, y0, bw, bh, tint }
+    }
+    /// The parallax tint at world cell (x, y).
+    pub fn at(&self, x: i64, y: i64) -> [f32; 3] {
+        let c = molehill_sim::mat::CPM as f32;
+        let (fx, fy) = (((x - self.x0) as f32 + 0.5) / c - 0.5, ((y - self.y0) as f32 + 0.5) / c - 0.5);
+        let (x0, y0) = (fx.floor().clamp(0., (self.bw - 1) as f32) as usize, fy.floor().clamp(0., (self.bh - 1) as f32) as usize);
+        let (x1, y1) = ((x0 + 1).min(self.bw - 1), (y0 + 1).min(self.bh - 1));
+        let (tx, ty) = ((fx - x0 as f32).clamp(0., 1.), (fy - y0 as f32).clamp(0., 1.));
+        let t = |xx: usize, yy: usize| self.tint[yy * self.bw + xx];
+        mix(mix(t(x0, y0), t(x1, y0), tx), mix(t(x0, y1), t(x1, y1), tx), ty)
+    }
+    /// The wash on natural ground in front: part of the parallax tint, so a block keeps its own colour but
+    /// each region reads apart (warm loam, cool karst, grey crags, green-blue fungal hollows, scorched ashlands).
+    pub fn ground(&self, x: i64, y: i64) -> [f32; 3] { self.at(x, y).map(|v| 1. + (v - 1.) * GROUND_WASH) }
+}
+/// How much of the region tint natural ground in front takes.
+pub const GROUND_WASH: f32 = 0.6;
+/// Blur radius of the region tints, in 1 m blocks: a region edge fades over about 2 × this + 1 metres.
+pub const WASH_BLUR: usize = 4;
 fn smooth(e0: f32, e1: f32, x: f32) -> f32 { let t = ((x - e0) / (e1 - e0)).clamp(0., 1.); t * t * (3. - 2. * t) }
 
 /// Background layer kinds. Each image covers `cells_w × cells_h` world cells at `res` cells per texel.
@@ -19,18 +55,16 @@ pub enum Layer { Strata, Caves, Veins }
 /// `surface[x]`, `biome[x]` per cell column; layer image spans [-pad, w+pad] × [-pad, h+pad] cells.
 /// `oy` = absolute row of window row 0, so the deep-earth bands line up with the endless world.
 /// One parallax layer behind the window at (`ox`, `oy`) (world column and row of its top-left cell),
-/// `pad` columns wider on each side; `biome` gives the biome of an absolute column.
-pub fn layer(kind: Layer, ox: i64, oy: i64, biome: &dyn Fn(i64) -> Biome, w: usize, h: usize, pad: usize, res: usize, seed: u32) -> (Vec<u8>, u32, u32) {
+/// `pad` columns wider on each side, tinted by the region of each texel (`region`, covering the same span).
+pub fn layer(kind: Layer, ox: i64, oy: i64, region: &RegionMap, w: usize, h: usize, pad: usize, res: usize, seed: u32) -> (Vec<u8>, u32, u32) {
     let (tw, th) = (((w + 2 * pad) / res) as u32, (h / res) as u32);
     let mut d = vec![0u8; (tw * th * 4) as usize];
     let n = Noise::new(seed ^ 0xBEEF); let n2 = Noise::new(seed ^ 0xF00D);
-    // the biome per texel column (the window slides sideways: the pattern runs on in world columns)
-    let bios: Vec<Biome> = (0..tw).map(|tx| biome(ox + tx as i64 * res as i64 - pad as i64)).collect();
     for ty in 0..th { for tx in 0..tw {
         let cxf = (ox + tx as i64 * res as i64 - pad as i64) as f32; let cyf = (ty as i64 * res as i64 + oy) as f32;
         // noise runs in legacy 0.25 m tiles so the rock patterns keep their size in metres at any CPM
         let (cxf, cyf) = (cxf / molehill_sim::mat::SF, cyf / molehill_sim::mat::SF);
-        let depth = cyf * 0.25; let tint = biome_tint(bios[tx as usize]);
+        let depth = cyf * 0.25; let tint = region.at(ox + tx as i64 * res as i64 - pad as i64, ty as i64 * res as i64 + oy);
         let (mut c, mut a): ([f32; 3], f32) = ([0.; 3], 0.);
         match kind {
             Layer::Strata => {
@@ -723,7 +757,8 @@ pub fn held_sprite(h: Held) -> Image {
 
 #[cfg(test)]
 mod tests {
-    use super::mat_color;
+    use super::{mat_color, biome_tint, RegionMap};
+    use molehill_sim::gen::Biome;
     use molehill_sim::mat::{Mat, PROPS, CPM};
     fn lum(c: [f32; 3]) -> f32 { 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2] }
     fn dist(a: [f32; 3], b: [f32; 3]) -> f32 { ((a[0] - b[0]).powi(2) + (a[1] - b[1]).powi(2) + (a[2] - b[2]).powi(2)).sqrt() }
@@ -888,6 +923,27 @@ mod tests {
 
     /// Climbing has its own frames, seen from behind: the four climb frames each differ (hand over hand), alternate
     /// paws (frame 0's high paw is left, frame 2's right), and the hang, slide and grab frames differ from them.
+    #[test] fn regions_wash_softly_and_stay_put() {
+        // loam west of column 0, ashlands east: far from the edge each side has its own tint, across it the wash
+        // steps a little per cell (no hard seam), and the ground takes only part of the tint
+        let c = molehill_sim::mat::CPM as i64; let region = |x: i64, _y: i64| if x < 0 { Biome::Loam } else { Biome::Ashlands };
+        let m = RegionMap::new(&region, -40 * c, 0, (80 * c) as usize, (4 * c) as usize);
+        let near = |a: [f32; 3], b: [f32; 3]| (0..3).all(|j| (a[j] - b[j]).abs() < 1e-4);
+        assert!(near(m.at(-30 * c, c), biome_tint(Biome::Loam)) && near(m.at(30 * c, c), biome_tint(Biome::Ashlands)));
+        // (a straight edge, as a column's leaning draws one, fades over 2 × WASH_BLUR + 1 metres)
+        let r = super::WASH_BLUR as i64;
+        let step = (-(r + 2) * c..(r + 2) * c).map(|x| { let (a, b) = (m.at(x, c), m.at(x + 1, c)); (0..3).map(|j| (a[j] - b[j]).abs()).fold(0., f32::max) }).fold(0., f32::max);
+        let jump = (0..3).map(|j| (biome_tint(Biome::Loam)[j] - biome_tint(Biome::Ashlands)[j]).abs()).fold(0., f32::max);
+        assert!(step > 0. && step <= jump / (c * (2 * r + 1)) as f32 * 1.01 + 1e-5, "edge step {step} of {jump}");
+        assert!(!near(m.at(-(r - 1) * c, c), biome_tint(Biome::Loam)) && !near(m.at((r - 1) * c, c), biome_tint(Biome::Ashlands)));
+        let g = m.ground(30 * c, c); assert!((0..3).all(|j| (g[j] - 1.).abs() < (biome_tint(Biome::Ashlands)[j] - 1.).abs() + 1e-6));
+        // a map built for a window slid sideways by a few cells reads the same tint at the same world cell
+        let m2 = RegionMap::new(&region, -40 * c + 13, 0, (80 * c) as usize, (4 * c) as usize);
+        for x in [-c - 3, 0, 5, c + 1] { assert_eq!(m.at(x, c), m2.at(x, c)); }
+        // every region has its own tint
+        let ts: Vec<_> = [Biome::Loam, Biome::Karst, Biome::Crags, Biome::Ashlands, Biome::Fungal].map(biome_tint).to_vec(); assert_eq!(ts.len(), molehill_sim::gen::NBIOME);
+        for i in 0..ts.len() { for j in 0..i { assert_ne!(ts[i], ts[j]); } }
+    }
     #[test] fn climbing_frames_go_hand_over_hand() {
         use super::{mole_sheet, mole_frame, Pose};
         let sheet = mole_sheet(true); let px = |k: usize| sheet[k].data.clone().unwrap();
