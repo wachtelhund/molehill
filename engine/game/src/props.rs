@@ -264,7 +264,7 @@ mod tests {
         let mut w = World::new(512 * S, 256 * S, 7); w.set_mode(Mode::Plain);
         for (kind, need) in want {
             // a clean block of host rock each time, nothing left from the last stamp
-            w.sites.clear(); w.furniture.clear(); w.chests.clear(); w.tr.ladders.clear(); w.tr.carts.clear(); w.farms.clear(); w.torches.clear();
+            w.sites.clear(); w.staged.clear(); w.furniture.clear(); w.chests.clear(); w.tr.ladders.clear(); w.tr.carts.clear(); w.farms.clear(); w.torches.clear();
             for y in 0..400 { for x in 0..800 { let i = y * w.g.w + x; w.g.set(i, molehill_sim::mat::Mat::Rock); } }
             w.stamp_site(kind, 40, 40);
             let got = dress(&w); let s = *w.sites.last().unwrap();

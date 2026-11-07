@@ -289,7 +289,7 @@ fn dev_dump(n: Local<u32>, g: Res<Game>, sp: Res<Sprites>, images: Res<Assets<Im
             | "site-mine" | "site-holt" | "site-pump" | "site-fissure" | "site-fossil" | "site-crystal" | "site-halt"
             | "walls" | "wall"));
         // `--dump-wide`: the whole window, so a still shows every region in it (the biome wash and parallax)
-        let (cw, chh, x0, y0) = if dump_wide() { (W, H, 0, 0) } else if let Some(st) = g.w.sites.last().filter(|_| site_dump) { // only a stamped scene crops to its site; a plain holt crops round the mole
+        let (cw, chh, x0, y0) = if dump_wide() { (W, H, 0, 0) } else if let Some(st) = g.w.staged.last().filter(|_| site_dump) { // only a stamped scene crops to its site (the one `--scene` stamped, not whichever is listed last); a plain holt crops round the mole
             let pad = 8 * CPM;
             let yw0 = (st.y0 - g.w.oy).max(0) as usize;
             let cw = (st.w + 2 * pad).min(W);

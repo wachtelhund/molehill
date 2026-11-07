@@ -147,6 +147,7 @@ Measured on native release, with other agents loading the machine:
 * Fix, in the sim: `World::staged` holds the sites `stamp_site` adds (they're not in the generator), and `refresh_sites` puts back the ones still touching the window, so their things and chest return too. Scenarios that stamp a site and then slide keep it as well. In the dump, the marker is drawn only inside the crop.
 * Test: `a_stamped_site_survives_a_slide` (`tests/roam.rs`) fails without the fix ("after a slide east") and passes with it. `--scene=pump` and `--scene=halt` with `--dump-art` now write all 310 files, and the wiki's pumpworks and halt stills are retaken from them (same crops, now with the region wash).
 * Not done: no live window; staged sites aren't saved (they're scripted only).
+* Follow-up: the dump crops `World::staged.last()` (the site `--scene` stamped), not `sites.last()`, which only held it by list order. The props test clears `staged` with the rest between stamps. All seven site scenes dump at frame 150 (seed 4242), with crops the same size as the wiki stills.
 
 ## Open
 * The design's emberiron for the Bore doesn't exist, so the Bore takes iron, copper and crystal.
