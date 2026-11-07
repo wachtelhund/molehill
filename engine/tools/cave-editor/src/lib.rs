@@ -250,27 +250,44 @@ pub fn stress(t: &Template, p: Placement) -> Result<Vec<bool>, String> {
 
 /// Run the piece for `ticks` with a mole standing in it (at the chest, else the middle of the floor):
 /// what it looks like after, and what happened.
-pub struct Sim { pub cells: Vec<Mat>, pub changed: usize, pub crumbled: u64, pub hp: f32, pub ticks: u32 }
+/// `broke`: cells solid before the run and not after (cracked to rubble, fell, crumbled). The world's own
+/// `crumbled` counter doesn't count what the stress solver brings down: the mine's failing deck fell whole
+/// while it said 1.
+pub struct Sim { pub cells: Vec<Mat>, pub changed: usize, pub broke: usize, pub hp: f32, pub ticks: u32 }
 pub fn simulate(t: &Template, p: Placement, ticks: u32) -> Result<Sim, String> {
     let mut s = stamp(t, p)?;
-    // the piece's rows in world terms: the sim slides its window after the mole (`follow_colony`), and the
-    // piece sits near the window's bottom, so after a slide it's higher in the grid than it was stamped
-    let oy0 = s.w.oy;
+    // the piece in world terms: the sim slides its window after the mole (`follow_colony`), so after a run
+    // the piece sits elsewhere in the grid, and rows (or columns) that left the window are packed into
+    // stored bands. Read each cell from the window if it's there, else from its band (a tall piece such
+    // as the fissure lost its top decks to "Empty" when only the window was read)
+    let (ox0, oy0) = (s.w.ox, s.w.oy);
     let read = |w: &World| -> Vec<Mat> {
+        use molehill_sim::band::{tile_w, BH};
+        let tw = tile_w(w.g.w) as i64;
+        let mut bands: std::collections::HashMap<(i64, i64), Option<Vec<u8>>> = Default::default();
         let mut v = Vec::with_capacity(t.w * t.h);
-        for y in 0..t.h { let gy = (s.y0 + y) as i64 + oy0 - w.oy;
-            for x in 0..t.w { v.push(if gy >= 0 && (gy as usize) < w.g.h { w.g.get(s.x0 + x, gy as usize) } else { Mat::Empty }); } }
+        for y in 0..t.h { for x in 0..t.w {
+            let (ax, ay) = (ox0 + (s.x0 + x) as i64, oy0 + (s.y0 + y) as i64);
+            let (gx, gy) = (ax - w.ox, ay - w.oy);
+            v.push(if gx >= 0 && gy >= 0 && (gx as usize) < w.g.w && (gy as usize) < w.g.h { w.g.get(gx as usize, gy as usize) } else {
+                // bands are keyed by their absolute top-left; slides are whole tiles and bands, so they line up with the start
+                let (kx, ky) = (ox0 + (ax - ox0).div_euclid(tw) * tw, oy0 + (ay - oy0).div_euclid(BH as i64) * BH as i64);
+                let cells = bands.entry((kx, ky)).or_insert_with(|| w.stored_cells(kx, ky).map(|c| c.0));
+                cells.as_ref().map_or(Mat::Empty, |c| Mat::from_u8(c[((ay - ky) * tw + ax - kx) as usize]))
+            });
+        } }
         v
     };
     let before = read(&s.w);
     let (mx, my) = s.chest.unwrap_or((s.x0 + t.w / 2, s.y0 + t.h - CPM - 1));
     if let Some(m) = s.w.moles.first_mut() { m.x = mx; m.y = my; }
     s.w.pl.px = mx as f32; s.w.pl.py = (my + 1) as f32;
-    let c0 = s.w.crumbled;
     for _ in 0..ticks { s.w.step(); }
     let after = read(&s.w);
     let changed = before.iter().zip(&after).filter(|(a, b)| a != b).count();
-    Ok(Sim { cells: after, changed, crumbled: s.w.crumbled - c0, hp: s.w.moles.first().map_or(0., |m| m.hp), ticks })
+    let solid = |m: &Mat| matches!(m.kind(), molehill_sim::mat::Kind::Solid);
+    let broke = before.iter().zip(&after).filter(|(a, b)| solid(a) && !solid(b)).count();
+    Ok(Sim { cells: after, changed, broke, hp: s.w.moles.first().map_or(0., |m| m.hp), ticks })
 }
 
 // ---------------------------------------------------------------- drawing (CPU pixels, used by the window)
@@ -428,7 +445,7 @@ impl Editor {
                     Act::Stress => stress(&t, self.placement()).map(|o| { let n = o.iter().filter(|&&b| b).count();
                         self.msg = if n == 0 { "Sound: nothing over capacity.".into() } else { format!("{n} cells over capacity (red): they crack and fall in play.") }; Overlay::Stress(o) }),
                     _ => simulate(&t, self.placement(), 600).map(|s| {
-                        self.msg = format!("After 10 s with a mole at the chest: {} cells changed, {} crumbled, hp {:.0}.", s.changed, s.crumbled, s.hp); Overlay::Sim(s) }),
+                        self.msg = format!("After 10 s with a mole at the chest: {} cells changed, {} solid cells broke or fell, hp {:.0}.", s.changed, s.broke, s.hp); Overlay::Sim(s) }),
                 };
                 match r { Ok(o) => { self.overlay = o; self.redraw = true; } Err(e) => self.msg = e }
             }

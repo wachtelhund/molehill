@@ -38,7 +38,7 @@ The window shows one found place at one pixel per cell (12.5 cm) as the game wou
 | `E` | the depth (10, 50 or 80 m) the preview places the piece at, for depth remaps |
 | `R` | **can the mole walk it?** Stamps the piece in granite and flood-fills the mole's body (the found-places test's rule): green where a way in reaches, orange where open space is cut off; the panel names any way in that doesn't reach the chest. Gravity is ignored here (the mole climbs walls and ropes), so a long drop still counts as a way: `G` and the scenarios catch falls |
 | `P` | **will it stand?** A full stress solve; red cells are over capacity and crack and fall in play |
-| `G` | **run it 10 s** with a mole standing at the chest: shows the piece afterwards and counts changed and crumbled cells and the mole's hp |
+| `G` | **run it 10 s** with a mole standing at the chest: shows the piece afterwards and counts the cells that changed, the solid ones that broke or fell (what `P` flags red comes down here), and the mole's hp |
 | `Esc` | clear the check (painting, `V`/`B`, `N` and `E` clear it too, and say so) |
 | `Ctrl`/`Cmd`+`Z`, `+Shift` or `Y` | undo, redo (a stroke is one step) |
 | `Ctrl`/`Cmd`+`S` | save to `assets/sites/<family>.json` |

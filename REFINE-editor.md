@@ -67,3 +67,12 @@ External cave/site editor (dev-only, never shipped) plus data-driven found-place
   * `G` showed the wrong rock: the sim slides its window after the mole (`follow_colony`), the piece sits near the window's bottom, so after 10 s it read the generated holt the slide brought in (89 333 of 101 376 mine cells "changed"). `simulate` now reads the piece's rows through the window offset (`oy`): mine 2 613 changed (its over-capacity deck), pumpworks 136, fossil 0. `a_run_shows_the_piece_it_ran` (fails on the old read). The vacuous `assert_eq!(s.cells.len(), s.cells.len())` went.
   * A check's message stayed after its overlay was cleared (`R` then `B`: "Walkable ... green" over a canvas with no green). Painting, `V`/`B`, `N`, `E` and `Esc` now say the check was cleared. `a_cleared_check_takes_its_message_with_it`.
 * Not live-tested: mouse feel (dragging strokes, right-click, wheel zoom, panning, resizing the window) and the Retina scale (the offscreen frame is 1 × scale). No screen recording permission here, so no input was driven through a real on-screen window.
+
+## Phase 2 polish (`refine/cave-editor-phase2-polish`, on main c65aa80)
+* Re-checked on c65aa80 (horizontally endless world, stress and physics changes): editor tests green, `export_sites --check` SAME, every family walkable (`R`). `P`: mine 2583, halt 286, holt 164, pumpworks 16 over capacity; fissure, fossil, crystal sound.
+* Found: `G` and `P` disagreed both ways.
+  * The mine's deck that `P` flags red comes down whole in a `G` run, but `G` said "1 crumbled": the world's `crumbled` counter doesn't count what the stress solver brings down. `G` now counts solid cells that broke or fell (solid before the run, not after): mine 2535.
+  * The fissure (sound under `P`) "lost" 2983 solid cells, its top decks: it's 320 cells tall, so the window's slide after the mole packed its top rows into a stored band, and the run read anything outside the window as empty. `simulate` now reads those cells from their stored band (`World::stored_cells`; columns too, for a sideways slide): fissure 0.
+  * `a_run_shows_the_piece_it_ran` checks the mine's broke count against `P` and that the fossil and fissure lose nothing.
+* Not changed: the mine's deck itself (layout owner); the editor's test world is 1024 wide, under `SITE_MIN_W`, so it never slides sideways today (read anyway).
+* Not live-tested: the GUI was again only seen through `--shot` frames and `--canvas`; mouse feel (drag, right-click, wheel, pan, resize) still needs a person at the window.
