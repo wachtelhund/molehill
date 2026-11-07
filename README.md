@@ -8,7 +8,7 @@ A colony sim about moles digging through the Deepholt, an endless falling-sand u
 
 ## Play locally
 
-**Native** (Linux/macOS, needs a Rust toolchain):
+**Native** (Linux/macOS/Windows, needs a Rust toolchain; on Linux also the ALSA headers for sound, `libasound2-dev` or `alsa-lib-devel`):
 
 ```bash
 cd engine
@@ -33,7 +33,7 @@ Tests: `cd engine && cargo test --release -p molehill-sim`. Headless scenarios: 
 | path | what |
 |---|---|
 | `engine/sim` | `molehill-sim`: pure-Rust simulation (no Bevy): sand and fluids, stress, procgen, light and fog, colony AI and needs, crafting and quests, copperline logic and thrumming, stale air, mushroom farms, endless world streaming, disasters, save/load |
-| `engine/game` | `molehill`: the Bevy front-end. It composites the world into 128 chunk textures of 64×64 cells and uploads only the chunks that changed. It also draws the sprites, the HUD, the wire and device overlay, and the procedural WebAudio sound. |
+| `engine/game` | `molehill`: the Bevy front-end. It composites the world into 128 chunk textures of 64×64 cells and uploads only the chunks that changed. It also draws the sprites, the HUD, the wire and device overlay, and the procedural sound (WebAudio on the web, a software synth through cpal natively). |
 | `engine/web`, `engine/build-web.sh` | the wasm build, written to `dist/` |
 | `site/` | committed copy of the web build, for local play |
 | `docs/wiki/` | the wiki (markdown pages; start at [`docs/wiki/README.md`](docs/wiki/README.md)) |
@@ -102,7 +102,7 @@ New Holt asks for a mode. **Survival** starts with a small kit: you dig with the
     * cylindrical spreading of 10·log₁₀(r) dB.
     * A link holds while 60 dB − losses > 0. Dense stone carries the knock tens of metres, loose dirt muffles it, and tunnels block it (tested).
 * **Disasters:** floods, lava surges and quakes. Each starts with a 10 s warning banner and lasts 6 s, with camera shake. The first comes at about 2.5 min, then one every 90–180 s.
-* **Sound:** procedural WebAudio effects plus an ambient rumble that changes with depth. It is web only (native is silent) and starts after the first input.
+* **Sound:** procedural effects plus an ambient rumble that changes with depth, on every build. The recipes are shared (`game/src/audio.rs`): the web plays them through WebAudio, and native builds render the same graph in software (`game/src/synth.rs`) out through cpal. Sound starts after the first input and follows Settings > Volume and Music.
 * **Music:** generative ambient (`game/src/music.rs`), no audio files: soft pads, kalimba-like plucks, rare bells and low drones through a cave reverb and echo. Pieces of 1–2 minutes alternate with long quiet rests. The mood follows the mole: airy and major up in the wet layers, earthy at home, darker deeper, low and smouldering near lava. It has its own quiet volume in Settings (default 35%; Enter mutes).
 * **Save/load:** a small manifest plus one run-length-encoded blob per 8 m band of the world, named by content hash. Autosaves (every 30 s) rewrite only the bands that changed. It goes to localStorage on web and to files on native, and autoloads at start.
 

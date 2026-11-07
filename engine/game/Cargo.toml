@@ -15,6 +15,8 @@ molehill-sim = { path = "../sim", default-features = false }
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 molehill-sim = { path = "../sim", features = ["parallel"] }
 bevy = { version = "0.20", default-features = false, features = ["multi_threaded", "x11", "wayland"] }
+# native sound: the same procedural graph as the web's WebAudio, rendered by `synth.rs` (Linux needs ALSA headers: libasound2-dev / alsa-lib-devel)
+cpal = "0.17"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 js-sys = "0.3"
