@@ -13,7 +13,7 @@ The game crate has a few headless unit tests of its own for HUD and art logic th
 
 `spawn_reveals_only_burrow_neighbourhood` checks a fresh holt starts with only its burrow and a 1 m skin seen (nothing 10 m out, through rock or not, and no unseen material counted as discovered).
 
-`sim/tests/sim.rs` covers stress and collapse, fluids, digging tiers, and movement. The movement tests check jump height, the variable short hop, coyote time, and that a bare wall can't be climbed (no cling, no climb: Hampus 2026-11-06). Rope-gun edge cases live there too: a window slide keeps the mole on its rope, and riding from a rope lets go of it. Helpers: `arena()` makes a cleared granite box around spawn, and `press(&mut w, n, |input| ...)` steps n ticks with a given input.
+`sim/tests/sim.rs` covers stress and collapse, fluids, digging tiers, and movement. The movement tests check jump height, the variable short hop, coyote time, and that a bare wall can't be climbed (no cling, no climb: Hampus 2026-11-06). Rope-gun edge cases live there too: a window slide (up, down or sideways) keeps the mole on its rope, and riding from a rope lets go of it. Helpers: `arena()` makes a cleared granite box around spawn, and `press(&mut w, n, |input| ...)` steps n ticks with a given input.
 
 ## 2. Scenario harness (`sim/examples/scenario.rs`)
 
