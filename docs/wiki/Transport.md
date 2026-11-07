@@ -8,13 +8,13 @@ The deeper the holt goes, the further its Delvers haul, so getting about is a la
 | 4 | **Powered rails** (copperline along the track) | **built** |
 | 1 | **Rope ladders** | **built** |
 | 1 | **Rope gun** (the way up: there is no wall climbing) | **built** |
-| 3–4 | **Lifts** (counterweight, or wound by current) | **built** |
+| 3–4 | **Lifts** (hauled on the walking keys, balanced with stone, or wound by current) | **built** |
 | 3+ | **Pressure tubes** (the top of the ladder for now) | **built** |
 
 **Hover tips.** Rest the cursor on a machine and its tip says what it's doing and the one or two inputs that matter (`tips::transport_tip`, test `transport_hover_tips_say_what_to_do`):
 * **Cart:** get in or push it; how much cargo it carries (`E` unloads it into the pack, and the log says what came: "Unloaded the cart: 6 stone, 3 copper ore.", scenario `holt_home`), or that it's empty (throw things in, `E` picks it up); off the rails. While riding, how to jump out.
-* **Rope ladder:** climb, or let go while on it; `E` takes it down.
-* **Lift:** the counterweight and cage in kg and whether it rises or sinks, or that current winds it; stone on or off.
+* **Rope ladder:** grab on and climb, or how to let go while on it; `E` takes it down.
+* **Lift:** how to ride and call it; which stop it's at (top, a passage or the shaft floor) or that it's on its way; balanced, light enough to haul, or too heavy and by how much (or that current hauls any load); right mouse balances it, `E` on the head takes it down. With a lift or rope ladder **in hand**, the tip says at once what it would do at the cursor (a 7 m shaft, a cage 1.9 m wide, 4 stops; a ladder tied on the ledge hanging 4.5 m) or why it can't go there (`tips::place_tip`).
 * **Tube hopper:** blowing (drop items in to send, ride with an empty paw) or receiving only; which hopper it sends to.
 * **Track and pipe:** whether the track is powered; that a line needs hoppers.
 
@@ -66,7 +66,7 @@ There is no separate powered rail: **copperline laid along the track** (in the s
 ## Rope ladders
 
 Cheap vertical access that needs no power.
-* **Hanging one.** Left mouse in a drop hangs a ladder from the nearest rock above: a ceiling over it, or the lip of a ledge beside it (the rope tied on the ledge's top, hanging down its face). It unrolls straight down until it meets the floor, at most 8 m.
+* **Hanging one.** With the ladder in hand, a ghost shows where it would hang: the whole rope to the floor with its rungs every 0.5 m, and the knot. It's pale where it fits, amber when out of reach, and a red cross with the tip saying why where it can't go. It snaps: a ledge's lip within 1 m beside the cursor ties it on there, hanging against the ledge's face (not out in the air where the cursor was), else it hangs from the rock right above. It unrolls to the floor, at most 8 m (`ladder_place_snap`). A ladder that falls drops where a mole would hang on it, clear of the face.
 * **Climbing.** Over a ladder, `W` grabs on at once (it climbs instead of jumping) and `W` / `S` climb: 3 m/s up and 3.5 m/s down, faster than a rope-gun rope (2 m/s): it has rungs. Let go of the keys and you hang still. Grabbing pulls you onto the rope, clear of the rock face it hangs over, and a grab while falling past it catches at once. Climbing down is never a fall: a long ladder costs no fall damage at the foot (`rope_ladder_down`).
 * **Getting on and off.** At the head of a ledge's ladder, standing on the ledge, `S` steps onto the rope and climbs down (it doesn't dig the ledge it's tied to). Hold `W` to the top and you climb off onto the ledge by yourself, like rolling over a ledge from a jump; with nowhere to step off, you hang at the rope's top end rather than bob off it (`rope_ladder_top_out`, `site_mine_traverse`). `A` / `D` with `W` / `S` held move you along the rope at 2 m/s (to step off into a side passage, say), `A` / `D` alone lets go at once and you drop or walk off at your own speed; a jump lets go and counts as a jump from the ground (`rope_ladder_let_go`, `rope_ladder_climb`).
 * **It hangs from its rock.** Dig out the rock it's tied to and the ladder falls as a loose item (`rope_ladder_falls`). A floor that rises under it (sand, a block) shortens it. `E` takes it down.
@@ -80,7 +80,8 @@ The way up a face: the mole **can't climb bare walls** (Hampus, 2026-11-06; scen
 * **The rope** is a chain of 32 half-metre segments moved by verlet: it hangs, goes slack, lies over the rock it touches and swings with the mole on it. Grains falling past don't hold it up. It is saved with the world (transport save v5).
 * **Climbing.** `W` with the body within 0.5 m of the rope grabs it (from the floor a fresh press, so `W` held as you step off at a top doesn't grab again). `W` / `S` climb at 2 m/s up and 3 m/s down. `A` / `D` swing: the mole is a pendulum under the hook, and a push (16 m/s²) only goes the way the swing already goes, so holding a key builds the swing up. Pressing toward a ledge whose top is within 0.75 m of the feet steps off onto it. `Space` lets go with a hop and the swing's speed (the pumpworks route swings over its 9 m wheel this way: `site_pumpworks_traverse`); climbing down onto the floor lets go. `W` held while falling past a rope catches it (`rope_gun_catch`). A rope is never a fall (`rope_gun_climb`).
 * **Found places it gates (on purpose, Hampus 2026-11-06).** The buried cargo halt's crate stacks (4.25 m), the fossil cave's mound face (2.2 m) and the flooded pumpworks' wheel (9 m) are beyond a jump: the rope gun is the way over them, and no ladder or steps are added. The gun opens the gate in the first minutes (workbench, gun and a hook rope cost only wood, stone and fungus, the wood within the Survival kit), and the walk-throughs reach each chest with it (`site_halt_traverse`, `site_fossil_over_the_beast`, `site_pumpworks_rope_to_chest`; test `rope_gun_comes_before_the_faces_that_need_it`).
-* **It hangs from its rock.** Blow or dig away the rock the hook bit and the rope comes down as a hook rope item (`rope_gun_anchor_stone`). `E` on any part of a rope takes it back into the pack as a hook rope. A hook still in the air when the world window slides goes back into the pack (`rope_gun_slide`); a fixed rope the window leaves is lost with it, like a rope ladder.
+* **It hangs from its rock.** Blow or dig away the rock the hook bit and the rope comes down as a hook rope item (`rope_gun_anchor_stone`). `E` on any part of a rope takes it back into the pack as a hook rope. A hook still in the air when the world window slides goes back into the pack (`rope_gun_slide`); a fixed rope the window leaves is lost with it, like a rope ladder. Climbing past the window's margin slides it mid-climb: the rope moves with the rock and the mole keeps its hold (test `a_window_slide_keeps_the_mole_on_its_rope`).
+* **Riding lets go.** Getting into a cart, onto a borer or into a wagon from a rope lets go of it, so jumping out later is a plain hop, not a yank back toward the hook (test `riding_from_a_rope_lets_go_of_it`).
 
 | | value |
 |---|---|
@@ -91,25 +92,40 @@ The way up a face: the mole **can't climb bare walls** (Hampus, 2026-11-06; scen
 
 ## Lifts
 
-A **lift** is a cage on a rope over a head frame, balanced by a counterweight. Left mouse in a shaft hangs the head under the shaft's ceiling, as far up as its 32 m rope reaches. The 1.5 m cage starts at the shaft's floor. The cage floor is a platform: the mole stands on it and rides with it, and loose items lie on it.
+A **lift** is a cage on a rope over a head frame, balanced by a counterweight. Code: `lifts.rs`.
+* **Placing.** With the lift in hand, the cursor anywhere in a shaft shows a ghost of where it goes:
+  * The cage is built to the shaft's width (1.5 to 3 m, an odd number of cells, centred). In a cave wider than 3 m, a 3 m cage is set under the cursor.
+  * The head frame hangs under the ceiling above it, as far up as the 32 m rope reaches.
+  * The ghost shows the cage at the foot, a mark at every stop, and the counterweight up top. It's pale where the lift fits and amber when it's out of reach. Where it can't go, a red cross shows and the tip says why ("the shaft is too narrow for the cage (1.5 m)", "needs a ceiling to hang from"). `tips::place_tip`, scenario `lift_ride_stops`.
+* **Stops.** The cage stops at three kinds of place, marked in brass on the shaft's side:
+  * the top, with room for a mole under the head;
+  * every side opening whose floor meets the cage's side within 0.25 m (a passage off the shaft; stops closer than 1 m count as one);
+  * the shaft's floor.
+
+  The stops follow the rock: dig a passage off the shaft and it becomes one. Between rides the head's brake holds the cage still.
+* **Riding.** The same keys as walking. On the cage, a tap on `W` / `S` hauls the hand rope to the next stop up or down, and the cage stops there, level with its floor. Held, it runs on through each stop without slowing (`lift_ride_stops`). On the cage, `W` doesn't jump and `S` doesn't dig.
+* **Calling.** Standing at a stop beside the shaft (within 1 m of the cage's side) or on its floor, a fresh `W` or `S` hauls the cage to you (`lift_call`). A cage coming down stops above a mole standing under it ("step out from under it").
+* **Balance.** The mole's arms haul up to 60 kg out of balance either way. That covers the bare 40 kg counterweight against the 60 kg cage and a 30 kg rider (50 kg), plus a couple of things besides.
+  * A heavier load is refused: "Too heavy to haul … right mouse on the lift balances it", and the brake holds.
+  * **Right mouse on the head or the cage balances it in one go.** It puts stone from the pack on the counterweight, or hands spare stone back, until the weight matches what's on the cage now, a rider counted (at the least the cage and a rider). It then says how it stands ("Balanced: counterweight 110 kg against the cage's 110 kg", or how many more stones it would need) (`lift_balance`).
+  * A **needle** on the head frame leans toward the heavier side. It is green when balanced, amber while still haulable, and red when the mole can't haul it.
+* **Driven by power.** Copperline carrying current anywhere on the head frame turns the winch. On the same keys and calls, the winch hauls any load at 1.5 m/s. Cut the current and the arms' limit applies again (`lift_powered`).
 
 | | value |
 |---|---|
-| cage | 60 kg, plus 30 kg with a mole on it and 5 kg per item lying on it |
+| cage | 60 kg, plus 30 kg with a mole on it and 5 kg per item lying on it; the shaft's width, 1.5–3 m |
 | counterweight | 40 kg frame plus 10 kg per stone of ballast |
-| balance | a = g·(counterweight − cage) / (counterweight + cage), held to 2 m/s by the head's brake |
-| winch | wound by current: up at 1.5 m/s whatever it carries |
+| haul by hand | up to 60 kg out of balance; 2 m/s, speeding up and slowing at 4 m/s² to stop level |
+| winch | current at the head: any load at 1.5 m/s |
 
-* **Balanced by hand.** Right mouse on the head or the cage with stone in the paw adds a stone of ballast. Right mouse with anything else takes one back into the pack. The cage rises while the counterweight is the heavier, and sinks while it isn't. A mole on the cage (90 kg together) needs six stones (100 kg) to go up. Take them back off at the top and it comes down again (`lift_counterweight`).
-* **Driven by power.** Copperline at the head carrying current turns the winch and winds the cage up, with no ballast needed. Cut the current and the balance takes over: an unballasted cage sinks back down (`lift_powered`).
-* **The shaft must be clear.** Anything in the way (a cave-in, a block) stops the cage there. If the ceiling the head hangs from goes, the head comes down: the lift and its ballast fall as loose items. `E` on the head takes the lift down, ballast and all.
+* **The shaft must be clear.** Anything in the way (a cave-in, a block) stops the cage there. If the ceiling the head hangs from goes, the head comes down, and the lift and its ballast fall as loose items. `E` on the head takes the lift down, ballast and all.
 * Ladders, lifts and their ballast are saved.
 
 ## Pressure tubes
 
 A sealed pipe network that blows capsules along it with air.
 * **Pipe.** Pressure tube is a built block: iron-banded glass pipe (`Mat::Tube`, flag `TUBE`). Lay it with the block brush (`X` snaps straight runs). Tube cells that touch edge to edge are one line, and like any built block it needs support.
-* **Hoppers.** A tube hopper is a 1 m mouth with a blower in it. Left mouse sets it on the floor or pipe under the cursor, and it must touch a tube within a tile of its mouth. Its blower runs while copperline in its block carries current.
+* **Hoppers.** A tube hopper is a 1 m mouth with a blower in it. Left mouse sets it on the floor or pipe under the cursor, and it must touch a tube within a tile of its mouth. It can't go inside an ore hopper's bin or legs (the two would hide each other from right mouse and `E`); its log lines say "tube hopper" so they aren't taken for the ore hopper's. Its blower runs while copperline in its block carries current.
 * **Sending.** Loose items dropped or thrown into the mouth of a hopper whose blower runs are sealed in a capsule and blown along the pipe to that hopper's destination: the nearest other hopper on the line, and right mouse cycles through the others. They come out of the destination's mouth. A hopper without current only receives, so what arrives stays there.
 * **Riding.** Right mouse with an empty paw on a hopper whose blower runs seals the mole in a capsule. It's carried along the pipe out of sight, unhurt by the rock the pipe runs through, and climbs out of the far hopper (`tube_rides_mole`).
 * **Speed.** Capsules run at 12 m/s, up a riser as easily as along the flat (`tube_sends_items`).

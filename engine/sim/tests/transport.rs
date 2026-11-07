@@ -58,9 +58,9 @@ fn reachable() -> [bool; NITEM] {
     let t = tip(&w, mx + 2 * c, my - 1); assert!(t.starts_with("Mine cart") && t.contains("Right mouse: get in") && t.contains("push") && t.contains("throw things in"), "cart: {t}");
     w.tr.riding = Some(0); let t = tip(&w, mx + 2 * c, my - 1); assert!(t.contains("Space: jump out"), "cart, riding: {t}"); w.tr.riding = None;
     assert_eq!(w.place_transport(Item::RopeLadder, mx - c - c / 2, my - 2 * c), Ok(true));
-    let t = tip(&w, mx - c - c / 2, my - 2 * c); assert!(t.starts_with("Rope ladder") && t.contains("W / S: climb"), "ladder: {t}");
+    let t = tip(&w, mx - c - c / 2, my - 2 * c); assert!(t.starts_with("Rope ladder") && t.contains("W / S") && t.contains("E: take it down"), "ladder: {t}");
     assert_eq!(w.place_transport(Item::Lift, mx - 3 * c - c / 2, my - c), Ok(true));
-    let t = tip(&w, mx - 3 * c - c / 2, my - S); assert!(t.starts_with("Lift") && t.contains("Counterweight 40 kg") && t.contains("sinks") && t.contains("stone"), "lift: {t}");
+    let t = tip(&w, mx - 3 * c - c / 2, my - S); assert!(t.starts_with("Lift") && t.contains("W / S") && t.contains("calls the cage") && t.contains("Right mouse: balance"), "lift: {t}");
     assert_eq!(w.place_transport(Item::TubeHopper, mx + 4 * c + 2, my), Ok(true));
     let t = tip(&w, mx + 4 * c + 2, my - 2); assert!(t.starts_with("Tube hopper") && t.contains("No current") && t.contains("only receives"), "hopper: {t}");
 }
@@ -93,4 +93,25 @@ fn reachable() -> [bool; NITEM] {
     assert!(tip(&w, mx - 4 * c, my + 1).contains("slide down it"), "chute: {}", tip(&w, mx - 4 * c, my + 1));
     assert!(tip(&w, mx - 3 * c, my + 1).contains("shakes it"), "screen: {}", tip(&w, mx - 3 * c, my + 1));
     assert!(tip(&w, mx - 2 * c, my + 1).contains("tips its load"), "bumper: {}", tip(&w, mx - 2 * c, my + 1));
+}
+
+/// A tube hopper and an ore hopper are two machines with one word in their names: neither can be set down
+/// over the other (right mouse and `E` would reach only the first), and the refusal names which one is there.
+#[test] fn hoppers_do_not_stack() {
+    use molehill_sim::{grid::F_SEEN, mat::CPM};
+    let mut w = World::new(256 * molehill_sim::mat::S, 128 * molehill_sim::mat::S, 3); w.disasters.enabled = false; w.set_mode(Mode::Creative);
+    let (mx, my) = (w.moles[0].x, w.moles[0].y); let c = CPM;
+    for y in my - 5 * c..=my + 2 * c { for x in mx - 6 * c..=mx + 6 * c { let i = w.g.idx(x, y);
+        let rock = y > my || y <= my - 5 * c || x < mx - 5 * c || x > mx + 5 * c;
+        w.g.set(i, if rock { Mat::Granite } else { Mat::Empty }); w.g.flags[i] = F_SEEN; } }
+    for x in mx + c..mx + 4 * c { let i = w.g.idx(x, my + 1); w.g.set(i, Mat::Tube); }
+    w.drops.clear(); for _ in 0..3 { w.step(); }
+    let at = mx + 2 * c + c / 2;
+    assert_eq!(w.place_transport(Item::TubeHopper, at, my), Ok(true));
+    assert_eq!(w.place_transport(Item::OreHopper, at, my), Err("there's a tube hopper there"));
+    assert_eq!(w.tr.bins.len(), 0);
+    w.tr.hoppers.clear();
+    assert_eq!(w.place_transport(Item::OreHopper, at, my), Ok(true));
+    assert_eq!(w.place_transport(Item::TubeHopper, at, my), Err("there's an ore hopper there"));
+    assert_eq!(w.tr.hoppers.len(), 0);
 }

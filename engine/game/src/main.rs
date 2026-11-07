@@ -5,6 +5,7 @@
 mod art;
 mod audio;
 mod music;
+#[cfg(not(target_arch = "wasm32"))] mod synth;
 mod devart;
 mod decorart;
 mod journal;
@@ -51,6 +52,8 @@ const FAR: usize = 4; // chunk rows drawn beyond each end of the simulated windo
     pub brush_tag: Option<(String, f32)>,
     /// dev only (`--shot-walk`): hold right as if `D` were down
     pub demo_right: bool,
+    /// dev only (`--shot-up` / `--shot-down`): hold W / S; (`--shot-aim=DX,DY`): the cursor DX, DY tiles from the mole
+    pub demo_up: bool, pub demo_down: bool, pub demo_aim: Option<(i32, i32)>,
     /// wheel → notches (see `view::Wheel`: an idle wheel is still, a trackpad flick is one notch)
     wheel: molehill_sim::view::Wheel,
     /// mouse buttons held since a menu closed: ignored until released (the click that closed the menu must not dig or place)
@@ -70,7 +73,9 @@ const FAR: usize = 4; // chunk rows drawn beyond each end of the simulated windo
     look: Vec2 }
 /// What an inventory slot holds. Counts come from the shared pack (`World::inv`).
 #[derive(Clone, Copy, PartialEq, Debug)] pub enum Thing { Pick(u8), Item(Item), Dev(usize), Station(usize) }
-pub const NSLOT: usize = 100; // 10 hotbar + 90 pack: room for the six back-wall items after devices and stations
+/// 10 hotbar + the pack: a slot for every thing there is (the dig tools, every device, station and item but the
+/// three dig tools' items), in whole rows of 10, so a newly added item always has a slot (Creative shows it all).
+pub const NSLOT: usize = (3 + DEVS.len() + STATIONS.len() + NITEM - 3).div_ceil(10) * 10;
 /// The round brush an inventory thing uses, if any (dig tools and placeable blocks).
 pub fn brush_of(t: Option<Thing>) -> Option<sw::Brush> { match t { Some(Thing::Pick(n)) => Some(sw::Brush::Dig(n)), Some(Thing::Item(it)) if sw::block_code(it).is_some() || it.pigment().is_some() || it.is_wall() => Some(sw::Brush::Place(it)), _ => None } }
 /// The radius the brush of this thing will actually use (the player's choice, clamped to the item's range).
@@ -135,7 +140,7 @@ const BG_BASE: [f32; 3] = [44., 34., 30.];
 #[inline] fn srgb(l: f32) -> f32 { l.max(0.).powf(1. / 2.2) * 255. }
 #[derive(Component)] pub struct WorldSprite;
 #[derive(Component)] struct Pooled(u8, usize);
-#[derive(Resource)] pub struct Sprites { pub wagon: Vec<Handle<Image>>, pub wload: [Handle<Image>; 2], pub coupling: Handle<Image>, pub borer: Vec<Handle<Image>>, pub leaf: Handle<Image>, pub lever: [Handle<Image>; 2], pub scale: [Handle<Image>; 4], pub rope: [Handle<Image>; 2], pub weight: Handle<Image>, pub boiler: [Handle<Image>; 2], pub stamp: [Handle<Image>; 2], pub tub: [Handle<Image>; 2], pub smelter: [Handle<Image>; 4], pub props: Vec<Handle<Image>>, pub cart: Handle<Image>, pub bin: Vec<Handle<Image>>, pub clue: Vec<Handle<Image>>, pub furn: Vec<Option<(Handle<Image>, Option<Handle<Image>>)>>, pub tools: [Handle<Image>; 3], pub dev: Vec<Handle<Image>>, pub ring: Handle<Image>, pub mole: Vec<Handle<Image>>, pub mole_out: Vec<Handle<Image>>, pub held: Vec<Handle<Image>>, pub icons: Vec<Handle<Image>>, pub chest: [Handle<Image>; 2], pub station: Vec<[Handle<Image>; 2]>, pub torch: Handle<Image>, pub torch_f: Vec<Handle<Image>>, pub glow: Handle<Image>, pub shroom: [Handle<Image>; 3], pub px: Handle<Image> }
+#[derive(Resource)] pub struct Sprites { pub bite: Handle<Image>, pub rung: Handle<Image>, pub thopper: Handle<Image>, pub wagon: Vec<Handle<Image>>, pub wload: [Handle<Image>; 2], pub coupling: Handle<Image>, pub borer: Vec<Handle<Image>>, pub leaf: Handle<Image>, pub lever: [Handle<Image>; 2], pub scale: [Handle<Image>; 4], pub rope: [Handle<Image>; 2], pub weight: Handle<Image>, pub boiler: [Handle<Image>; 2], pub stamp: [Handle<Image>; 2], pub tub: [Handle<Image>; 2], pub smelter: [Handle<Image>; 4], pub props: Vec<Handle<Image>>, pub cart: Handle<Image>, pub bin: Vec<Handle<Image>>, pub clue: Vec<Handle<Image>>, pub furn: Vec<Option<(Handle<Image>, Option<Handle<Image>>)>>, pub tools: [Handle<Image>; 3], pub dev: Vec<Handle<Image>>, pub ring: Handle<Image>, pub mole: Vec<Handle<Image>>, pub mole_out: Vec<Handle<Image>>, pub held: Vec<Handle<Image>>, pub icons: Vec<Handle<Image>>, pub chest: [Handle<Image>; 2], pub station: Vec<[Handle<Image>; 2]>, pub torch: Handle<Image>, pub torch_f: Vec<Handle<Image>>, pub glow: Handle<Image>, pub shroom: [Handle<Image>; 3], pub px: Handle<Image> }
 
 /// `?seed=N` (web) / `--seed=N` (native) was given: the game opens straight into that holt.
 fn seed_pinned() -> bool {
@@ -207,7 +212,8 @@ fn main() {
 
 /// Dev visual check (native): `--shot=FILE` starts a holt straight away, saves one frame after
 /// `--shot-at=N` frames (default 150) and quits. `--shot-ui=pause|inv|help|dev` opens that panel first (`loading`: the still is of a new holt's loading line),
-/// `--shot-walk` holds right, `--shot-blast=K` sets off a charge beside the mole K frames before the shot.
+/// `--shot-walk` holds right (`--shot-up` / `--shot-down`: W / S), `--shot-blast=K` sets off a charge beside the mole K frames before the shot,
+/// `--shot-hold=Item` puts that item in hand and `--shot-aim=DX,DY` rests the cursor DX, DY tiles (0.25 m) from the mole (the placing ghost and tip).
 /// One still frame only: no videos.
 fn dev_shot(mut n: Local<u32>, mut g: ResMut<Game>, mut m: ResMut<menu::Menu>, mut commands: Commands, mut exit: MessageWriter<AppExit>) {
     #[cfg(not(target_arch = "wasm32"))] {
@@ -215,7 +221,12 @@ fn dev_shot(mut n: Local<u32>, mut g: ResMut<Game>, mut m: ResMut<menu::Menu>, m
         let Some(path) = arg("--shot=") else { return };
         let at: u32 = arg("--shot-at=").and_then(|v| v.parse().ok()).unwrap_or(150); let ui = arg("--shot-ui=").unwrap_or_default();
         *n += 1;
-        if *n == 2 { m.go(menu::Screen::Off); g.paused = false; g.demo_right = std::env::args().any(|a| a == "--shot-walk"); }
+        if *n == 2 { m.go(menu::Screen::Off); g.paused = false; g.demo_right = std::env::args().any(|a| a == "--shot-walk");
+            g.demo_up = std::env::args().any(|a| a == "--shot-up"); g.demo_down = std::env::args().any(|a| a == "--shot-down");
+            g.demo_aim = arg("--shot-aim=").and_then(|v| { let (a, b) = v.split_once(',')?; Some((a.parse().ok()?, b.parse().ok()?)) });
+            // `--shot-hold=Item`: that item in hand (one put in the pack if there's none)
+            if let Some(it) = arg("--shot-hold=").and_then(|v| molehill_sim::craft::ITEMS.iter().copied().find(|it| format!("{it:?}").eq_ignore_ascii_case(&v))) {
+                if g.w.inv[it as usize] == 0 { g.w.inv[it as usize] = 1; } let h = g.hot; g.slots[h] = Some(Thing::Item(it)); } }
         if *n == at.saturating_sub(5) { match ui.as_str() { "pause" => { m.go(menu::Screen::Pause); g.paused = true; } "inv" => g.inv_open = true, "help" => g.help = true, "dev" => g.show_dev = true, _ => {} } }
         // `--shot-blast=K`: a charge goes off 3 m beside the mole K frames before the shot (to see the front and dust)
         if let Some(k) = arg("--shot-blast=").and_then(|v| v.parse::<u32>().ok()) { if *n == at.saturating_sub(k) { if let Some(mo) = g.w.moles.first().cloned() {
@@ -308,7 +319,7 @@ fn dev_dump(n: Local<u32>, g: Res<Game>, sp: Res<Sprites>, images: Res<Assets<Im
         list.push(("cart".into(), sp.cart.clone())); list.push(("rope".into(), sp.rope[0].clone())); list.push(("hook".into(), sp.rope[1].clone())); list.push(("weight".into(), sp.weight.clone())); list.push(("boiler0".into(), sp.boiler[0].clone())); list.push(("boiler1".into(), sp.boiler[1].clone()));
         for (k, h) in sp.stamp.iter().chain(sp.tub.iter()).chain(sp.smelter.iter()).enumerate() { list.push((format!("works{k}"), h.clone())); }
         list.push(("gate-leaf".into(), sp.leaf.clone())); for (k, h) in sp.borer.iter().enumerate() { list.push((format!("borer{k}"), h.clone())); }
-        for (k, h) in sp.wagon.iter().chain(sp.wload.iter()).enumerate() { list.push((format!("wagon{k}"), h.clone())); } list.push(("coupling".into(), sp.coupling.clone())); for (k, h) in sp.lever.iter().chain(sp.scale.iter()).enumerate() { list.push((format!("logic{k}"), h.clone())); }
+        for (k, h) in sp.wagon.iter().chain(sp.wload.iter()).enumerate() { list.push((format!("wagon{k}"), h.clone())); } list.push(("coupling".into(), sp.coupling.clone())); list.push(("tube-hopper".into(), sp.thopper.clone())); list.push(("hook-bite".into(), sp.bite.clone())); list.push(("rung".into(), sp.rung.clone())); for (k, h) in sp.lever.iter().chain(sp.scale.iter()).enumerate() { list.push((format!("logic{k}"), h.clone())); }
         for (k, h) in sp.bin.iter().enumerate() { list.push((format!("orebin{k}"), h.clone())); }
         for (k, h) in sp.props.iter().enumerate() { list.push((format!("prop-{:?}", props::PROPS[k]), h.clone())); }
         for (k, h) in sp.icons.iter().enumerate() { list.push((format!("icon-{:?}", ITEMS[k]), h.clone())); }
@@ -361,6 +372,31 @@ fn stage_scene(w: &mut World) {
         let (mx, my) = (w.moles[0].x, w.moles[0].y); let set = |w: &mut World, x: usize, y: usize, m: Mat| { let i = w.g.idx(x, y); w.g.set(i, m); };
         w.disasters.enabled = false;
         match sc.as_str() {
+            // a 2 m shaft 7.5 m deep east of the burrow, reached by a passage at its foot, with a passage off its right
+            // side halfway up and one off its left near the top (the lift's stops; the right one's lip also takes a rope
+            // ladder). `lift`: empty, a lift and a rope ladder in the pack (`--shot-hold=Lift --shot-aim=..` for the
+            // placing ghost); `liftride`: the lift hung and the mole on its cage (`--shot-up` rides it); `liftheavy`:
+            // four stones on the cage too, past what the mole's arms haul (the needle red, the tip says so)
+            "lift" | "liftride" | "liftheavy" => {
+                let (x0, x1, top) = (mx + 2 * S, mx + 44 * S, my - 34 * S);
+                for x in x0..x1 { for y in top..my + 3 * S { set(w, x, y, Mat::Bedrock); } }
+                let open = |w: &mut World, xa: usize, xb: usize, ya: usize, yb: usize| for x in xa..xb { for y in ya..=yb { let i = w.g.idx(x, y); w.g.set(i, Mat::Empty); } };
+                open(w, mx - S, mx + 16 * S, my + 1 - 4 * S, my);             // the foot passage from the burrow
+                open(w, mx + 16 * S, mx + 24 * S, my - 30 * S, my);           // the shaft
+                open(w, mx + 24 * S, mx + 36 * S, my - 16 * S, my - 12 * S);  // right-hand passage, its floor 3 m up
+                open(w, mx + 6 * S, mx + 16 * S, my - 26 * S, my - 22 * S);   // left-hand passage near the top
+                w.inv[Item::Lift as usize] += 1; w.inv[Item::RopeLadder as usize] += 1; w.inv[Item::Stone as usize] += 20;
+                molehill_sim::light::reveal_box(&mut w.g, x0, top, x1, my + 3 * S);
+                w.torches.push((mx + 10 * S, my - 2 * S)); w.torches.push((mx + 30 * S, my - 14 * S)); w.torches.push((mx + 10 * S, my - 24 * S));
+                w.moles[0].x = mx + 12 * S; w.pl.sync = None;                 // in the foot passage, near the shaft
+                if sc != "lift" {
+                    // stand in the shaft's foot to hang it (in reach), then onto the cage
+                    w.moles[0].x = mx + 14 * S; w.pl.sync = None;
+                    let _ = w.place_transport(Item::Lift, mx + 20 * S, my - 4 * S);
+                    if let Some(l) = w.tr.lifts.first() { let (xc, y) = (l.x, l.y as usize); w.moles[0].x = xc - S; w.moles[0].y = y - 1; w.pl.sync = None;
+                        if sc == "liftheavy" { for k in 0..4 { w.drops.push(molehill_sim::world::Drop::at((xc + S + k * S / 2) as f32, y as f32 - 1., Item::Stone, 1)); } } }
+                }
+            }
             "water" => { // an open tunnel east out of the burrow ending in clay, with a water pocket behind it
                 for x in mx + 4 * S..mx + 30 * S { for y in my - 2 * S..=my { set(w, x, y, Mat::Empty); } set(w, x, my + 1 * S, Mat::Clay); set(w, x, my - 3 * S, Mat::Limestone); }
                 for x in mx + 30 * S..mx + 34 * S { for y in my - 5 * S..=my + 1 * S { set(w, x, y, Mat::Clay); } }
@@ -385,6 +421,28 @@ fn stage_scene(w: &mut World) {
                 for k in 0..6u8 { put(w, ClueKind::Relic, x0 + 14 * S + k as usize * 4 * S, my, k); }
                 put(w, ClueKind::Draft, x0 + 45 * S, my, 0);
                 for k in 0..3 { w.torches.push((x0 + (6 + k * 20) * S, my - 4 * S)); }
+            }
+            "climb" | "climb-rope" => { // a tall hall east of the burrow with a rope ladder and a hook rope hanging from its roof;
+                // the mole holds the ladder halfway up (`climb`), or hangs on the rope two metres below the hook, swinging
+                // (`climb-rope`). Movement's `--shot-up` / `--shot-down` (in their lift PR) will make it climb or slide.
+                use molehill_sim::{mat::CPM, lifts::Ladder, ropes::{Rope, NSEG, SEG}, world::BODY_H};
+                let (x0, x1, y0) = (mx + 4 * S, mx + 40 * S, my - 26 * S);
+                for x in x0 - 2 * S..x1 + 2 * S { for y in y0 - 4 * S..my + 1 + 2 * S { set(w, x, y, Mat::Bedrock); } }
+                for x in x0..x1 { for y in y0..=my { set(w, x, y, Mat::Empty); } }
+                w.torches.retain(|t| t.0 < x0 || t.0 >= x1);
+                let lx = x0 + 10 * S; let len = (my + 1 - y0).min(molehill_sim::lifts::LADDER_M);
+                w.tr.ladders.push(Ladder { x: lx, top: y0, len, ax: lx, ay: y0 - 1 });
+                let (ax, ay) = ((x0 + 26 * S) as f32 + 0.5, y0 as f32);
+                let pts: Vec<(f32, f32)> = (0..=NSEG).map(|i| (ax, (ay + i as f32 * SEG).min(my as f32 + 0.5))).collect();
+                w.tr.ropes.push(Rope { prev: pts.clone(), pts, ax: ax as usize, ay: y0 - 1 });
+                if sc == "climb" { let (px, py) = (lx as f32 + 0.5, (y0 + len / 2) as f32); w.pl.px = px; w.pl.py = py; w.pl.ppx = px; w.pl.ppy = py; w.tr.climbing = true; }
+                else { let s = 2. * CPM as f32; let (px, py) = (ax + 0.75 * CPM as f32, ay + s + BODY_H * 0.85); w.pl.px = px; w.pl.py = py; w.pl.ppx = px; w.pl.ppy = py;
+                       w.pl.vx = -1.5 * CPM as f32; w.tr.on_rope = Some((w.tr.ropes.len() - 1, s)); }
+                w.pl.grounded = false;
+                // the sim re-seats the player on the mole unless they agree (`Player::sync`): move the mole there too
+                { let (mx2, my2) = (w.pl.px as usize, (w.pl.py - 1.) as usize); w.moles[0].x = mx2; w.moles[0].y = my2; w.pl.sync = Some((mx2, my2)); }
+                molehill_sim::light::reveal_box(&mut w.g, mx, y0 - 10 * S, x1 + 10 * S, my + 10 * S);
+                for k in 0..4 { w.torches.push((x0 + (4 + k * 10) * S, y0 + 6 * S)); }
             }
             "wagons" => { // a long tunnel east of the burrow ending in a dirt face: a lit borer with the mole riding it near the
                 // face, hauling all five wagon kinds coupled behind it (water, coal, store, workshop, bunk), the store, coal and
@@ -540,7 +598,7 @@ fn stage_scene(w: &mut World) {
                 molehill_sim::light::reveal_box(&mut w.g, mx, y0 - 10 * S, x1 + 10 * S, my + 10 * S);
                 for k in 0..4 { w.torches.push((x0 + (6 + k * 16) * S, y0 + 4 * S)); }
             }
-            "production" => { // a works east of the burrow: a chute sloping down onto a shaker screen, riffle bars, an ore hopper
+            "production" => { // a works east of the burrow: a chute sloping down onto a shaker screen, riffle bars, an ore hopper and a tube hopper beside it
                 // heaped with copper ore over a rail, and a bumper at the end of the track
                 use molehill_sim::mat::CPM;
                 let (x0, x1, y0) = (mx + 4 * S, mx + 64 * S, my - 22 * S);
@@ -552,6 +610,9 @@ fn stage_scene(w: &mut World) {
                 for x in sx + 2 * CPM - 2..sx + 2 * CPM { for y in sy + 2..my - 1 { set(w, x, y, Mat::WoodBeam); } }
                 for x in x1 - CPM / 2..x1 { for y in my - CPM..my - 1 { set(w, x, y, Mat::Bumper); } }
                 for x in x0 + 26 * S..x0 + 26 * S + 2 * CPM { for y in my - 3..my - 1 { set(w, x, y, Mat::Riffle); } } // a run of riffle bars on the track bed
+                // a tube hopper on a stub of pressure tube by the ore hopper, so the two read apart in a still
+                { let (hx, hy) = (x0 + 50 * S, my - 1 - CPM - 2); for x in hx + CPM / 2 - 1..hx + CPM / 2 + 1 { for y in hy + CPM..my - 1 { set(w, x, y, Mat::Tube); } }
+                  let tube = w.g.idx(hx + CPM / 2, hy + CPM); w.tr.hoppers.push(molehill_sim::tubes::Hopper { x: hx, y: hy, tube, dest: None }); }
                 let bx = x0 + 40 * S; let floor = my - 1; let by = floor - molehill_sim::production::BIN_LEGS;
                 w.tr.bins.push(molehill_sim::production::OreHopper { x: bx, y: by, floor, contents: vec![(Item::CopperOre, 40)], held: false, rod_held: false, open: false, feed: 0, grit: vec![] });
                 molehill_sim::light::reveal_box(&mut w.g, mx, y0 - 10 * S, x1 + 10 * S, my + 10 * S);
@@ -758,7 +819,7 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, mut fonts: R
         mole_out: art::mole_sheet(false).into_iter().map(|i| images.add(i)).collect(),
         held: [art::Held::Pick, art::Held::Drill, art::Held::Bore, art::Held::Charge, art::Held::Block(Item::WoodPillar.color()), art::Held::Block(Item::Brick.color()), art::Held::Block(Item::IronBeam.color()), art::Held::RopeGun(true), art::Held::RopeGun(false)]
             .into_iter().map(|h| images.add(art::held_sprite(h))).collect(),
-        clue: (0..9).map(|k| images.add(decorart::clue(k))).collect(), props: props::PROPS.iter().map(|&p| images.add(props::image(p))).collect(), cart: images.add(art::cart()), borer: (0..6).map(|k| images.add(art::borer(k))).collect(), wagon: (0..5).map(|k| images.add(art::wagon(k))).collect(), wload: [images.add(art::wagon_load(false)), images.add(art::wagon_load(true))], coupling: images.add(art::coupling()), leaf: images.add(art::gate_leaf()), lever: [images.add(art::gate_lever(false)), images.add(art::gate_lever(true))], scale: [0, 1, 2, 3].map(|k| images.add(art::scale_part(k))), rope: [images.add(art::rope_seg()), images.add(art::rope_hook())], weight: images.add(art::weight()), boiler: [images.add(art::boiler(false)), images.add(art::boiler(true))], stamp: [images.add(art::stamp_mill(0)), images.add(art::stamp_mill(1))], tub: [images.add(art::washer_tub(false)), images.add(art::washer_tub(true))], smelter: [0, 1, 2, 3].map(|k| images.add(art::smelter(k))), bin: (0..5).map(|k| images.add(art::ore_bin(k))).collect(),
+        clue: (0..9).map(|k| images.add(decorart::clue(k))).collect(), props: props::PROPS.iter().map(|&p| images.add(props::image(p))).collect(), cart: images.add(art::cart()), borer: (0..6).map(|k| images.add(art::borer(k))).collect(), thopper: images.add(art::tube_hopper()), bite: images.add(art::hook_bite()), rung: images.add(art::rung()), wagon: (0..5).map(|k| images.add(art::wagon(k))).collect(), wload: [images.add(art::wagon_load(false)), images.add(art::wagon_load(true))], coupling: images.add(art::coupling()), leaf: images.add(art::gate_leaf()), lever: [images.add(art::gate_lever(false)), images.add(art::gate_lever(true))], scale: [0, 1, 2, 3].map(|k| images.add(art::scale_part(k))), rope: [images.add(art::rope_seg()), images.add(art::rope_hook())], weight: images.add(art::weight()), boiler: [images.add(art::boiler(false)), images.add(art::boiler(true))], stamp: [images.add(art::stamp_mill(0)), images.add(art::stamp_mill(1))], tub: [images.add(art::washer_tub(false)), images.add(art::washer_tub(true))], smelter: [0, 1, 2, 3].map(|k| images.add(art::smelter(k))), bin: (0..5).map(|k| images.add(art::ore_bin(k))).collect(),
         furn: ITEMS.iter().map(|&it| it.furn().map(|_| { let (b, c) = decorart::furniture(it); (images.add(decorart::finish(b)), c.map(|c| images.add(decorart::cloth(c)))) })).collect(),
         icons: ITEMS.iter().map(|&it| images.add(itemart::icon(it))).collect(),
         chest: [images.add(art::chest(false)), images.add(art::chest(true))],
@@ -774,7 +835,7 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, mut fonts: R
         if let Some(k) = slots.iter().position(|s| *s == Some(Thing::Item(Item::TimberWall))) { slots.swap(0, k); hot = 0; }
         relayout = false;
     }
-    commands.insert_resource(Game { w, chunks, buf: vec![1; W * H * 4], turn: vec![], turn_tick: 0, uploads: 0, acc: 0., paused: true, speed: 1, frame: 0, last_light: 0, msg: String::new(), help: false, ev: vec![], shake_off: Vec2::ZERO, autosave: 0., last_oy: oy0, far, far_done, far_cells: Default::default(), inv_open: false, aim: None, slots, held: None, relayout, hot, sel_t: 0., toasts: vec![], log_seen: 0, show_dev: false, disp, seed, sizes: Default::default(), drag: None, brush_tag: None, demo_right: false, wheel: Default::default(), mouse_latch: false, jump_tap: false, jump_key: false, w_jump: false, charge: None, throw_aim: (1., -1.), e_latch: false, pops: vec![], look: Vec2::ZERO, live });
+    commands.insert_resource(Game { w, chunks, buf: vec![1; W * H * 4], turn: vec![], turn_tick: 0, uploads: 0, acc: 0., paused: true, speed: 1, frame: 0, last_light: 0, msg: String::new(), help: false, ev: vec![], shake_off: Vec2::ZERO, autosave: 0., last_oy: oy0, far, far_done, far_cells: Default::default(), inv_open: false, aim: None, slots, held: None, relayout, hot, sel_t: 0., toasts: vec![], log_seen: 0, show_dev: false, disp, seed, sizes: Default::default(), drag: None, brush_tag: None, demo_right: false, demo_up: false, demo_down: false, demo_aim: None, wheel: Default::default(), mouse_latch: false, jump_tap: false, jump_key: false, w_jump: false, charge: None, throw_aim: (1., -1.), e_latch: false, pops: vec![], look: Vec2::ZERO, live });
 }
 
 /// Saves only write a holt in play: Quit on the main menu before Continue never puts the empty window over the autosave.
@@ -829,11 +890,12 @@ fn input(mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<Button
     let dead = !g.w.moles.first().map_or(false, |m| m.alive);
     g.w.input.left = keys.pressed(KeyCode::KeyA) || keys.pressed(KeyCode::ArrowLeft);
     g.w.input.right = keys.pressed(KeyCode::KeyD) || keys.pressed(KeyCode::ArrowRight) || g.demo_right;
-    let upk = keys.pressed(KeyCode::KeyW) || keys.pressed(KeyCode::ArrowUp);
-    g.w.input.up = upk; g.w.input.down = keys.pressed(KeyCode::KeyS) || keys.pressed(KeyCode::ArrowDown);
+    let upk = keys.pressed(KeyCode::KeyW) || keys.pressed(KeyCode::ArrowUp) || g.demo_up;
+    g.w.input.up = upk; g.w.input.down = keys.pressed(KeyCode::KeyS) || keys.pressed(KeyCode::ArrowDown) || g.demo_down;
     // Space jumps; W jumps too on a fresh press (held, it doesn't hop again on landing), except on a rope ladder
-    // or by a rope-gun rope: there W grabs and climbs (`World::ladder_takes_up`, `World::rope_takes_up`)
-    let upj = (keys.just_pressed(KeyCode::KeyW) || keys.just_pressed(KeyCode::ArrowUp)) && !g.w.ladder_takes_up() && !g.w.rope_takes_up();
+    // or by a rope-gun rope: there W grabs and climbs (`World::ladder_takes_up`, `World::rope_takes_up`); on a lift's cage
+    // or at one of its stops W hauls the lift (`World::lift_takes_up`)
+    let upj = (keys.just_pressed(KeyCode::KeyW) || keys.just_pressed(KeyCode::ArrowUp)) && !g.w.ladder_takes_up() && !g.w.rope_takes_up() && !g.w.lift_takes_up();
     g.w_jump = upk && (g.w_jump || upj);
     let jk = keys.pressed(KeyCode::Space) || g.w_jump;
     if keys.just_pressed(KeyCode::Space) || upj { g.jump_tap = true; }
@@ -901,9 +963,13 @@ fn input(mut g: ResMut<Game>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<Button
     if dead { g.aim = None; return; }
     // S: dig straight down (with the pick in hand, else the pickaxe)
     let (mx, my) = (g.w.moles[0].x, g.w.moles[0].y);
-    // S digs down, except where it climbs down a rope ladder (at its head, or with rope below the feet)
-    if (keys.pressed(KeyCode::KeyS) || keys.pressed(KeyCode::ArrowDown)) && g.w.pl.grounded && !g.w.ladder_takes_down() { g.w.input.mine = Some((mx, my + 2 * S)); }
+    // S digs down, except where it climbs down a rope ladder (at its head, or with rope below the feet) or hauls a lift
+    // (on its cage, or calling it at a stop)
+    if (keys.pressed(KeyCode::KeyS) || keys.pressed(KeyCode::ArrowDown)) && g.w.pl.grounded && !g.w.ladder_takes_down() && !g.w.lift_takes_down() && !g.w.lift_ridden().is_some() { g.w.input.mine = Some((mx, my + 2 * S)); }
     let on_panel = over.is_some() || cur.map_or(false, |c| craft_row_at(&g, c).is_some()) || g.inv_open && cur.map_or(false, |c| { let a = ui::slot_pos(10, win.width(), win.height()); c.y > a.y - 10. && (c.x - win.width() / 2.).abs() < 5. * (ui::S + ui::GAP) + 10. });
+    // dev stills: the cursor rests where `--shot-aim` put it
+    if let Some((dx, dy)) = g.demo_aim { let (x, y) = ((mx as i32 + dx * S as i32).clamp(0, W as i32 - 1) as usize, (my as i32 + dy * S as i32).clamp(0, H as i32 - 1) as usize);
+        let reach = g.w.in_reach(x, y); g.aim = Some((x, y, reach)); return; }
     let Some(cur) = cur else { g.aim = None; return };
     if on_panel { g.aim = None; return; }
     let wp = Vec2::new(ct.translation.x + (cur.x - win.width() / 2.) * sc, ct.translation.y - (cur.y - win.height() / 2.) * sc);
@@ -1198,7 +1264,7 @@ fn render_far(gm: &mut Game, ct: &Transform, win: &Window, images: &mut Assets<I
 }
 
 /// Frame-to-frame feedback state for the mole sprite and the little particles (dig chips, landing dust).
-#[derive(Default)] struct Fx { waves_seen: u64, grounded: bool, vy: f32, squash: f32, parts: Vec<Part>, last_mine: Option<[f32; 3]>, chip_t: f32, dust_t: f32, wet: bool, ember_t: f32, deny: bool, deny_t: f32, props: Vec<props::Placed>, props_key: (i64, Vec<u32>) }
+#[derive(Default)] struct Fx { /** seconds holding a rope or ladder, and since letting go */ climb_t: f32, off_t: f32, was_climb: bool, waves_seen: u64, grounded: bool, vy: f32, squash: f32, parts: Vec<Part>, last_mine: Option<[f32; 3]>, chip_t: f32, dust_t: f32, wet: bool, ember_t: f32, deny: bool, deny_t: f32, props: Vec<props::Placed>, props_key: (i64, Vec<u32>) }
 /// A pixel particle; `g` is its gravity (negative drifts up, like embers).
 struct Part { p: Vec2, v: Vec2, life: f32, max: f32, c: [f32; 3], size: f32, g: f32, drag: f32, al: f32 }
 /// How far up (cells) a floor object's centre sits: half its height in world units.
@@ -1218,28 +1284,46 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
         if !pl.grounded && pl.cling == 0 && pl.vy < -10. * SF && fx.vy > -5. * SF { fx.squash = 0.18; } // any sudden kick upward: a jump off the ground or a wall
         fx.grounded = pl.grounded; fx.vy = pl.vy; fx.squash *= (-dt * 18.).exp();
     }
+    let mut rot: std::collections::HashMap<(u8, usize), f32> = Default::default();
+    // climbing: how long the mole has held a rope or ladder (a grab as it takes hold) and since it let go (a step off)
+    let on_climb = w.tr.climbing || w.tr.on_rope.is_some();
+    if !g.paused { if on_climb { if !fx.was_climb { fx.climb_t = 0.; } fx.climb_t += dt; } else { if fx.was_climb { fx.off_t = 0.; } fx.off_t += dt; } fx.was_climb = on_climb; }
+    let mut back_view = false;
     for (k, m) in w.moles.iter().enumerate() { if !m.alive || k == 0 && w.tr.in_tube.is_some() { continue; }
         let c = if k == 0 && w.pl.flash > 0. { if (w.pl.flash * 30.) as u32 % 2 == 0 { Color::srgb(6., 6., 6.) } else { Color::srgb(1.6, 0.35, 0.3) } } // hit flash: white / red strobe
             else if m.hp < 40. { Color::srgb(1., 0.6, 0.6) } else { let l = lightf(m.x, m.y - S).to_srgba(); let v = l.red.max(0.55); Color::srgb(v, v, v) };
         // pose: dig > climb > air > run > idle. Run and climb phases follow distance moved, so feet don't skate.
+        // On a rope or ladder (drawn from behind): a grab as it takes hold, hand over hand while it climbs (a frame per cell
+        // climbed, so the paws keep pace at 2 m/s on a rope and 3 m/s on a ladder), a slide when it lets itself down fast,
+        // a hang when still. Off it: rolling over the top ledge (`mantle`) it reaches over, side-on, tilted up; stepping off
+        // at the foot it shows the grab again for a moment.
+        let mol = molehill_sim::mat::CPM as f32;
         let (pose, ph) = if pl.mine.is_some() { (art::Pose::Dig, (now * 14.) as u32) }
-            else if w.tr.climbing || w.tr.on_rope.is_some() { (art::Pose::Climb, (pl.py / (1.2 * SF)).abs() as u32) }
+            else if on_climb { if fx.climb_t < 0.15 { (art::Pose::Grab, 0) } else if pl.vy < -0.3 * mol { (art::Pose::Climb, pl.py.abs() as u32) }
+                else if pl.vy > 1.0 * mol { (art::Pose::Slide, 0) } else { (art::Pose::Hang, (now * 1.6) as u32) } }
+            else if pl.mantle > 0. { (art::Pose::Jump, 0) }
+            else if fx.off_t < 0.18 && pl.grounded && fx.climb_t > 0.3 { (art::Pose::Grab, 0) }
             else if !pl.grounded { (if pl.vy < 2. * SF { art::Pose::Jump } else { art::Pose::Fall }, 0) }
             else if pl.vx.abs() > 0.5 * SF { (art::Pose::Run, (pl.px / (1.1 * SF)).abs() as u32) }
             else { (art::Pose::Idle, (now * 1.6) as u32) };
         let img = if w.gear.lamp { &sp.mole } else { &sp.mole_out }[art::mole_frame(pose, ph)].clone();
         let sq = fx.squash; let scale = Vec2::new(1. - sq * 0.8, 1. + sq);
-        if pose == art::Pose::Climb {
-            // nose up, belly to the wall: 20×26, hugging the wall face on the cling side
+        if matches!(pose, art::Pose::Climb | art::Pose::Hang | art::Pose::Slide | art::Pose::Grab) {
+            // from behind, nose up the rope or ladder: 20×26. On a rope it hangs along the rope's line at its hands, so it
+            // tilts with the swing (`ropes::hand`; the angle from the hook to the hands)
+            back_view = true;
             let size = Vec2::new(20., 26.) * scale; let cx = g.disp.x - pl.cling as f32 * 1.4 * SF;
-            want.push((0, k, cell_to_world(cx, g.disp.y + SF - 2.25 * SF), 5., img, size, pl.cling < 0, c));
+            if let Some((r, _)) = w.tr.on_rope { if let Some(rp) = w.tr.ropes.get(r) { let (hx, hy) = molehill_sim::ropes::hand(pl.px, pl.py); let (ax, ay) = rp.pts[0];
+                rot.insert((0, k), (hx - ax).atan2(hy - ay)); } }
+            want.push((0, k, cell_to_world(cx, g.disp.y + SF - 2.25 * SF), 5., img, size, false, c));
         } else {
+            if pose == art::Pose::Jump && pl.mantle > 0. { rot.insert((0, k), 0.6 * m.facing as f32); } // hauling over the top ledge, nose up
             // 26×20 with the feet on the floor line; squash keeps the feet planted
             let size = Vec2::new(26., 20.) * scale; let up = (size.y - 20.) / 2. / CPX;
             want.push((0, k, cell_to_world(g.disp.x, g.disp.y + SF - 1.5 * SF - up), 5., img, size, m.facing < 0, c));
         } }
     // the lit headlamp's lens gets a small warm halo (the beam itself is the sim's light)
-    if let (Some(m), true) = (w.moles.first().filter(|m| m.alive), w.lamp_lit()) { // (a dry lamp shows no halo)
+    if let (Some(m), true) = (w.moles.first().filter(|m| m.alive), w.lamp_lit() && !back_view) { // (a dry lamp shows no halo; seen from behind, the lens faces away)
         let lens = if pl.cling != 0 { cell_to_world(g.disp.x - pl.cling as f32 * 1.4 * SF, g.disp.y + SF - 2.25 * SF) + Vec2::new(-pl.cling as f32 * 4., 12.) }
             else { cell_to_world(g.disp.x, g.disp.y + SF - 1.5 * SF) + Vec2::new(m.facing as f32 * 11., 4.) };
         want.push((15, 0, lens, 5.2, sp.glow.clone(), Vec2::splat(14.), false, Color::srgba(1., 0.93, 0.62, 0.45)));
@@ -1247,8 +1331,7 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
     // the item in the paws: turned toward the aim (snapped to 15° so the pixels stay clean), swung while
     // a pickaxe digs, shaken while a drill or bore runs, thrust out when a block or charge goes down.
     // A torch is held upright with its flame. Nothing is held while climbing (the paws are on the wall).
-    let mut rot: std::collections::HashMap<(u8, usize), f32> = Default::default();
-    if let (Some(m), true) = (w.moles.first().filter(|m| m.alive), pl.cling == 0) {
+    if let (Some(m), true) = (w.moles.first().filter(|m| m.alive), pl.cling == 0 && !back_view) {
         use std::f32::consts::PI;
         let f = m.facing as f32; let paw = cell_to_world(g.disp.x, g.disp.y + SF - 1.5 * SF) + Vec2::new(f * 6., -4.);
         let mut ang = g.aim.map(|(x, y, _)| (cell_to_world(x as f32 + 0.5, y as f32 + 0.5) - paw).to_angle()).unwrap_or(if f > 0. { -0.3 } else { PI + 0.3 });
@@ -1364,14 +1447,18 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
         if let Some(&(it, _)) = c.cargo.first() { let col = it.color(); let n = c.load().min(40) as f32 / 40.;
             want.push((32, k, mid + Vec2::new(0., ch / 2. + 1. + 2. * n), z - 0.02, sp.px.clone(), Vec2::new(cw - 4., 2. + 4. * n), false, lit(col[0] as f32 / 255., col[1] as f32 / 255., col[2] as f32 / 255.))); }
     }
-    // rope ladders: two fibre ropes with wooden rungs every 0.25 m, lit where they hang
+    // rope ladders: two twisted fibre side ropes (drawn in half-metre lengths so the twist keeps its scale), lashed timber
+    // rungs every 0.25 m, and the scar where its head is pegged into the stone; each part lit where it hangs
     for (k, l) in w.tr.ladders.iter().enumerate() {
         if w.g.flags[l.top.min(H - 1) * W + l.x.min(W - 1)] & F_SEEN == 0 { continue; }
-        let lt = lightf(l.x, l.top + l.len / 2).to_srgba(); let rope = Color::srgb(0.62 * lt.red, 0.5 * lt.green, 0.32 * lt.blue); let rung = Color::srgb(0.55 * lt.red, 0.38 * lt.green, 0.22 * lt.blue);
         let (xc, y0, len) = (l.x as f32 + 0.5, l.top as f32, l.len as f32);
-        let mid = cell_to_world(xc, y0 + len / 2.);
-        for (j, s) in [-1f32, 1.].into_iter().enumerate() { want.push((34, k * 2 + j, mid + Vec2::new(s * 0.9 * SF * CPX, 0.), 3.9, sp.px.clone(), Vec2::new(1., len * CPX), false, rope)); }
-        for j in 0..(l.len / S) { want.push((35, k * 64 + j, cell_to_world(xc, y0 + (j * S) as f32 + 0.5 * SF), 3.95, sp.px.clone(), Vec2::new(1.8 * SF * CPX, 1.), false, rung)); }
+        let lit_at = |y: f32| { let lt = lightf(l.x, (y as usize).min(H - 1)).to_srgba(); Color::srgb(lt.red, lt.green, lt.blue) };
+        want.push((53, k, cell_to_world(l.ax as f32 + 0.5, l.ay as f32 + 0.5), 3.88, sp.bite.clone(), Vec2::new(10., 8.), false, lit_at(l.ay as f32)));
+        let seg = molehill_sim::ropes::SEG; let n = (len / seg).ceil() as usize;
+        for (j, s) in [-1f32, 1.].into_iter().enumerate() { for i in 0..n { let (a, b) = (y0 + i as f32 * seg, (y0 + (i + 1) as f32 * seg).min(y0 + len)); let id = (k * 2 + j) * 64 + i;
+            rot.insert((34, id), std::f32::consts::FRAC_PI_2);
+            want.push((34, id, cell_to_world(xc + s * 0.9 * SF, (a + b) / 2.), 3.9, sp.rope[0].clone(), Vec2::new((b - a) * CPX + 0.6, 1.6), false, lit_at((a + b) / 2.))); } }
+        for j in 0..(l.len / S) { let y = y0 + (j * S) as f32 + 0.5 * SF; want.push((35, k * 64 + j, cell_to_world(xc, y), 3.95, sp.rung.clone(), Vec2::new(8., 2.), false, lit_at(y))); }
     }
     // rope gun art: each rope a chain of twisted-fibre lengths, one per verlet segment, turned along it; the stone
     // hook at its head points the way the rope runs into the rock it bit (or, in flight, the way it flies)
@@ -1384,6 +1471,7 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
             want.push((51, id, (a0 + a1) / 2., 3.92, sp.rope[0].clone(), Vec2::new(len + 0.6, 1.6), false, rope_col((s[0].0 + s[1].0) / 2., (s[0].1 + s[1].1) / 2.))); }
         let dir = match flying { Some((vx, vy)) if vx * vx + vy * vy > 1. => Vec2::new(vx, -vy), _ => pts.get(1).map(|&(x, y)| cell_to_world(hx, hy) - cell_to_world(x, y)).unwrap_or(Vec2::X) };
         rot.insert((52, k), dir.to_angle());
+        if flying.is_none() { want.push((54, k, cell_to_world(hx, hy) + dir.normalize_or_zero() * 2., 3.9, sp.bite.clone(), Vec2::new(10., 8.), false, rope_col(hx, hy))); } // where it bit the stone
         want.push((52, k, cell_to_world(hx, hy), 3.96, sp.rope[1].clone(), Vec2::new(8., 7.), false, rope_col(hx, hy)));
     }
     // lifts: the head frame under the ceiling, the rope down to the cage floor, the cage's rails, and the
@@ -1402,17 +1490,23 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
         want.push((41, k, cell_to_world(xc, y - 3. * SF), 4.3, sp.px.clone(), Vec2::new(cw * CPX, 1.5), false, cage(0.5, 0.5, 0.55)));
         let cwy = head + SF + (l.bottom as f32 - 1. - y).max(0.); let cwx = x1 - 1.;
         want.push((42, k, cell_to_world(cwx, cwy + SF), 3.7, sp.px.clone(), Vec2::new(1.5 * SF * CPX, 2. * SF * CPX), false, lit(0.4, 0.38, 0.36)));
+        // its stops: a short brass mark on the shaft's side at each floor it stops at
+        for (j, &r) in l.stops.iter().enumerate().take(16) { want.push((63, k * 16 + j, cell_to_world(x0 - 0.5 * SF, r as f32 + 0.5), 3.85, sp.px.clone(), Vec2::new(SF * CPX, 1.5), false, lit(0.72, 0.55, 0.25))); }
+        // the balance needle on the head frame: it leans toward the heavier side (cage down, weight up) and goes
+        // red when the mole's arms can't haul it (no current at the head)
+        let b = w.lift_balance(k); let tilt = (b.over() / molehill_sim::lifts::HAUL_KG).clamp(-1.2, 1.2) * 0.6;
+        let nc = if b.powered || b.over().abs() <= 5. { lit(0.55, 0.85, 0.5) } else if b.haulable() { lit(0.9, 0.75, 0.35) } else { lit(1., 0.35, 0.25) };
+        rot.insert((62, k), std::f32::consts::FRAC_PI_2 - tilt);
+        want.push((62, k, cell_to_world(xc, head + 1.6 * SF), 3.97, sp.px.clone(), Vec2::new(1.4 * SF * CPX, 1.5), false, nc));
     }
     // pressure tubes: each hopper a brass mouth on its pipe (brighter while its blower runs), and every
     // capsule a brass pill sliding along the pipe between its last two positions
     for (k, h) in w.tr.hoppers.iter().enumerate() {
         if w.g.flags[h.y.min(H - 1) * W + h.x.min(W - 1)] & F_SEEN == 0 { continue; }
         let (cx, cy) = h.centre(); let lt = lightf(cx as usize, cy as usize).to_srgba(); let hot = if w.logic.net_lit(w.logic.block_of(cx as usize, cy as usize)) { 1.25 } else { 1. };
-        let lit = |r: f32, gg: f32, b: f32| Color::srgb(r * lt.red * hot, gg * lt.green * hot, b * lt.blue * hot);
+        // a brass funnel narrowing into its tube stub (`art::tube_hopper`, as its icon), brighter while its copperline is live
         let n = molehill_sim::tubes::HOPPER as f32;
-        want.push((43, k, cell_to_world(cx, cy + n * 0.25), 3.9, sp.px.clone(), Vec2::new(n * CPX, n * 0.5 * CPX), false, lit(0.62, 0.45, 0.22)));
-        want.push((44, k, cell_to_world(cx, cy - n * 0.15), 3.9, sp.px.clone(), Vec2::new(n * 0.8 * CPX, n * 0.3 * CPX), false, lit(0.7, 0.52, 0.26)));
-        want.push((45, k, cell_to_world(cx, cy - n * 0.32), 3.95, sp.px.clone(), Vec2::new(n * 0.6 * CPX, 1.5), false, lit(0.15, 0.13, 0.12)));
+        want.push((43, k, cell_to_world(cx, cy), 3.9, sp.thopper.clone(), Vec2::splat(n * CPX), false, Color::srgb(lt.red * hot, lt.green * hot, lt.blue * hot)));
     }
     // counterweights: the rope paid off the drum as twisted fibre down to a cast-iron weight hanging on its eye
     for (k, wt) in w.tr.power.weights.iter().enumerate() {
@@ -1612,6 +1706,33 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
             fx.parts.push(Part { p: cell_to_world(c.x as f32 + 0.5 + r * 3. * SF, c.y as f32 - 5. * SF), v: Vec2::new(r * 6., -10. - (h >> 8 & 15) as f32), life: 0., max: 1.6, c: [200., 196., 186.], size: 0.9, g: 0., drag: 0., al: 1. });
         }
     }
+    // placing a lift or a rope ladder: a ghost of where it snaps, pale where it would go (amber out of reach), with
+    // the lift's head, rails, cage at the foot, every stop and the counterweight up top, or the ladder's whole
+    // length and its knot; a red mark where it can't go (the tip says why: `tips::place_tip`)
+    if let (Some(Thing::Item(it)), Some((x, y, reach))) = (g.slots[g.hot], g.aim) { if matches!(it, Item::Lift | Item::RopeLadder) {
+        let ok = |a: f32| if reach { Color::srgba(0.78, 1., 0.82, a) } else { Color::srgba(1., 0.78, 0.42, a) };
+        let px1 = |x0: f32, y0: f32, x1: f32, y1: f32| ((cell_to_world(x0, y0) + cell_to_world(x1, y1)) / 2., Vec2::new(((x1 - x0) * CPX).abs().max(1.), ((y1 - y0) * CPX).abs().max(1.)));
+        let mut put = |id: usize, r: (Vec2, Vec2), c: Color| want.push((60, id, r.0, 6.2, sp.px.clone(), r.1, false, c));
+        let plan = if it == Item::Lift { w.lift_plan(x, y).map(|p| Some(p)).map_err(|_| ()) } else { Ok(None) };
+        match (it, plan, w.ladder_plan(x, y)) {
+            (Item::Lift, Ok(Some(p)), _) => { let (xc, w2) = (p.x as f32 + 0.5, p.w / 2.); let (hd, bot) = (p.head as f32, p.bottom as f32 - 1.);
+                put(0, px1(xc - w2, hd, xc + w2, hd + SF), ok(0.75));                                   // head frame
+                put(1, px1(xc - 0.25, hd + SF, xc + 0.25, bot - 3. * SF), ok(0.35));                     // hoist rope
+                put(2, px1(xc - w2, bot, xc + w2, bot + 1.), ok(0.8));                                    // cage floor at the foot
+                put(3, px1(xc - w2, bot - 3. * SF, xc + w2, bot - 3. * SF + 0.6), ok(0.5));                // cage top
+                put(4, px1(xc - w2, hd, xc - w2 + 0.6, bot + 1.), ok(0.25)); put(5, px1(xc + w2 - 0.6, hd, xc + w2, bot + 1.), ok(0.25)); // the shaft it runs
+                put(6, px1(xc + w2 - 1.5 * SF, hd + SF, xc + w2, hd + 3. * SF), ok(0.7));                 // counterweight up top
+                for (j, &r) in p.stops.iter().enumerate().take(16) { put(10 + j, px1(xc - w2 - SF, r as f32, xc + w2 + SF, r as f32 + 0.6), ok(0.95)); } }
+            (Item::RopeLadder, _, Ok(l)) => { let xc = l.x as f32 + 0.5; let (t, b) = (l.top as f32, (l.top + l.len) as f32);
+                put(0, px1(xc - 0.3, t, xc + 0.3, b), ok(0.8));                                                       // the rope, top to floor
+                for j in 0..((l.len / (S * 2)).min(40)) { let ry = t + (j * S * 2 + S) as f32; put(10 + j, px1(xc - 0.6 * SF, ry, xc + 0.6 * SF, ry + 0.6), ok(0.7)); } // rungs every 0.5 m
+                put(1, px1(l.ax as f32 + 0.1, l.ay as f32 - 0.6 * SF, l.ax as f32 + 0.9, l.ay as f32 + 0.2), ok(0.95));     // the knot
+                put(2, px1(xc - SF, b - 0.6, xc + SF, b), ok(0.6)); }                                                    // its foot on the floor
+            _ => { let (cx, cy) = (x as f32 + 0.5, y as f32 + 0.5); let c = Color::srgba(1., 0.38, 0.3, 0.85);
+                rot.insert((60, 0), 0.785); rot.insert((60, 1), -0.785);
+                put(0, (cell_to_world(cx, cy), Vec2::new(1.5 * SF * CPX, 1.5)), c); put(1, (cell_to_world(cx, cy), Vec2::new(1.5 * SF * CPX, 1.5)), c); }
+        }
+    } }
     // placing furniture: a pale ghost where it would go
     if let (Some(Thing::Item(it)), Some((x, y, true))) = (g.slots[g.hot], g.aim) { if it.furn().is_some() { if let Some(fu) = w.furniture_spot(it, x, y) {
         if let Some((base, _)) = sp.furn[it as usize].clone() { let (pos, size) = furn_px(&fu); want.push((18, 0, pos, 6., base, size, false, Color::srgba(1., 1., 1., 0.45))); } } } }

@@ -120,6 +120,23 @@ Measured on native release, with other agents loading the machine:
 * Following Hampus 15:05 (a longer load, then smooth play): a last stage on the loading line, "Shoring up the deeper rock", calls p8's `World::prefetch_step` until `stream_progress()` is 1, after a new holt and after a load. Natively, seed 4242: holt 5.0 s, then the ground ahead 5.4 s. Test `loading_prefetch_finishes_the_ground_ahead` (new holt and reloaded save).
 * Not tested: the web build, where prefetch runs on the main thread in slices of a few ms inside the 20 ms budget, so this stage will be longer there.
 
+## Final polish (from a9bcf4b)
+* **Tube hopper vs ore hopper:** confirmed with a test that the two could be set down on top of each other. Neither placement checked the other machine. With both standing there, right mouse and `E` reached only the one that comes first in the dispatch (ore hopper before tube hopper). Each placement now refuses the other's box and names it ("there's a tube hopper there" / "there's an ore hopper there"). The tube hopper's log lines say "tube hopper" instead of a bare "hopper". Test `hoppers_do_not_stack` (fails without the fix).
+* **Browser prefetch:** the web's path (`stream.sliced`, slices on the calling thread) is now in `loading_prefetch_finishes_the_ground_ahead`. Measured natively, seeds 4242/7/99: 970–1020 steps, 9–13 s in all, about 11 ms a step, the longest 75–170 ms. Progress only climbs and ends at 1. On wasm, expect it to be slower by a constant factor; it all runs behind the loading line, not in play.
+* Not done in a live window or browser: the wasm build is built and copied to site/ but was not opened, and the hopper refusals were not seen in a window.
+
+## Native sound (Hampus 23:42)
+* Native builds were silent: the effects, rumble and music existed only as WebAudio calls. The recipes are now one shared layer in `audio.rs`: `sfx(event)` (tones and noise bursts), `parts(note)` (the music oscillators and their bus), the rumble level, the reverb impulse and the noise buffers. The web builds its WebAudio nodes from them, with the same graph, constants and values as before. Native renders the same graph in `synth.rs`:
+  * the WebAudio spec's biquads (lowpass Q in dB, bandpass linear);
+  * the same exponential and linear envelopes and sweeps;
+  * PolyBLEP squares;
+  * the 0.62 s darkening echo;
+  * the 3.5 s generated impulse, through a partitioned-FFT convolution normalised the way Chromium's `ConvolverNode` does.
+
+  cpal plays it on its audio thread. Settings > Volume scales only the effects and rumble; Settings > Music only the music bus, as on the web. Sound starts on the first input, as on the web.
+* Tests: offline renders in `synth::tests`; `opens_the_sound_card` (`--ignored`) passed on this Mac: the default output opened and the audio clock ran with the wall clock. The synth renders about 19× real time on a busy machine (about 5 % of a core).
+* Not done: I couldn't listen (no speakers in this session), so the native sound hasn't been compared by ear with the browser on any platform. Linux and Windows builds weren't compiled here (no targets installed); Linux needs `libasound2-dev`. Only macOS (aarch64) is built and its device opening tested.
+
 ## Open
 * The design's emberiron for the Bore doesn't exist, so the Bore takes iron, copper and crystal.
 * localStorage holds about 5 MB. A band is 10–40 KB, so a holt explored over a few hundred metres of depth could fill it. Bands the player never changed could be dropped and regenerated (not done: the falling-sand settling after generation would differ).

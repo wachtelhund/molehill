@@ -39,7 +39,7 @@ The window shows one found place at one pixel per cell (12.5 cm) as the game wou
 | `R` | **can the mole walk it?** Stamps the piece in granite and flood-fills the mole's body (the found-places test's rule): green where a way in reaches, orange where open space is cut off; the panel names any way in that doesn't reach the chest. Gravity is ignored here (the mole climbs walls and ropes), so a long drop still counts as a way: `G` and the scenarios catch falls |
 | `P` | **will it stand?** A full stress solve; red cells are over capacity and crack and fall in play |
 | `G` | **run it 10 s** with a mole standing at the chest: shows the piece afterwards and counts changed and crumbled cells and the mole's hp |
-| `Esc` | clear the check |
+| `Esc` | clear the check (painting, `V`/`B`, `N` and `E` clear it too, and say so) |
 | `Ctrl`/`Cmd`+`Z`, `+Shift` or `Y` | undo, redo (a stroke is one step) |
 | `Ctrl`/`Cmd`+`S` | save to `assets/sites/<family>.json` |
 | wheel, `+`/`-`, arrows or `WASD`, `F` | zoom, pan, fit |
@@ -51,8 +51,8 @@ The window opens at 1600 × 960 and can't be made shorter than the panel needs. 
 ## Checking it without looking (dev)
 
 * `--canvas=FILE.bmp` writes the canvas (one pixel per cell, as drawn in the window) and quits without opening a window; add `--shot-keys=p` (or `r`, `g`, `n`, `b`, …) to run those keys first, so the file shows a check. The panel's text goes to the terminal.
-* `--shot=FILE.bmp [--shot-at=N] [--shot-keys=…]` saves one frame of the real window and quits. On macOS this only works when the window is really on screen; started from a background shell (an agent's), the frame reads back black.
-* `cargo test --release -p molehill-cave-editor --test panel` clicks every panel row at its place, presses every key and paints strokes through the same code the window calls. It shows that every control does what its row says. It can't show how the window looks: fonts, spacing and colours on screen need a person.
+* `--shot=FILE.bmp [--shot-at=N] [--shot-keys=…]` saves one frame of the real window (panel, fonts and canvas, 1600 × 960) and quits. The camera draws into an image instead of the screen for it, so it works from a background shell too (an agent's; a macOS window that isn't really on screen reads back black).
+* `cargo test --release -p molehill-cave-editor --test panel` clicks every panel row at its place, presses every key and paints strokes through the same code the window calls. It shows that every control does what its row says, and that every row fits the panel's width (38 characters; a longer one wrapped onto the row below). Mouse feel (dragging strokes, wheel zoom, panning) still needs a person at the window.
 
 ## Who owns a layout
 

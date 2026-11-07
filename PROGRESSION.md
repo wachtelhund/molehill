@@ -83,7 +83,7 @@ The deeper the holt reaches, the further its Delvers have to haul, so travel cli
 |---|---|---|
 | **2** (**built**) | **Rails and mine carts** | Laid track and a cart that carries cargo (ore, stone, wood, a Delver). Push it on the level; on a slope, gravity does the work and it runs downhill on its own. Track needs support like any built block |
 | **1** (**built**) | **Rope ladders** | Cheap vertical access down a shaft. Slow, but needs no power |
-| **3–4** (**built**) | **Lifts** | A platform on a counterweight. A loaded cage rises when the counterweight is heavier, so loads are balanced by hand at first and driven by power later |
+| **3–4** (**built**) | **Lifts** | A cage on a counterweight, hauled on the walking keys between its stops. The mole's arms haul a light load; heavier loads are balanced with stone (one right click), and current at the head winds any load |
 | **4** (**built**) | **Powered rails** | Track with copperline laid along it, fed by a water wheel or heatstone. Carts run faster and can climb. A lever or knot can switch them, so a powered line can be automated with the same logic as doors and pumps |
 | **5** (**built**, at tier 3 for now: iron and glass) | **Pressure tubes** | A sealed tube network that blows capsules along it with air pressure from pumps. Fast and long-distance, and it climbs as easily as it runs flat. Tubes must hold their pressure: a cave-in or a breach stops the line |
 | **6** | **Ancient waygates** | The endgame network: see below |

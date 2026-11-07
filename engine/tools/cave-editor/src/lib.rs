@@ -253,7 +253,15 @@ pub fn stress(t: &Template, p: Placement) -> Result<Vec<bool>, String> {
 pub struct Sim { pub cells: Vec<Mat>, pub changed: usize, pub crumbled: u64, pub hp: f32, pub ticks: u32 }
 pub fn simulate(t: &Template, p: Placement, ticks: u32) -> Result<Sim, String> {
     let mut s = stamp(t, p)?;
-    let read = |w: &World| -> Vec<Mat> { let mut v = Vec::with_capacity(t.w * t.h); for y in 0..t.h { for x in 0..t.w { v.push(w.g.get(s.x0 + x, s.y0 + y)); } } v };
+    // the piece's rows in world terms: the sim slides its window after the mole (`follow_colony`), and the
+    // piece sits near the window's bottom, so after a slide it's higher in the grid than it was stamped
+    let oy0 = s.w.oy;
+    let read = |w: &World| -> Vec<Mat> {
+        let mut v = Vec::with_capacity(t.w * t.h);
+        for y in 0..t.h { let gy = (s.y0 + y) as i64 + oy0 - w.oy;
+            for x in 0..t.w { v.push(if gy >= 0 && (gy as usize) < w.g.h { w.g.get(s.x0 + x, gy as usize) } else { Mat::Empty }); } }
+        v
+    };
     let before = read(&s.w);
     let (mx, my) = s.chest.unwrap_or((s.x0 + t.w / 2, s.y0 + t.h - CPM - 1));
     if let Some(m) = s.w.moles.first_mut() { m.x = mx; m.y = my; }
@@ -390,6 +398,13 @@ impl Editor {
             Err(e) => self.msg = e,
         }
     }
+    /// Take a check's overlay away (the piece or the view changed under it), and its message with it, so
+    /// the panel never describes colours that aren't on the canvas any more.
+    fn drop_check(&mut self) {
+        if matches!(self.overlay, Overlay::None) { return; }
+        self.overlay = Overlay::None;
+        self.msg = "Check cleared (the piece or the view changed): R, P or G runs it again.".into();
+    }
     pub fn run(&mut self, a: Act) {
         match a {
             Act::Family(k) => self.open(k),
@@ -400,9 +415,9 @@ impl Editor {
                 Tool::Chest => "Left sets the chest (in open space, just above a floor); right removes it." }.into(); }
             Act::Pal(i) => { if i < self.pal_len() { self.set_pal(i); } }
             Act::PalStep(d) => { let n = self.pal_len().max(1) as i64; let i = (self.pal_cur() as i64 + d).rem_euclid(n) as usize; self.set_pal(i); }
-            Act::Var(d) => { self.var = (self.var as i64 + d).clamp(0, (1 << 20) - 1) as u32; self.overlay = Overlay::None; self.redraw = true; }
-            Act::Side => { self.left = !self.left; self.overlay = Overlay::None; self.redraw = true; }
-            Act::Depth => { let i = DEPTHS.iter().position(|&d| d == self.depth).map_or(0, |i| (i + 1) % DEPTHS.len()); self.depth = DEPTHS[i]; self.overlay = Overlay::None; self.redraw = true; }
+            Act::Var(d) => { self.var = (self.var as i64 + d).clamp(0, (1 << 20) - 1) as u32; self.drop_check(); self.redraw = true; }
+            Act::Side => { self.left = !self.left; self.drop_check(); self.redraw = true; }
+            Act::Depth => { let i = DEPTHS.iter().position(|&d| d == self.depth).map_or(0, |i| (i + 1) % DEPTHS.len()); self.depth = DEPTHS[i]; self.drop_check(); self.redraw = true; }
             Act::Brush(d) => self.brush = (self.brush + d).clamp(0.5, 24.),
             Act::Reach | Act::Stress | Act::Simulate => {
                 let t = match self.doc.template() { Ok(t) => t, Err(e) => { self.msg = e; return; } };
@@ -417,7 +432,7 @@ impl Editor {
                 };
                 match r { Ok(o) => { self.overlay = o; self.redraw = true; } Err(e) => self.msg = e }
             }
-            Act::Clear => { self.overlay = Overlay::None; self.redraw = true; }
+            Act::Clear => { self.drop_check(); self.redraw = true; }
             Act::Undo => { if self.doc.undo() { self.overlay = Overlay::None; self.redraw = true; self.msg = "Undone.".into(); } else { self.msg = "Nothing to undo.".into(); } }
             Act::Redo => { if self.doc.redo() { self.overlay = Overlay::None; self.redraw = true; self.msg = "Redone.".into(); } else { self.msg = "Nothing to redo.".into(); } }
             Act::Save => {
@@ -449,7 +464,7 @@ impl Editor {
         for (k, &f) in families().iter().enumerate() { row(format!("{}  {}", k + 1, kind_label(f)), Some(Act::Family(k)), k == self.fam); }
         row(String::new(), None, false);
         let t = self.tool;
-        for (key, label, tool) in [("M", "paint material", Tool::Material), ("L", "paint lining", Tool::Lining), ("T", "set things (torch, furniture, rope...)", Tool::Thing), ("C", "move the chest", Tool::Chest)] {
+        for (key, label, tool) in [("M", "paint material", Tool::Material), ("L", "paint lining", Tool::Lining), ("T", "set things (torch, rope...)", Tool::Thing), ("C", "move the chest", Tool::Chest)] {
             row(format!("{key}  {label}"), Some(Act::Tool(tool)), t == tool);
         }
         row(format!("[ ]  brush radius {:.1} cells ({:.2} m)", self.brush, self.brush / CPM as f32), None, false);
@@ -463,7 +478,7 @@ impl Editor {
             for i in first..(first + PALETTE_ROWS).min(n) { row(format!("{} {}", if i == cur { ">" } else { " " }, self.pal_label(i)), Some(Act::Pal(i)), i == cur); }
         } else { row("Left sets the chest, right removes it.".into(), None, false); }
         row(String::new(), None, false);
-        row(format!("V / B  variant var = {}   (Shift: 256)", self.var), None, false);
+        row(format!("V / B  variant var = {}  (Shift: 256)", self.var), None, false);
         row("      -1".into(), Some(Act::Var(-1)), false);
         row("      +1".into(), Some(Act::Var(1)), false);
         row(format!("N  side: {}", if self.left { "west (left)" } else { "east" }), Some(Act::Side), self.left);
@@ -478,9 +493,9 @@ impl Editor {
         row("Ctrl/Cmd+Z  undo".into(), Some(Act::Undo), false);
         row("Ctrl/Cmd+Shift+Z or Y  redo".into(), Some(Act::Redo), false);
         row("Ctrl/Cmd+S  save to assets/sites/".into(), Some(Act::Save), false);
-        row("F  fit   (wheel or +/- zoom, arrows/WASD pan)".into(), Some(Act::Fit), false);
+        row("F  fit  (wheel/+- zoom, WASD pan)".into(), Some(Act::Fit), false);
         row(String::new(), None, false);
-        for l in wrap(&self.msg, 44).into_iter().take(MSG_ROWS) { row(l, None, false); }
+        for l in wrap(&self.msg, PANEL_CHARS).into_iter().take(MSG_ROWS) { row(l, None, false); }
         r
     }
     /// The row under a cursor at window y (logical pixels).
@@ -498,7 +513,7 @@ impl Editor {
             (Tool::Material | Tool::Lining, Press::Left | Press::LeftHeld) => {
                 if p == Press::Left || !self.stroke { self.doc.begin(); self.stroke = true; }
                 let b = if self.tool == Tool::Material { Brush::Mat(self.mats[self.mat_i]) } else { Brush::Lining(self.walls[self.wall_i]) };
-                if self.doc.paint(x as i64, y as i64, self.brush, b) > 0 { self.overlay = Overlay::None; self.redraw = true; }
+                if self.doc.paint(x as i64, y as i64, self.brush, b) > 0 { self.drop_check(); self.redraw = true; }
             }
             (Tool::Material, Press::Right) => {
                 if let Some(Brush::Mat(m)) = self.doc.pick(x, y) { if let Some(i) = self.mats.iter().position(|&q| q == m) { self.mat_i = i; self.msg = format!("Picked {}.", self.pal_label(i)); } }
@@ -544,6 +559,9 @@ pub const DEPTHS: [f32; 3] = [10., 50., 80.];
 /// Palette entries shown at once, and message lines kept.
 pub const PALETTE_ROWS: usize = 9;
 pub const MSG_ROWS: usize = 4;
+/// Characters a panel row holds: the window's 13 px monospace is about 7.8 px a character, and the panel is
+/// `PANEL_W` wide with a 10 px margin (measured on a frame of the real window, `--shot`).
+pub const PANEL_CHARS: usize = 38;
 fn wrap(s: &str, width: usize) -> Vec<String> {
     let mut out = vec![]; let mut line = String::new();
     for w in s.split(' ') { if !line.is_empty() && line.len() + 1 + w.len() > width { out.push(std::mem::take(&mut line)); } if !line.is_empty() { line.push(' '); } line.push_str(w); }

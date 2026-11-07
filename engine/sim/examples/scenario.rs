@@ -58,6 +58,15 @@ impl Run {
             "lifty" => self.w.tr.lifts.first().map_or(-1., |l| (l.y - self.oy as f32) as f64 / kf),
             "liftv" => self.w.tr.lifts.first().map_or(0., |l| l.v as f64 / kf),
             "ballast" => self.w.tr.lifts.first().map_or(0., |l| l.ballast as f64),
+            "liftpow" => if self.w.tr.lifts.is_empty() { 0. } else { self.w.lift_balance(0).powered as u8 as f64 },
+            "liftover" => if self.w.tr.lifts.is_empty() { 0. } else { self.w.lift_balance(0).over() as f64 },
+            "stops" => self.w.tr.lifts.first().map_or(0., |l| l.stops.len() as f64),
+            "liftstop" => self.w.tr.lifts.first().and_then(|l| l.at_stop()).map_or(-1., |k| k as f64),
+            "liftw" => self.w.tr.lifts.first().map_or(0., |l| l.w as f64 / kf),
+            "liftx" => self.w.tr.lifts.first().map_or(-1., |l| (l.x as f64 - self.ox as f64) / kf),
+            "ladderx" => self.w.tr.ladders.first().map_or(-1., |l| (l.x as f64 - self.ox as f64) / kf),
+            "laddertop" => self.w.tr.ladders.first().map_or(-1., |l| (l.top as f64 - self.oy as f64) / kf),
+            "ladderlen" => self.w.tr.ladders.first().map_or(0., |l| l.len as f64 / kf),
             // pressure tubes: hoppers, capsules in the pipe, whether the mole is sealed in one, and whether the
             // first hopper's line holds pressure
             "capat" => self.w.tr.capsules.first().map_or(-1., |c| c.at as f64 / (c.path.len() - 1).max(1) as f64), // how far along its pipe (0..1)

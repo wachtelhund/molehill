@@ -5,7 +5,7 @@
 //!
 //! Dev checks: `--canvas=FILE.bmp [--shot-keys=…]` writes the canvas (with the check the keys ran) and quits
 //! without opening a window; `--shot=FILE.bmp [--shot-at=N] [--shot-keys=…]` saves one frame of the window
-//! (on macOS only when the window is really on screen; from a background shell it reads back black).
+//! (rendered offscreen at the window's size, so it works from a background shell too).
 use bevy::asset::RenderAssetUsages;
 use bevy::image::{Image, ImageSampler};
 use bevy::input::mouse::AccumulatedMouseScroll;
@@ -23,7 +23,7 @@ const INK: Color = Color::srgb(0.86, 0.82, 0.74);
 const ACCENT: Color = Color::srgb(0.98, 0.78, 0.36);
 
 #[derive(Resource)]
-struct Ed { e: Editor, img: Handle<Image>, tpl: Option<Template> }
+struct Ed { e: Editor, img: Handle<Image>, tpl: Option<Template>, shot: Option<Handle<Image>> }
 #[derive(Component)] struct Canvas;
 #[derive(Component)] struct Row(usize);
 
@@ -61,16 +61,24 @@ fn blank(w: usize, h: usize) -> Image {
 fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, mut start: NonSendMut<Start>) {
     let e = start.0.take().unwrap();
     let img = images.add(blank(e.doc.w, e.doc.h));
-    commands.spawn((Camera2d, Transform::from_xyz(-PANEL_W / 2., 0., 100.)));
+    // `--shot`: the camera (and the panel, which follows it) draws into an image of the window's size instead of the
+    // window, since a macOS window that isn't really on screen reads back black.
+    let shot = arg("--shot=").map(|_| {
+        let mut im = Image::new_target_texture(1600, 960, TextureFormat::Rgba8UnormSrgb, None);
+        im.texture_descriptor.usage |= bevy::render::render_resource::TextureUsages::COPY_SRC;
+        images.add(im)
+    });
+    let cam = commands.spawn((Camera2d, Transform::from_xyz(-PANEL_W / 2., 0., 100.))).id();
+    if let Some(h) = &shot { commands.entity(cam).insert(bevy::camera::RenderTarget::Image(h.clone().into())); }
     commands.spawn((Sprite { image: img.clone(), custom_size: Some(Vec2::new(e.doc.w as f32 * PX, e.doc.h as f32 * PX)), ..default() }, Transform::default(), Canvas));
-    commands.spawn((Node { position_type: PositionType::Absolute, left: Val::Px(0.), top: Val::Px(0.), width: Val::Px(PANEL_W), height: Val::Percent(100.), ..default() },
-        BackgroundColor(Color::srgba(0.02, 0.02, 0.025, 0.92)))).with_children(|p| {
+    commands.spawn((Node { position_type: PositionType::Absolute, left: Val::Px(0.), top: Val::Px(0.), width: Val::Px(PANEL_W), height: Val::Percent(100.), overflow: Overflow::clip(), ..default() },
+        BackgroundColor(Color::srgba(0.02, 0.02, 0.025, 0.92)), UiTargetCamera(cam))).with_children(|p| {
         for i in 0..ROWS {
             p.spawn((Node { position_type: PositionType::Absolute, left: Val::Px(10.), top: Val::Px(ROW_TOP + i as f32 * LINE), ..default() },
-                Text::new(""), TextFont { font_size: 13.0_f32.into(), ..default() }, TextColor(INK), Row(i)));
+                Text::new(""), TextFont { font_size: 13.0_f32.into(), ..default() }, TextLayout::no_wrap(), TextColor(INK), Row(i)));
         }
     });
-    commands.insert_resource(Ed { e, img, tpl: None });
+    commands.insert_resource(Ed { e, img, tpl: None, shot });
 }
 
 fn cell_at(e: &Editor, win: &Window, cam: &Transform) -> Option<(usize, usize)> {
@@ -160,7 +168,8 @@ fn shot(mut n: Local<u32>, mut ed: ResMut<Ed>, mut commands: Commands, mut exit:
     *n += 1;
     if *n == 5 { keys_from_args(&mut ed.e); }
     if *n == at {
-        commands.spawn(bevy::render::view::screenshot::Screenshot::primary_window()).observe(move |c: On<bevy::render::view::screenshot::ScreenshotCaptured>| {
+        let Some(target) = ed.shot.clone() else { return };
+        commands.spawn(bevy::render::view::screenshot::Screenshot::image(target)).observe(move |c: On<bevy::render::view::screenshot::ScreenshotCaptured>| {
             let im = &c.image; let Some(d) = im.data.as_ref() else { return };
             let bgra = matches!(im.texture_descriptor.format, TextureFormat::Bgra8UnormSrgb | TextureFormat::Bgra8Unorm);
             let _ = write_bmp(std::path::Path::new(&path), im.width() as usize, im.height() as usize, d, bgra);

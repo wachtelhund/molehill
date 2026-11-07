@@ -1,0 +1,61 @@
+// Balancing a lift: the mole's arms haul up to 60 kg out of balance (the empty 60 kg cage and a 30 kg mole
+// against the bare 40 kg counterweight is 50 kg: fine). Four stones lying on the cage (20 kg more, 70 kg over) are too
+// heavy: W says so and the brake holds. Right mouse on the lift balances it, stone from the pack onto the
+// counterweight, and W rides it up. Right mouse again once the stones are gone hands the spare stone back.
+// A 2 m shaft 6.75 m deep with side passages: one on the left 1.5 m under the head, one on the right
+// halfway down, and one at the foot on the right. The lift built in it is a 1.875 m cage (the shaft's width,
+// an odd number of cells) and stops at the top, at each passage's floor and at the shaft's floor (tile rows
+// 5.5, 10, 19 and 28.5 from the map's top).
+map
+##############################
+##############################
+##########........############
+##########........############
+##########........############
+##########........############
+##................############
+##................############
+##................############
+##................############
+##########........############
+##########........############
+##########........############
+##########........############
+##########........############
+##########.................###
+##########.................###
+##########.................###
+##########.................###
+##########........############
+##########........############
+##########........############
+##########........############
+##########........############
+##########........############
+##########.................###
+##########.................###
+##########.................###
+##########............@....###
+##############################
+##############################
+end
+give Lift 1
+give Stone 30
+place 2 -8 -4 Lift
+hold 5-60 left                    // onto the cage
+drop 62 Stone -5 -2
+drop 62 Stone -8 -2
+drop 62 Stone -7 -2
+drop 62 Stone -6 -2
+hold 90-93 up
+expect 120 liftstop == 3          // too heavy: it stays at the foot
+expect 120 log:Too_heavy > 0
+use 130 -9 -1                     // right mouse on the cage: balance
+expect 131 ballast == 7           // 60 + 30 + 20 kg on the cage: 40 + 7 × 10 kg on the weight
+expect 131 inv:Stone == 23
+expect 131 log:Balanced > 0
+hold 140-143 up
+expect 300 liftstop == 2          // up to the right-hand passage, stones and all
+expect 300 items:Stone == 4
+use 310 -9 -12                    // with the stones still on it, balancing again changes nothing
+expect 311 ballast == 7

@@ -195,15 +195,40 @@ pub fn transport_tip(w: &World, x: usize, y: usize) -> Option<Tip> {
             _ => l.push("No other hopper on its line yet.".into()) }
         return tip("Tube hopper", l);
     }
-    if let Some(k) = w.lift_at(x, y) {
-        let lf = &w.tr.lifts[k]; let on = w.on_cage(lf);
-        let cage = crate::lifts::CAGE_KG + if on { crate::lifts::MOLE_KG } else { 0. }; let cw = lf.counter_kg();
-        let powered = w.logic.net_lit(w.logic.block_of(lf.x, lf.head));
-        let state = if powered { "Wound by current: the cage goes up.".to_string() } else { format!("Counterweight {:.0} kg, cage {:.0} kg{}: it {}.", cw, cage, if on { " with you" } else { "" }, if cw > cage { "rises" } else { "sinks" }) };
-        return tip("Lift", vec![state, "Right mouse with stone in paw: a stone on · empty paw: one off.".into()]);
-    }
-    if let Some(k) = w.ladder_at(x, y) {
-        let _ = k; return tip("Rope ladder", vec![if w.tr.climbing { "Space: let go.".into() } else { "W / S: climb (let go of the keys to hang still).".into() }, "E: take it down.".into()]);
+    if let Some(k) = w.lift_at(x, y) { return Some(lift_tip(w, k)); }
+    if w.ladder_at(x, y).is_some() {
+        return tip("Rope ladder".into(), vec![if w.tr.climbing { "W / S: climb · Space or A / D: let go.".into() } else { "W / S by it: grab on and climb (let go of the keys to hang).".into() }, "E: take it down.".into()]);
     }
     None
+}
+
+/// A lift's tip: how it rides, where the cage is, and how it stands for balance.
+pub fn lift_tip(w: &World, k: usize) -> Tip {
+    let l = &w.tr.lifts[k]; let b = w.lift_balance(k); let n = l.stops.len();
+    let mut lines = vec![];
+    lines.push(if b.rider { "On the cage: W / S ride to the next stop (hold to run on).".to_string() } else { "Step on and W / S to ride · at a stop, W / S calls the cage.".to_string() });
+    lines.push(match l.at_stop() { Some(s) => format!("At stop {} of {n} ({}).", s + 1, if s == 0 { "top" } else if s + 1 == n { "the shaft floor" } else { "a passage" }), None if l.target.is_some() => "On its way.".into(), None => "Held by the brake between stops.".into() });
+    lines.push(if b.powered { "Current at the head: the winch hauls any load.".to_string() }
+        else if b.over().abs() <= 5. { format!("Balanced: cage {:.0} kg, counterweight {:.0} kg.", b.cage, b.weight) }
+        else if b.haulable() { format!("Cage {:.0} kg, counterweight {:.0} kg: light enough to haul.", b.cage, b.weight) }
+        else if b.over() > 0. { format!("Too heavy to haul: cage {:.0} kg, {:.0} kg over · right mouse: balance it with stone.", b.cage, b.over()) }
+        else { format!("Counterweight {:.0} kg too heavy · right mouse: take stone off.", -b.over()) });
+    lines.push("Right mouse: balance · E on the head: take it down.".into());
+    Tip { name: "Lift".into(), lines }
+}
+
+/// With a lift or a rope ladder in hand, what it would do at the cursor (x, y): where it goes, or why not.
+pub fn place_tip(w: &World, it: Item, x: usize, y: usize) -> Option<Tip> {
+    let reach = w.in_reach(x, y);
+    match it {
+        Item::Lift => Some(match w.lift_plan(x, y) {
+            Ok(p) => Tip { name: "Lift here".into(), lines: vec![format!("{:.1} m shaft, cage {:.1} m wide, {} stop{}.", (p.bottom - p.head) as f32 / CPM as f32, p.w / CPM as f32, p.stops.len(), if p.stops.len() == 1 { "" } else { "s" }),
+                if reach { "Left mouse: hang it under the ceiling.".into() } else { "Out of reach: step closer.".into() }] },
+            Err(e) => Tip { name: "No lift here".into(), lines: vec![format!("{}{}.", e[..1].to_uppercase(), &e[1..])] } }),
+        Item::RopeLadder => Some(match w.ladder_plan(x, y) {
+            Ok(l) => Tip { name: "Rope ladder here".into(), lines: vec![format!("{} {:.1} m to the floor.", if l.ax != l.x { "Tied on the ledge, hangs" } else { "Hangs from the rock above," }, l.len as f32 / CPM as f32),
+                if reach { "Left mouse: hang it.".into() } else { "Out of reach: step closer.".into() }] },
+            Err(e) => Tip { name: "No ladder here".into(), lines: vec![format!("{}{}.", e[..1].to_uppercase(), &e[1..])] } }),
+        _ => None,
+    }
 }

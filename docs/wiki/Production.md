@@ -34,7 +34,7 @@ Scenario `cart_tips_at_bumper`: a cart with 20 stones rolls down a 1-in-4 slope 
 
 ## Ore hoppers
 
-**Ore hopper** (`Item::OreHopper`): a 1.5 m wide, 1 m tall timber bin on legs. Its spout is 0.75 m over the floor, so a cart fits under it. Set it down over the track: both legs need a floor.
+**Ore hopper** (`Item::OreHopper`): a 1.5 m wide, 1 m tall timber bin on legs. Its spout is 0.75 m over the floor, so a cart fits under it. Set it down over the track: both legs need a floor. It can't stand over a tube hopper, nor a tube hopper inside its bin or legs; the refusal names which hopper is there (test `hoppers_do_not_stack`).
 * **Filling:** loose items that fall into its mouth are its load, and so is loose sand and rubble poured in as cells (24 cells make one item, as when digging). It holds up to 60 items.
 * **The gate:** a cart standing under the spout with room left trips the gate (items still falling count against that room). The load comes down into the cart one item every 5 ticks. With no cart there, the gate stays shut. **Right mouse** holds the gate open by hand: it then empties onto whatever is under it. Right mouse again lets it go.
 * `E` empties its load into the pack, and `E` on an empty hopper picks it up.
