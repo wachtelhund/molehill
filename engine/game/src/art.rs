@@ -940,6 +940,9 @@ mod tests {
         // a map built for a window slid sideways by a few cells reads the same tint at the same world cell
         let m2 = RegionMap::new(&region, -40 * c + 13, 0, (80 * c) as usize, (4 * c) as usize);
         for x in [-c - 3, 0, 5, c + 1] { assert_eq!(m.at(x, c), m2.at(x, c)); }
+        // and so does a small map for one far chunk past the window's end (`render_far`): no seam at the window edge
+        let m3 = RegionMap::new(&region, -3 * c, -c, (6 * c) as usize, (3 * c) as usize);
+        for x in [-c - 3, 0, 5, c + 1] { assert_eq!(m.at(x, c), m3.at(x, c)); }
         // every region has its own tint
         let ts: Vec<_> = [Biome::Loam, Biome::Karst, Biome::Crags, Biome::Ashlands, Biome::Fungal].map(biome_tint).to_vec(); assert_eq!(ts.len(), molehill_sim::gen::NBIOME);
         for i in 0..ts.len() { for j in 0..i { assert_ne!(ts[i], ts[j]); } }

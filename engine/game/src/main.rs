@@ -1283,6 +1283,8 @@ fn render_far(gm: &mut Game, ct: &Transform, win: &Window, images: &mut Assets<I
         let m8 = 8 * S as i32; if x0 + CH as i32 <= vx0 - m8 || x0 > vx1 + m8 || y0 + CH as i32 <= vy0 - m8 || y0 > vy1 + m8 { continue; }
         if budget == 0 { break; } budget -= 1;
         let Game { w, far_cells, .. } = &mut *gm; let mut data = vec![0u8; CH * CH * 4];
+        // the region wash runs on past the window's ends (the same blurred map, so there is no seam at the edge)
+        let region = art::RegionMap::new(&|x, wy| w.gen.biome_of(x, wy), w.ox + x0 as i64, w.oy + y0 as i64, CH, CH);
         let tw = molehill_sim::band::tile_w(W); let tx0 = (cx * CH) / tw * tw; let kx = w.ox + tx0 as i64; // the stored tile holding this chunk column
         for r in 0..CH { let wy = w.oy + (y0 + r as i32) as i64; let s0 = molehill_sim::band::band_start(w.oy, wy);
             let row = far_cells.entry((kx, s0)).or_insert_with(|| w.stored_cells(kx, s0)).as_ref().map(|(m, f)| { let o = (wy - s0) as usize * tw; (&m[o..o + tw], &f[o..o + tw]) });
@@ -1290,7 +1292,9 @@ fn render_far(gm: &mut Game, ct: &Transform, win: &Window, images: &mut Assets<I
                 let (m, seen) = match row { Some((m, f)) => (m[x - tx0], f[x - tx0] & F_SEEN != 0), None => (w.gen.cell(wx, wy).0, false) };
                 let mm = Mat::from_u8(m); let p = &PROPS[m as usize]; let v = (hash3(wx as u32, wy as u32, m as u32) & 255) as f32 / 255.;
                 let px: [f32; 3] = if seen {
-                    match p.kind { Kind::Empty | Kind::Gas => [30., 24., 22.], _ => { let k = 0.5 + 0.08 * v; [p.color[0] as f32 * k, p.color[1] as f32 * k, p.color[2] as f32 * k] } }
+                    match p.kind { Kind::Empty | Kind::Gas => [30., 24., 22.], _ => { let k = 0.5 + 0.08 * v;
+                        let t = if p.flags & molehill_sim::mat::BUILT != 0 || p.emit != [0; 3] { [1.; 3] } else { region.ground(wx, wy) };
+                        [p.color[0] as f32 * k * t[0], p.color[1] as f32 * k * t[1], p.color[2] as f32 * k * t[2]] } }
                 } else {
                     let n = (hash3(wx as u32 / (2 * S) as u32, wy as u32 / (2 * S) as u32, 5) & 7) as f32;
                     match p.kind { Kind::Empty | Kind::Gas => [8. + n, 7. + n, 11. + n], _ if mm == Mat::Lava => [70. + n, 30., 16.], _ if mm == Mat::Water => [16., 24. + n, 44.],
