@@ -13,7 +13,7 @@ use std::collections::VecDeque;
 /// v4: the world as bands (see `band.rs`): a manifest names every band (window and off-window) by start
 /// row and content hash; blobs travel inline (`save`) or as separate keys (`save_parts`). v3: one blob
 /// with a row cache of cells (still loads). Older (surface-world) saves are refused.
-pub const VERSION: u32 = 13; // 13: the water wagon is gone (items after it move down one; an old one loads as a store wagon); // 12: the window slides sideways too: its column (`ox`), and the world stored as tiles keyed by (column, row); // 11: grottos visited; // 10: background walls (band trailing RLE) and sites visited; // 9: transport (carts and their cargo; see transport.rs); // 8: Ancient relics found and ruins visited; // 7: the Lid journal and the clues found; 6: the items ever picked up (recipes unlock by touch); 5: the game mode, the headlamp's oil, and hunger on/off
+pub const VERSION: u32 = 14; // 14: the sites already furnished (a site's things are set out once, not at every load); // 13: the water wagon is gone (items after it move down one; an old one loads as a store wagon); // 12: the window slides sideways too: its column (`ox`), and the world stored as tiles keyed by (column, row); // 11: grottos visited; // 10: background walls (band trailing RLE) and sites visited; // 9: transport (carts and their cargo; see transport.rs); // 8: Ancient relics found and ruins visited; // 7: the Lid journal and the clues found; 6: the items ever picked up (recipes unlock by touch); 5: the game mode, the headlamp's oil, and hunger on/off
 const MAGIC: &[u8; 8] = b"MOLEHILL";
 /// The engine tag also names the cell resolution: a save at another cells-per-metre won't load.
 const ENGINE: &str = if crate::mat::CPM == 4 { "bevy-v3" } else if crate::mat::CPM == 8 { "bevy-v3-cpm8" } else { "bevy-v3-cpm?" };
@@ -78,7 +78,7 @@ fn load_v3(b: &[u8]) -> R<World> {
         for b in 0..nb { if w.logic.dev[b] == 0 { w.logic.burn[b] = 0; } }
         w.pl.deaths = r.u32()?;
     }
-    let _ = (&w.chests, Chest { x: 0, y: 0, opened: false, ancient: None }); w.refresh_chests(); w.infer_back();
+    let _ = (&w.chests, Chest { x: 0, y: 0, opened: false, ancient: None }); w.adopt_old_sites(); w.refresh_chests(); w.infer_back();
     let _ = Item::Dirt; let _ = Mat::Empty;
     // derived state
     w.g.life.iter_mut().for_each(|v| *v = 0); w.g.wake_all(); w.st = crate::stress::Stress::new(n);
@@ -127,6 +127,7 @@ pub fn save_parts(w: &World) -> Parts<'_> {
     o.bytes(&w.encode_transport());
     let mut ss: Vec<u32> = w.sites_seen.iter().copied().collect(); ss.sort(); o.u32(ss.len() as u32); for id in ss { o.u32(id); }
     let mut gs: Vec<u32> = w.grottos_seen.iter().copied().collect(); gs.sort(); o.u32(gs.len() as u32); for id in gs { o.u32(id); }
+    for set in [&w.sites_stamped, &w.sites_live] { let mut v: Vec<u32> = set.iter().copied().collect(); v.sort(); o.u32(v.len() as u32); for id in v { o.u32(id); } }
     o.u32(bands.len() as u32); for ((x0, wy0), h, b) in &bands { o.u64(*x0 as u64); o.u64(*wy0 as u64); o.u64(*h); o.u32(b.len() as u32); }
     Parts { manifest: o.0, bands: bands.into_iter().map(|((x0, wy0), h, b)| (tile_key(x0, wy0, h), b)).collect() }
 }
@@ -186,6 +187,8 @@ pub fn load_with(b: &[u8], fetch: &mut dyn FnMut(&str) -> Option<Vec<u8>>) -> R<
     let sites_seen = if ver >= 10 { let mut s = std::collections::HashSet::new(); for _ in 0..r.len(1 << 20)? { s.insert(r.u32()?); } s } else { Default::default() };
     // v11: grottos visited
     let grottos_seen = if ver >= 11 { let mut s = std::collections::HashSet::new(); for _ in 0..r.len(1 << 20)? { s.insert(r.u32()?); } Some(s) } else { None };
+    // v14: the sites already furnished, and the ones whose carts are set for this stay in the window
+    let sites_set = if ver >= 14 { let mut v: [std::collections::HashSet<u32>; 2] = Default::default(); for s in v.iter_mut() { for _ in 0..r.len(1 << 20)? { s.insert(r.u32()?); } } Some(v) } else { None };
     // the blob list: tiles (column, row) since v12, full-width bands (row) before
     let list: Vec<(Option<i64>, i64, u64, usize)> = (0..r.len(1 << 20)?).map(|_| Ok(if ver >= 12 { (Some(r.u64()? as i64), r.u64()? as i64, r.u64()?, r.len(1 << 28)?) } else { (None, r.u64()? as i64, r.u64()?, r.len(1 << 28)?) })).collect::<R<_>>()?;
     let inline = !r.done() && r.u8()? == 1;
@@ -232,6 +235,7 @@ pub fn load_with(b: &[u8], fetch: &mut dyn FnMut(&str) -> Option<Vec<u8>>) -> R<
     for id in seen { if let Some(j) = crate::lore::ruin_entry(crate::ruins::fragment_of(id)) { if !w.journal.contains(&j) { w.journal.push(j); } } }
     if let Some(t) = transport { w.decode_transport(&t)?; }
     w.sites_seen = sites_seen;
+    match sites_set { Some([st, live]) => { w.sites_stamped = st; w.sites_live = live; } None => w.adopt_old_sites() }
     w.refresh_chests();
     if ver < 10 { w.infer_back(); }
     // grottos visited: saved since v11; before that, a grotto whose hollow has been seen counts as visited

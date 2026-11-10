@@ -157,3 +157,54 @@ fn a_stamped_site_survives_a_slide() {
     w.shift_x(4 * TW as i64); assert!(here(&w), "back in the window");
     if st.chest.is_some() { assert!(chest(&w), "its chest back too"); }
 }
+
+/// A found place is furnished once. What the mole takes from it (its torches, benches, crops, the mine's carts with
+/// their stone, its rope ladders) is not set out again by a reload, or by the window sliding with the place still in
+/// it: each load used to hand the lot back, and a site ladder that had fallen was hung again to fall after every load,
+/// dropping one more rope ladder each time. Only the carts, which the window loses for good when the place leaves it,
+/// are set again once the place is all back in the window.
+#[test] fn a_found_place_is_furnished_once() {
+    use molehill_sim::sites::Kind;
+    let mut w = World::new(1024 * S, 512 * S, 1); w.disasters.enabled = false;
+    let mine = w.sites.iter().find(|s| s.kind == Kind::Mine).expect("seed 1 has a mine in the first window").clone();
+    assert!(w.sites.iter().any(|s| s.kind == Kind::Holt), "and a holt");
+    let count = |w: &World| (w.torches.len(), w.furniture.len(), w.farms.len(), w.tr.carts.len(), w.tr.ladders.len());
+    let full = count(&w);
+    assert!(full.0 >= 9 && full.1 >= 8 && full.2 >= 2 && full.3 == 2 && full.4 == 2, "the places are furnished (torches, furniture, farms, carts, ladders): {full:?}");
+    assert!(mine.x0 - w.ox < TW as i64, "the mine is by the west side");
+    // left alone, a place that leaves the window and comes back is as it was: nothing lost, nothing twice
+    let mut u = save::load(&save::save(&w)).unwrap(); assert_eq!(count(&u), full, "a reload changes nothing");
+    u.shift_x(2 * TW as i64); assert_eq!(u.tr.carts.len(), 0, "the window left the mine's carts");
+    u.shift_x(-2 * (TW as i64)); assert_eq!(count(&u), full, "back in the window the mine is as it was (torches, furniture, farms, carts, ladders)");
+    // the mole takes the lot
+    w.torches.clear(); w.furniture.clear(); w.farms.clear(); w.tr.carts.clear(); w.tr.ladders.clear();
+    let mut l = save::load(&save::save(&w)).unwrap(); assert_eq!(count(&l), (0, 0, 0, 0, 0), "a reload set things out again");
+    for _ in 0..40 { l.step(); } assert!(!l.log.iter().any(|(_, s)| s.contains("rope ladder fell")), "no site ladder is hung again to fall");
+    let l2 = save::load(&save::save(&l)).unwrap(); assert_eq!(count(&l2), (0, 0, 0, 0, 0), "a second reload set things out again");
+    // a slide that keeps both places in the window
+    w.shift(SLIDE as i64 / 2); w.shift(-(SLIDE as i64) / 2); assert_eq!(count(&w), (0, 0, 0, 0, 0), "a short slide set things out again");
+    // the mine leaves by the west side and comes back: only its carts, lost with the window, are set again
+    w.shift_x(2 * TW as i64); w.shift_x(-2 * (TW as i64));
+    assert_eq!(count(&w), (0, 0, 0, 2, 0), "back in the window the mine has its carts again, and nothing else that was taken");
+    // and a reload right after doesn't double them
+    let l = save::load(&save::save(&w)).unwrap(); assert_eq!(count(&l), (0, 0, 0, 2, 0));
+}
+
+/// A save from before sites were marked as furnished (v13 and older) loads with the places in its window as they
+/// were left: each load of such a save had furnished them already, so nothing the mole took is set out again.
+#[test] fn an_old_saves_places_stay_as_they_were_left() {
+    let mut w = World::new(1024 * S, 512 * S, 1); w.disasters.enabled = false;
+    let whole = w.sites_live.len(); assert!(whole >= 2 && !w.torches.is_empty() && !w.tr.carts.is_empty(), "seed 1 has a mine and a holt in the first window");
+    w.torches.clear(); w.furniture.clear(); w.farms.clear(); w.tr.carts.clear(); w.tr.ladders.clear();
+    // today's save made a v13 one: the two lists of furnished sites cut out (marked so they can be found), the version put back
+    w.sites_stamped = [0xA5A5_0001].into(); w.sites_live = [0xA5A5_0002].into();
+    let mut b = save::save(&w);
+    let lists: Vec<u8> = [1u32, 0xA5A5_0001, 1, 0xA5A5_0002].iter().flat_map(|v| v.to_le_bytes()).collect();
+    let at: Vec<usize> = (0..b.len() - 16).filter(|&k| b[k..k + 16] == lists[..]).collect(); assert_eq!(at.len(), 1, "the lists are in the save once");
+    b.drain(at[0]..at[0] + 16); assert_eq!(b[8..12], save::VERSION.to_le_bytes()); b[8..12].copy_from_slice(&13u32.to_le_bytes());
+    let mut l = save::load(&b).expect("the v13 save loads");
+    let count = |w: &World| (w.torches.len(), w.furniture.len(), w.farms.len(), w.tr.carts.len(), w.tr.ladders.len());
+    assert_eq!(count(&l), (0, 0, 0, 0, 0), "the old save's places were furnished again (torches, furniture, farms, carts, ladders)");
+    assert_eq!(l.sites_live.len(), whole, "the places in the window count as furnished");
+    l.shift(SLIDE as i64 / 2); assert_eq!(count(&l), (0, 0, 0, 0, 0), "and a slide leaves them so");
+}
