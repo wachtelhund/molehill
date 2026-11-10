@@ -18,6 +18,7 @@ pub mod debris;
 pub mod transport;
 pub mod lifts;
 pub mod ropes;
+pub mod away;
 pub mod tubes;
 pub mod production;
 pub mod sluice;

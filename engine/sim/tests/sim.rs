@@ -2100,3 +2100,74 @@ fn a_sideways_window_slide_keeps_the_mole_on_its_rope() {
     assert!((w.pl.py - py).abs() < 1. * S as f32 && (w.pl.px - px).abs() < 1. * S as f32, "hanging where it was ({}, {} vs {px}, {py})", w.pl.px, w.pl.py);
     assert_eq!(w.moles[0].hp, hp);
 }
+
+/// A 15 m × 4.5 m bedrock room round the mole with a rope ladder, a lift and a rope-gun rope in it.
+fn rigged_room() -> World {
+    let mut w = World::new(512 * S, 512 * S, 11); w.disasters.enabled = false;
+    let (x0, y0) = (w.moles[0].x, w.moles[0].y);
+    for y in y0 - 20 * S..=y0 + 3 * S { for x in x0 - 40 * S..=x0 + 40 * S { let i = w.g.idx(x, y); w.g.set(i, if y > y0 || y < y0 - 18 * S || x < x0 - 30 * S || x > x0 + 30 * S { Mat::Bedrock } else { Mat::Empty }); w.g.flags[i] = 0; } }
+    w.drops.clear(); w.torches.clear(); w.farms.clear();
+    for _ in 0..10 { w.step(); }
+    for it in [Item::RopeLadder, Item::Lift, Item::RopeGun, Item::HookRope] { w.inv[it as usize] = 1; }
+    assert_eq!(w.place_transport(Item::RopeLadder, x0 + 8 * S, y0 - 4 * S), Ok(true));
+    assert_eq!(w.place_transport(Item::Lift, x0 - 10 * S, y0 - 4 * S), Ok(true));
+    let (hx, hy) = molehill_sim::ropes::hand(w.pl.px, w.pl.py);
+    w.fire_rope_gun((hx, hy - 40. * S as f32)).unwrap();
+    for _ in 0..60 { w.step(); }
+    assert_eq!((w.tr.ropes.len(), w.tr.ladders.len(), w.tr.lifts.len()), (1, 1, 1), "rope, ladder and lift are up");
+    w
+}
+/// Where the rigging is in the world (not the window): the rope's anchor, the ladder's top, the lift's head and cage.
+fn rigging(w: &World) -> Vec<(i64, i64)> {
+    let at = |x: usize, y: usize| (w.ox + x as i64, w.oy + y as i64);
+    let (r, l, f) = (&w.tr.ropes[0], &w.tr.ladders[0], &w.tr.lifts[0]);
+    vec![at(r.ax, r.ay), at(l.x, l.top), at(l.ax, l.ay), at(f.x, f.head), at(f.x, f.bottom), at(f.x, f.y as usize)]
+}
+
+// Ropes, rope ladders and lifts aren't cells, so the tiles the window packs away don't carry them. They used
+// to be lost when the window left them (a trip 100 m down, or dying deep and waking in the burrow): the mole,
+// which can't climb rock, came home to a shaft with no ladder. They wait now and come back with the window.
+#[test]
+fn ropes_ladders_and_lifts_come_back_with_the_window() {
+    for sideways in [false, true] {
+        let mut w = rigged_room(); let before = rigging(&w); let len = w.tr.ladders[0].len; let stops = w.tr.lifts[0].stops.len();
+        let (m0, p0) = (w.moles[0].clone(), w.pl.clone());
+        let step = if sideways { molehill_sim::band::TW as i64 } else { SLIDE as i64 }; let n = if sideways { w.g.w } else { w.g.h } as i64 / step;
+        let go = |w: &mut World, d: i64| if sideways { w.shift_x(d) } else { w.shift(d) };
+        for _ in 0..n { go(&mut w, step); }
+        assert_eq!((w.tr.ropes.len(), w.tr.ladders.len(), w.tr.lifts.len()), (0, 0, 0), "the window left them (sideways: {sideways})");
+        assert_eq!(w.tr.away.len(), 3, "and they wait");
+        // a save taken while they are away keeps them
+        let mut w = molehill_sim::save::load(&molehill_sim::save::save(&w)).expect("reload"); w.disasters.enabled = false;
+        assert_eq!(w.tr.away.len(), 3, "kept across a save and load");
+        for _ in 0..n { go(&mut w, -step); }
+        assert_eq!((w.tr.ropes.len(), w.tr.ladders.len(), w.tr.lifts.len()), (1, 1, 1), "back with the window (sideways: {sideways})");
+        assert!(w.tr.away.is_empty());
+        assert_eq!(rigging(&w), before, "where they were");
+        assert_eq!((w.tr.ladders[0].len, w.tr.lifts[0].stops.len()), (len, stops), "the ladder as long, the lift with its stops");
+        // and they work: the mole climbs the ladder
+        w.moles[0] = m0; w.pl = p0; for _ in 0..5 { w.step(); }
+        let lx = w.tr.ladders[0].x as f32 + 0.5; let y0 = w.pl.py;
+        for _ in 0..120 { w.input.right = w.pl.px < lx - 0.5; w.input.up = !w.input.right; w.step(); }
+        assert!(w.tr.climbing && w.pl.py < y0 - 4. * S as f32, "climbing the ladder that came back (rose {})", y0 - w.pl.py);
+    }
+}
+
+// A slide of the window in the middle of a ride (riding down a deep shaft brings the mole to the window's
+// margin) moved the cage but not the stop it was hauled to, nor its stops: the cage ran on to the far end of
+// the shaft, and for half a second `W` / `S` found no stop. They are rows too, and slide with the lift.
+#[test]
+fn a_window_slide_keeps_a_lift_on_its_way_to_its_stop() {
+    let mut w = rigged_room(); let y0 = w.moles[0].y;
+    let (top, floor) = { let l = &w.tr.lifts[0]; (l.stops[0], *l.stops.last().unwrap()) };
+    assert!(top < floor && (w.tr.lifts[0].y - floor as f32).abs() < 0.5, "two stops, the cage at the floor");
+    w.tr.lifts[0].target = Some(top); for _ in 0..20 { w.step(); }
+    let rows = if y0 > w.g.h / 2 { SLIDE as i64 } else { -(SLIDE as i64) };
+    let y = w.tr.lifts[0].y; assert!(y < floor as f32 - 1. && y > top as f32 + 1., "on its way up");
+    w.shift(rows);
+    let l = &w.tr.lifts[0]; let want = (top as i64 - rows) as usize;
+    assert_eq!((l.target, l.stops[0]), (Some(want), want), "the stop it is hauled to slid with it");
+    for _ in 0..600 { w.step(); }
+    let l = &w.tr.lifts[0];
+    assert!(l.target.is_none() && (l.y - want as f32).abs() < 0.01, "arrived at the top stop (cage {}, stop {want})", l.y);
+}

@@ -73,6 +73,7 @@ The rule is simple: **gameplay goes in the sim.** If it changes what happens in 
 | `disasters.rs` | floods, lava surges, quakes |
 | `band.rs` | the endless world off-window: tiles of 256 × 64 cells (32 m × 8 m) holding cells, devices, air and things; the unit of saving |
 | `roam.rs` | the window sliding sideways (`World::shift_x`): the column twin of each subsystem's row slide (vehicles, tubes, machines, ropes, ladders, lifts, linkage) |
+| `away.rs` | ropes, rope ladders and lifts the window has left (`Transport::away`): each waits with the origin of the window it was in and is put back when a slide covers the whole of it again; saved with the transport (blob 15) |
 | `stream.rs` | fresh ground without a hitch: never-visited tiles built and shored ahead of the window (above, below and to each side) (`BandJob`, `BandCache`; a worker thread natively, slices on the web; never saved), and the seam a slide leaves, solved a box a tick |
 | `save.rs` | save/load: a manifest plus tile blobs, split into parts (only changed tiles are rewritten) or one blob |
 | `view.rs` | zoom rules shared by the settings menu, keys and wheel; `Wheel` turns wheel and trackpad scroll into notches (idle is still, one flick is one notch); `wheel_use` picks what a notch does (Shift/sprint never changes it) |

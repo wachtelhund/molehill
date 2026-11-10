@@ -1,6 +1,7 @@
 //! The window sliding sideways (`World::shift_x`): the column twin of every `shift_*` the row slide runs.
 //! Each thing with an x moves with the rock; one that would leave the window is dropped, as a slide
-//! down drops what leaves the top (a vehicle, a rope or a lift is not kept in a tile). Cell-index lists
+//! down drops what leaves the top (a vehicle is not kept in a tile). Ropes, rope ladders and lifts wait in
+//! `tr.away` instead and come back with the window (`away.rs`). Cell-index lists
 //! (tube paths, gate and cast cells, drum cells) are re-indexed.
 use crate::world::World;
 
@@ -38,19 +39,13 @@ impl World {
         self.tr.boilers.retain_mut(|b| { let Some(x) = col(b.x, 4) else { return false }; b.x = x; b.engines.clear(); true });
         self.tr.works.retain_mut(|wk| { let (hw, _) = wk.kind.size(); let Some(x) = col(wk.x, hw / 2 + 2) else { return false }; wk.x = x; true });
         self.tr.casts.retain_mut(|c| { for i in c.cells.iter_mut() { let Some(j) = reindex(*i, w, cols) else { return false }; *i = j; } true });
-        // ropes (a hook still in the air goes back into the pack, not lost) and ladders and lifts
-        // (the mole keeps hold of a rope that stays in the window, as on a slide up or down)
-        if self.tr.hook.take().is_some() { self.inv[crate::craft::Item::HookRope as usize] += 1; }
-        let held = self.tr.on_rope.take(); let mut keep = vec![];
-        for (k, mut r) in std::mem::take(&mut self.tr.ropes).into_iter().enumerate() {
-            let Some(ax) = col(r.ax, 1) else { continue }; if r.pts.iter().any(|p| !inx(p.0 - dx, 1.)) { continue; }
-            r.ax = ax; for p in r.pts.iter_mut().chain(r.prev.iter_mut()) { p.0 -= dx; }
-            if let Some((hk, s)) = held { if hk == k { self.tr.on_rope = Some((keep.len(), s)); } }
-            keep.push(r);
-        }
-        self.tr.ropes = keep;
-        self.tr.ladders.retain_mut(|l| { let (Some(x), Some(ax)) = (col(l.x, 1), col(l.ax, 0)) else { return false }; l.x = x; l.ax = ax; true });
-        self.tr.lifts.retain_mut(|l| { let Some(x) = col(l.x, 4) else { return false }; l.x = x; true });
+        // ropes (a hook still in the air goes back into the pack, not lost) and ladders and lifts: the mole
+        // keeps hold of a rope that stays in the window, as on a slide up or down; one that leaves waits in
+        // `tr.away` and comes back with the window (`away.rs`)
+        self.slide_ropes(cols, 0);
+        let (ox, oy) = self.origin_before(cols, 0); let h = self.g.h;
+        for l in std::mem::take(&mut self.tr.ladders) { match l.slid(cols, 0, w, h) { Some(l) => self.tr.ladders.push(l), None => self.tr.away.ladders.push(crate::away::Away { ox, oy, it: l }) } }
+        for l in std::mem::take(&mut self.tr.lifts) { match l.slid(cols, 0, w, h) { Some(l) => self.tr.lifts.push(l), None => self.tr.away.lifts.push(crate::away::Away { ox, oy, it: l }) } }
         // mechanical power: weights hang from drum cells; the trains are found again
         self.tr.power.weights.retain_mut(|wt| { let (Some(x), Some(d)) = (col(wt.x, 1), reindex(wt.drum, w, cols)) else { return false }; wt.x = x; wt.drum = d; true });
         self.tr.power.train.clear(); self.tr.power.cells.clear(); self.tr.power.scanned = 0;

@@ -212,32 +212,35 @@ impl World {
         if !self.rope_blocked(a.0, b.1) { return (a.0, b.1); }
         a
     }
-    /// Slide the ropes by `rows` (the window moved deeper); a rope that leaves the window is lost with it. The
-    /// mole keeps hold of a rope that stays (climbing past the window's margin slides it mid-climb).
-    pub(crate) fn shift_ropes(&mut self, rows: i64) {
-        let (dy, h) = (rows as f32, self.g.h as f32);
+    /// Slide the ropes by `rows` (the window moved deeper); a rope that leaves the window waits in `tr.away`
+    /// (`away.rs`). The mole keeps hold of a rope that stays (climbing past the window's margin slides it mid-climb).
+    pub(crate) fn shift_ropes(&mut self, rows: i64) { self.slide_ropes(0, rows); }
+    /// The same for a slide of `cols` east and `rows` down.
+    pub(crate) fn slide_ropes(&mut self, cols: i64, rows: i64) {
+        let (w, h) = (self.g.w, self.g.h); let (ox, oy) = self.origin_before(cols, rows);
         // a hook still in the air when the window slides: back into the pack, not lost
         if self.tr.hook.take().is_some() { self.inv[Item::HookRope as usize] += 1; }
         let held = self.tr.on_rope.take(); let mut keep = vec![];
-        for (k, mut r) in std::mem::take(&mut self.tr.ropes).into_iter().enumerate() {
-            let ay = r.ay as i64 - rows; if ay < 1 || r.pts.iter().any(|p| p.1 - dy < 1. || p.1 - dy > h - 2.) { continue; }
-            r.ay = ay as usize; for p in r.pts.iter_mut().chain(r.prev.iter_mut()) { p.1 -= dy; }
+        for (k, r) in std::mem::take(&mut self.tr.ropes).into_iter().enumerate() {
+            let Some(r) = r.slid(cols, rows, w, h) else { self.tr.away.ropes.push(crate::away::Away { ox, oy, it: r }); continue };
             if let Some((hk, s)) = held { if hk == k { self.tr.on_rope = Some((keep.len(), s)); } }
             keep.push(r);
         }
         self.tr.ropes = keep;
     }
     pub(crate) fn encode_ropes(&self, o: &mut crate::band::Wr) {
-        o.u32(self.tr.ropes.len() as u32);
-        for r in &self.tr.ropes { o.u32(r.ax as u32); o.u32(r.ay as u32); o.u32(r.pts.len() as u32); for p in &r.pts { o.f32(p.0); o.f32(p.1); } }
+        o.u32(self.tr.ropes.len() as u32); for r in &self.tr.ropes { write_rope(o, r); }
     }
     pub(crate) fn decode_ropes(&mut self, r: &mut crate::band::Rd) -> Result<(), String> {
         let (w, h) = (self.g.w, self.g.h);
-        for _ in 0..r.len(4096)? {
-            let (ax, ay, n) = (r.u32()? as usize, r.u32()? as usize, r.len(1024)?);
-            let mut pts = Vec::with_capacity(n); for _ in 0..n { pts.push((r.f32()?, r.f32()?)); }
-            if ax < w && ay < h && n == NSEG + 1 && pts.iter().all(|p| p.0.is_finite() && p.1.is_finite()) { self.tr.ropes.push(Rope { prev: pts.clone(), pts, ax, ay }); }
-        }
+        for _ in 0..r.len(4096)? { if let Some(rp) = read_rope(r, w, h)? { self.tr.ropes.push(rp); } }
         Ok(())
     }
+}
+pub(crate) fn write_rope(o: &mut crate::band::Wr, r: &Rope) { o.u32(r.ax as u32); o.u32(r.ay as u32); o.u32(r.pts.len() as u32); for p in &r.pts { o.f32(p.0); o.f32(p.1); } }
+/// One saved rope (None: not one a `w` × `h` window can hold).
+pub(crate) fn read_rope(r: &mut crate::band::Rd, w: usize, h: usize) -> Result<Option<Rope>, String> {
+    let (ax, ay, n) = (r.u32()? as usize, r.u32()? as usize, r.len(1024)?);
+    let mut pts = Vec::with_capacity(n); for _ in 0..n { pts.push((r.f32()?, r.f32()?)); }
+    Ok((ax < w && ay < h && n == NSEG + 1 && pts.iter().all(|p| p.0.is_finite() && p.1.is_finite())).then(|| Rope { prev: pts.clone(), pts, ax, ay }))
 }
