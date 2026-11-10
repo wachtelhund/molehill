@@ -223,7 +223,7 @@ Light is per-cell RGB, and there is no sky light and no day cycle: everything is
 L(i) = max(L(i), L(n) · t(i) · d)     t = 0.90 open, 0.80 liquid, ≈ 0.3 into rock (per 0.25 m);  d = 0.93 on diagonals
 ```
 
-**Sources** (`light::Source`) are torches, lit lamps, forges, the mole's headlamp, a torch or a jarred glowmite in its paws, the glowmites drifting in grottos, and a blast's flash: for 0.35 s after a charge goes off, a warm light at the blast fades out as (1 − t/T)², so a charge in an unlit mine bay shows the room and the debris it throws for a moment, with ordinary shadows (`kinds::BLAST_FLASH`, scenario `blast_flash_lights_a_dark_drift`). Each casts rays to its radius:
+**Sources** (`light::Source`) are torches, lit lamps, forges, a burning steam borer's firebox, the mole's headlamp, a torch or a jarred glowmite in its paws, the glowmites drifting in grottos, and a blast's flash: for 0.35 s after a charge goes off, a warm light at the blast fades out as (1 − t/T)², so a charge in an unlit mine bay shows the room and the debris it throws for a moment, with ordinary shadows (`kinds::BLAST_FLASH`, scenario `blast_flash_lights_a_dark_drift`). Each casts rays to its radius:
 
 * A ray stops at the first solid or powder cell. The face it hits takes half the light, so rock throws real shadows.
 * Liquid dims a ray as it passes.
@@ -238,6 +238,7 @@ L(i) = max(L(i), L(n) · t(i) · d)     t = 0.90 open, 0.80 liquid, ≈ 0.3 into
 | torch in the paws | warm orange | 6.5 m |
 | lit lamp | pale | 9 m |
 | forge | deep orange | 6 m |
+| a steam borer's firebox, while it burns | deep orange | 4.5 m |
 | headlamp beam | warm, faintly green (fungus oil) | 12 m, ±29° |
 | headlamp glow | warm | 3 m |
 | glowmite (drifting) | cold green-gold | 2.5 m |
@@ -245,7 +246,7 @@ L(i) = max(L(i), L(n) · t(i) · d)     t = 0.90 open, 0.80 liquid, ≈ 0.3 into
 | the mole's own glow (lamp out) | faint | 2 m |
 | a charge going off | warm white, fading out over 0.35 s | 10 m |
 
-The **headlamp** sits on the mole's hard hat and points at the cursor, or ahead and a little down when nothing is aimed at. While it's lit, it also reveals fog of war along its beam. Toggle it with `G` or in Settings (saved). In Survival it burns fungus oil (see [Progression](Progression.md#survival-mode-today)).
+The **headlamp** sits on the mole's hard hat and points at the cursor, or ahead and a little down when nothing is aimed at. In a steam borer's cab it shines from the lamp bracket over the cab's nose, along the way the borer is heading (straight down a shaft too), so it lights the face being cut (`World::headlamp`, `borer::LAMP`). While it's lit, it also reveals fog of war along its beam. Toggle it with `G` or in Settings (saved). In Survival it burns fungus oil (see [Progression](Progression.md#survival-mode-today)).
 
 Light is computed only over the camera view plus a margin, every second frame: about 3.4 ms natively for the view including its glowing surfaces, plus about 0.3 ms for the headlamp and 20 torches. Short lights (6 m or less) cast one ray per rim cell, long ones 1.5. The game draws only a small bloom sprite at a torch's or lamp's flame; the pool of light and its shadows are the sim's (`cargo run --release -p molehill-sim --example stepbench`).
 

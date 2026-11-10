@@ -839,6 +839,39 @@ fn material_table_is_consistent() {
     // and every light source goes through the same rays: the torch is one of the sources
     assert!(w.light_sources().iter().any(|s| (s.x - (tx as f32 + 0.5)).abs() < 0.01 && (s.y - (ty as f32 + 0.5)).abs() < 0.01));
 }
+#[test] fn a_borers_fire_lights_its_bore_and_its_lamp_looks_ahead() {
+    // a borer shut in a dark pocket in solid granite. Cold, its cab stands in the dark; with coal burning, the fire
+    // behind the firebox door lights the cab and the rock behind it (and it is one of the ray-cast sources, so it
+    // casts shadows like a torch). With the mole in the cab of a borer heading straight down, the headlamp shines from
+    // the bracket over the cab's nose down the heading, not sideways into the wall beside the cab.
+    use molehill_sim::{borer::Borer, mat::CPM, craft::Item};
+    let mut w = World::new(256 * S, 128 * S, 3); w.disasters.enabled = false;
+    for i in 0..w.g.mat.len() { w.g.set(i, Mat::Granite); }
+    let (bx, by) = (20 * CPM, 8 * CPM);
+    for y in by - CPM..by + CPM { for x in bx - 3 * CPM..bx + CPM { let i = w.g.idx(x, y); w.g.set(i, Mat::Empty); } }
+    w.tr.borers.push(Borer::new(bx as f32, by as f32, 0.));
+    let rect = (bx - 5 * CPM, by - 3 * CPM, bx + 3 * CPM, by + 3 * CPM);
+    let luma = |w: &World, x: f32, y: f32| { let l = w.light.at(w.g.idx(x as usize, y as usize)); l[0] * 0.3 + l[1] * 0.5 + l[2] * 0.2 };
+    let (cx, cy) = (w.tr.borers[0].cx, w.tr.borers[0].cy); let (dx, dy) = w.tr.borers[0].door();
+    assert!(w.tr.borers[0].contains(dx, dy) && dx < cx, "the door is on the cab, at its rear");
+    w.compute_light(rect); let cold = luma(&w, cx, cy);
+    assert!(cold < 0.02, "a cold borer in a sealed pocket is in the dark ({cold})");
+    w.tr.borers[0].burning = Some(Item::Coal); w.tr.borers[0].burn = 1000;
+    w.compute_light(rect); let (cab, wall) = (luma(&w, cx, cy), luma(&w, (bx - 3 * CPM) as f32 - 1., by as f32));
+    assert!(cab > 0.3, "its fire lights the cab ({cab})");
+    assert!(wall > 0.05, "and the rock behind it ({wall})");
+    let deep = luma(&w, (bx - 4 * CPM) as f32, by as f32);
+    assert!(deep < 0.2 * wall, "but not through the rock (1 m in: {deep}, the face {wall})");
+    // the rider's lamp: down the heading, from the cab's nose
+    let mut b = Borer::new(bx as f32, by as f32, std::f32::consts::FRAC_PI_2); b.straighten(); w.tr.borers[0] = b;
+    let free = w.headlamp();
+    w.tr.borer_ride = Some(0); w.gear.lamp = true; w.rules.fuel = false;
+    let (head, dir) = w.headlamp(); let b = &w.tr.borers[0];
+    assert!(free.0 != head, "the lamp moves to the cab");
+    assert!(dir.1 > 0.99 && dir.0.abs() < 0.05, "the beam runs down the heading ({dir:?})");
+    assert!(b.contains(head.0, head.1) && head.1 > b.cy, "from the cab's nose ({head:?}, cab {:?})", (b.cx, b.cy));
+    assert!(w.light_sources().iter().any(|s| s.cone.is_some_and(|c| c.dy > 0.99) && (s.x - head.0).abs() < 0.01 && (s.y - head.1).abs() < 0.01), "and the beam is cast from there");
+}
 #[test] fn furnishing_is_craftable_in_survival() {
     // every decor block, pigment and piece of furniture has a recipe (Survival builds from the ground up;
     // Creative just has them in the pack), and crafting one at a workbench works from raw materials

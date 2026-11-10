@@ -33,6 +33,9 @@ pub const HEAD_R: f32 = (3 * CPM / 4) as f32;
 pub const BORER_W: f32 = (3 * CPM / 2) as f32;
 pub const BORER_H: f32 = CPM as f32;
 pub const CAB_D: f32 = HEAD_R + 1.5;
+/// Where the firebox door and the lamp bracket sit in the cab's frame (cells along it toward the head, and up from its
+/// middle), as `art::borer` draws them.
+pub const DOOR: (f32, f32) = (-4.5, 0.); pub const LAMP: (f32, f32) = (4.75, 2.);
 /// From one wagon's middle to the next along the path (cells).
 pub const SEG_D: f32 = WAGON_W + GAP;
 pub const STEAM_MAX: f32 = 300.;
@@ -109,6 +112,16 @@ impl Borer {
         let (dx, dy) = (x - self.cx, y - self.cy); let (c, s) = (self.cang.cos(), self.cang.sin());
         (dx * c + dy * s).abs() < BORER_W / 2. && (-dx * s + dy * c).abs() < BORER_H / 2.
     }
+    /// A point in the cab's own frame as cells: `along` it toward the head and `up` from its middle (its top side: the
+    /// stack's; up on the screen while it runs level, flipped heading west as it is drawn).
+    pub fn cab_point(&self, along: f32, up: f32) -> (f32, f32) {
+        let (c, s) = (self.cang.cos(), self.cang.sin()); let (ux, uy) = if c < 0. { (-s, c) } else { (s, -c) };
+        (self.cx + along * c + up * ux, self.cy + along * s + up * uy)
+    }
+    /// The firebox door at the cab's rear (its fire lights the bore from here) and the lamp bracket over its nose (the
+    /// rider's headlamp looks out from here, along the heading).
+    pub fn door(&self) -> (f32, f32) { self.cab_point(DOOR.0, DOOR.1) }
+    pub fn lamp(&self) -> (f32, f32) { self.cab_point(LAMP.0, LAMP.1) }
     pub fn lumps(&self) -> u32 { self.fuel.iter().map(|f| f.1).sum::<u32>() + self.burning.is_some() as u32 }
     /// Which way it faces east or west (for the rider and the old one-way rules).
     pub fn dir(&self) -> i8 { if self.ang.cos() < 0. { -1 } else { 1 } }
