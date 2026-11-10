@@ -90,13 +90,18 @@ impl Grid {
     /// Set a cell (main thread). Marks structure + wakes.
     pub fn set(&mut self, i: usize, m: Mat) {
         let was = self.m(i);
-        self.mat[i] = m as u8; self.flags[i] &= !(F_LOOSE | F_PAINT); // a new material starts unpainted
-        self.life[i] = m.p().life;
+        self.set_quiet(i, m);
         let (x, y) = (i % self.w, i / self.w);
         // structural change, or something that held up static rock above just went away
         let undermines = y > 0 && matches!(was.kind(), Kind::Solid | Kind::Powder) && !matches!(m.kind(), Kind::Solid | Kind::Powder) && self.is_static(i - self.w);
         if was.is_structural() || m.is_structural() || undermines { self.mark_struct(x, y); }
-        self.wake(x, y);
+    }
+    /// Set a cell and wake it, without flagging a stress re-solve: for a change the caller hands to the solver
+    /// itself (`Stress::settle`).
+    pub fn set_quiet(&mut self, i: usize, m: Mat) {
+        self.mat[i] = m as u8; self.flags[i] &= !(F_LOOSE | F_PAINT); // a new material starts unpainted
+        self.life[i] = m.p().life;
+        self.wake(i % self.w, i / self.w);
     }
     pub fn set_loose(&mut self, i: usize) { self.flags[i] |= F_LOOSE; let (x, y) = (i % self.w, i / self.w); self.mark_struct(x, y); self.wake(x, y); }
     pub fn fill_rect(&mut self, x0: usize, y0: usize, x1: usize, y1: usize, m: Mat) {
@@ -184,7 +189,8 @@ impl Grid {
                     for n in self.n4(x, y) {
                         let nm = self.m(n);
                         // quenched lava shatters into loose scoria (F_LOOSE) instead of a free-floating crust
-                        if nm == Mat::Water { self.mat[i] = p.cools_to as u8; self.flags[i] = F_LOOSE; self.mat[n] = Mat::Steam as u8; self.life[n] = Mat::Steam.p().life; self.moved[i] = stamp; self.moved[n] = stamp; self.wake(x, y); self.reactions.store(1, Relaxed); self.note_struct(i, 2); return; }
+                        // (rubble where a liquid was, like sand that slid there: nothing a stress re-solve is flagged for)
+                        if nm == Mat::Water { self.mat[i] = p.cools_to as u8; self.flags[i] = F_LOOSE; self.mat[n] = Mat::Steam as u8; self.life[n] = Mat::Steam.p().life; self.moved[i] = stamp; self.moved[n] = stamp; self.wake(x, y); return; }
                         if nm.lit_by(p.heat) && self.rnd(x, y, 4) % 40 == 0 { self.mat[n] = Mat::Fire as u8; self.life[n] = Mat::Fire.p().life; self.reactions.store(1, Relaxed); self.note_struct(n, 2); }
                     }
                 }
@@ -211,7 +217,7 @@ impl Grid {
                         if nm.lit_by(m.p().heat) && self.rnd(x, y, 9) % 30 == 0 { self.mat[n] = Mat::Fire as u8; self.life[n] = Mat::Fire.p().life; self.reactions.store(1, Relaxed); self.note_struct(n, 2); }
                     }
                     self.life[i] = self.life[i].saturating_sub(1);
-                    if self.life[i] == 0 { self.mat[i] = 0; self.reactions.store(1, Relaxed); self.note_struct(i, 2); }
+                    if self.life[i] == 0 { self.mat[i] = 0; } // (a flame is open air to the stress solver: what it burned was flagged when it lit)
                     else if y > 0 && self.mat[i - w] == 0 && self.rnd(x, y, 10) % 4 == 0 { self.swap(i, i - w, stamp); }
                 }
             }
