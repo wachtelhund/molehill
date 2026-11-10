@@ -994,7 +994,10 @@ impl World {
             let r = 2 * S; for yy in y.saturating_sub(r)..=(y + r).min(h - 1) { for xx in x.saturating_sub(r)..=(x + r).min(w - 1) { if self.g.mat[yy * w + xx] == lava { n += 1; } } }
             // it sets from the bottom up, on solid ground: a crust on top of molten lava would just break up again
             if n - 1 < 10 * S * S && y + 1 < h && self.g.is_static(i + w) { freeze.push(i); } } }
-        for i in freeze { self.g.set(i, Mat::Lava.p().cools_to); }
+        // setting on ground that holds only adds support there: the solver's state takes the new cell in directly
+        // (`Stress::settle`), so a lava field cooling somewhere in the window doesn't re-solve the rock around it
+        // every sweep. On ground with no load path (or giving way) it is flagged as any other change.
+        for i in freeze { self.g.set_quiet(i, Mat::Lava.p().cools_to); if !self.st.settle(&self.g, i, Mat::Lava) { self.g.mark_struct(i % w, i / w); } }
     }
     fn check_chests(&mut self) {
         for c in 0..self.chests.len() {

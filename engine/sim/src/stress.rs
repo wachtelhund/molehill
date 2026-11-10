@@ -37,7 +37,7 @@ pub struct Stress {
     pub reach: Vec<bool>,
     /// per cell: for static cells the top row of their unbroken static column; for open cells the row of
     /// the roof above them. Kept between solves; a region solve updates the columns it touches.
-    ctop: Vec<u32>, vtop: Vec<u32>,
+    pub ctop: Vec<u32>, pub vtop: Vec<u32>,
     /// failure threshold on utilisation (FAIL_U at runtime; gen uses a safety factor)
     pub thr: f32,
     /// scratch for `anchored`: the search a cell was last visited by, and the solve that proved it held
@@ -284,8 +284,8 @@ impl Stress {
     }
 
     /// Does cell `i` have a load path to a real anchor (bedrock, or the window's edge rows and columns), by the
-    /// load-path rules of `solve_rect` step 2 searched backwards from it, downward first, so in solid ground it
-    /// is a short walk. If not, every cell the search reached is left without one too (`reach` false), which a
+    /// load-path rules of `solve_rect` step 2 searched backwards from it, nearest the window's edge first, so in
+    /// solid ground it is a short walk. If not, every cell the search reached is left without one too (`reach` false), which a
     /// later solve of those cells acts on. Past `ANCHOR_BUDGET` cells it answers `on_budget` (trusting what the last
     /// solve said). Within one `epoch`, cells proven held (`held` = epoch) or cut free (`held` = !epoch) stop later
     /// searches at once.
@@ -341,6 +341,24 @@ impl Stress {
         // cut free: nothing it rests on reaches an anchor
         for &e in &seen { let k = (e & !SYM) as usize; reach[k] = false; held[k] = dead; }
         false
+    }
+
+    /// Cell `i` has just set solid on ground that holds (lava freezing from the bottom up, `World::cool_lava`; it was
+    /// `was`). That only adds support where it is, so the stored state takes it in here and no re-solve is
+    /// flagged: it has a load path through the cell under it, its column's top row moves up to it, and the rows
+    /// under it carry its weight in place of the old one. How loaded it is itself waits for the next solve that
+    /// covers it. False (and nothing done) when the cell under it has no known load path or is giving way, or
+    /// nothing is solved yet: the caller then flags the change as any other.
+    pub fn settle(&mut self, g: &Grid, i: usize, was: Mat) -> bool {
+        let (w, n) = (g.w, g.mat.len());
+        if self.reach.len() != n || i + w >= n || !g.is_static(i) || !g.is_static(i + w) || !self.reach[i + w] || self.pending[i + w] > 0 { return false; }
+        self.reach[i] = true; self.util[i] = 0; self.vtop[i] = 0;
+        let y = i / w; let top = if y > 0 && g.is_static(i - w) { self.ctop[i - w] } else { y as u32 };
+        let mut j = i; while j < n && g.is_static(j) { self.ctop[j] = top; j += w; }
+        let cw = |m: Mat| if matches!(m.kind(), Kind::Empty | Kind::Gas) { 0. } else { PROPS[m as usize].density * G * CELL_M / 1000. };
+        let d = cw(g.m(i)) - cw(was);
+        for k in 1..=ARCH { if i + k * w >= n { break; } self.overburden[i + k * w] += d; }
+        true
     }
 
     /// Several region solves of the same grid follow (`World::solve_regions`): what one proves held or cut free
