@@ -51,7 +51,7 @@ A **mine cart** is its own body, 1 m long and 0.5 m tall, that sits on the track
 * **Off the rails.** If the track under it goes, a cart drops and sits with its wheels in the ground. It won't roll until it's set back on track (`cart_off_rail`).
 * **Carts meet.** Two carts that run into each other trade speeds by their masses, like billiard balls, losing a little to the knock.
 * **A slope too steep to push.** The mole leans in with 320 N; a 1-in-3 climb needs about 330 N for an empty cart (gravity along it plus rolling friction). The run-up carries a cart a step or two up, and there it stalls (`rail_too_steep_to_push`).
-* Carts and their cargo are saved. A cart that scrolls out of the live window with the rows around it is lost, as loose items are.
+* Carts and their cargo are saved. A cart that scrolls out of the live window with the rows around it is lost (loose items aren't: they travel in the tiles). The carts of a found place are the exception: they are set out again when the place is wholly back in the window (see [World and Generation](World-and-Generation.md)).
 
 ## Powered rails
 

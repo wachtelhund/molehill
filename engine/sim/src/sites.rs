@@ -1007,10 +1007,27 @@ impl World {
         self.sites.extend(self.staged.iter().filter(|s| s.x0 < x1 && s.x0 + s.w as i64 > x0 && s.y0 < y1 && s.y0 + s.h as i64 > y0).cloned());
         self.stamp_site_things();
     }
-    /// Devices, furniture, farms, carts and ladders a site owns. Idempotent: a thing already there is left.
+    /// Devices, furniture, farms, carts and ladders a site owns, set out once (see `World::sites_stamped`): calling
+    /// this again, as every load and slide does, changes nothing for a site that stayed wholly in the window.
     pub fn stamp_site_things(&mut self) {
         let sites = self.sites.clone();
+        // a site the window left or cut lost its carts with the rows: they are set again when it is all back
+        let whole: std::collections::HashSet<u32> = sites.iter().filter(|s| self.site_whole(s)).map(|s| s.id).collect();
+        self.sites_live.retain(|id| whole.contains(id));
         for s in &sites { self.stamp_one(s); }
+    }
+    /// Is the site wholly in the window, a few cells in from every edge? (A site cut by an edge has its things set
+    /// down once it is all in: a slide that far brings it.)
+    fn site_whole(&self, s: &Site) -> bool {
+        let (x0, y0) = (s.x0 - self.ox, s.y0 - self.oy);
+        y0 >= 4 && y0 + (s.h as i64) < self.g.h as i64 - 4 && x0 >= 4 && x0 + (s.w as i64) < self.g.w as i64 - 4
+    }
+    /// A save from before sites were marked as furnished: every site wholly in the window was (each load and slide
+    /// did it). One elsewhere is furnished when the window next holds it, as it was then: what is still there is left.
+    pub(crate) fn adopt_old_sites(&mut self) {
+        let (x0, x1, y0, y1) = (self.ox, self.ox + self.g.w as i64, self.oy, self.oy + self.g.h as i64);
+        let whole: std::collections::HashSet<u32> = self.gen.sites_in(x0, x1, y0, y1).iter().filter(|s| self.site_whole(s)).map(|s| s.id).collect();
+        self.sites_stamped = whole.clone(); self.sites_live = whole;
     }
     /// Scripted: stamp one site of `kind` with its top-left at window (x0, y0). Used by scenarios.
     pub fn stamp_site(&mut self, kind: Kind, x0: usize, y0: usize) {
@@ -1038,12 +1055,15 @@ impl World {
         self.staged.push(s.clone()); self.sites.push(s);
     }
     fn stamp_one(&mut self, s: &Site) {
-        let (x0, y0) = (s.x0 - self.ox, s.y0 - self.oy);
-        if y0 < 4 || y0 + s.h as i64 >= self.g.h as i64 - 4 { return; }
-        // a site cut by the window's side: its things are set down once it is all in (a slide that far brings it)
-        if x0 < 4 || x0 + s.w as i64 >= self.g.w as i64 - 4 { return; }
-        let (x0, y0) = (x0 as usize, y0 as usize);
-        for t in crate::templates::get(s.kind).placed_things(s.placement()) { self.set_thing(t.offset(x0, y0)); }
+        if !self.site_whole(s) { return; }
+        // everything the first time; after that only what the window lost for good when the site left it: its carts
+        // (torches, furniture, farms and devices travel in the tiles, ladders wait in `tr.away`)
+        let (first, back) = (self.sites_stamped.insert(s.id), self.sites_live.insert(s.id));
+        if !first && !back { return; }
+        let (x0, y0) = ((s.x0 - self.ox) as usize, (s.y0 - self.oy) as usize);
+        for t in crate::templates::get(s.kind).placed_things(s.placement()) {
+            if first || matches!(t, Thing::Cart { .. }) { self.set_thing(t.offset(x0, y0)); }
+        }
     }
     /// Set one site thing down at its window cell. Each is skipped if it doesn't fit or is already there.
     pub(crate) fn set_thing(&mut self, t: Thing) {
