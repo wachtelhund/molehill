@@ -916,8 +916,10 @@ impl World {
         else { m.breath = (m.breath + 2.).min(100.); }
         let b1 = m.breath;
         if k == 0 { self.breath_cues(b0, b1, hm == Mat::Water); }
-        // (a mole sealed in a pressure-tube capsule is inside the pipe, not buried)
-        let buried = !(k == 0 && self.tr.in_tube.is_some()) && (0..MOLE_H).any(|j| self.g.is_solidish(self.g.idx(x, y - j)) && !self.in_flight(x, y - j)); // sand pouring past isn't a burial
+        // (a mole sealed in a pressure-tube capsule is inside the pipe, not buried; nor is one in the borer's iron cab
+        // or in a wagon, where loose ground pours over the machine and the rider couldn't wriggle clear of it anyway)
+        let housed = k == 0 && (self.tr.in_tube.is_some() || self.tr.borer_ride.is_some() || self.tr.wagon_ride.is_some());
+        let buried = !housed && (0..MOLE_H).any(|j| self.g.is_solidish(self.g.idx(x, y - j)) && !self.in_flight(x, y - j)); // sand pouring past isn't a burial
         if buried {
             self.moles[k].hp -= 1.5; self.events.push(Event::Hurt); harm = Harm::Buried;
             // try to wriggle up or sideways
