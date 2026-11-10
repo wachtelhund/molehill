@@ -7,6 +7,7 @@
 //! a mole that can't climb rock under a ledge it had laddered.) Saved with the transport.
 use crate::band::{Rd, Wr, R};
 use crate::lifts::{Ladder, Lift};
+use crate::mat::S;
 use crate::ropes::Rope;
 use crate::world::World;
 
@@ -53,13 +54,15 @@ impl World {
     /// `tr.away` with the origin the window had before the slide. (Call after `ox` / `oy` moved.)
     pub(crate) fn origin_before(&self, cols: i64, rows: i64) -> (i64, i64) { (self.ox - cols, self.oy - rows) }
     /// Put back what the window covers again (after a slide, once the entering tiles are in: a lift reads
-    /// its stops off the shaft). A lift comes back braked where its cage stood.
+    /// its stops off the shaft; and before the found places are furnished again, `refresh_sites`: a site
+    /// hangs a ladder only where none hangs). A lift comes back braked where its cage stood. A ladder that
+    /// comes back where one already hangs (a found place's, hung anew while it was away) is that ladder.
     pub(crate) fn return_away(&mut self) {
         if self.tr.away.is_empty() { return; }
         let (w, h, ox, oy) = (self.g.w, self.g.h, self.ox, self.oy);
         let mut a = std::mem::take(&mut self.tr.away);
         a.ropes.retain(|p| match p.it.slid(ox - p.ox, oy - p.oy, w, h) { Some(r) => { self.tr.ropes.push(r); false } None => true });
-        a.ladders.retain(|p| match p.it.slid(ox - p.ox, oy - p.oy, w, h) { Some(l) => { self.tr.ladders.push(l); false } None => true });
+        a.ladders.retain(|p| match p.it.slid(ox - p.ox, oy - p.oy, w, h) { Some(l) => { if !self.tr.ladders.iter().any(|o| o.x.abs_diff(l.x) < S && o.top.abs_diff(l.top) < S) { self.tr.ladders.push(l); } false } None => true });
         a.lifts.retain(|p| match p.it.slid(ox - p.ox, oy - p.oy, w, h) {
             Some(mut l) => { l.stops = self.lift_stops(l.x, l.w, l.head, l.bottom); l.target = None; l.v = 0.; l.py = l.y; self.tr.lifts.push(l); false }
             None => true });

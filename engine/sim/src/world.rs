@@ -435,6 +435,7 @@ impl World {
         // stream (built ahead, or now if the window got there first: `stream.rs`)
         for y0 in (en..en + s).step_by(BH) { for x0 in (0..w).step_by(tw) { self.enter_tile(x0, y0); } }
         self.disasters.y = (self.disasters.y as i64 - rows).clamp(8, h as i64 - 8) as usize;
+        self.return_away(); // before the found places hang their ladders again: one that waited is the one
         self.refresh_chests();
         crate::stream::shift_wake(&mut self.g, rows, en, en + s); // only the entering chunks (and their edge) wake
         // structure: the solver's state moved with the rock, so only the entering rows (plus 16 m into the
@@ -449,7 +450,6 @@ impl World {
         self.pl.mine = None; let fy = rows as f32; self.pl.py -= fy; self.pl.ppy -= fy;
         self.pl.fall_from = (self.pl.fall_from as i64 - rows).clamp(0, h as i64 - 1) as usize;
         if let Some(m) = self.moles.first() { if self.pl.sync.is_some() { self.pl.sync = Some((m.x, m.y)); } }
-        self.return_away();
     }
     /// Window tile at cell (x0, y0) entering: unpack it from its stored blob, or put the fresh ground there.
     fn enter_tile(&mut self, x0: usize, y0: usize) {
@@ -491,6 +491,7 @@ impl World {
         for y in 0..h { for x in en..en + s { self.desig[y * w + x] = 0; self.walls.cell[y * w + x] = 0; } }
         for x0 in (en..en + s).step_by(TW) { for y0 in (0..h).step_by(BH) { self.enter_tile(x0, y0); } }
         self.disasters.x = (self.disasters.x as i64 - cols).clamp(8, w as i64 - 8) as usize;
+        self.return_away(); // before the found places hang their ladders again: one that waited is the one
         self.refresh_chests();
         crate::stream::shift_wake_x(&mut self.g, cols, en, en + s);
         let m = 16 * crate::mat::CPM;
@@ -500,7 +501,6 @@ impl World {
         // the player's body slides with the rock and keeps its speed (a run doesn't stop at the slide)
         self.pl.mine = None; self.pl.px -= fx; self.pl.ppx -= fx;
         if let Some(m) = self.moles.first() { if self.pl.sync.is_some() { self.pl.sync = Some((m.x, m.y)); } }
-        self.return_away();
     }
     /// Cells (materials, flags) of the stored tile at absolute (x0, wy0), for drawing far rows.
     pub fn stored_cells(&self, x0: i64, wy0: i64) -> Option<(Vec<u8>, Vec<u8>)> { self.bands.get(&(x0, wy0)).and_then(|b| crate::band::cells(&b.blob, crate::band::tile_w(self.g.w))) }
