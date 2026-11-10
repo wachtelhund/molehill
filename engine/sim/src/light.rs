@@ -40,6 +40,9 @@ pub mod kinds {
     pub const HELD_TORCH: ([f32; 3], f32) = ([1.35, 0.98, 0.5], 6.5);
     pub const LAMP: ([f32; 3], f32) = ([1.25, 1.2, 0.88], 9.);
     pub const KILN: ([f32; 3], f32) = ([1.35, 0.58, 0.2], 6.);
+    /// A steam borer's fire through its firebox door: it lights the bore round the cab and the first wagon behind it
+    /// while the coal burns, so the worm shows in its own unlit tunnel and a fire that has gone out shows too.
+    pub const FIREBOX: ([f32; 3], f32) = ([1.2, 0.56, 0.2], 4.5);
     /// The headlamp burns fungus oil: a warm light with a faint green cast.
     pub const HEADLAMP: ([f32; 3], f32) = ([1.15, 1.12, 0.74], 12.);
     pub const HEADLAMP_HALF: f32 = 0.5; // ≈ 29°

@@ -556,7 +556,7 @@ pub fn smelter(heat: u8) -> Image {
 
 /// The steam borer (1 px = 1 world unit, facing right; the game flips it): 0/1 its body cold/lit (24×16: a firebox at
 /// the rear with its door, dark or glowing, a riveted barrel, the stack, a timber seat with the drive lever, the spoil
-/// belt running back over the top with a lump on it, the iron chassis), 2..=4 the bore head's three turning frames (a
+/// belt running back over the top with a lump on it, a brass lamp over the nose, the iron chassis), 2..=4 the bore head's three turning frames (a
 /// toothed iron cone, 6×12), 5 a spoked wheel (6×6, the game turns it).
 pub fn borer(part: u8) -> Image {
     let iron = [104, 104, 116]; let dark = [70, 70, 80];
@@ -570,6 +570,7 @@ pub fn borer(part: u8) -> Image {
             p.rect(1, 2, 4, 3, [150, 108, 64]); crate::devart::line(&mut p, 5., 3., 6., 0., 1, [176, 178, 190]); // seat and drive lever
             crate::devart::line(&mut p, 19., 6., 6., 2.5, 1, [120, 84, 54]); p.set(14, 3, [150, 146, 140]); p.set(15, 4, [130, 126, 120]); // spoil belt with a lump
             p.rect(18, 6, 20, 11, dark); // the head's bearing
+            p.set(20, 5, dark); p.rect(19, 3, 20, 4, [176, 136, 62]); p.rect(21, 3, 21, 4, [160, 180, 196]); // a brass lamp on a bracket over the nose, its glass ahead (`borer::LAMP`: the rider's lamp shines from here)
             p }
         2..=4 => { let mut p = Px::new(6, 12); let f = (part - 2) as i32;
             for x in 0..6 { let hw = ((6 - x) as f32 * 1.0) as i32; for y in 6 - hw..6 + hw { p.set(x, y, if (y + x + f) % 3 == 0 { [196, 198, 210] } else if (y + x + f) % 3 == 1 { [124, 126, 138] } else { [92, 94, 106] }); } }
@@ -897,6 +898,9 @@ mod tests {
         let hot = |d: &[u8]| d.chunks(4).filter(|c| c[3] > 0 && c[0] > 230 && c[1] > 120).count();
         assert!(hot(&px(1)) >= 6 && hot(&px(0)) == 0, "the firebox door glows only while lit");
         assert!(px(2) != px(3) && px(3) != px(4), "the bore head's frames turn");
+        // the lamp over the nose is where the sim puts the rider's lamp (cab frame -> sprite: 2 px a cell from the middle)
+        let (la, lu) = molehill_sim::borer::LAMP; let (lx, ly) = ((12. + la * 2.) as usize, (8. - lu * 2.) as usize);
+        for d in [px(0), px(1)] { let c = &d[(ly * 24 + lx) * 4..][..4]; assert!(c[3] > 0 && c[2] > c[0], "the lamp's glass is at `borer::LAMP` ({c:?})"); }
         let sizes: Vec<(u32, u32)> = [0u8, 2, 5].into_iter().map(|k| { let im = borer(k); (im.width(), im.height()) }).collect(); assert_eq!(sizes, vec![(24, 16), (6, 12), (6, 6)]);
     }
 

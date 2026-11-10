@@ -796,6 +796,9 @@ impl World {
     /// The player's head (where the headlamp sits) and the beam's direction: toward the aim, or
     /// ahead and a little down when nothing is aimed at.
     pub fn headlamp(&self) -> ((f32, f32), (f32, f32)) {
+        // in a borer's cab the lamp looks out over its nose, along the way it is heading (straight down a shaft too), so
+        // it lights the face being cut instead of the wall beside the cab
+        if let Some(b) = self.tr.borer_ride.and_then(|k| self.tr.borers.get(k)) { return (b.lamp(), (b.cang.cos(), b.cang.sin())); }
         let f = self.moles.first().map_or(1, |m| m.facing) as f32;
         // the lamp's lens on the sprite (art::mole_sheet): 2.75 tiles ahead of the body centre and 2.5 up from the feet
         let head = (self.pl.px + f * 2.75 * SF, self.pl.py - 2.5 * SF); let rest = (f, 0.25);
@@ -809,6 +812,7 @@ impl World {
         let mut v: Vec<Source> = self.torches.iter().map(|&(x, y)| { let (x, y) = c(x, y); Source::point(x, y, TORCH.0, TORCH.1) }).collect();
         for f in &self.furniture { if f.item == Item::Planter { let (x0, y0, x1, _) = f.rect(); v.push(Source::point((x0 + x1) as f32 / 2. + 0.5, y0 as f32, PLANTER.0, PLANTER.1)); } }
         for b in &self.buildings { if b.built && b.kind == Station::Forge { let (x, y) = c(b.x + Station::W / 2, b.y - S); v.push(Source::point(x, y, KILN.0, KILN.1)); } }
+        for b in &self.tr.borers { if b.burning.is_some() { let (x, y) = b.door(); v.push(Source::point(x, y, FIREBOX.0, FIREBOX.1)); } }
         for &b in &self.logic.dev_list { if self.logic.dev[b] == Dev::Lamp as u8 && self.logic.dev_s[b] != 0 { let (x, y) = self.logic.centre(b); let (x, y) = c(x, y); v.push(Source::point(x, y, LAMP.0, LAMP.1)); } }
         for (x, y, _, _) in self.glowmites() { v.push(Source::point(x, y, GLOWMITE.0, GLOWMITE.1)); }
         // a blast's flash, from its (render-only) wave record

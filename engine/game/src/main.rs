@@ -1373,7 +1373,7 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
             want.push((0, k, cell_to_world(g.disp.x, g.disp.y + SF - 1.5 * SF - up), 5., img, size, m.facing < 0, c));
         } }
     // the lit headlamp's lens gets a small warm halo (the beam itself is the sim's light)
-    if let (Some(m), true) = (w.moles.first().filter(|m| m.alive), w.lamp_lit() && !back_view) { // (a dry lamp shows no halo; seen from behind, the lens faces away)
+    if let (Some(m), true) = (w.moles.first().filter(|m| m.alive), w.lamp_lit() && !back_view && w.tr.borer_ride.is_none()) { // (a dry lamp shows no halo; seen from behind, the lens faces away; in a borer's cab the halo is on the cab's lamp)
         let lens = if pl.cling != 0 { cell_to_world(g.disp.x - pl.cling as f32 * 1.4 * SF, g.disp.y + SF - 2.25 * SF) + Vec2::new(-pl.cling as f32 * 4., 12.) }
             else { cell_to_world(g.disp.x, g.disp.y + SF - 1.5 * SF) + Vec2::new(m.facing as f32 * 11., 4.) };
         want.push((15, 0, lens, 5.2, sp.glow.clone(), Vec2::splat(14.), false, Color::srgba(1., 0.93, 0.62, 0.45)));
@@ -1634,12 +1634,22 @@ fn sync_sprites(mut commands: Commands, g: Res<Game>, sp: Res<Sprites>, time: Re
         let spin = b.steam > 0. && b.v > 0.1; let f = if spin { (now * 14.) as usize % 3 } else { 0 };
         let hp = frame(cab, b.cang, bw / 2. + 0.5, -0.5); rot.insert((121, k), r);
         want.push((121, k, cell_to_world(hp.0, hp.1), 4.21, sp.borer[2 + f].clone(), Vec2::new(6., 12.), flip, lit));
+        // the rider's headlamp shines from the bracket over the cab's nose (`World::headlamp`): its halo sits there
+        if w.tr.borer_ride == Some(k) && w.lamp_lit() { let (la, lu) = molehill_sim::borer::LAMP; let p = frame(cab, b.cang, la, lu);
+            want.push((15, 0, cell_to_world(p.0, p.1), 5.2, sp.glow.clone(), Vec2::splat(14.), false, Color::srgba(1., 0.93, 0.62, 0.45))); }
         if on {
-            let fl = 0.85 + 0.1 * (now * 11.).sin() + 0.05 * (now * 23.).sin(); let door = frame(cab, b.cang, -4.5, 0.);
+            let (da, du) = molehill_sim::borer::DOOR;
+            let fl = 0.85 + 0.1 * (now * 11.).sin() + 0.05 * (now * 23.).sin(); let door = frame(cab, b.cang, da, du);
             want.push((123, k, cell_to_world(door.0, door.1), 4.4, sp.glow.clone(), Vec2::splat(14. * fl), false, Color::srgba(1., 0.6, 0.25, 0.4 * fl)));
+            // smoke rises from the stack where there is room over it; in its own bore (rock overhead) it trails back
+            // along the tunnel's roof instead of climbing through the rock
             let stack = frame(cab, b.cang, -1.75, bh / 2.);
+            let rock = |x: f32, y: f32| x < 0. || y < 0. || x as usize >= W || y as usize >= H || w.g.is_solidish(y as usize * W + x as usize);
+            let roofed = rock(stack.0, stack.1 - 0.75 * CPM as f32) || rock(stack.0, stack.1 - 1.5 * CPM as f32);
             for j in 0..3 { let ff = ((now * 0.7 + j as f32 / 3.) % 1.) as f32; let hh = hash3(k as u32, j, 41) as f32 / u32::MAX as f32;
-                want.push((124, k * 3 + j as usize, cell_to_world(stack.0 + hh - 0.5, stack.1 - ff * 2. * CPM as f32), 4.45, sp.glow.clone(), Vec2::splat(4. + 8. * ff), false, Color::srgba(0.42, 0.4, 0.4, 0.45 * (1. - ff)))); }
+                let rise = ff * 2. * CPM as f32;
+                let p = if roofed { let (x, y, ang) = b.at(molehill_sim::borer::CAB_D + 1.75 + rise); frame((x + ox, y + oy), ang, 0., bh / 2. - 1.5 + hh) } else { (stack.0 + hh - 0.5, stack.1 - rise) };
+                want.push((124, k * 3 + j as usize, cell_to_world(p.0, p.1), 4.45, sp.glow.clone(), Vec2::splat(4. + 8. * ff), false, Color::srgba(0.42, 0.4, 0.4, 0.45 * (1. - ff)))); }
         }
     }
     // wagons (sprite ids 130-133): each kind's own body; two spoked wheels turning with the ground covered; the load heaped
