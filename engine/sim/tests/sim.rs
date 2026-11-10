@@ -557,6 +557,65 @@ fn press(w: &mut World, n: usize, f: impl Fn(&mut Input)) -> (f32, f32) { let (m
     let mut diff = 0; for y in bx.1 - k..=bx.3 + k { for x in bx.0 - k..=bx.2 + k { let i = w.g.idx(x, y); if w.st.util[i] != full.util[i] { diff += 1; } } }
     assert_eq!(diff, 0, "utilisation differs in {diff} cells");
 }
+/// Lava that sets on ground that holds is taken into the solver's stored state as it is (`Stress::settle`): what a
+/// full solve says of its load path, its column and the weight on the rows under it, so a region solve near it
+/// later is still exact. On lava, or on rock with no load path, it refuses (that change is flagged as any other).
+#[test] fn settled_lava_keeps_the_stress_state_exact() {
+    use molehill_sim::mat::CPM;
+    let (gw, gh, fy) = (128 * S, 64 * S, 30 * S);
+    let mut g = boxed(gw, gh);
+    let fill = |g: &mut Grid, x0: usize, y0: usize, x1: usize, y1: usize, m: Mat| for y in y0..y1 { for x in x0..x1 { let i = g.idx(x, y); g.set(i, m); } };
+    // a granite floor (top row fy) under an open hall, a sheet of lava three cells deep on it; a pier with a lintel
+    // out over the lava; and a block hanging in the air with a little lava on top
+    fill(&mut g, 2 * S, fy, 126 * S, 62 * S, Mat::Granite);
+    fill(&mut g, 20 * S, fy - 3, 100 * S, fy, Mat::Lava);
+    fill(&mut g, 76 * S, fy - 8, 78 * S, fy, Mat::Granite); fill(&mut g, 72 * S, fy - 8, 76 * S, fy - 3, Mat::Granite);
+    fill(&mut g, 50 * S, fy - 16, 54 * S, fy - 10, Mat::Granite); fill(&mut g, 51 * S, fy - 17, 53 * S, fy - 16, Mat::Lava);
+    let mut st = Stress::new(gw * gh); st.solve(&g); g.clear_struct();
+    let basalt = Mat::Lava.p().cools_to;
+    let freeze = |g: &mut Grid, st: &mut Stress, x: usize, y: usize| { let i = g.idx(x, y); g.set_quiet(i, basalt); st.settle(g, i, Mat::Lava) };
+    // the sheet sets from the bottom up: a stretch of its bottom row, columns two and three deep, and all the
+    // way up under the lintel
+    for x in 30 * S..44 * S { assert!(freeze(&mut g, &mut st, x, fy - 1)); }
+    for x in (30 * S..44 * S).step_by(3) { assert!(freeze(&mut g, &mut st, x, fy - 2)); if x % 2 == 0 { assert!(freeze(&mut g, &mut st, x, fy - 3)); } }
+    for y in (fy - 3..fy).rev() { assert!(freeze(&mut g, &mut st, 73 * S, y)); }
+    assert!(g.struct_dirty.is_none() && g.take_struct(3).is_empty(), "setting flags no re-solve");
+    let mut full = Stress::new(gw * gh); full.solve(&g);
+    for i in 0..gw * gh {
+        assert_eq!(st.reach[i], full.reach[i], "load path at ({}, {})", i % gw, i / gw);
+        assert_eq!((st.ctop[i], st.vtop[i]), (full.ctop[i], full.vtop[i]), "column top at ({}, {})", i % gw, i / gw);
+        assert!((st.overburden[i] - full.overburden[i]).abs() < 0.01, "overburden at ({}, {}): {} vs {}", i % gw, i / gw, st.overburden[i], full.overburden[i]);
+    }
+    // a hall dug into the floor under the new crust: the region solve around it agrees with a full one
+    let bx = (34 * S, fy + 2 * S, 46 * S - 1, fy + 8 * S - 1);
+    fill(&mut g, bx.0, bx.1, bx.2 + 1, bx.3 + 1, Mat::Empty);
+    let mut part = st.solve_rect(&g, Some(bx)); part.sort();
+    let mut full = Stress::new(gw * gh); let all = full.solve(&g);
+    let k = 4 * CPM; let near = |x: usize, y: usize| x + k >= bx.0 && x <= bx.2 + k && y + k >= bx.1 && y <= bx.3 + k;
+    let mut want: Vec<u32> = all.into_iter().filter(|&i| near(i as usize % gw, i as usize / gw)).collect(); want.sort();
+    assert_eq!(part, want, "failing cells near the hall");
+    for y in bx.1 - k..=bx.3 + k { for x in bx.0 - k..=bx.2 + k { let i = g.idx(x, y); assert_eq!(st.util[i], full.util[i], "utilisation at ({x}, {y})"); } }
+    // not on lava (the row under it is still molten), and not on the hanging block
+    assert!(!freeze(&mut g, &mut st, 60 * S, fy - 2), "nothing sets on molten lava");
+    assert!(!freeze(&mut g, &mut st, 52 * S, fy - 17), "rock with no load path takes nothing in: that is flagged and solved");
+}
+/// A lava field cooling in the window costs no stress re-solve: lava setting on a sound floor flags none (it
+/// used to flag every cell that set, so the rock around any lava was solved again every half second).
+#[test] fn cooling_lava_flags_no_stress_resolve() {
+    use std::sync::atomic::Ordering::Relaxed; use molehill_sim::grid::CHUNK;
+    let (mut w, x0, y0) = arena();
+    // a kerb, and a thin sheet of lava between it and the arena's east wall
+    for y in y0 - 6..=y0 { for x in x0 + 10 * S - 2..x0 + 10 * S { let i = w.g.idx(x, y); w.g.set(i, Mat::Granite); } }
+    for _ in 0..12 { w.step(); }
+    for y in y0 - 2..=y0 { for x in x0 + 10 * S..=x0 + 30 * S { let i = w.g.idx(x, y); w.g.set(i, Mat::Lava); } }
+    let (c0, c1, r0, r1) = ((x0 + 8 * S) / CHUNK, (x0 + 32 * S) / CHUNK, (y0 - 4 * S) / CHUNK, (y0 + 2 * S) / CHUNK);
+    let mut flagged = 0;
+    for _ in 0..2400 { w.step(); for cy in r0..=r1 { for cx in c0..=c1 { if w.g.sdirty[cy * w.g.cx + cx].load(Relaxed) != 0 { flagged += 1; } } } }
+    let crust: Vec<usize> = (y0 - 2..=y0).flat_map(|y| (x0 + 10 * S..=x0 + 30 * S).map(move |x| (x, y))).map(|(x, y)| w.g.idx(x, y)).filter(|&i| w.g.m(i) == Mat::Basalt).collect();
+    assert!(crust.len() >= 40, "the sheet sets: {} cells of basalt", crust.len());
+    assert!(crust.iter().all(|&i| w.g.is_static(i) && w.st.reach[i] && w.st.pending[i] == 0), "the crust stands, with a load path");
+    assert_eq!(flagged, 0, "chunk flags raised around the cooling lava");
+}
 /// Shift is sprint: scrolling while sprinting changes the hotbar slot like a plain wheel (it used to zoom).
 #[test] fn wheel_modifiers_sprint_does_not_zoom() {
     use molehill_sim::view::{wheel_use, wheel_delta, Mods, WheelUse::*};
