@@ -1,0 +1,56 @@
+// Ropes, rope ladders and lifts aren't cells, so they were lost when the world window left them (a long trip
+// down, or dying deep and waking in the burrow), and the mole came home to a cliff with no ladder. They wait
+// now and come back with the window: here it slides away and back, then again across a save and load, and the
+// ladder still hangs against its cliff, the rope from its hook and the lift in its place with both its stops.
+map
+##############################
+#............................#
+#............................#
+#............................#
+#............................#
+#............................#
+#............................#
+############.................#
+############.................#
+############.................#
+############.................#
+############.................#
+############.................#
+############.................#
+############.................#
+############.................#
+############.................#
+############.................#
+############.................#
+############.................#
+############.................#
+############.................#
+############.@...............#
+##############################
+##############################
+##############################
+end
+give RopeLadder 1
+give Lift 1
+give RopeGun 1
+give HookRope 1
+place 4 2 -6 RopeLadder
+place 6 8 -3 Lift
+fire 8 10 -21
+expect 60 ladders == 1
+expect 60 lifts == 1
+expect 60 ropes == 1
+expect 60 stops == 2
+slide 62
+expect 64 ladders == 1
+expect 64 lifts == 1
+expect 64 ropes == 1
+saveload 66
+slide 68
+expect 70 ladders == 1
+expect 70 ladderx == 12
+expect 70 laddertop == 5
+expect 70 ladderlen == 18
+expect 70 lifts == 1
+expect 70 stops == 2
+expect 70 ropes == 1

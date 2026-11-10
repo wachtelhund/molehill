@@ -13,7 +13,7 @@ The game crate has a few headless unit tests of its own for HUD and art logic th
 
 `spawn_reveals_only_burrow_neighbourhood` checks a fresh holt starts with only its burrow and a 1 m skin seen (nothing 10 m out, through rock or not, and no unseen material counted as discovered).
 
-`sim/tests/sim.rs` covers stress and collapse, fluids, digging tiers, and movement. The movement tests check jump height, the variable short hop, coyote time, and that a bare wall can't be climbed (no cling, no climb). Rope-gun edge cases live there too: a window slide (up, down or sideways) keeps the mole on its rope, and riding from a rope lets go of it. Helpers: `arena()` makes a cleared granite box around spawn, and `press(&mut w, n, |input| ...)` steps n ticks with a given input.
+`sim/tests/sim.rs` covers stress and collapse, fluids, digging tiers, and movement. The movement tests check jump height, the variable short hop, coyote time, and that a bare wall can't be climbed (no cling, no climb). Rope-gun edge cases live there too: a window slide (up, down or sideways) keeps the mole on its rope, and riding from a rope lets go of it. `ropes_ladders_and_lifts_come_back_with_the_window` rigs a room with a rope, a rope ladder and a lift, slides the window off it (down, then sideways), saves and loads while they are away, and finds each back in its place (the ladder climbs); `a_window_slide_keeps_a_lift_on_its_way_to_its_stop` slides the window mid-ride. Helpers: `arena()` makes a cleared granite box around spawn, and `press(&mut w, n, |input| ...)` steps n ticks with a given input.
 
 ## 2. Scenario harness (`sim/examples/scenario.rs`)
 
@@ -187,6 +187,7 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `rope_gun_anchor_stone.scn` | The rope gun's hook glances off a heap of sand and sinks in a pool (no rope; the hook rope lies where it stopped), bites a granite ceiling 7.5 m up (the rope stays through a save and load), and when that rock is blown away the rope comes down as a hook rope |
 | `rope_gun_catch.scn` | Up 5 m of rope, `Space` lets go, `W` held while falling past grabs it again at once (no damage); `S` down onto the floor lets go by itself |
 | `rope_gun_slide.scn` | A hook still in the air when the world window slides goes back into the pack as a hook rope |
+| `ropeways_come_back.scn` | A rope ladder on a cliff, a lift and a rope-gun rope: the window slides away and back (`slide`), then again across a save and load, and each is still in its place (the ladder's column, top and length, the lift's 2 stops, 1 rope) |
 | `rope_gun_climb.scn` | At a bare 4.5 m cliff's foot: the hook up into the ceiling, W grabs, W climbs at 2 m/s, D at the top steps off onto the ledge; full health |
 | `first_hour_without_wallclimb.scn` | Survival, under a 4 m granite shaft: no way up by hand; from first-hour stuff a workbench, the rope gun and a hook rope; the hook up the shaft, climb, step off onto the upper floor unhurt |
 | `no_ceiling_climb.scn` | Jumping into a low ceiling while holding sideways and `W` never clings; the mole falls back down |

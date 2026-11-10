@@ -449,6 +449,7 @@ impl World {
         self.pl.mine = None; let fy = rows as f32; self.pl.py -= fy; self.pl.ppy -= fy;
         self.pl.fall_from = (self.pl.fall_from as i64 - rows).clamp(0, h as i64 - 1) as usize;
         if let Some(m) = self.moles.first() { if self.pl.sync.is_some() { self.pl.sync = Some((m.x, m.y)); } }
+        self.return_away();
     }
     /// Window tile at cell (x0, y0) entering: unpack it from its stored blob, or put the fresh ground there.
     fn enter_tile(&mut self, x0: usize, y0: usize) {
@@ -499,6 +500,7 @@ impl World {
         // the player's body slides with the rock and keeps its speed (a run doesn't stop at the slide)
         self.pl.mine = None; self.pl.px -= fx; self.pl.ppx -= fx;
         if let Some(m) = self.moles.first() { if self.pl.sync.is_some() { self.pl.sync = Some((m.x, m.y)); } }
+        self.return_away();
     }
     /// Cells (materials, flags) of the stored tile at absolute (x0, wy0), for drawing far rows.
     pub fn stored_cells(&self, x0: i64, wy0: i64) -> Option<(Vec<u8>, Vec<u8>)> { self.bands.get(&(x0, wy0)).and_then(|b| crate::band::cells(&b.blob, crate::band::tile_w(self.g.w))) }

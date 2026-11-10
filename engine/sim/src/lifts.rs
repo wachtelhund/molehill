@@ -370,7 +370,7 @@ impl World {
                 }
             } else { l.v = 0.; }
             // move, cell by cell; stop at the top, the floor, or anything in the shaft (a mole under the cage too)
-            let dy = l.v * dt; let n = (dy.abs().ceil() as i32).max(1); let mut moved = 0.;
+            let dy = l.v * dt; let n = (dy.abs().ceil() as i32).max(1);
             let (mx, my) = (self.pl.px, self.pl.py); let under = !rider && self.moles.first().is_some_and(|m| m.alive) && mx + BODY_HW > x0 && mx - BODY_HW < x1;
             for _ in 0..n {
                 let ny = l.y + dy / n as f32;
@@ -383,7 +383,7 @@ impl World {
                     l.v = 0.; l.target = None; arrive = false; l.y = if dy > 0. { l.y.floor() } else { l.y.ceil() }.clamp(l.top(), (l.bottom - 1) as f32); break; }
                 l.y = ny;
             }
-            moved = l.y - l.py;
+            let mut moved = l.y - l.py;
             if arrive { if let Some(t) = l.target.take() { l.y = t as f32; moved = l.y - l.py;
                 // a key still held runs on to the next stop that way, without stopping
                 let dir = if self.input.up { -1 } else if self.input.down { 1 } else { 0 };
@@ -403,4 +403,17 @@ impl World {
     fn inv_drop(&mut self, x: usize, y: usize, it: Item, ballast: u32) {
         self.drop_loose(x, y, it); if ballast > 0 { self.drops.push(crate::world::Drop::at(x as f32 + 0.5, y as f32 + 0.5, Item::Stone, ballast)); }
     }
+}
+
+pub(crate) fn write_ladder(o: &mut crate::band::Wr, l: &Ladder) { o.u32(l.x as u32); o.u32(l.top as u32); o.u32(l.len as u32); o.u32(l.ax as u32); o.u32(l.ay as u32); }
+/// One saved ladder (None: not one a `w` × `h` window can hold).
+pub(crate) fn read_ladder(r: &mut crate::band::Rd, w: usize, h: usize) -> Result<Option<Ladder>, String> {
+    let (x, top, len, ax, ay) = (r.u32()? as usize, r.u32()? as usize, r.u32()? as usize, r.u32()? as usize, r.u32()? as usize);
+    Ok((x < w && ax < w && top > 0 && top + len < h && ay < h).then_some(Ladder { x, top, len, ax, ay }))
+}
+pub(crate) fn write_lift(o: &mut crate::band::Wr, l: &Lift) { o.u32(l.x as u32); o.u32(l.head as u32); o.f32(l.y); o.u32(l.bottom as u32); o.u32(l.ballast); }
+/// One saved lift, braked, with the narrowest cage and no stops yet (None: not one a `w` × `h` window can hold).
+pub(crate) fn read_lift(r: &mut crate::band::Rd, w: usize, h: usize) -> Result<Option<Lift>, String> {
+    let (x, head, y, bottom, ballast) = (r.u32()? as usize, r.u32()? as usize, r.f32()?, r.u32()? as usize, r.u32()?);
+    Ok((x < w && head > 0 && bottom < h - 1 && y.is_finite()).then(|| Lift::new(x, head, y, bottom, ballast, CAGE_W.floor() - 1.)))
 }
