@@ -221,3 +221,27 @@ fn reachable() -> [bool; NITEM] {
     assert!(starved > 0.6 * full, "starved {starved} vs {full}: it should still bore on");
     assert!(moving >= 530, "it bores on smoothly, every tick ({moving} of 539)");
 }
+
+/// The rider sits in the borer's iron cab: loose gravel pouring down onto the machine doesn't bury them there (it used
+/// to kill within about two seconds, with nothing the rider could do: the cab holds them in place), nor does a
+/// diagonal run through clay hurt.
+#[test] fn the_borers_cab_shelters_its_rider() {
+    use molehill_sim::{borer::{Borer, STEAM_MAX}, mat::CPM, world::Harm};
+    let mut w = World::new(256 * molehill_sim::mat::S, 128 * molehill_sim::mat::S, 3); w.disasters.enabled = false;
+    for i in 0..w.g.mat.len() { w.g.set(i, Mat::Clay); }
+    let (x0, y0) = (10 * CPM, 8 * CPM);
+    for y in y0 - 2 * CPM..y0 { for x in x0 - 4 * CPM..x0 + CPM { let i = w.g.idx(x, y); w.g.set(i, Mat::Empty); } }
+    let mut b = Borer::new(x0 as f32 - 6., y0 as f32 - 6., 0.); b.fuel = vec![(Item::Coal, 20)]; b.burning = Some(Item::Coal); b.burn = 4000; b.steam = STEAM_MAX;
+    w.tr.borers.push(b); w.tr.borer_ride = Some(0);
+    let at = (w.tr.borers[0].x, w.tr.borers[0].y);
+    for _ in 0..500 { w.input.right = true; w.input.down = true; w.step(); assert!(w.pl.harm != Harm::Buried && w.moles[0].hp >= 99.9, "the ride hurt: hp {} at tick {}", w.moles[0].hp, w.tick); }
+    let b = &w.tr.borers[0]; assert!(b.x > at.0 + 2. * CPM as f32 && b.y > at.1 + 2. * CPM as f32, "it bored down and across: {at:?} to {:?}", (b.x, b.y));
+    // parked, a gravel pocket empties onto the cab
+    w.input.right = false; w.input.down = false; for _ in 0..60 { w.step(); }
+    let (cx, cy) = (w.tr.borers[0].cx as usize, w.tr.borers[0].cy as usize);
+    for y in cy - 6 * CPM..cy - CPM { for x in cx - CPM..=cx + CPM { let i = w.g.idx(x, y); w.g.set(i, Mat::Gravel); } }
+    for y in cy - CPM..cy - 2 { for x in cx - CPM..=cx + CPM { let i = w.g.idx(x, y); w.g.set(i, Mat::Empty); } }
+    for _ in 0..300 { w.step(); assert!(w.pl.harm != Harm::Buried && w.moles[0].hp >= 99.9, "gravel on the cab hurt: hp {} at tick {}", w.moles[0].hp, w.tick); }
+    assert!(w.tr.borer_ride == Some(0) && w.moles[0].alive);
+    let (mx, my) = (w.moles[0].x, w.moles[0].y); assert!((0..4).any(|j| w.g.get(mx, my - j) == Mat::Gravel), "the gravel did come down on the cab");
+}
