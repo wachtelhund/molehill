@@ -274,6 +274,7 @@ The JSON dump includes the tick (the world's absolute tick, a few ticks ahead of
 | `lift_balance.scn` | Four stones on the cage with the mole (70 kg over) are too heavy to haul (said; the brake holds); right mouse balances it with 7 stones from the pack and it rides |
 | `lift_powered.scn` | The same overload rides on current at the head (1.5 m/s, the copperline in a block of the head frame beside its middle); lever off, too heavy again |
 | `ladder_place_snap.scn` | A rope ladder aimed into rock is refused; aimed 1 m out from a cliff's face it ties on at the lip, hangs against the face and unrolls 4.5 m to the floor |
+| `ladder_over_rope_slack.scn` | A rope ladder on a 5.5 m cliff and a rope-gun rope fired up beside it, its slack lying at the ladder's foot: `W` there takes the ladder (never the rope) and climbs straight up it |
 | `tube_sends_items.scn` | A stone dropped in a hopper sits there until its blower gets current; then it is blown along the floor and up a 3 m riser in a capsule and comes out of the far hopper; hoppers are saved |
 | `tube_breach.scn` | Cut the riser while a capsule is in it: it stops at the cut and spills there |
 | `tube_rides_mole.scn` | Right mouse with an empty paw on a blowing hopper: the mole rides the capsule and climbs out up on the ledge, unhurt |
