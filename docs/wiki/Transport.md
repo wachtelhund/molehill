@@ -51,7 +51,8 @@ A **mine cart** is its own body, 1 m long and 0.5 m tall, that sits on the track
 * **Off the rails.** If the track under it goes, a cart drops and sits with its wheels in the ground. It won't roll until it's set back on track (`cart_off_rail`).
 * **Carts meet.** Two carts that run into each other trade speeds by their masses, like billiard balls, losing a little to the knock.
 * **A slope too steep to push.** The mole leans in with 320 N; a 1-in-3 climb needs about 330 N for an empty cart (gravity along it plus rolling friction). The run-up carries a cart a step or two up, and there it stalls (`rail_too_steep_to_push`).
-* Carts and their cargo are saved. A cart that scrolls out of the live window with the rows around it is lost (loose items aren't: they travel in the tiles). The carts of a found place are the exception: they are set out again when the place is wholly back in the window (see [World and Generation](World-and-Generation.md)).
+* Carts and their cargo are saved.
+* **A cart stays where you left it.** One the world window leaves (a trip of 70 m or more down from it, a long way sideways, or dying deep and waking in the burrow) waits with its cargo, and is back, standing still, when the window covers it again (`away.rs`, transport blob 16; test `a_cart_waits_with_its_cargo`). Before, it was lost with the rows it stood in, cargo and all. The steam borer, its wagons and the fixed machines (boilers, works, hoppers, weights, gates, scales) are still lost when the window leaves them.
 
 ## Powered rails
 

@@ -1,7 +1,7 @@
 //! The window sliding sideways (`World::shift_x`): the column twin of every `shift_*` the row slide runs.
 //! Each thing with an x moves with the rock; one that would leave the window is dropped, as a slide
 //! down drops what leaves the top (a vehicle is not kept in a tile). Ropes, rope ladders and lifts wait in
-//! `tr.away` instead and come back with the window (`away.rs`). Cell-index lists
+//! `tr.away` instead and come back with the window, and so do carts (`away.rs`). Cell-index lists
 //! (tube paths, gate and cast cells, drum cells) are re-indexed.
 use crate::world::World;
 
@@ -14,10 +14,8 @@ impl World {
     pub(crate) fn shift_x_transport(&mut self, cols: i64, w: usize) {
         let (dx, ww) = (cols as f32, w as f32); let inx = |x: f32, m: f32| x >= m && x < ww - m;
         let col = |x: usize, m: usize| -> Option<usize> { let v = x as i64 - cols; (v >= m as i64 && v + (m as i64) < w as i64).then_some(v as usize) };
-        // carts
-        let riding = self.tr.riding; let (mut keep, mut nr) = (vec![], None);
-        for (k, mut c) in std::mem::take(&mut self.tr.carts).into_iter().enumerate() { c.x -= dx; c.px -= dx; if !inx(c.x, 2.) { continue; } if riding == Some(k) { nr = Some(keep.len()); } keep.push(c); }
-        self.tr.carts = keep; self.tr.riding = nr;
+        // carts: one that leaves waits in `tr.away` with its cargo
+        self.slide_carts(cols, 0);
         // the borer (its head, cab and path) and its wagons move together in this one pass
         let riding = self.tr.borer_ride; let (mut keep, mut nr) = (vec![], None);
         for (k, mut b) in std::mem::take(&mut self.tr.borers).into_iter().enumerate() { b.shift(dx, 0.); if !inx(b.x, 2.) { continue; } if riding == Some(k) { nr = Some(keep.len()); } keep.push(b); }

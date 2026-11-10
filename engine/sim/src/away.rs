@@ -1,22 +1,24 @@
-//! Ropes, rope ladders and lifts the window has left.
+//! Ropes, rope ladders, lifts and carts the window has left.
 //!
 //! They aren't cells, so a tile blob (`band.rs`) doesn't carry them. Each waits here instead, as it was in
 //! the window it left together with that window's origin, and is put back when the window covers the whole
 //! of it again: a ladder hung in the home shaft is still there after a trip 100 m down, or after the mole
 //! dies deep and wakes in the burrow. (They used to be lost with the rows they hung in, which could leave
-//! a mole that can't climb rock under a ledge it had laddered.) Saved with the transport.
+//! a mole that can't climb rock under a ledge it had laddered.) A cart waits the same way, with its cargo, and comes back standing still. Saved with
+//! the transport.
 use crate::band::{Rd, Wr, R};
 use crate::lifts::{Ladder, Lift};
 use crate::mat::S;
 use crate::ropes::Rope;
+use crate::transport::Cart;
 use crate::world::World;
 
 /// A thing as it was in the window whose cell (0, 0) was world cell (`ox`, `oy`).
 #[derive(Clone, Debug)]
 pub struct Away<T> { pub ox: i64, pub oy: i64, pub it: T }
 #[derive(Clone, Debug, Default)]
-pub struct AwayAll { pub ropes: Vec<Away<Rope>>, pub ladders: Vec<Away<Ladder>>, pub lifts: Vec<Away<Lift>> }
-impl AwayAll { pub fn len(&self) -> usize { self.ropes.len() + self.ladders.len() + self.lifts.len() } pub fn is_empty(&self) -> bool { self.len() == 0 } }
+pub struct AwayAll { pub ropes: Vec<Away<Rope>>, pub ladders: Vec<Away<Ladder>>, pub lifts: Vec<Away<Lift>>, pub carts: Vec<Away<Cart>> }
+impl AwayAll { pub fn len(&self) -> usize { self.ropes.len() + self.ladders.len() + self.lifts.len() + self.carts.len() } pub fn is_empty(&self) -> bool { self.len() == 0 } }
 
 /// Cell `v` after the window moved `d` cells along its axis of length `n`, if it stays `lo` cells clear of
 /// the near edge and `hi` of the far one.
@@ -48,8 +50,26 @@ impl Lift {
         Some(Lift { x, head, bottom, y: self.y - dy, py: self.py - dy, stops: self.stops.iter().map(|&r| row(r)).collect(), target: self.target.map(row), ..self.clone() })
     }
 }
+impl Cart {
+    /// This cart after the window moved `cols` east and `rows` down, if it is still inside (2 cells clear of
+    /// every edge, as a cart is kept on a slide).
+    pub fn slid(&self, cols: i64, rows: i64, w: usize, h: usize) -> Option<Cart> {
+        let (dx, dy) = (cols as f32, rows as f32); let (x, y) = (self.x - dx, self.y - dy);
+        (x >= 2. && x < w as f32 - 2. && y >= 2. && y < h as f32 - 2.).then(|| Cart { x, y, px: self.px - dx, py: self.py - dy, ..self.clone() })
+    }
+}
 
 impl World {
+    /// Slide the carts with the window (`cols` east, `rows` down). One that leaves waits in `tr.away` with its
+    /// cargo; the mole's seat follows the cart it rides.
+    pub(crate) fn slide_carts(&mut self, cols: i64, rows: i64) {
+        let (w, h) = (self.g.w, self.g.h); let (ox, oy) = self.origin_before(cols, rows);
+        let riding = self.tr.riding; let (mut keep, mut nr) = (vec![], None);
+        for (k, c) in std::mem::take(&mut self.tr.carts).into_iter().enumerate() {
+            match c.slid(cols, rows, w, h) { Some(c) => { if riding == Some(k) { nr = Some(keep.len()); } keep.push(c); } None => self.tr.away.carts.push(Away { ox, oy, it: c }) }
+        }
+        self.tr.carts = keep; self.tr.riding = nr;
+    }
     /// A rope, ladder or lift that didn't stay in the window on this slide of (`cols`, `rows`): it waits in
     /// `tr.away` with the origin the window had before the slide. (Call after `ox` / `oy` moved.)
     pub(crate) fn origin_before(&self, cols: i64, rows: i64) -> (i64, i64) { (self.ox - cols, self.oy - rows) }
@@ -66,6 +86,8 @@ impl World {
         a.lifts.retain(|p| match p.it.slid(ox - p.ox, oy - p.oy, w, h) {
             Some(mut l) => { l.stops = self.lift_stops(l.x, l.w, l.head, l.bottom); l.target = None; l.v = 0.; l.py = l.y; self.tr.lifts.push(l); false }
             None => true });
+        // a cart comes back standing still where it stood (the ground under it came in with the tiles)
+        a.carts.retain(|p| match p.it.slid(ox - p.ox, oy - p.oy, w, h) { Some(c) => { self.tr.carts.push(Cart { px: c.x, py: c.y, v: 0., vy: 0., ..c }); false } None => true });
         self.tr.away = a;
     }
 
@@ -74,13 +96,16 @@ impl World {
         o.u32(a.ropes.len() as u32); for p in &a.ropes { at(o, p.ox, p.oy); crate::ropes::write_rope(o, &p.it); }
         o.u32(a.ladders.len() as u32); for p in &a.ladders { at(o, p.ox, p.oy); crate::lifts::write_ladder(o, &p.it); }
         o.u32(a.lifts.len() as u32); for p in &a.lifts { at(o, p.ox, p.oy); crate::lifts::write_lift(o, &p.it); o.f32(p.it.w); }
+        // transport v16: carts
+        o.u32(a.carts.len() as u32); for p in &a.carts { at(o, p.ox, p.oy); crate::transport::write_cart(o, &p.it); }
     }
-    pub(crate) fn decode_away(&mut self, r: &mut Rd) -> R<()> {
+    pub(crate) fn decode_away(&mut self, r: &mut Rd, ver: u8) -> R<()> {
         let (w, h) = (self.g.w, self.g.h); let at = |r: &mut Rd| -> R<(i64, i64)> { Ok((r.u64()? as i64, r.u64()? as i64)) };
         for _ in 0..r.len(4096)? { let (ox, oy) = at(r)?; if let Some(it) = crate::ropes::read_rope(r, w, h)? { self.tr.away.ropes.push(Away { ox, oy, it }); } }
         for _ in 0..r.len(4096)? { let (ox, oy) = at(r)?; if let Some(it) = crate::lifts::read_ladder(r, w, h)? { self.tr.away.ladders.push(Away { ox, oy, it }); } }
         for _ in 0..r.len(4096)? { let (ox, oy) = at(r)?; let l = crate::lifts::read_lift(r, w, h)?; let cw = r.f32()?;
             if let Some(mut it) = l { if cw >= 1. && cw <= crate::lifts::CAGE_MAX { it.w = cw; } self.tr.away.lifts.push(Away { ox, oy, it }); } }
+        if ver >= 16 { for _ in 0..r.len(4096)? { let (ox, oy) = at(r)?; let it = crate::transport::read_cart(r)?; if it.x.is_finite() && it.y.is_finite() { self.tr.away.carts.push(Away { ox, oy, it }); } } }
         Ok(())
     }
 }
