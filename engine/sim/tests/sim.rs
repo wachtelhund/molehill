@@ -2171,3 +2171,27 @@ fn a_window_slide_keeps_a_lift_on_its_way_to_its_stop() {
     let l = &w.tr.lifts[0];
     assert!(l.target.is_none() && (l.y - want as f32).abs() < 0.01, "arrived at the top stop (cage {}, stop {want})", l.y);
 }
+
+// A found place hangs its own ladders, and hangs them again whenever the window comes back to it (they
+// used to be lost with the window). Now that ladders wait and come back, the place's came back twice: the
+// one that waited and the one hung anew, on the same spot, and `E` there handed out a spare ladder for
+// every trip away. A ladder that comes back where one already hangs is the same ladder.
+#[test]
+fn a_found_places_ladders_come_back_once() {
+    use molehill_sim::sites::Kind;
+    for sideways in [false, true] {
+        let mut w = World::new(512 * S, 512 * S, 11); w.disasters.enabled = false;
+        let (sw, sh) = Kind::Mine.size(); let m = 2 * molehill_sim::mat::CPM; let (x0, y0) = ((w.g.w - sw) / 2, (w.g.h - sh) / 2);
+        for y in y0 - m..y0 + sh + m { for x in x0 - m..x0 + sw + m { let i = w.g.idx(x, y); w.g.set(i, Mat::Granite); w.g.flags[i] = 0; } }
+        w.tr.ladders.clear(); w.stamp_site(Kind::Mine, x0, y0);
+        let spots = |w: &World| { let mut v: Vec<(i64, i64, usize)> = w.tr.ladders.iter().map(|l| (w.ox + l.x as i64, w.oy + l.top as i64, l.len)).collect(); v.sort(); v };
+        let before = spots(&w); assert!(!before.is_empty(), "the mine hangs ladders");
+        let step = if sideways { molehill_sim::band::TW as i64 } else { SLIDE as i64 }; let n = if sideways { w.g.w } else { w.g.h } as i64 / step;
+        let go = |w: &mut World, d: i64| if sideways { w.shift_x(d) } else { w.shift(d) };
+        for _ in 0..n { go(&mut w, step); }
+        assert_eq!(w.tr.away.ladders.len(), before.len(), "they wait (sideways: {sideways})");
+        for _ in 0..n { go(&mut w, -step); }
+        assert_eq!(spots(&w), before, "each back once, where it hung (sideways: {sideways})");
+        assert!(w.tr.away.is_empty());
+    }
+}
