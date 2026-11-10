@@ -1220,8 +1220,11 @@ impl World {
         // no wall climbing: the mole can't cling to or climb bare rock (rope ladders and rope-gun ropes are the way
         // up a wall). Airborne and pressing into a wall whose top is within a step of the feet, it rolls over it.
         self.pl.cling = 0;
-        // on a rope ladder (transport, lifts.rs) or a rope-gun rope (ropes.rs): a jump off a ladder counts as from the ground
-        let roped = if self.tr.climbing { None } else { self.rope_hold(ground, jump_edge) }; self.pl.up_was = inp.up;
+        // on a rope ladder (transport, lifts.rs) or a rope-gun rope (ropes.rs): a jump off a ladder counts as from the ground.
+        // Over a ladder, `W` takes the ladder, not a rope in reach as well (16 m of rope leaves slack on the floor at a
+        // ladder's foot); a mole already on a rope stays on it
+        let ladder_first = self.tr.on_rope.is_none() && inp.up && self.ladder_takes_up();
+        let roped = if self.tr.climbing || ladder_first { None } else { self.rope_hold(ground, jump_edge) }; self.pl.up_was = inp.up;
         let climbing = roped.is_none() && self.ladder_climb(ground, jump_edge, dir); if climbing { self.pl.coyote = t.coyote; }
         if dir != 0 { self.moles[0].facing = dir as i8; }
         let swim = if lava { t.lava_mul } else if wet { t.swim_mul } else { 1. };
