@@ -83,6 +83,8 @@ pub struct Transport {
     pub ropes: Vec<crate::ropes::Rope>, pub hook: Option<crate::ropes::Hook>, pub on_rope: Option<(usize, f32)>,
     /// `W` / `S` a tick ago, for calling a lift on a fresh press (see lifts.rs)
     pub lift_keys_was: (bool, bool),
+    /// ropes, rope ladders and lifts the window has left: they come back when it covers them again (see away.rs)
+    pub away: crate::away::AwayAll,
     /// drive trains and counterweights (see power.rs)
     pub power: crate::power::Power,
     /// boilers (see steam.rs)
@@ -312,7 +314,8 @@ impl World {
         ((want - c.v) * 4.).clamp(-POWER_ACC * k, POWER_ACC * k)
     }
 
-    /// Slide everything by `rows` (the window moved deeper by that many rows); what leaves the window is lost.
+    /// Slide everything by `rows` (the window moved deeper by that many rows); what leaves the window is lost,
+    /// but for ropes, rope ladders and lifts (`away.rs`).
     pub(crate) fn shift_transport(&mut self, rows: i64, h: usize) {
         let dy = rows as f32; let riding = self.tr.riding.map(|k| k as i64);
         let mut keep = vec![]; let mut new_ride = None;
@@ -322,18 +325,19 @@ impl World {
         }
         self.tr.carts = keep; self.tr.riding = new_ride;
         self.shift_tubes(rows); self.shift_bins(rows, h); self.shift_ropes(rows); self.shift_power(rows, h); self.shift_boilers(rows, h); self.shift_works(rows, h); self.shift_linkage(rows); self.shift_borers(rows, h); self.shift_wagons(rows, h);
-        let (dr, hh) = (rows, h as i64);
-        self.tr.ladders.retain_mut(|l| { let t = l.top as i64 - dr; let a = l.ay as i64 - dr; if t < 1 || a < 0 || t + l.len as i64 >= hh { return false; } l.top = t as usize; l.ay = a as usize; true });
-        self.tr.lifts.retain_mut(|l| { let hd = l.head as i64 - dr; let b = l.bottom as i64 - dr; if hd < 1 || b >= hh - 1 { return false; } l.head = hd as usize; l.bottom = b as usize; l.y -= dy; l.py -= dy; true });
+        // ladders and lifts that leave wait in `tr.away` (as the ropes do) and come back with the window
+        let (ox, oy) = self.origin_before(0, rows); let w = self.g.w;
+        for l in std::mem::take(&mut self.tr.ladders) { match l.slid(0, rows, w, h) { Some(l) => self.tr.ladders.push(l), None => self.tr.away.ladders.push(crate::away::Away { ox, oy, it: l }) } }
+        for l in std::mem::take(&mut self.tr.lifts) { match l.slid(0, rows, w, h) { Some(l) => self.tr.lifts.push(l), None => self.tr.away.lifts.push(crate::away::Away { ox, oy, it: l }) } }
     }
     /// Save: the carts (window-relative cells) and their cargo.
     pub fn encode_transport(&self) -> Vec<u8> {
-        let mut o = crate::band::Wr(vec![]); o.u8(14);
+        let mut o = crate::band::Wr(vec![]); o.u8(15);
         o.u32(self.tr.carts.len() as u32);
         for c in &self.tr.carts { o.f32(c.x); o.f32(c.y); o.f32(c.v); o.u8((c.dir + 1) as u8); o.u32(c.cargo.len() as u32); for &(it, n) in &c.cargo { o.u8(it as u8); o.u32(n); } }
         // v2: ladders and lifts
-        o.u32(self.tr.ladders.len() as u32); for l in &self.tr.ladders { o.u32(l.x as u32); o.u32(l.top as u32); o.u32(l.len as u32); o.u32(l.ax as u32); o.u32(l.ay as u32); }
-        o.u32(self.tr.lifts.len() as u32); for l in &self.tr.lifts { o.u32(l.x as u32); o.u32(l.head as u32); o.f32(l.y); o.u32(l.bottom as u32); o.u32(l.ballast); }
+        o.u32(self.tr.ladders.len() as u32); for l in &self.tr.ladders { crate::lifts::write_ladder(&mut o, l); }
+        o.u32(self.tr.lifts.len() as u32); for l in &self.tr.lifts { crate::lifts::write_lift(&mut o, l); }
         // v3: pressure tubes
         self.encode_tubes(&mut o);
         // v4: ore hoppers
@@ -354,6 +358,8 @@ impl World {
         self.encode_wagons(&mut o);
         // v12: lift cages' widths (built to their shafts)
         o.u32(self.tr.lifts.len() as u32); for l in &self.tr.lifts { o.f32(l.w); }
+        // v15: the ropes, ladders and lifts the window has left
+        self.encode_away(&mut o);
         o.0
     }
     pub fn decode_transport(&mut self, b: &[u8]) -> Result<(), String> {
@@ -366,9 +372,8 @@ impl World {
         }
         if ver >= 2 {
             let (w, h) = (self.g.w, self.g.h);
-            for _ in 0..r.len(4096)? { let (x, top, len, ax, ay) = (r.u32()? as usize, r.u32()? as usize, r.u32()? as usize, r.u32()? as usize, r.u32()? as usize); if x < w && ax < w && top > 0 && top + len < h && ay < h { self.tr.ladders.push(crate::lifts::Ladder { x, top, len, ax, ay }); } }
-            for _ in 0..r.len(4096)? { let (x, head, y, bottom, ballast) = (r.u32()? as usize, r.u32()? as usize, r.f32()?, r.u32()? as usize, r.u32()?);
-                if x < w && head > 0 && bottom < h - 1 && y.is_finite() { let mut l = crate::lifts::Lift::new(x, head, y, bottom, ballast, crate::lifts::CAGE_W.floor() - 1.); l.stops = self.lift_stops(x, l.w, head, bottom); self.tr.lifts.push(l); } }
+            for _ in 0..r.len(4096)? { if let Some(l) = crate::lifts::read_ladder(&mut r, w, h)? { self.tr.ladders.push(l); } }
+            for _ in 0..r.len(4096)? { if let Some(mut l) = crate::lifts::read_lift(&mut r, w, h)? { l.stops = self.lift_stops(l.x, l.w, l.head, l.bottom); self.tr.lifts.push(l); } }
         }
         if ver >= 3 { self.decode_tubes(&mut r)?; }
         if ver >= 4 { self.decode_bins(&mut r)?; }
@@ -382,6 +387,7 @@ impl World {
         if ver < 14 { self.adopt_old_trains(); }
         if ver >= 12 { let n = r.len(4096)?; let ws: Vec<f32> = (0..n).map(|_| r.f32()).collect::<Result<_, _>>()?;
             if ws.len() == self.tr.lifts.len() { for k in 0..ws.len() { if ws[k].is_finite() && ws[k] >= 1. && ws[k] <= crate::lifts::CAGE_MAX { let l = &self.tr.lifts[k]; let st = self.lift_stops(l.x, ws[k], l.head, l.bottom); self.tr.lifts[k].w = ws[k]; self.tr.lifts[k].stops = st; } } } }
+        if ver >= 15 { self.decode_away(&mut r)?; }
         Ok(())
     }
 }
