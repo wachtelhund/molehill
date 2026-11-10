@@ -301,14 +301,15 @@ pub fn icon_px(it: Item) -> Px {
         Clutch => { // two toothed iron halves on a shaft, a fork lever on one
             p.rect(0, 7, 15, 8, IRON); p.rect(3, 3, 6, 12, col); p.rect(9, 3, 12, 12, sh(col, 0.85)); for y in [4, 7, 10] { p.set(7, y, col); p.set(8, y + 1, sh(col, 0.85)); }
             line(&mut p, 11., 3., 14., 0., 1, WOOD_D); }
-        SteamBorer => { // the borer side on, as it stands in the world: a brick firebox at the rear with its door glowing, a riveted
-            // iron barrel, the stack letting off a puff, a toothed steel cone of a bore head at the front, two spoked wheels
-            p.rect(0, 4, 3, 11, [128, 70, 54]); p.rect(0, 4, 3, 4, [160, 92, 70]); p.rect(1, 7, 2, 9, FLAME); // firebox and door
-            p.oval(7.5, 8., 5., 3.4, IRON); p.rect(3, 5, 11, 5, sh(IRON, 1.3)); for x in [5, 8, 11] { p.set(x, 10, IRON_D); } // barrel and rivets
-            p.rect(6, 1, 7, 4, IRON_D); p.set(7, 0, [214, 214, 220]); p.set(8, 0, [196, 196, 204]); // stack and a puff
-            for x in 12..16 { let hw = 16 - x; for y in 8 - hw..8 + hw { p.set(x, y, if (x + y) % 2 == 0 { [196, 198, 210] } else { [110, 112, 124] }); } } // the bore head
-            p.rect(0, 12, 12, 12, IRON_D);
-            for cx in [3.5f32, 9.5] { p.oval(cx, 13., 2.6, 2.6, [56, 56, 64]); p.rect(cx as i32, 11, cx as i32, 15, [96, 96, 106]); p.rect(cx as i32 - 2, 13, cx as i32 + 2, 13, [96, 96, 106]); p.set(cx as i32, 13, BRASS); } }
+        SteamBorer => { // the borer side on, as it stands in the world (`art::borer`): a brick firebox at the rear with its door glowing,
+            // a riveted iron barrel, the stack letting off a puff, a brass lamp over the nose, a toothed steel cone of a bore head at
+            // the front, all on a chassis bar: it has no wheels, it pushes itself along its own bore
+            p.rect(0, 5, 3, 12, [128, 70, 54]); p.rect(0, 5, 3, 5, [160, 92, 70]); p.rect(1, 8, 2, 10, FLAME); // firebox and door
+            p.oval(7.5, 9., 5., 3.4, IRON); p.rect(3, 6, 11, 6, sh(IRON, 1.3)); for x in [5, 8, 11] { p.set(x, 11, IRON_D); } // barrel and rivets
+            p.rect(6, 2, 7, 5, IRON_D); p.set(7, 1, [214, 214, 220]); p.set(8, 1, [196, 196, 204]); // stack and a puff
+            for x in 12..16 { let hw = 16 - x; for y in 9 - hw..9 + hw { p.set(x, y, if (x + y) % 2 == 0 { [196, 198, 210] } else { [110, 112, 124] }); } } // the bore head
+            p.set(11, 5, IRON_D); p.set(11, 4, BRASS); p.set(12, 4, [160, 180, 196]); // the lamp on its bracket
+            p.rect(0, 13, 12, 14, IRON_D); p.rect(0, 13, 12, 13, sh(IRON_D, 1.3)); } // chassis
         StoreWagon | WorkshopWagon | BunkWagon | CoalWagon => { // the wagon as it stands in the world (`art::wagon_px`): each
             // kind its own body, on two spoked iron wheels; the store and coal wagons show a load heaped above the rim
             let k = match it { StoreWagon => 0, WorkshopWagon => 1, BunkWagon => 2, _ => 3 };
